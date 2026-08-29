@@ -598,10 +598,25 @@ live_signal_gap_ledger_seed session=e9c504f1 symbol=BTC/USDT
 raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족해서 우회한 흔적**이다.
 ⇒ 수리 방향은 「옮긴다」가 아니라 **repository 에 그 메소드를 만든다**.
 
+★★★**2026-08-30 재측정 — 9건이 아니라 2건이다.** 위 표는 낡았다. 전수 grep(`session.execute`·`db.execute`, repository 제외) 실측:
+
+| 파일                                      | 2026-08-16 | **2026-08-30** |
+| ----------------------------------------- | ---------- | -------------- |
+| `src/trading/dependencies.py`             | 3          | **0**          |
+| `src/trading/kill_switch.py`              | 2          | **0**          |
+| `src/trading/websocket/reconciliation.py` | 1          | **0**          |
+| `src/trading/websocket/state_handler.py`  | 1          | **0**          |
+| `src/tasks/websocket_task.py`             | 1          | 1 (`:449`)     |
+| `src/trading/funding.py`                  | 1          | 1 (`:32`)      |
+
+★**누가 고쳤는지도 원장 밖이었다** — 2026-08-24 n8 회차가 「경계 밖 `select()` census **0건**(AST·`tasks/` 제외, 잔여는 `websocket_task.py` 1건)」을 산출로 적었는데(`status.md` 346행) **이 섹션은 따라오지 않았다.** 6파일 중 4파일이 그때 소멸했다.
+
+⇒ **트리거의 전제가 바뀐다.** 「6파일을 손대는 회차에 동승」은 대상 파일이 4개 사라져 성립하지 않는다. 남은 2건은 **단독 착수가 M 이 아니라 S**(1h 내외)이고, 방향은 위 「repository 에 그 메소드를 만든다」 그대로다.
+
 **Risk:** 🟢 (동작 정상 — 회귀 방어면이 좁을 뿐)
 
-**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 코드 대조로 9건 확정. 미착수
-**트리거 판정:** 미도래 — 해당 6파일을 손대는 회차에 동승한다 (2026-08-16 deploy-activation)
+**상태:** ⏳ **대기 (트리거 미도래)** — ~~2026-08-16 에 코드 대조로 9건 확정~~ → **2026-08-30 재측정 = 2건 / 2파일.** 미착수
+**트리거 판정:** 미도래 — ~~해당 6파일을 손대는 회차에 동승한다 (2026-08-16 deploy-activation)~~ → **2026-08-30** 잔여 2파일(`tasks/websocket_task.py` · `trading/funding.py`)을 손대는 회차에 동승. 단독 착수도 S 라 가능하다
 
 ---
 

@@ -394,9 +394,19 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **상태:** 🟡 **부분 Resolved — 권장안 (a) 까지 (2026-07-25, `stage/exit-money-path`).** `tasks/trading.py:1698` 의 마지막 `.value` 잔존(`qb_exchange_exit_rows_total` 라벨)을 `str(row.classification)` 로 바꿨다. 지금은 메모리 객체라 안전하지만, 소스가 재조회 경로로 바뀌는 리팩터 한 번이면 dogfood 때와 같은 크래시가 재현되는 자리였다(grep 결과 코드베이스에 남은 유일한 `.value`). 그리고 **감사 목록에서 빠져 있던 `ExchangeExit.attribution_confidence` 를 포함해 6개 필드 전부**에 "`.value`/`.name` 금지, `==`/`!=`/`str()` 만" 주석을 통일했다(`models.py:441 · 583 · 634 · 640 · 718 · 742`). ~~권장안 (b) 정적 가드와 (c) `sa.Enum` 복귀는 미착수.~~
 → ★**2026-08-24 n9-trading-contract — (b) 의 「선언 축」만 닫혔다. 「사용 축」은 구조적으로 못 닫는다.**
 신설 `apps/api/tests/trading/test_strenum_column_contract.py` 가 `sa_column=Column(..., String(...))` 위에 StrEnum 주석이 얹힌 필드를 AST 로 수집해(6건) **전건이 BL-453 계약 주석을 달고 있는지**를 잰다. 7번째 필드를 계약 없이 추가하면 red 다.
-★★**사용처 가드(「이 6개 필드에 `.value`/`.name` 금지」)는 기각됐다 — 다시 만들지 마라.** `apps/api/src` 전량 AST 실측에서 12건이 걸렸고 **12건 전부 위양성**이었다: `bt.status.value`·`run.status.value`(backtest·optimizer·stress_test)의 `status` 는 **진짜 Enum 컬럼**이라 `.value` 가 정당하고, `tally.channel.value`(`trading/entry_completeness.py`)의 `tally` 는 `ChannelTally` 라는 **로컬 dataclass** 다. ⇒ **필드 이름만으로는 소유 클래스를 못 가른다.**
-⇒ **잔여 = 사용 축 · (c) `sa.Enum` 복귀.** 사용 축을 닫으려면 이름이 아니라 **타입**을 봐야 하므로 mypy 게이트가 선행 조건이다(현재 CI 는 `ruff` 만 잰다).
-**트리거 판정:** 미도래 — 동승 조건. 「이 5개 필드에 `.value` 를 새로 쓰는 코드가 추가될 때」라 그 코드를 쓰는 회차에 붙는다. 단독 착수 시 값이 0이다 (2026-08-11 bl-703-partial-verdicts)
+~~★★**사용처 가드(「이 6개 필드에 `.value`/`.name` 금지」)는 기각됐다 — 다시 만들지 마라.** `apps/api/src` 전량 AST 실측에서 12건이 걸렸고 **12건 전부 위양성**이었다: `bt.status.value`·`run.status.value`(backtest·optimizer·stress_test)의 `status` 는 **진짜 Enum 컬럼**이라 `.value` 가 정당하고, `tally.channel.value`(`trading/entry_completeness.py`)의 `tally` 는 `ChannelTally` 라는 **로컬 dataclass** 다. ⇒ **필드 이름만으로는 소유 클래스를 못 가른다.**~~
+~~⇒ **잔여 = 사용 축 · (c) `sa.Enum` 복귀.** 사용 축을 닫으려면 이름이 아니라 **타입**을 봐야 하므로 mypy 게이트가 선행 조건이다(현재 CI 는 `ruff` 만 잰다).~~
+
+★★★**2026-08-30 코드 대조 — 바로 위 두 줄이 둘 다 거짓이다. 이 섹션이 자기 자신을 반증하고 있었다.**
+「기각됐다 — 다시 만들지 마라」고 적힌 그 가드가 **이미 레포에 있고 green 이다**: `apps/api/tests/trading/test_no_strenum_value_access.py`(18KB, n7 PR #797). 2026-08-30 전량 pytest **5,568 passed** 에 포함돼 통과했다. ⓪ 표 B행이 2026-08-24 에 같은 것을 적어 뒀는데 **이 섹션 본문만 안 따라왔다** — 원장 안에서 두 자리가 서로 반대를 말하고 있었다.
+
+★**위양성 12건 문제는 「못 가른다」가 아니라 이미 풀려 있다.** 가드는 두 수단으로 그것을 처리한다: ⑴ **스코프** — `_SCANNED_DIRECTORIES = (src/trading, src/tasks)` 라 위양성의 출처였던 backtest·optimizer·stress_test 가 애초에 대상 밖이다. ⑵ **allowlist** — `entry_completeness.py` 의 `ChannelTally` 3건이 `(파일, 속성, **비어 있지 않은 사유**)` 3튜플로 등재돼 있고, **각 항목이 실제 AST hit 하나와 대응해야** 해서 낡은 면제가 남으면 그 자신이 red 다. 게다가 대상 필드를 이름이 아니라 **`models.py` AST 에서 파생**하고(StrEnum 주석 + `Column(..., String(N))`), `_MIN_SCANNED_FILES = 70` 양성 대조까지 붙어 있다.
+
+★**「mypy 게이트가 선행」도 거짓이다** — mypy 는 `.value` 축을 못 잡으므로 AC 로 쓰면 항진명제다(⓪ 표 B행 2026-08-24 실측). 그리고 선행일 필요도 없다. 가드가 이미 그 일을 하고 있다.
+
+⇒ ★**잔여는 (c) `sa.Enum` 복귀 하나뿐이다** — 「Sprint 26 의 `UndefinedObjectError` 워크어라운드가 아직 필요한가」라는 별개 질문이고, 선언 축(n9 `test_strenum_column_contract.py`)·사용 축(n7 위 가드) 둘 다 닫힌 지금 **재발 위험은 가드가 막고 있다.** ⇒ **종결 후보**다(⓪ 표 B행에서 사용자 1줄 결정).
+
+**트리거 판정:** ~~미도래 — 동승 조건. 「이 5개 필드에 `.value` 를 새로 쓰는 코드가 추가될 때」라 그 코드를 쓰는 회차에 붙는다. 단독 착수 시 값이 0이다 (2026-08-11 bl-703-partial-verdicts)~~ → **2026-08-30 재판정 — 그 트리거는 가드가 흡수했다.** 「`.value` 를 새로 쓰는 코드」는 이제 사람이 알아채는 것이 아니라 **CI 가 red 로 잡는다.** 남은 (c) 는 트리거가 「`sa.Enum` 워크어라운드를 실제로 걷어낼 이유가 생길 때」다 — 지금은 없다
 
 ---
 
@@ -792,10 +802,16 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **증상 (실측):** `apps/web/src/features/optimizer/form-schemas.ts:44` 가 `var_name: z.string().min(1, "변수 이름을 입력하세요.")` 라 사용자가 **Pine 변수명을 기억해 직접 친다**. 오타면 BE `_validate_grid_search_pre`(`optimizer/engine/grid_search.py:132-186`)가 422 로 거부하고 그제야 선언 목록을 알려 준다. `int`/`float` 이 아닌 input 도 거부되는데(BL-225) 그 사실도 미리 안 보인다.
 **왜 지금 가능해졌나:** [ADR-040] Stage 1 이 `ParsePreviewResponse.inputs`(이름·타입·기본값)를 열었고 `GET /strategies/{id}/brief` 도 같은 목록을 준다. **데이터가 이미 있다** — 남은 것은 폼을 드롭다운으로 바꾸는 것뿐이다.
 **권장 접근:** 자유 입력을 `inputs` 기반 select 로. ★스윕 불가(`input_type ∉ {int,float}`)를 **숨기지 말고 비활성 + 사유 표기**한다 — 목록에서 빼면 사용자가 그 파라미터가 없다고 읽는다(브리핑 표가 같은 판단을 했다).
-**★비용 함정:** 브리핑 엔드포인트를 그냥 부르면 옵티마이저 화면에 **콜드 Pine 파스**가 붙는다(`i3_drfx` 실측 53.38초). 캐시가 warm 한 경로를 쓰거나 목록 API 에 얹어라.
+~~**★비용 함정:** 브리핑 엔드포인트를 그냥 부르면 옵티마이저 화면에 **콜드 Pine 파스**가 붙는다(`i3_drfx` 실측 53.38초). 캐시가 warm 한 경로를 쓰거나 목록 API 에 얹어라.~~
+→ ★★**2026-08-30 — 그 함정은 [BL-832] 가 이미 없앴다.** 53.38초는 **캐시 이전 수치**다. L2 디스크 캐시(`pine_v2/parser_adapter.py`, PR #837 · 2026-08-26)가 붙은 뒤로 콜드는 **프로세스당 1회가 아니라 소스당 1회**이고 재방문은 4.8ms 다. 옵티마이저 화면이 그 소스의 첫 파스를 물 확률 자체가 낮다(같은 전략의 편집 화면이 `StrategyBriefPanel` 로 이미 한 번 파스한다 — `edit/diagnostics-strip.tsx:102`). ⇒ **비용을 이유로 설계를 비틀지 마라.**
 
-**상태:** 🔵 ACTIVE — 2026-08-27 등재, 미수리
-**트리거 판정:** 도래 (데이터가 이미 있다)
+★★★**2026-08-30 실측 — 진짜 제약은 따로 있다. `inputs` 를 주는 GET 이 없다.**
+`inputs` 는 **`ParsePreviewResponse`**(`POST /strategies/parse` — **소스 코드를 넘겨야 한다**)와 **`GET /strategies/{id}/brief`** 두 곳에만 있다. `StrategyResponse` 에는 **없다**(필드 전수 확인). 그런데 옵티마이저 폼이 쥐고 있는 것은 `strategy_id` 다.
+⇒ ★**확정 경로(2026-08-30) = `GET /strategies/{id}` 로 `pine_source` 를 받아 `POST /strategies/parse` 에 넘긴다.** 2왕복이지만 **BE 0줄 · 계약 변경 0**이라 계약 축(`contracts/**`)과 파일이 안 겹친다. `StrategyResponse.pine_source` 가 실재함을 확인했다.
+★대안 둘은 **버렸다**: `GET /{id}/brief` 는 응답이 무겁고 brief 계약에 옵티마이저를 묶는다 · `StrategyResponse` 에 `inputs` 추가는 **OpenAPI 계약 파일을 건드려** 같은 회차의 계약 lane 과 정면 충돌한다.
+
+**상태:** 🔵 ACTIVE — 2026-08-27 등재, 미수리. **2026-08-30 착수 경로 확정**
+**트리거 판정:** 도래 (데이터가 이미 있다 — 다만 `POST /parse` 경유다)
 
 ### BL-834
 
@@ -807,8 +823,13 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **증상 (실측):** ⑴ `strategy/convert/service.py` 는 `tools=`/`response_schema=` 가 **0건**이라 응답을 문자열로 수동 파싱하고 Gemini 의 ``` 펜스를 손으로 벗긴다 — PR #840 이 세운 `narrative/providers.py`(세 provider 스키마 강제 + `LLM_PROVIDER_ORDER`) 밖에 혼자 남았다. 그래서 `convert` 만 provider 선택이 안 되고 anthropic→gemini 하드코딩이다. ⑵ `mode="sliced"`(`SignalExtractor` 경유, 토큰 **77~97% 절감**)는 BE 구현·테스트 완비인데 FE 가 `"full"` 을 하드코딩한다(`ConvertWithAIButton.tsx:29`) ⇒ **도달 불가**. ⑶ 그 버튼의 유일한 호출처가 422 에러 카드(`form-error-inline.tsx:190`)라 **정상 흐름 진입점이 0개**다.
 **권장 접근:** ⑵⑶ 이 싸다(FE 두 줄 + 진입점 하나). ⑴ 은 convert 의 산출이 **코드 문자열**이라 JSON 스키마 계약을 먼저 정해야 해서 별도 판단이 필요하다 — 옮기지 않기로 정한다면 그 사유를 여기 적어 닫아라.
 
-**상태:** 🔵 ACTIVE — 2026-08-28 등재, 미수리
-**트리거 판정:** 도래 (⑵⑶ 은 단독 착수 가능)
+★★★**2026-08-30 코드 대조 — ⑵ 의 값이 「토큰 절감」보다 세다. `sliced` 는 LLM 을 아예 안 부르는 경로다.**
+`convert/service.py:52-68` 실측: `mode="sliced"` 면 `SignalExtractor` 로 슬라이싱한 뒤 **`result.is_runnable` 이면 그 자리에서 반환한다** — `input_tokens=0, output_tokens=0`, warning 은 「AST 슬라이싱으로 직접 실행 가능한 코드 추출 (**LLM 미사용**)」. 즉 절감은 77~97% 가 아니라 **경우에 따라 100%**(왕복 0회 · 지연 0 · 비용 0)다. 실행 불가일 때만 슬라이스된 코드를 LLM 에 넘긴다. FE 가 `"full"` 을 하드코딩(`ConvertWithAIButton.tsx:29`)하는 한 **이 경로는 한 번도 실행된 적이 없다.**
+
+★★**2026-08-30 — ⑴ 이 P3 에서 「사용자에게 거짓말 중」으로 올라갔다.** 2026-08-29 사용자 결정으로 **anthropic 키를 서버에서 제거**했는데(`status.md` — `LLM_PROVIDER_ORDER=openai,gemini`) `convert/service.py:35-121` 은 여전히 **anthropic → gemini 하드코딩**이다. 결과: ⑴ `anthropic_key is None` 이라 통째로 건너뛰고 **gemini 단독**으로 돌면서 ⑵ 응답 경고문은 `f"Gemini {model} 로 변환 완료 **(fallback)**"` 를 그대로 붙인다 — **fallback 이 아닌데 fallback 이라고 사용자 화면에 적는다**(`_convert_with_gemini` 의 `provider_warnings`). ⑶ `openai` 는 convert 에서 **영원히 도달 불가**다(provider 목록에 없다). ★키가 유효해도 이 셋은 안 고쳐진다 — [BL-833] 과 달리 **설정으로 못 푸는 코드 결함**이다.
+
+**상태:** 🔵 ACTIVE — 2026-08-28 등재, 미수리. **2026-08-30 ⑴ 재평가 — anthropic 제거로 증상이 발현했다**
+**트리거 판정:** 도래 (⑵⑶ 은 단독 착수 가능 · ⑴ 은 anthropic 제거로 **이미 발현 중**이라 더 미룰 근거가 약해졌다)
 
 ### BL-827
 
@@ -819,8 +840,16 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **증상 (실측):** `mise run openapi-check` 가 `.github/workflows/ci.yml` 어디에서도 호출되지 않는다(`grep openapi ci.yml` = 0건). 그래서 BL-822 회차가 `export_openapi.py` 를 돌리자 **이 회차와 무관한 선행 drift** 가 딸려 나왔다 — `ClosePositionConflictResponse` · `RestingEntriesConflictDetail` · `/close` 409 응답이 커밋된 계약에 빠져 있었다(코드 유입은 `6784fceb`/PR #809). 2단(orval 부분집합)도 같은 처지고, 거기서 파생되는 `apps/web/src/lib/api-contract-poc/generated/**`(orval + openapi-typescript)는 **재생성 자체가 아무 절차에도 없어** `completed_trades` 가 0건이다(소스인 `openapi.poc.json` 에는 있다). 생성기 설정은 `apps/web/orval.poc.config.ts` 로 실재한다.
 **동승 항목:** `deriveTradeCounts`(`apps/web/src/features/backtest/trade-counts.ts`)가 `Math.max(0, total - completed)` 로 **두 저장소(trades 테이블 vs JSONB)의 불일치를 조용히 0 으로 눌러** 준다. `apps/api/src/backtest/schemas.py` 가 문서화한 불변식 `num_trades == completed_trades + total_open_trades` 를 `_to_detail` 도 테스트도 단언하지 않는다.
-**권장 접근:** ⑴ `openapi-check` 를 CI backend 잡에 얹는다(2단까지). ⑵ PoC 생성물을 계약에서 재생성하거나, 비교 산출물로서의 수명이 끝났으면 **삭제**한다([ADR-031] PoC 결론 확인 필요) — 어느 쪽이든 「소스와 어긋난 채 남아 있는」 지금 상태만 아니면 된다. ⑶ `_to_detail` 에 `direction_counts[0] >= m.num_trades` 위반을 관측 로그로 남긴다(응답을 깨지 말고).
+**권장 접근:** ⑴ `openapi-check` 를 CI backend 잡에 얹는다(~~2단까지~~ → 아래 2026-08-30 결정으로 **1단만**). ⑵ ~~PoC 생성물을 계약에서 재생성하거나, 비교 산출물로서의 수명이 끝났으면 **삭제**한다([ADR-031] PoC 결론 확인 필요)~~ → **2026-08-30 사용자 결정 = 삭제**. ⑶ `_to_detail` 에 `direction_counts[0] >= m.num_trades` 위반을 관측 로그로 남긴다(응답을 깨지 말고).
 
-**상태:** 🔵 ACTIVE — 2026-08-25 등재, 미수리
-**트리거 판정:** 도래 (⑴ 은 CI 한 줄. ⑵ 는 PoC 수명 판단이 선행)
+★★★**2026-08-30 재측정 — 이 섹션의 「스키마 3개」가 이미 낡았다.** 지금 drift 는 **845줄**이고 빠진 것은 스키마가 아니라 **엔드포인트 4종 전량**이다: `/api/v1/llm/models` · `/api/v1/strategies/generate` · `/api/v1/strategies/{id}/brief` · `/api/v1/strategies/{id}/brief/narrative`. 즉 [ADR-040]·[ADR-041]·[ADR-042] + PR #843 이 **회차 4개에 걸쳐 계약 밖으로 나갔고 아무도 못 봤다.** 게이트가 CI 밖인 대가가 「2주」가 아니라 「축 하나 통째」로 커졌다.
+
+★★**착수 전 함정 하나가 실측으로 사라졌다.** `mise run openapi-check` 는 `.env.local` 을 통째로 소싱하는데 **CI 엔 `.env.local` 이 없다**(이 레포가 이미 밟은 함정) ⇒ 「CI 한 줄」이 거짓일 위험이 있었다. 2026-08-30 에 CI backend 잡이 **이미 갖고 있는 env 8종만으로** `uv run python scripts/export_openapi.py --check` 를 돌려 rc=1(= drift 검출, 설정 크래시 아님)을 확인했다 — `TRADING_ENCRYPTION_KEYS` 가 그 잡에 이미 있다. **전제 성립: 정말로 한 줄이다.**
+
+★**PoC 삭제 파급 = 7좌표**(2026-08-30 전수). ⑴ `apps/web/src/lib/api-contract-poc/**`(생성물 2 + 자체 테스트 `zod-v4-coexist.test.ts`) ⑵ `apps/web/orval.poc.config.ts` ⑶ `contracts/openapi/poc/openapi.poc.json` ⑷ `tools/scripts/openapi-poc-filter.py` ⑸ `apps/api/tests/scripts/test_openapi_poc_filter.py` ⑹ `mise.toml` 의 `openapi-check` **2단 → 1단** ⑺ 문서 4곳(`docs/api/endpoints.md` · [ADR-031] · [ADR-035]:155 · 이 섹션). ★`zod-v4-coexist.test.ts` 는 **PoC 전용**임을 확인했다 — 생성 스키마가 사라지면 잴 대상이 없다(독립 가치 0).
+
+★**곁다리 — 문서가 게이트 부재를 가리고 있었다.** `docs/api/endpoints.md:31` 이 「`mise run openapi-check` 가 drift 를 막고, CI **`backend_static` 잡**이 같은 검사를 한다」고 적는다. **그 잡은 존재하지 않는다.** 이 줄을 함께 지워라 — 안 지우면 다음 사람이 또 「게이트가 있다」고 읽는다.
+
+**상태:** 🔵 ACTIVE — 2026-08-25 등재, 미수리. **2026-08-30 재측정으로 규모가 3배 이상 커졌다**
+**트리거 판정:** 도래 (⑴ 은 CI 한 줄 — **전제 실측으로 확인됨**. ⑵ 는 2026-08-30 사용자 결정 = 삭제로 선행이 풀렸다)
 
