@@ -18,11 +18,14 @@
     {
       "step": 1,
       "name": "regenerate-openapi-contract",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "mise run openapi-check",
         "python3 - <<'PY'\nimport json, sys\nd = json.load(open(\"contracts/openapi/openapi.json\"))\npaths = d[\"paths\"]\nneed = [\"/api/v1/llm/models\", \"/api/v1/strategies/generate\",\n        \"/api/v1/strategies/{strategy_id}/brief\", \"/api/v1/strategies/{strategy_id}/brief/narrative\"]\nmiss = [p for p in need if p not in paths]\nif miss:\n    sys.exit(\"계약에 없다: %s\" % miss)\nif len(paths) < 20:\n    sys.exit(\"양성 대조 실패: paths 가 %d개뿐이다\" % len(paths))\nprint(\"ok — paths %d\" % len(paths))\nPY"
-      ]
+      ],
+      "started_at": "2026-08-30T00:44:45+0900",
+      "summary": "코드 기준 OpenAPI 계약을 재생성해 LLM 모델·전략 생성·Strategy Brief 4개 엔드포인트를 반영했다.",
+      "completed_at": "2026-08-30T00:47:58+0900"
     },
     {
       "step": 2,
