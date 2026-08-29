@@ -1540,6 +1540,63 @@
         "title": "BayesianHyperparamsField",
         "type": "object"
       },
+      "BriefArg": {
+        "description": "주문 호출의 인자 하나. `name=None` 이면 positional.",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "BriefArg",
+        "type": "object"
+      },
+      "BriefOrderCall": {
+        "description": "`strategy.entry` / `exit` / `close` / `close_all` 호출 한 건 + **소스 줄번호**.",
+        "properties": {
+          "args": {
+            "items": {
+              "$ref": "#/components/schemas/BriefArg"
+            },
+            "title": "Args",
+            "type": "array"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "BriefOrderCall",
+        "type": "object"
+      },
       "CategoricalField": {
         "additionalProperties": false,
         "description": "범주형 탐색 field — pine input.string / 사용자 정의 선택지.",
@@ -2224,6 +2281,98 @@
         "title": "DecimalField",
         "type": "object"
       },
+      "DeclarationResponse": {
+        "description": "스크립트 선언부(`strategy()` / `indicator()` / `library()`) 요약.",
+        "properties": {
+          "default_qty_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Qty Type"
+          },
+          "default_qty_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Qty Value"
+          },
+          "kind": {
+            "enum": [
+              "strategy",
+              "indicator",
+              "library",
+              "unknown"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "pyramiding": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pyramiding"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "DeclarationResponse",
+        "type": "object"
+      },
+      "DriftReport": {
+        "description": "★LLM 이 낸 Python 과 **실제 실행되는 Pine** 이 같은 전략인지.\n\n★★**이 보고서는 위험을 제거하지 않는다. 가시화한다.** 통과한 Pine 을 [ADR-042] 렌더러로\nPython 화해 LLM 이 쓴 Python 과 대조하는 방식이라, **의미가 같은데 표현이 다른 경우와\n표현이 같은데 의미가 다른 경우를 완전히 가르지 못한다**([ADR-041] §트레이드오프).\n그래서 화면은 「다릅니다」가 아니라 「**다를 수 있습니다**」로 말해야 한다.",
+        "properties": {
+          "only_in_llm": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Only In Llm",
+            "type": "array"
+          },
+          "only_in_rendered": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Only In Rendered",
+            "type": "array"
+          },
+          "rendered_python": {
+            "title": "Rendered Python",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rendered_python"
+        ],
+        "title": "DriftReport",
+        "type": "object"
+      },
       "EquityPoint": {
         "description": "equity_curve 1 point.",
         "properties": {
@@ -2608,6 +2757,115 @@
         "title": "ExcursionStatsOut",
         "type": "object"
       },
+      "GenerateStrategyRequest": {
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "symbol": {
+            "default": "BTC/USDT",
+            "maxLength": 32,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeframe": {
+            "default": "1h",
+            "maxLength": 16,
+            "title": "Timeframe",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "GenerateStrategyRequest",
+        "type": "object"
+      },
+      "GenerateStrategyResponse": {
+        "description": "생성 결과. **Pine 이 정본**이고 Python 은 사람이 읽는 뷰다.",
+        "properties": {
+          "drift": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriftReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_runnable": {
+            "title": "Is Runnable",
+            "type": "boolean"
+          },
+          "llm_python": {
+            "title": "Llm Python",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "pine_source": {
+            "title": "Pine Source",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "anthropic",
+              "openai",
+              "gemini"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "unsupported": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unsupported",
+            "type": "array"
+          }
+        },
+        "required": [
+          "provider",
+          "pine_source",
+          "llm_python",
+          "is_runnable"
+        ],
+        "title": "GenerateStrategyResponse",
+        "type": "object"
+      },
       "GridSweepMetricsCellOut": {
         "description": "단일 (param1, param2) cell out — Decimal → str (FE 정합).",
         "properties": {
@@ -2713,6 +2971,47 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InputDeclResponse": {
+        "description": "Pine `input.*()` 선언 하나.\n\n★`var_name` 은 장식이 아니라 **override 키**다 — 엔진은 `input_overrides[var_name]`\n으로 값을 갈아끼우고(`pine_v2/interpreter.py` 의 `_assignment_target_stack`),\nOptimizer / Param-Stability 의 pre-validate 가 같은 이름으로 대조한다.",
+        "properties": {
+          "defval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defval"
+          },
+          "input_type": {
+            "title": "Input Type",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "var_name": {
+            "title": "Var Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "input_type",
+          "var_name"
+        ],
+        "title": "InputDeclResponse",
         "type": "object"
       },
       "IntegerField": {
@@ -3429,6 +3728,159 @@
         "title": "LiveSignalStateResponse",
         "type": "object"
       },
+      "LlmModelItem": {
+        "description": "provider 목록 API 가 실제로 준 값만 담는다.\n\n★`_KIT.md` §4.9 — 서버가 안 주는 필드를 화면에 그리면 가짜 데이터다. provider 마다 주는\n것이 달라서(OpenAI 는 `shutdown_date`, Gemini 는 토큰 상한·표시명) 없는 쪽은 `None` 이고\n화면은 **그 자리를 비운다.**",
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Token Limit"
+          },
+          "output_token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Token Limit"
+          },
+          "shutdown_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shutdown Date"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "LlmModelItem",
+        "type": "object"
+      },
+      "LlmModelsResponse": {
+        "description": "★이 응답은 「고를 수 있는 후보」지 **「동작 보증」이 아니다.**\n\n같은 날 실측 둘이 그 경계를 그린다 — `gemini-3.7-flash` 는 목록에 **있는데** 503 이고,\nOpenAI 목록에는 capability 필드가 **없어** chat 가능 여부를 이름으로 추측한다.",
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Order",
+            "type": "array"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/LlmProviderModels"
+            },
+            "title": "Providers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "providers",
+          "order"
+        ],
+        "title": "LlmModelsResponse",
+        "type": "object"
+      },
+      "LlmProviderModels": {
+        "properties": {
+          "configured": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configured"
+          },
+          "configured_listed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configured Listed"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/LlmModelItem"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "total_seen": {
+            "title": "Total Seen",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "models",
+          "total_seen"
+        ],
+        "title": "LlmProviderModels",
+        "type": "object"
+      },
       "MonteCarloParams": {
         "description": "Monte Carlo bootstrap 파라미터.",
         "properties": {
@@ -3515,6 +3967,27 @@
           "backtest_id"
         ],
         "title": "MonteCarloSubmitRequest",
+        "type": "object"
+      },
+      "NarrativeNote": {
+        "description": "해설 한 줄 + **소스 근거**.",
+        "properties": {
+          "pine_lines": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Pine Lines",
+            "type": "array"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "NarrativeNote",
         "type": "object"
       },
       "OhlcvBar": {
@@ -5033,6 +5506,16 @@
       },
       "ParsePreviewResponse": {
         "properties": {
+          "declaration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclarationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "dogfood_only_warning": {
             "anyOf": [
               {
@@ -5066,6 +5549,13 @@
               "type": "string"
             },
             "title": "Functions Used",
+            "type": "array"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/InputDeclResponse"
+            },
+            "title": "Inputs",
             "type": "array"
           },
           "is_runnable": {
@@ -5195,6 +5685,42 @@
           "local_source"
         ],
         "title": "PositionDiffSchema",
+        "type": "object"
+      },
+      "PythonView": {
+        "description": "[ADR-042] Pine AST 를 옮긴 **읽기 전용** Python 뷰.\n\n★**실행되지 않는다.** 실행 경로가 없다는 것을 `tests/strategy/pine_v2/\ntest_py_renderer_not_executed.py` 가 집행한다. 의미 보존을 보증하지 않는 **읽기용 근사**이고\n진실은 언제나 원본 Pine 이라, `source_map` 이 모든 출력 줄을 원본 줄에 묶는다.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "source_map": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Source Map",
+            "type": "array"
+          },
+          "unrendered": {
+            "default": 0,
+            "title": "Unrendered",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "PythonView",
         "type": "object"
       },
       "RegisterAccountRequest": {
@@ -5474,6 +6000,76 @@
           "gross_loss_abs"
         ],
         "title": "SideMetricsOut",
+        "type": "object"
+      },
+      "StrategyBriefResponse": {
+        "description": "백테스트 **제출 전에** 「이 전략이 무엇을 하는가」를 답하는 결정론 응답.\n\n`parse` 를 **품는다** — 판정·미지원 목록·파라미터·지표는 `POST /strategies/parse` 와\n같은 값이어야 하므로 필드를 복제하지 않고 그 스키마를 그대로 담는다.",
+        "properties": {
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/BriefOrderCall"
+            },
+            "title": "Orders",
+            "type": "array"
+          },
+          "parse": {
+            "$ref": "#/components/schemas/ParsePreviewResponse"
+          },
+          "python_view": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PythonView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Signals",
+            "type": "array"
+          },
+          "source_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Hash"
+          },
+          "strategy_id": {
+            "format": "uuid",
+            "title": "Strategy Id",
+            "type": "string"
+          },
+          "track": {
+            "anyOf": [
+              {
+                "enum": [
+                  "S",
+                  "A",
+                  "M"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track"
+          }
+        },
+        "required": [
+          "strategy_id",
+          "parse"
+        ],
+        "title": "StrategyBriefResponse",
         "type": "object"
       },
       "StrategyCreateResponse": {
@@ -5791,6 +6387,66 @@
           "total_pages"
         ],
         "title": "StrategyListResponse",
+        "type": "object"
+      },
+      "StrategyNarrativeResponse": {
+        "description": "`GET /strategies/{id}/brief/narrative` 응답.\n\n`/brief` 와 **같은 `source_hash`** 를 실어 화면이 두 응답이 같은 소스를 말하는지 대조할 수 있게 한다.",
+        "properties": {
+          "assumptions": {
+            "items": {
+              "$ref": "#/components/schemas/NarrativeNote"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "dropped_ungrounded": {
+            "default": 0,
+            "title": "Dropped Ungrounded",
+            "type": "integer"
+          },
+          "provider": {
+            "enum": [
+              "anthropic",
+              "openai",
+              "gemini"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "risks": {
+            "items": {
+              "$ref": "#/components/schemas/NarrativeNote"
+            },
+            "title": "Risks",
+            "type": "array"
+          },
+          "source_hash": {
+            "title": "Source Hash",
+            "type": "string"
+          },
+          "style": {
+            "enum": [
+              "trend_following",
+              "mean_reversion",
+              "breakout",
+              "volatility",
+              "other"
+            ],
+            "title": "Style",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_hash",
+          "provider",
+          "summary",
+          "style"
+        ],
+        "title": "StrategyNarrativeResponse",
         "type": "object"
       },
       "StrategyResponse": {
@@ -8744,6 +9400,28 @@
         ]
       }
     },
+    "/api/v1/llm/models": {
+      "get": {
+        "description": "provider 3종의 모델 목록을 **물어서** 돌려준다.\n\n★provider 하나가 죽어도 **나머지는 나온다** — 실패는 그 provider 의 `error` 로 실린다.\n★목록을 못 읽었을 때 `configured_listed` 는 `False` 가 아니라 **`None`**(모른다)이다.\n  「없다」와 「못 봤다」를 같은 값으로 접으면 멀쩡한 설정을 오경보한다.\n★SDK 호출이 동기라 스레드로 뺀다 — 이벤트 루프를 세 번 왕복만큼 막지 않는다.\n★`response: Response` 는 장식이 아니다 — `@limiter.limit` 가 헤더를 주입할 자리를 못 찾으면\n  **모든 요청이 500** 이다(slowapi `_inject_headers`). 계약 테스트가 이 줄을 지킨다.",
+        "operationId": "list_llm_models_api_v1_llm_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmModelsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Llm Models",
+        "tags": [
+          "llm"
+        ]
+      }
+    },
     "/api/v1/optimizer/runs": {
       "get": {
         "description": "소유자 격리된 페이지네이션 list (생성 역순).",
@@ -9366,6 +10044,48 @@
         ]
       }
     },
+    "/api/v1/strategies/generate": {
+      "post": {
+        "description": "[ADR-041] 자연어 → 전략 생성. **저장하지 않는다.**\n\n★산출물만 돌려주고 사용자가 검토한 뒤 기존 생성 흐름으로 저장한다(`convert` 선례) —\n이 엔드포인트가 DB 를 안 쥐는 이유이고, 검토 없이 저장되는 경로를 만들지 않는 이유다.\n★판정(`is_runnable`·`unsupported`)은 LLM 이 아니라 `analyze_coverage` 가 낸다.",
+        "operationId": "generate_strategy_api_v1_strategies_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateStrategyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateStrategyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
     "/api/v1/strategies/parse": {
       "post": {
         "operationId": "parse_preview_api_v1_strategies_parse_post",
@@ -9530,6 +10250,128 @@
           }
         },
         "summary": "Update Strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{strategy_id}/brief": {
+      "get": {
+        "description": "[ADR-040] 백테스트 제출 전 결정론 브리핑 — LLM 이 만든 값이 하나도 없다.",
+        "operationId": "get_strategy_brief_api_v1_strategies__strategy_id__brief_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrategyBriefResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Strategy Brief",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{strategy_id}/brief/narrative": {
+      "get": {
+        "description": "[ADR-040] 해설 층 — **판정하지 않는다.** 실패해도 `/brief` 로 화면이 완결된다.\n\n★`provider`+`model` 은 **함께** 주는 선택 파라미터다(`GET /api/v1/llm/models` 의 목록에서 고른다).\n  안 주면 `LLM_PROVIDER_ORDER` 가 정한 기본이 돈다.\n★검증은 **왕복 전에** 한다 — 폐기·오타 모델을 그대로 보내면 404 가 503 으로 둔갑해 원인이 지워진다.",
+        "operationId": "get_strategy_brief_narrative_api_v1_strategies__strategy_id__brief_narrative_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrategyNarrativeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Strategy Brief Narrative",
         "tags": [
           "strategies"
         ]
