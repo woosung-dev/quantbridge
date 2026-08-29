@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 # asyncpg FK violation 타입 — 드라이버 부재 시 None으로 fallback (단위 테스트 호환)
@@ -260,19 +260,21 @@ def _render_python_view(source: str) -> PythonView | None:
 
 def _extract_brief_parts(
     source: str,
-) -> tuple[str | None, list[BriefOrderCall], list[str]]:
+) -> tuple[Literal["S", "A", "M"] | None, list[BriefOrderCall], list[str]]:
     """[ADR-040] track · 주문 호출(줄번호 포함) · 신호 변수. **실패는 조용히 빈 값**이다.
 
     ★`_extract_structure` 와 같은 계약이다 — 판정은 `_parse`/`analyze_coverage` 가 이미 냈고
     여기서 던지는 예외가 브리핑 전체를 500 으로 만들면 **사용자는 판정조차 못 본다.**
     ★셋을 한 함수에 묶은 이유는 셋 다 같은 AST 를 읽기 때문이다(파스 1회 · L1 캐시 공유).
     """
-    track: str | None = None
+    track: Literal["S", "A", "M"] | None = None
     orders: list[BriefOrderCall] = []
     signals: list[str] = []
 
     try:
-        track = classify_script(source).track
+        classified_track = classify_script(source).track
+        if classified_track in ("S", "A", "M"):
+            track = classified_track
     except Exception:
         track = None
 
