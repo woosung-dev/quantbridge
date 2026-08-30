@@ -2,12 +2,23 @@
 # Phase 0 Session 1 (ADR-002)
 # 실행: docker compose up -d
 
+# ★로그 상한을 레포에 못박는다 (2026-08-30) — 종전에는 서버 호스트의
+# `/etc/docker/daemon.json` 한 벌에만 있었고 레포·런북 어디에도 기록이 없었다.
+# 호스트를 다시 세우면 조용히 무제한으로 돌아가는데 아무도 그것을 모른다.
+# 값은 그 호스트 설정과 **같다** — 지금 도는 동작을 바꾸지 않는 것이 목적이다.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # PostgreSQL + TimescaleDB extension (단일 인스턴스)
   # OHLCV 시계열은 hypertable로, 일반 테이블은 public 스키마로 분리 운영
   db:
     image: timescale/timescaledb:2.14.2-pg15
     container_name: quantbridge-db
+    logging: *default-logging
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-quantbridge}
@@ -67,6 +78,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: quantbridge-redis
+    logging: *default-logging
     restart: unless-stopped
     command: redis-server --appendonly yes --auto-aof-rewrite-min-size 8mb --maxmemory 512mb --maxmemory-policy noeviction
     ports:
@@ -90,11 +102,20 @@ services:
       - quantbridge
 
   # Backtest worker — Celery prefork (vectorbt/asyncpg fork-safe)
+  #
+  # ★★★**`uv run` 을 되돌리지 마라** (2026-08-30). `uv run` 은 실행 전에 암묵 `uv sync` 를 도는데
+  #   러너 스테이지의 uv 캐시는 비어 있다(빌더는 root, 러너는 appuser) — 그래서 **기동할 때마다**
+  #   dev 그룹 28개를 PyPI 에서 받았다(`mypy`·`ruff`·`debugpy`·`pyarrow` 43.6MiB, 16.18초).
+  #   Dockerfile 의 `--no-dev` 가 런타임에 통째로 무효가 되고, 컨테이너 쓰기층이 **각 650MB** 로 불고,
+  #   무엇보다 **PyPI 가 안 되면 워커가 안 뜬다.** 대조 실측(같은 이미지 · `--network none`):
+  #   `uv run celery --version` → rc=1 DNS 실패 / `celery --version` → rc=0 `5.6.3`.
+  #   ★맨 `celery` 가 도는 이유는 러너가 `PATH=/app/.venv/bin:$PATH` 를 세우기 때문이다.
   backend-worker:
     build:
       context: ./apps/api
     container_name: quantbridge-worker
-    command: uv run celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=2
+    logging: *default-logging
+    command: celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=2
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -134,10 +155,11 @@ services:
     build:
       context: ./apps/api
     container_name: quantbridge-ws-stream
+    logging: *default-logging
     # 계정 N개 private stream + public ticker 1개이므로 N + 1 ≤ concurrency를 유지한다.
     # Sprint 12 G4 revisit `--pool=solo` 한계 해소 — prefork child 가 worker_process_shutdown
     # 에서 signal_all_stop_events() 호출 (celery_app.py 참조). dogfood multi-account 지원.
-    command: uv run celery -A src.tasks.celery_app worker -Q ws_stream --pool=prefork --concurrency=3 --loglevel=info
+    command: celery -A src.tasks.celery_app worker -Q ws_stream --pool=prefork --concurrency=3 --loglevel=info
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -166,7 +188,8 @@ services:
     build:
       context: ./apps/api
     container_name: quantbridge-optimizer-heavy
-    command: uv run celery -A src.tasks.celery_app worker -Q optimizer_heavy --pool=prefork --concurrency=1 --loglevel=info
+    logging: *default-logging
+    command: celery -A src.tasks.celery_app worker -Q optimizer_heavy --pool=prefork --concurrency=1 --loglevel=info
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -203,7 +226,8 @@ services:
     build:
       context: ./apps/api
     container_name: quantbridge-beat
-    command: uv run celery -A src.tasks.celery_app beat --loglevel=info --schedule=/data/celerybeat-schedule
+    logging: *default-logging
+    command: celery -A src.tasks.celery_app beat --loglevel=info --schedule=/data/celerybeat-schedule
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }

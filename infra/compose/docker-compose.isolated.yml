@@ -32,8 +32,6 @@ services:
       - ./apps/api/src:/app/src:ro
       - ./apps/api/.metrics:/metrics
     command: !override
-      - "uv"
-      - "run"
       - "watchfiles"
       - "--filter"
       - "python"
@@ -45,8 +43,6 @@ services:
       - ./apps/api/src:/app/src:ro
       - ./apps/api/.metrics:/metrics
     command: !override
-      - "uv"
-      - "run"
       - "watchfiles"
       - "--filter"
       - "python"
@@ -60,8 +56,6 @@ services:
       - ./apps/api/src:/app/src:ro
       - ./apps/api/.metrics:/metrics
     command: !override
-      - "uv"
-      - "run"
       - "watchfiles"
       - "--filter"
       - "python"
@@ -74,8 +68,6 @@ services:
       - ./apps/api/.metrics:/metrics
       - beat-data:/data
     command: !override
-      - "uv"
-      - "run"
       - "watchfiles"
       - "--filter"
       - "python"

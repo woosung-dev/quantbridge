@@ -105,6 +105,14 @@ ssh <서버> "sed -i 's/^QB_FRONTEND_TAG=.*/QB_FRONTEND_TAG=$TAG/' ~/quantbridge
 #   찾아 `BETTER_AUTH_SECRET is missing` 으로 죽는다. [ADR-029] 재배치 이후 이 명령은 깨져 있었고
 #   2026-08-16 배포에서 처음 밟았다(그전 배포는 재배치 이전이라 통과했다).
 ssh <서버> 'cd ~/quantbridge && docker compose --project-directory /home/ubuntu/quantbridge -f infra/compose/docker-compose.frontend.yml -p quantbridge-fe up -d'
+
+# ★배포 직후 회수 — **최신 3태그만 남긴다**(§3.4 롤백 창이 3세대). 빼먹으면 커밋마다
+#   109MB 짜리 죽은 태그가 무한히 쌓인다(2026-08-30 실측: 4벌 중 3벌이 죽은 것 = 328MB).
+#   ★`docker image prune` 을 쓰지 마라 — 이 호스트는 3개 프로젝트가 디스크 한 벌을 공유하고
+#     무차별 prune 은 남의 롤백 태그를 지운다(`traps-environment-shell.md` §디스크).
+#     태그를 지정한 `rmi` 와 기간을 건 `builder prune` 만이 그 금지 밖이다.
+ssh <서버> 'docker images quantbridge-frontend --format "{{.ID}}" | tail -n +4 \
+  | xargs -r docker rmi 2>/dev/null; docker builder prune -f --filter until=168h'
 ```
 
 실측: standalone 50MB · 이미지 211MB · 빌드 약 1분.
@@ -113,6 +121,7 @@ ssh <서버> 'cd ~/quantbridge && docker compose --project-directory /home/ubunt
 
 이전 태그가 서버에 남아 있으면 `QB_FRONTEND_TAG` 만 되돌리고 `up -d`. 남아 있지 않으면 3.3 을
 이전 커밋에서 다시 밟는다. **FE 롤백은 소크와 무관하다.**
+★**보존은 3세대까지다**(§3.3 의 회수가 그 넷째부터 지운다). 더 옛 것으로 가려면 3.3 재실행이다.
 
 ---
 
