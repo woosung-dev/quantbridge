@@ -309,19 +309,21 @@
 
 ---
 
-### BL-837
 
-**Title:** BybitPrivateStream supervisor 가 예상 밖 예외로 죽으면 stream 이 **lease 를 쥔 채** 영구 침묵한다
-**Category:** Backend / trading (websocket)
-**Priority:** P1
-**출처:** 2026-08-30 아키텍처 감사 gap sweep — `realtime-ws` 축 (CONTROL 코드 대조 확인)
+### BL-848
 
-**증상 (실측):** `bybit_private_stream.py:313` 이 `self._supervisor_task = asyncio.create_task(self._supervisor_loop())` 로 감시 루프를 띄우는데 **`add_done_callback` 이 없다.** `_supervisor_loop` 이 잡는 예외는 `BybitAuthError`(fatal, return) · `ConnectionClosed`/`OSError`(재시도) · `CancelledError`(return) **셋뿐**이므로, 그 밖의 예외는 task 에 저장된 채 **아무도 안 읽는다** — `__aenter__` 는 첫 연결만 기다리고 돌아가고, 다음 관측 시점은 종료(`_wait_supervisor_done`)다. 그 사이 `websocket_task.py:144` 의 `async with lease:` 가 **`ws:lease:{account_id}` 를 계속 갱신**하므로 다른 워커가 넘겨받지도 못한다. ⇒ **private order stream 이 조용히 끊긴 채 failover 도 막힌 상태**가 된다. 라이브에서 이것은 체결을 못 보는 상태다.
-**권장 접근:** supervisor task 에 done-callback 을 달아 ⑴ 예외를 로그+metric 으로 표면화하고 ⑵ `stop_event` 를 set 해 `async with lease:` 가 lease 를 놓게 한다. ★`track_pending_alert` 가 alert task 에 대해 이미 하는 것과 같은 패턴이다 — 그것을 선례로 삼아라.
-**Risk:** 🟠 (라이브 신호 경로 — 수리 자체가 소크 리스크다. 회귀 = `tests/tasks/test_first_connect_race.py` 인접)
+**Title:** heartbeat/receive task 의 예외를 `asyncio.wait` 의 **done 집합에서 아무도 안 꺼낸다** — 재연결 원인이 안 남는다
+**Category:** Backend / trading (websocket 관측)
+**Priority:** P3
+**출처:** 2026-08-31 [BL-837] 수리 중 인접 코드 대조 (CONTROL 코드 확인)
 
-**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
-**트리거 판정:** 도래 (단독 착수 가능)
+**증상 (실측):** `bybit_private_stream.py:281-284` 이 `_, pending = await asyncio.wait(tasks, return_when=FIRST_COMPLETED)` 로 **done 집합을 `_` 에 버린다.** 두 루프는 대부분을 스스로 삼키지만(`_receive_loop` 는 `ConnectionClosed`/`CancelledError` 만, 핸들러 예외는 warning 후 계속), 소켓에서 올라오는 **`OSError` 같은 것은 그대로 raise 된다.** 그 예외는 done task 에 저장된 채 **아무도 `.exception()` 을 안 부르고**, supervisor 는 그것을 평범한 연결 끊김으로 읽어 재연결한다. ⇒ **재연결은 되지만 왜 끊겼는지가 로그에 없다**(asyncio 가 GC 시점에 「Task exception was never retrieved」를 남기는 것이 전부다).
+
+★**[BL-837] 과 같은 종류가 아니다** — 이쪽은 **자가 치유된다**(재연결이 돈다). 잃는 것은 침묵이 아니라 **원인**이다. 그래서 P1 이 아니다.
+**권장 접근:** `done, pending = await asyncio.wait(...)` 로 받아 done 각각의 `.exception()` 을 읽고 있으면 `logger.warning` + 기존 `qb_ws_reconnect_total` 와 구분되는 사유 라벨로 남긴다. ★새 metric 을 만들기 전에 **실제로 그 경로가 발화하는지** 소크 로그에서 먼저 재라 — 안 나는 예외에 라벨을 다는 것은 비용만이다.
+
+**상태:** 🔵 ACTIVE — 2026-08-31 등재, 미수리
+**트리거 판정:** 도래 (단독 착수 가능 · 관측 축)
 
 ---
 

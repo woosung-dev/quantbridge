@@ -219,6 +219,8 @@ async def test_private_stream_builds_handlers_and_returns_reconnect_count_on_sto
 
     class _StoppingPrivateStream:
         reconnect_count = 4
+        # BL-837 — 페이크도 실물 인터페이스를 모델해야 한다. 정상 종료는 crash 가 아니다.
+        supervisor_error = None
 
         def __init__(self, **kwargs: object) -> None:
             self.kwargs = kwargs
@@ -694,3 +696,95 @@ async def test_lease_heartbeat_exception_sets_lost_event_and_logs_warning(
         "account-1",
         error,
     )
+
+
+@pytest.mark.asyncio
+async def test_private_stream_supervisor_crash_alerts_and_reports_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[BL-837] supervisor 가 죽어서 깨어난 종료를 「정상 완료」로 보고하지 않는다.
+
+    ★수리 전에는 이 경로 자체가 **도달 불가능**이었다 — supervisor 가 죽어도 `stop_event`
+    를 아무도 set 하지 않아 `_stream_main` 이 영원히 대기했고, 그 사이 `async with lease:`
+    가 lease 를 계속 갱신해 다른 워커의 인수까지 막았다.
+    ★경보를 여기(task 층)에서 내는 이유 — `BybitAuthError` 선례와 같은 자리다. 스트림
+    클래스는 `Settings` 를 안 쥐고 알림 책임도 안 진다.
+    """
+    from src.trading.models import ExchangeMode, ExchangeName
+
+    websocket_module = import_module("src.tasks.websocket_task")
+    encryption_module = import_module("src.trading.encryption")
+    redis_module = import_module("src.common.redis_client")
+    trading_websocket_module = import_module("src.trading.websocket")
+    reconcile_fetcher_module = import_module("src.trading.websocket.reconcile_fetcher")
+
+    account_id = str(uuid4())
+    account = SimpleNamespace(
+        exchange=ExchangeName.bybit,
+        api_key_encrypted=b"encrypted-key",
+        api_secret_encrypted=b"encrypted-secret",
+        mode=ExchangeMode.demo,
+        user_id=uuid4(),
+    )
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+    crypto = MagicMock()
+    crypto.decrypt.side_effect = ["api-key", "api-secret"]
+    boom = RuntimeError("bybit returned 403 on reconnect")
+
+    @asynccontextmanager
+    async def session_context():
+        yield MagicMock()
+
+    class _SessionMaker:
+        def __call__(self):
+            return session_context()
+
+    class _CrashingPrivateStream:
+        reconnect_count = 7
+        # done-callback 이 하는 일과 같다 — 예외를 들고 stop_event 를 놓는다.
+        supervisor_error = boom
+
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        async def __aenter__(self) -> _CrashingPrivateStream:
+            self.kwargs["stop_event"].set()
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    alert = AsyncMock(return_value=True)
+    monkeypatch.setattr(websocket_module, "send_critical_alert", alert)
+    monkeypatch.setattr(
+        websocket_module, "get_settings", lambda: SimpleNamespace(trading_encryption_keys=["k"])
+    )
+    monkeypatch.setattr(
+        websocket_module, "create_worker_engine_and_sm", lambda: (engine, _SessionMaker())
+    )
+    monkeypatch.setattr(encryption_module, "EncryptionService", MagicMock(return_value=crypto))
+    monkeypatch.setattr(redis_module, "get_redis_lock_pool", lambda: object())
+    monkeypatch.setattr(trading_websocket_module, "StateHandler", MagicMock())
+    monkeypatch.setattr(trading_websocket_module, "PositionFanoutHandler", MagicMock())
+    monkeypatch.setattr(trading_websocket_module, "PrivateTopicRouter", MagicMock())
+    monkeypatch.setattr(trading_websocket_module, "Reconciler", MagicMock())
+    monkeypatch.setattr(
+        trading_websocket_module,
+        "BybitPrivateStream",
+        MagicMock(side_effect=_CrashingPrivateStream),
+    )
+    monkeypatch.setattr(reconcile_fetcher_module, "BybitReconcileFetcher", MagicMock())
+    _install_exchange_account_repository(monkeypatch, account=account)
+
+    result = await websocket_module._stream_main(account_id)
+
+    assert result == {
+        "status": "supervisor_failed",
+        "account_id": account_id,
+        "reconnect_count": 7,
+    }
+    alert.assert_awaited_once()
+    assert "Supervisor" in alert.await_args.args[1]
+    assert alert.await_args.args[3]["error"] == repr(boom)
+    engine.dispose.assert_awaited_once_with()

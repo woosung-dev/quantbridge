@@ -87,7 +87,8 @@ def run_bybit_private_stream(account_id: str) -> dict[str, Any]:
     worker_shutdown 시그널이 stop_event set → graceful close.
 
     Returns:
-        {"status": "completed" | "duplicate" | "auth_failed" | "error", ...}
+        {"status": "completed" | "duplicate" | "auth_failed" | "supervisor_failed"
+                   | "first_connect_timeout" | "lease_lost" | "circuit_open" | "error", ...}
     """
     from src.tasks._worker_loop import run_in_worker_loop
 
@@ -389,6 +390,33 @@ async def _stream_main(
                             "account_id": account_id,
                             "reconnect_count": stream.reconnect_count,
                         }
+            # ★BL-837 — supervisor 가 죽어서 깨어난 것이면 「정상 종료」로 보고하지 마라.
+            #   done-callback 이 `stop_event` 를 set 해 위 대기가 풀리므로 lease 는 이미
+            #   놓이지만, 여기서 구분하지 않으면 **task 결과가 조용히 거짓말**을 한다.
+            #   경보는 `BybitAuthError` 선례와 같은 자리(task 층)에서 낸다 — 스트림 클래스는
+            #   `Settings` 를 안 쥐고 알림 책임도 안 진다.
+            supervisor_error = stream.supervisor_error
+            if supervisor_error is not None:
+                logger.error(
+                    "ws_stream_supervisor_failed account=%s err=%r",
+                    account_id,
+                    supervisor_error,
+                )
+                await send_critical_alert(
+                    settings,
+                    "Bybit WS Supervisor Crashed",
+                    f"Private order stream supervisor died for account {account_id}. "
+                    "The lease was released so another worker can take over, and "
+                    "`trading.reconcile_ws_streams` (Beat, 5m) re-enqueues the stream. "
+                    "Investigate the error below — until it is fixed the stream will "
+                    "keep dying on the same path.",
+                    {"account_id": account_id, "error": repr(supervisor_error)[:200]},
+                )
+                return {
+                    "status": "supervisor_failed",
+                    "account_id": account_id,
+                    "reconnect_count": stream.reconnect_count,
+                }
             return {
                 "status": "completed",
                 "account_id": account_id,

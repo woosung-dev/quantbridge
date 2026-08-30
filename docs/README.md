@@ -45,6 +45,7 @@
 | `docs/reports/` (README·템플릿·auto-dogfood 2026-05-03)     | 2026-08-21 — gitignore 산출 자리. 산출물은 `runs/` | `git show c3b35e5f:docs/reports/README.md`          |
 | `docs/evidence/` (png 4) · `sprint60-interview-template.md` | 2026-08-21 — 참조 0건                              | `git show c3b35e5f:docs/evidence/` · `…/workflows/` |
 | `backlog.md` 의 [BL-547]·[BL-671]·[BL-383]·[BL-811] 본문 4절     | 2026-08-24 n9 — RESOLVED (RESOLVED 는 삭제다)      | `git show 1a1169a5:docs/backlog.md`                 |
+| `backlog.md` 의 [BL-837] 본문 1절                                | 2026-08-31 — RESOLVED (RESOLVED 는 삭제다)         | `git show b2ff8113:docs/backlog.md`                 |
 | `backlog.md` 의 [BL-838]·[BL-846] 본문 2절                       | 2026-08-31 — RESOLVED (RESOLVED 는 삭제다)         | `git show d08e57c7:docs/backlog.md`                 |
 | `operations/bybit-mainnet-runbook.md`                            | 2026-08-30 — 제품 결정이 Bybit Demo 전용으로 고정됨 | `git show cc7c236ba9ac309b1ae885e6a28b05d694f751e3` |
 | 구 `archive/` 375파일 · `dev-log/*.md` 135파일              | 2026-08-06 문서 대개편                             | 아래 `0f0f0b06` 명령                                |
