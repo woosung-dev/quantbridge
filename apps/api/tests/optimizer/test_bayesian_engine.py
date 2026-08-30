@@ -95,6 +95,8 @@ def _fake_outcome(
         total_return=total_return,
         max_drawdown=max_drawdown,
         num_trades=num_trades,
+        # 실제 `BacktestMetrics` 는 이 필드를 갖는다 — degenerate 판정 축이다.
+        sharpe_convention="tv_monthly_rfr2",
     )
     result = SimpleNamespace(metrics=metrics)
     return SimpleNamespace(status="ok", result=result)
@@ -198,15 +200,21 @@ class TestCoerceSkoptToDecimal:
 class TestObjectiveFromMetrics:
     def test_zero_trades_returns_none(self) -> None:
         metrics = SimpleNamespace(
-            sharpe_ratio=Decimal("1.0"), total_return=Decimal("0"),
-            max_drawdown=Decimal("0"), num_trades=0,
+            sharpe_ratio=Decimal("1.0"),
+            total_return=Decimal("0"),
+            max_drawdown=Decimal("0"),
+            num_trades=0,
         )
         assert _objective_from_metrics(metrics, objective_metric="sharpe_ratio") is None
 
     def test_sharpe_ratio_returns_decimal(self) -> None:
         metrics = SimpleNamespace(
-            sharpe_ratio=Decimal("1.85"), total_return=Decimal("0.3"),
-            max_drawdown=Decimal("0.1"), num_trades=10,
+            sharpe_ratio=Decimal("1.85"),
+            total_return=Decimal("0.3"),
+            max_drawdown=Decimal("0.1"),
+            num_trades=10,
+            # 실제 `BacktestMetrics` 는 이 필드를 갖는다 — degenerate 판정 축이다.
+            sharpe_convention="tv_monthly_rfr2",
         )
         assert _objective_from_metrics(metrics, objective_metric="sharpe_ratio") == Decimal("1.85")
 
@@ -268,9 +276,7 @@ class TestRunBayesianSearchEndToEnd:
             sharpe = Decimal(call_count["n"])  # 1, 2, 3, 4, 5
             return _fake_outcome(sharpe=sharpe)
 
-        monkeypatch.setattr(
-            "src.optimizer.engine.bayesian.run_backtest", fake_run_backtest
-        )
+        monkeypatch.setattr("src.optimizer.engine.bayesian.run_backtest", fake_run_backtest)
         space = _build_param_space(
             {
                 "emaPeriod": {
@@ -285,9 +291,7 @@ class TestRunBayesianSearchEndToEnd:
             bayesian_n_initial_random=2,
             bayesian_acquisition="EI",
         )
-        result = run_bayesian_search(
-            PINE_WITH_INPUTS, _make_ohlcv(), param_space=space
-        )
+        result = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
         assert len(result.iterations) == 5
         assert result.degenerate_count == 0
         # maximize sharpe = 1,2,3,4,5 → last iteration best.
@@ -296,7 +300,9 @@ class TestRunBayesianSearchEndToEnd:
         # phase split — 첫 2 random, 나머지 3 acquisition.
         assert [it.phase for it in result.iterations[:2]] == ["random", "random"]
         assert [it.phase for it in result.iterations[2:]] == [
-            "acquisition", "acquisition", "acquisition",
+            "acquisition",
+            "acquisition",
+            "acquisition",
         ]
 
     def test_best_backtest_metrics_come_from_the_best_iteration(
@@ -341,9 +347,7 @@ class TestRunBayesianSearchEndToEnd:
         assert result.best_total_return == Decimal("0.3")
         assert result.best_max_drawdown == Decimal("-0.03")
 
-    def test_all_degenerate_leaves_best_metrics_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_all_degenerate_leaves_best_metrics_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """[BL-429] best 가 없으면 metric 도 없다 — 0 으로 채우지 않는다."""
 
         def fake_run_backtest(pine: str, ohlcv: pd.DataFrame, cfg: Any) -> SimpleNamespace:
@@ -386,21 +390,21 @@ class TestRunBayesianSearchEndToEnd:
                 return _fake_outcome(num_trades=0, sharpe=None)
             return _fake_outcome(sharpe=Decimal(n))  # 2, 4 = sharpe 2, 4
 
-        monkeypatch.setattr(
-            "src.optimizer.engine.bayesian.run_backtest", fake_run_backtest
-        )
+        monkeypatch.setattr("src.optimizer.engine.bayesian.run_backtest", fake_run_backtest)
         space = _build_param_space(
             {
                 "emaPeriod": {
-                    "kind": "bayesian", "min": "5", "max": "30",
-                    "prior": "uniform", "log_scale": False,
+                    "kind": "bayesian",
+                    "min": "5",
+                    "max": "30",
+                    "prior": "uniform",
+                    "log_scale": False,
                 }
             },
-            max_evaluations=5, bayesian_n_initial_random=2,
+            max_evaluations=5,
+            bayesian_n_initial_random=2,
         )
-        result = run_bayesian_search(
-            PINE_WITH_INPUTS, _make_ohlcv(), param_space=space
-        )
+        result = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
         assert result.degenerate_count == 3
         # best = sharpe=4 at idx 3 (call n=4).
         assert result.best_iteration_idx == 3
@@ -433,26 +437,26 @@ class TestRunBayesianSearchEndToEnd:
         space = _build_param_space(
             {
                 "emaPeriod": {
-                    "kind": "bayesian", "min": "5", "max": "30",
-                    "prior": "uniform", "log_scale": False,
+                    "kind": "bayesian",
+                    "min": "5",
+                    "max": "30",
+                    "prior": "uniform",
+                    "log_scale": False,
                 }
             },
-            max_evaluations=8, bayesian_n_initial_random=3,
+            max_evaluations=8,
+            bayesian_n_initial_random=3,
         )
 
         monkeypatch.setattr(
             "src.optimizer.engine.bayesian.run_backtest", fake_run_backtest_factory()
         )
-        result1 = run_bayesian_search(
-            PINE_WITH_INPUTS, _make_ohlcv(), param_space=space
-        )
+        result1 = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
 
         monkeypatch.setattr(
             "src.optimizer.engine.bayesian.run_backtest", fake_run_backtest_factory()
         )
-        result2 = run_bayesian_search(
-            PINE_WITH_INPUTS, _make_ohlcv(), param_space=space
-        )
+        result2 = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
 
         # 동일 random_state → 동일 sample sequence.
         assert _BAYESIAN_RANDOM_STATE == 42  # sanity
@@ -464,8 +468,11 @@ class TestRunBayesianSearchEndToEnd:
         space = _build_param_space(
             {
                 "emaPeriod": {
-                    "kind": "bayesian", "min": "1", "max": "10",
-                    "prior": "uniform", "log_scale": False,
+                    "kind": "bayesian",
+                    "min": "1",
+                    "max": "10",
+                    "prior": "uniform",
+                    "log_scale": False,
                 }
             },
             max_evaluations=_MAX_BAYESIAN_EVALUATIONS + 1,
@@ -475,6 +482,7 @@ class TestRunBayesianSearchEndToEnd:
 
     def test_max_evaluations_at_cap_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """max_evaluations=50 정상 진행 (cap 동등)."""
+
         def fake(pine: str, ohlcv: pd.DataFrame, cfg: Any) -> SimpleNamespace:
             return _fake_outcome(sharpe=Decimal("1.0"))
 
@@ -482,8 +490,11 @@ class TestRunBayesianSearchEndToEnd:
         space = _build_param_space(
             {
                 "emaPeriod": {
-                    "kind": "bayesian", "min": "1", "max": "10",
-                    "prior": "uniform", "log_scale": False,
+                    "kind": "bayesian",
+                    "min": "1",
+                    "max": "10",
+                    "prior": "uniform",
+                    "log_scale": False,
                 }
             },
             max_evaluations=_MAX_BAYESIAN_EVALUATIONS,
@@ -506,9 +517,7 @@ class TestRunBayesianSearchEndToEnd:
             'maType = input.int(0, "MA Type")\n'
             "plot(close)\n"
         )
-        space = _build_param_space(
-            {"maType": {"kind": "categorical", "values": ["ema", "sma"]}}
-        )
+        space = _build_param_space({"maType": {"kind": "categorical", "values": ["ema", "sma"]}})
         with pytest.raises(ValueError, match="numeric"):
             _validate_bayesian_search_pre(pine, space)
 
@@ -524,9 +533,7 @@ class TestRunBayesianSearchEndToEnd:
             'maType = input.int(0, "MA Type")\n'
             "plot(close)\n"
         )
-        space = _build_param_space(
-            {"maType": {"kind": "categorical", "values": ["Infinity", "5"]}}
-        )
+        space = _build_param_space({"maType": {"kind": "categorical", "values": ["Infinity", "5"]}})
         with pytest.raises(ValueError, match="finite"):
             _validate_bayesian_search_pre(pine, space)
 
@@ -535,9 +542,7 @@ class TestRunBayesianSearchEndToEnd:
 
 
 class TestSerializerRoundTrip:
-    def test_to_jsonb_and_back_preserves_values(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_to_jsonb_and_back_preserves_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """end-to-end + round-trip — JSONB shape Sprint 50/51/52 retro-incorrect 차단 4종 검증."""
         call_count = {"n": 0}
 
@@ -552,11 +557,15 @@ class TestSerializerRoundTrip:
         space = _build_param_space(
             {
                 "emaPeriod": {
-                    "kind": "bayesian", "min": "1", "max": "5",
-                    "prior": "uniform", "log_scale": False,
+                    "kind": "bayesian",
+                    "min": "1",
+                    "max": "5",
+                    "prior": "uniform",
+                    "log_scale": False,
                 }
             },
-            max_evaluations=4, bayesian_n_initial_random=2,
+            max_evaluations=4,
+            bayesian_n_initial_random=2,
             bayesian_acquisition="EI",
         )
         result = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
@@ -726,9 +735,7 @@ class TestSlice57BayesianNormalPriorAndOneHot:
         result = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=ps)
         assert len(result.iterations) == 3
 
-    def test_normal_prior_initial_points_in_range(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_normal_prior_initial_points_in_range(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """normal prior 초기 포인트는 [min, max] clip 후 범위 내에 있어야 함."""
         monkeypatch.setattr(
             "src.optimizer.engine.bayesian.run_backtest",

@@ -29,6 +29,7 @@ from typing import Final
 import pandas as pd
 
 from src.backtest.engine import run_backtest
+from src.backtest.engine.metrics import sharpe_is_unavailable
 from src.backtest.engine.types import BacktestConfig
 from src.common.grid_sweep import GridSweepCellError, run_grid_sweep
 from src.optimizer.engine._common import (
@@ -178,14 +179,24 @@ def _validate_grid_search_pre(
                     )
 
 
-def _cell_objective_value(cell: GridSearchCell, *, objective_metric: str) -> Decimal | None:
-    """cell raw metric → objective_value. degenerate cell or None metric → None.
+def _cell_objective_value(
+    cell: GridSearchCell, *, objective_metric: str, sharpe_unavailable: bool = False
+) -> Decimal | None:
+    """cell raw metric → objective_value. degenerate 면 `None`.
 
-    degenerate 게이트 = cell.is_degenerate (num_trades==0 or sharpe None) — bayesian/
-    genetic 의 num_trades==0 게이트보다 넓은 의미이며 현행 보존 (deepen N2 는
-    metric 화이트리스트만 _common 과 공유).
+    게이트는 둘이고 세 엔진이 **같은 의미**를 쓴다:
+    ⑴ `cell.is_degenerate` — 실질적으로 `num_trades == 0` 이다. 같은 식의 두 번째 절
+       `sharpe_ratio is None` 은 `engine/types.py` 가 `sharpe_ratio: Decimal`(비-옵셔널)로
+       선언하므로 **의도된 죽은 방어선**이다(되살아나면 안 된다는 근거 = `metrics.sharpe_ratio` docstring).
+       ★그래서 종전 주석의 「bayesian/genetic 보다 넓다」는 사실이 아니었다 — 셋이 같았다.
+    ⑵ `sharpe_unavailable` — convention 이 `unavailable*` 인가. `sharpe_ratio()` 는 파산·무표본
+       실행에도 `Decimal("0")` 을 돌려주므로 **값만으로는 파산과 「잔잔했다」를 못 가른다**.
+       안 걸면 `maximize` 에서 파산 셀이 생존-손실 셀을 이긴다(2026-08-30, `_common` 과 같은 결함).
+       ★sharpe 목적함수에만 건다 — `total_return`·`max_drawdown` 은 파산 셀에서도 정직한 값이다.
     """
     if cell.is_degenerate:
+        return None
+    if objective_metric == "sharpe_ratio" and sharpe_unavailable:
         return None
     return metric_value_for_objective(
         objective_metric=objective_metric,
@@ -246,6 +257,8 @@ def run_grid_search(
             )
         metrics = outcome.result.metrics
         num_trades = metrics.num_trades
+        # 두 번째 절은 의도된 죽은 방어선이다 — `sharpe_ratio` 는 비-옵셔널 `Decimal` 이다.
+        # 파산 셀의 degenerate 판정은 여기가 아니라 `_cell_objective_value` 의 convention 축이 진다.
         is_degenerate = num_trades == 0 or metrics.sharpe_ratio is None
         partial = GridSearchCell(
             param_values=dict(values),
@@ -256,7 +269,11 @@ def run_grid_search(
             is_degenerate=is_degenerate,
             objective_value=None,  # 채워서 다시 dataclass 생성 (immutable).
         )
-        obj_value = _cell_objective_value(partial, objective_metric=param_space.objective_metric)
+        obj_value = _cell_objective_value(
+            partial,
+            objective_metric=param_space.objective_metric,
+            sharpe_unavailable=sharpe_is_unavailable(metrics.sharpe_convention),
+        )
         return dc_replace(partial, objective_value=obj_value)
 
     try:

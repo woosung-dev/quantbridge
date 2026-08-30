@@ -257,8 +257,14 @@ class BacktestMetrics:
     # nested 팩 2종 — site 당 1 key 로 4-site 부담 압축.
     per_side: PerSideMetrics | None = None
     excursion_stats: ExcursionStats | None = None
-    # TV Sharpe 컨벤션. tv_monthly_rfr2 / tv_daily_rfr2 / unavailable /
-    # None=구 실행.
+    # TV Sharpe 컨벤션 — **degenerate 판정의 정본 축이다.** `sharpe_ratio` 가 비-옵셔널이라
+    # 값 0 만으로는 「파산」과 「잔잔했다」를 못 가른다(`engine/metrics.py` 의 `sharpe_ratio` 계약).
+    #   tv_monthly_rfr2 / tv_daily_rfr2 = 실제로 잰 값
+    #   unavailable / unavailable_nonpositive_equity = **점수로 쓰면 안 되는 0**
+    #     (판별식 = `metrics.sharpe_is_unavailable`)
+    #   None = 이 필드 이전에 완료된 구 실행 — 소급 판정하지 않는다
+    # ★2026-08-30 정정: 종전 주석이 `unavailable_nonpositive_equity` 를 빠뜨려, 소비자들이
+    #   「unavailable 하나뿐」으로 읽고 게이트를 값 기준으로 짜게 만든 원인 중 하나였다.
     sharpe_convention: str | None = None
     # 격리 레버리지 모델 적용 결과. leverage<=1 이면 항상 None.
     liquidation_occurred: bool | None = None

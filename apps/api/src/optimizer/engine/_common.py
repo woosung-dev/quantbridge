@@ -6,6 +6,7 @@ from dataclasses import replace as dc_replace
 from decimal import Decimal
 from typing import Protocol
 
+from src.backtest.engine.metrics import sharpe_is_unavailable
 from src.backtest.engine.types import BacktestConfig, BacktestMetrics
 from src.optimizer.exceptions import OptimizationObjectiveUnsupportedError
 
@@ -52,15 +53,28 @@ def metric_value_for_objective(
 
 
 def _objective_from_metrics(metrics: BacktestMetrics, *, objective_metric: str) -> Decimal | None:
-    """metrics → raw objective_value. degenerate (num_trades=0 / sharpe=None) → None.
+    """metrics → raw objective_value. degenerate 면 `None`.
+
+    degenerate 는 둘이다:
+    ⑴ **거래 0건** — 잴 것이 없다.
+    ⑵ **sharpe convention 이 `unavailable*`** — `sharpe_ratio()` 가 파산·무표본 실행에도
+       비-옵셔널 `Decimal("0")` 을 돌려주므로 **값만 보면 파산과 「잔잔했다」가 같다**.
+       이것을 안 걸러 두면 `maximize` 에서 **파산 셀(0.0)이 생존-손실 셀(음수)을 이긴다** —
+       골든 코퍼스의 `s2_utbot`(0.0 · -298%)이 `s4_hma_curvature`(-7.59 · -67%)를 이겼다.
+       회귀 = `tests/optimizer/test_bankrupt_cell_not_ranked_best.py` (2026-08-30).
+
+    ★⑵ 는 **sharpe 목적함수에만** 건다. `total_return`·`max_drawdown` 은 파산 셀에서도
+    정직한 실측값이고, 거기까지 버리면 게이트가 과잉이다.
 
     LESSON-063: bayesian/genetic 1:1 통합 (sharpe_ratio / total_return / max_drawdown).
     """
     if metrics.num_trades == 0:
         return None
+    if objective_metric == "sharpe_ratio" and sharpe_is_unavailable(metrics.sharpe_convention):
+        return None
     return metric_value_for_objective(
         objective_metric=objective_metric,
-        sharpe=metrics.sharpe_ratio,  # may be None even with trades
+        sharpe=metrics.sharpe_ratio,
         total_return=metrics.total_return,
         max_drawdown=metrics.max_drawdown,
     )
