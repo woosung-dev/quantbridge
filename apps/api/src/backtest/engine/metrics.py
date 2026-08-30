@@ -31,6 +31,19 @@ SHARPE_CONVENTION_UNAVAILABLE = "unavailable"
 SHARPE_CONVENTION_NONPOSITIVE_EQUITY = "unavailable_nonpositive_equity"
 
 
+def sharpe_is_unavailable(convention: str | None) -> bool:
+    """이 convention 의 sharpe 값이 **점수로 쓸 수 없는 0** 인가.
+
+    ★`sharpe_ratio()` 는 비-옵셔널 `Decimal` 을 돌려주므로 **값만으로는 degenerate 를 못 가른다** —
+    파산한 계좌도, 표본이 없어 못 잰 실행도 똑같이 `Decimal("0")` 이다. 구분은 convention 이 진다
+    (이 함수 바로 아래 `sharpe_ratio` docstring 의 계약).
+
+    `None` 은 **이 필드가 생기기 전에 완료된 실행**이라 판별 불가다 — 소급해서 degenerate 로 만들지
+    않는다(옛 백테스트의 순위를 지금 바꾸지 않는다).
+    """
+    return convention in (SHARPE_CONVENTION_UNAVAILABLE, SHARPE_CONVENTION_NONPOSITIVE_EQUITY)
+
+
 # ── sortino ──────────────────────────────────────────────────────────────────
 
 

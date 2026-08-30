@@ -101,6 +101,8 @@ def _fake_outcome(
         total_return=total_return,
         max_drawdown=max_drawdown,
         num_trades=num_trades,
+        # 실제 `BacktestMetrics` 는 이 필드를 갖는다 — degenerate 판정 축이다.
+        sharpe_convention="tv_monthly_rfr2",
     )
     result = SimpleNamespace(metrics=metrics)
     return SimpleNamespace(status="ok", result=result)
@@ -111,9 +113,7 @@ def _fake_outcome(
 
 class TestSampleIndividual:
     def test_integer_field_sampling_within_bounds(self) -> None:
-        space = _build_param_space(
-            {"x": {"kind": "integer", "min": 5, "max": 30, "step": 1}}
-        )
+        space = _build_param_space({"x": {"kind": "integer", "min": 5, "max": 30, "step": 1}})
         rng = random.Random(_GENETIC_RANDOM_STATE)
         for _ in range(20):
             sample = _sample_individual(rng, space)
@@ -130,9 +130,7 @@ class TestSampleIndividual:
 
     def test_deterministic_with_fixed_seed(self) -> None:
         """random_state=42 보장 결정성."""
-        space = _build_param_space(
-            {"x": {"kind": "integer", "min": 0, "max": 100, "step": 1}}
-        )
+        space = _build_param_space({"x": {"kind": "integer", "min": 0, "max": 100, "step": 1}})
         rng1 = random.Random(_GENETIC_RANDOM_STATE)
         rng2 = random.Random(_GENETIC_RANDOM_STATE)
         s1 = _sample_individual(rng1, space)
@@ -144,9 +142,7 @@ class TestSampleIndividual:
 
 
 class TestCompareForSelection:
-    def _ind(
-        self, idx: int, obj: Decimal | None
-    ) -> GeneticIndividual:
+    def _ind(self, idx: int, obj: Decimal | None) -> GeneticIndividual:
         return GeneticIndividual(
             idx=idx,
             params={"x": Decimal(idx)},
@@ -164,14 +160,16 @@ class TestCompareForSelection:
 
     def test_maximize_picks_largest(self) -> None:
         winner = _compare_for_selection(
-            self._ind(0, Decimal("1.0")), self._ind(1, Decimal("2.5")),
+            self._ind(0, Decimal("1.0")),
+            self._ind(1, Decimal("2.5")),
             direction="maximize",
         )
         assert winner.idx == 1
 
     def test_minimize_picks_smallest(self) -> None:
         winner = _compare_for_selection(
-            self._ind(0, Decimal("1.0")), self._ind(1, Decimal("2.5")),
+            self._ind(0, Decimal("1.0")),
+            self._ind(1, Decimal("2.5")),
             direction="minimize",
         )
         assert winner.idx == 0
@@ -238,9 +236,7 @@ class TestSinglePointCrossover:
 class TestGaussianMutation:
     def test_integer_field_clips_within_bounds(self) -> None:
         """gaussian mutation 결과 항상 [min, max] 안."""
-        space = _build_param_space(
-            {"x": {"kind": "integer", "min": 5, "max": 30, "step": 1}}
-        )
+        space = _build_param_space({"x": {"kind": "integer", "min": 5, "max": 30, "step": 1}})
         rng = random.Random(0)
         params = {"x": Decimal("20")}
         for _ in range(50):
@@ -274,6 +270,8 @@ class TestObjectiveFromMetrics:
             total_return=Decimal("0"),
             max_drawdown=Decimal("0"),
             num_trades=0,
+            # 실제 `BacktestMetrics` 는 이 필드를 갖는다 — degenerate 판정 축이다.
+            sharpe_convention="tv_monthly_rfr2",
         )
         assert _objective_from_metrics(metrics, objective_metric="sharpe_ratio") is None
 
@@ -283,11 +281,10 @@ class TestObjectiveFromMetrics:
             total_return=Decimal("0.42"),
             max_drawdown=Decimal("0.1"),
             num_trades=5,
+            # 실제 `BacktestMetrics` 는 이 필드를 갖는다 — degenerate 판정 축이다.
+            sharpe_convention="tv_monthly_rfr2",
         )
-        assert (
-            _objective_from_metrics(metrics, objective_metric="total_return")
-            == Decimal("0.42")
-        )
+        assert _objective_from_metrics(metrics, objective_metric="total_return") == Decimal("0.42")
 
     def test_unsupported_objective_raises(self) -> None:
         metrics = SimpleNamespace(
@@ -295,6 +292,8 @@ class TestObjectiveFromMetrics:
             total_return=Decimal("0"),
             max_drawdown=Decimal("0"),
             num_trades=5,
+            # 실제 `BacktestMetrics` 는 이 필드를 갖는다 — degenerate 판정 축이다.
+            sharpe_convention="tv_monthly_rfr2",
         )
         with pytest.raises(OptimizationObjectiveUnsupportedError):
             _objective_from_metrics(metrics, objective_metric="calmar_ratio")
@@ -315,9 +314,7 @@ class TestUpdateBestSoFar:
 
 
 class TestPickBestIterationIdx:
-    def _it(
-        self, idx: int, obj: Decimal | None, *, gen: int = 0
-    ) -> GeneticIndividual:
+    def _it(self, idx: int, obj: Decimal | None, *, gen: int = 0) -> GeneticIndividual:
         return GeneticIndividual(
             idx=idx,
             params={"x": Decimal(idx)},
@@ -398,9 +395,7 @@ class TestRunGeneticSearchValidation:
             'maType = input.string("ema", "MA Type")\n'
             "plot(close)\n"
         )
-        space = _build_param_space(
-            {"maType": {"kind": "categorical", "values": ["ema", "sma"]}}
-        )
+        space = _build_param_space({"maType": {"kind": "categorical", "values": ["ema", "sma"]}})
         with pytest.raises(ValueError, match="numeric"):
             _validate_genetic_search_pre(pine, space)
 
@@ -416,9 +411,7 @@ class TestRunGeneticSearchValidation:
             'maType = input.string("ema", "MA Type")\n'
             "plot(close)\n"
         )
-        space = _build_param_space(
-            {"maType": {"kind": "categorical", "values": ["NaN", "5"]}}
-        )
+        space = _build_param_space({"maType": {"kind": "categorical", "values": ["NaN", "5"]}})
         with pytest.raises(ValueError, match="finite"):
             _validate_genetic_search_pre(pine, space)
 
@@ -446,9 +439,7 @@ class TestRunGeneticSearchValidation:
 
 
 class TestRunGeneticSearchEndToEnd:
-    def test_end_to_end_with_mocked_backtest(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_end_to_end_with_mocked_backtest(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """population=4, generations=2 = 12 evaluations, sharpe=call counter."""
         call_count = {"n": 0}
 
@@ -456,24 +447,18 @@ class TestRunGeneticSearchEndToEnd:
             call_count["n"] += 1
             return _fake_outcome(sharpe=Decimal(call_count["n"]))
 
-        monkeypatch.setattr(
-            "src.optimizer.engine.genetic.run_backtest", fake_run_backtest
-        )
+        monkeypatch.setattr("src.optimizer.engine.genetic.run_backtest", fake_run_backtest)
 
         space = _build_param_space(
             {
                 "emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1},
-                "stopLossPct": {
-                    "kind": "decimal", "min": "0.5", "max": "2.0", "step": "0.1"
-                },
+                "stopLossPct": {"kind": "decimal", "min": "0.5", "max": "2.0", "step": "0.1"},
             },
             population_size=4,
             n_generations=2,
             max_evaluations=50,
         )
-        result = run_genetic_search(
-            PINE_WITH_INPUTS, _make_ohlcv(), param_space=space
-        )
+        result = run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
 
         # 4 * (2 + 1) = 12 evaluations.
         assert result.total_iterations == 12
@@ -522,9 +507,7 @@ class TestRunGeneticSearchEndToEnd:
         assert result.best_total_return == Decimal("0.06")
         assert result.best_max_drawdown == Decimal("-0.06")
 
-    def test_all_degenerate_leaves_best_metrics_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_all_degenerate_leaves_best_metrics_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """[BL-429] best 가 없으면 metric 도 없다 — 0 으로 채우지 않는다."""
 
         def fake_run_backtest(pine: str, ohlcv: pd.DataFrame, cfg: Any) -> SimpleNamespace:
@@ -562,9 +545,7 @@ class TestRunGeneticSearchEndToEnd:
                 return _fake_outcome(sharpe=None, num_trades=0)
             return _fake_outcome(sharpe=Decimal(call_count["n"]))
 
-        monkeypatch.setattr(
-            "src.optimizer.engine.genetic.run_backtest", fake_run_backtest
-        )
+        monkeypatch.setattr("src.optimizer.engine.genetic.run_backtest", fake_run_backtest)
 
         space = _build_param_space(
             {"emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
@@ -573,9 +554,7 @@ class TestRunGeneticSearchEndToEnd:
             max_evaluations=50,
             direction="minimize",
         )
-        result = run_genetic_search(
-            PINE_WITH_INPUTS, _make_ohlcv(), param_space=space
-        )
+        result = run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
         # 4 * 2 = 8 evaluations, 절반 degenerate
         assert result.total_iterations == 8
         assert result.degenerate_count == 4
@@ -593,9 +572,7 @@ class TestRunGeneticSearchEndToEnd:
             captured.append(dict(cfg.input_overrides or {}))
             return _fake_outcome(sharpe=Decimal("1.5"))
 
-        monkeypatch.setattr(
-            "src.optimizer.engine.genetic.run_backtest", fake_run_backtest
-        )
+        monkeypatch.setattr("src.optimizer.engine.genetic.run_backtest", fake_run_backtest)
 
         space = _build_param_space(
             {"emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
@@ -625,9 +602,7 @@ class TestRunGeneticSearchEndToEnd:
 
 
 class TestSerializerRoundTrip:
-    def test_to_jsonb_and_back_preserves_values(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_to_jsonb_and_back_preserves_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """end-to-end + round-trip — Sprint 56 BL-233 JSONB shape 4종 차단 검증."""
         from src.optimizer.serializers import (
             genetic_search_result_from_jsonb,
@@ -650,9 +625,7 @@ class TestSerializerRoundTrip:
             n_generations=1,
             max_evaluations=50,
         )
-        result = run_genetic_search(
-            PINE_WITH_INPUTS, _make_ohlcv(), param_space=space
-        )
+        result = run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
         jsonb = genetic_search_result_to_jsonb(result)
 
         # Sprint 56 ADR-013 §7 amendment 차단 4종 검증.
@@ -776,9 +749,7 @@ class TestRoulettSelect:
 
 
 class TestRunGeneticSearchWithRoulette:
-    def test_roulette_selection_method_completes(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_roulette_selection_method_completes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             "src.optimizer.engine.genetic.run_backtest",
             lambda *a, **kw: _fake_outcome(),
