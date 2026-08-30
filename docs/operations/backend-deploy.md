@@ -41,6 +41,28 @@
 **서버를 확인했다는 뜻도 아니다.** 아래의 호스트명·체크아웃·systemd 유닛·백업 파일은 모두
 CONTROL이 §4와 `<보고>`의 명령으로 실제 상태를 확인해야 한다.
 
+### ★2026-08-30 디스크 실측 — 워커 기동은 더 이상 PyPI 를 타지 않는다
+
+종전 compose 의 `command: uv run celery …` 는 실행 전에 암묵 `uv sync` 를 돌았다. 러너 스테이지의
+uv 캐시가 비어 있어(빌더는 root, 러너는 `appuser`) **기동할 때마다 dev 그룹 28개를 PyPI 에서 받았고**
+(`mypy`·`ruff`·`debugpy`·`pyarrow` 43.6MiB 포함, 16.18초), 그 결과 컨테이너 쓰기층이 **각 650MB ×
+4 = 2.6GB** 였다. Dockerfile 의 `--no-dev` 가 런타임에 통째로 되돌려지고 있었다는 뜻이다.
+
+`uv run` 두 토큰을 지웠다 — 러너가 `PATH=/app/.venv/bin:$PATH` 를 세우므로 `celery` 는 그대로
+`/app/.venv/bin/celery` 로 풀린다. 대조 실측(같은 이미지 · `--network none`):
+
+| 명령 | rc | 결과 |
+| --- | --- | --- |
+| `uv run celery --version` | 1 | `pytest-timeout` 내려받기 → DNS 실패 |
+| `celery --version` | 0 | `5.6.3 (recovery)` |
+
+⇒ **워커 기동이 PyPI 도달을 더 이상 전제하지 않는다.** 로컬 재현 실측: 쓰기층 580~628MB → **0B**.
+
+★**호스트 `/etc/docker/daemon.json` 이 로그 상한을 갖고 있다**(`json-file` · `max-size 10m` ·
+`max-file 3`, 2026-08-30 실측). 이 파일은 **레포에도 어느 런북에도 없었다** — 호스트를 다시 세우면
+조용히 무제한으로 돌아간다. 같은 값을 `infra/compose/docker-compose{,.frontend}.yml` 의
+`x-logging` anchor 로 못박았으니, **호스트 설정이 사라져도 compose 가 상한을 갖는다.**
+
 ---
 
 ## 2. 구조 — 왜 이 모양인가

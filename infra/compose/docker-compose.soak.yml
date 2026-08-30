@@ -35,8 +35,6 @@ services:
       - ./.soak/src:/app/src:ro
       - ./apps/api/.metrics:/metrics
     command: !override
-      - "uv"
-      - "run"
       - "celery"
       - "-A"
       - "src.tasks.celery_app"
@@ -51,8 +49,6 @@ services:
       - ./.soak/src:/app/src:ro
       - ./apps/api/.metrics:/metrics
     command: !override
-      - "uv"
-      - "run"
       - "celery"
       - "-A"
       - "src.tasks.celery_app"
@@ -68,8 +64,6 @@ services:
       - ./.soak/src:/app/src:ro
       - ./apps/api/.metrics:/metrics
     command: !override
-      - "uv"
-      - "run"
       - "celery"
       - "-A"
       - "src.tasks.celery_app"
@@ -87,8 +81,6 @@ services:
       - ./apps/api/.metrics:/metrics
       - beat-data:/data
     command: !override
-      - "uv"
-      - "run"
       - "celery"
       - "-A"
       - "src.tasks.celery_app"

@@ -49,7 +49,7 @@ run_alembic_with_lock() {
 
     echo "[entrypoint] alembic upgrade head (advisory lock key=${ALEMBIC_LOCK_KEY}, timeout=${ALEMBIC_LOCK_TIMEOUT_S}s)"
 
-    uv run python -m src.scripts.run_alembic_with_lock \
+    python -m src.scripts.run_alembic_with_lock \
         --lock-key "${ALEMBIC_LOCK_KEY}" \
         --timeout "${ALEMBIC_LOCK_TIMEOUT_S}" \
         || {
@@ -81,12 +81,12 @@ case "$ROLE" in
         #   응답 경로(핸드셰이크 거부·프로토콜 오류 등)까지 덮으려고 서버 쪽에서도 끈다.
         #   ★gunicorn 이 아니다 — 이 레포에 gunicorn 은 0건이고 `--server_header False`
         #   라는 플래그는 존재하지 않는다(2026-08-16 실측, 원장 BL-347 본문 정정).
-        exec uv run uvicorn src.main:app --no-server-header --host 0.0.0.0 --port "${PORT:-8080}"
+        exec uvicorn src.main:app --no-server-header --host 0.0.0.0 --port "${PORT:-8080}"
         ;;
     worker)
         # Celery worker — migration 미수행 (api 인스턴스가 책임).
         echo "[entrypoint] starting celery worker (prefork, concurrency=${CELERY_CONCURRENCY:-4})"
-        exec uv run celery -A src.tasks worker \
+        exec celery -A src.tasks worker \
             --loglevel=info \
             --concurrency="${CELERY_CONCURRENCY:-4}" \
             --pool=prefork
@@ -95,7 +95,7 @@ case "$ROLE" in
         # Sprint 12 — Bybit Private WebSocket stream worker (ws_stream queue 전용).
         # docker-compose backend-ws-stream 미러 (BL-012: prefork 복귀). alembic skip.
         echo "[entrypoint] starting celery ws-stream worker (queue=ws_stream, prefork, concurrency=${WS_STREAM_CONCURRENCY:-2})"
-        exec uv run celery -A src.tasks worker -Q ws_stream \
+        exec celery -A src.tasks worker -Q ws_stream \
             --loglevel=info \
             --concurrency="${WS_STREAM_CONCURRENCY:-2}" \
             --pool=prefork
@@ -104,14 +104,14 @@ case "$ROLE" in
         # Sprint 57 BL-237 — Optimizer heavy queue dedicated worker (CPU/메모리 집중).
         # docker-compose backend-optimizer-heavy 미러. alembic skip.
         echo "[entrypoint] starting celery optimizer-heavy worker (queue=optimizer_heavy, prefork, concurrency=${OPTIMIZER_HEAVY_CONCURRENCY:-1})"
-        exec uv run celery -A src.tasks worker -Q optimizer_heavy \
+        exec celery -A src.tasks worker -Q optimizer_heavy \
             --loglevel=info \
             --concurrency="${OPTIMIZER_HEAVY_CONCURRENCY:-1}" \
             --pool=prefork
         ;;
     beat)
         echo "[entrypoint] starting celery beat"
-        exec uv run celery -A src.tasks beat --loglevel=info
+        exec celery -A src.tasks beat --loglevel=info
         ;;
     migrate)
         run_alembic_with_lock

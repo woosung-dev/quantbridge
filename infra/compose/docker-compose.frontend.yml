@@ -20,11 +20,20 @@
 #   브라우저 → Cloudflare(Access OTP) → cloudflared(host net) → 127.0.0.1:3200 → 이 FE
 #   브라우저 → Cloudflare              → cloudflared(host net) → 127.0.0.1:8100 → 호스트 uvicorn
 
+# ★로그 상한 — base compose 와 같은 값. 별도 프로젝트(`-p quantbridge-fe`)라
+# anchor 를 공유할 수 없어 여기 한 벌을 더 둔다(2026-08-30).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # Next.js 16 standalone 런타임. `apps/web/Dockerfile` 은 맥 빌드 산출물만 담는다.
   frontend:
     image: quantbridge-frontend:${QB_FRONTEND_TAG:?required — 맥에서 build 한 태그를 .env 에 적어라}
     container_name: quantbridge-frontend
+    logging: *default-logging
     # ★루프백 전용 publish. cloudflared 가 host 네트워크에 있으므로 이것만으로 닿고,
     # 호스트 iptables(INPUT 은 22 만 ACCEPT)가 외부 직접 접근을 막는다.
     ports:
@@ -52,6 +61,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: quantbridge-cloudflared
+    logging: *default-logging
     network_mode: host
     command: tunnel --no-autoupdate run --token ${QB_TUNNEL_TOKEN:?required — Zero Trust → Tunnels}
     mem_limit: 256m
