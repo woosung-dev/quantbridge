@@ -300,6 +300,9 @@ async def test_stream_main_wires_private_topic_router(monkeypatch: pytest.Monkey
             return _session()
 
     class _Stream:
+        # BL-837 — 페이크도 실물 인터페이스를 모델해야 한다. 정상 종료는 crash 가 아니다.
+        supervisor_error = None
+
         def __init__(self, **kwargs: object) -> None:
             captured.update(kwargs)
             self.reconnect_count = 0

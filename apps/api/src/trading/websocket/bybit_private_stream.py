@@ -15,6 +15,9 @@
   ``__aexit__`` 가 supervisor 도 cancel + ws close.
 - **FD leak fix** (G4 #5): supervisor 의 finally block 이 ws.close() 보장. auth
   실패 경로에서도 FD 누수 없음.
+- **supervisor crash 표면화** (BL-837): supervisor task 에 done-callback 을 달아 **예상 밖**
+  예외를 `supervisor_error` 로 잡고 `stop_event` 를 set 한다. 그것이 없으면 아무도 그 예외를
+  안 읽어 stream 이 lease 를 쥔 채 영구 침묵한다. 경보는 여기가 아니라 task 층이 낸다.
 """
 
 from __future__ import annotations
@@ -32,7 +35,11 @@ from uuid import UUID
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from src.common.metrics import qb_ws_reconcile_skipped_total, qb_ws_reconnect_total
+from src.common.metrics import (
+    qb_ws_reconcile_skipped_total,
+    qb_ws_reconnect_total,
+    qb_ws_supervisor_crash_total,
+)
 from src.common.metrics_multiproc import record_metric_safely
 
 logger = logging.getLogger(__name__)
@@ -129,12 +136,22 @@ class BybitPrivateStream:
         self._supervisor_task: asyncio.Task[None] | None = None
         self._first_connect_event = asyncio.Event()
         self._auth_error: BybitAuthError | None = None
+        self._supervisor_error: BaseException | None = None
         self._last_reconciled_at: float = 0.0  # monotonic. debounce 30s.
 
     @property
     def stop_event(self) -> asyncio.Event:
         """외부에서 graceful shutdown 트리거용. worker_shutdown signal 이 set."""
         return self._stop_event
+
+    @property
+    def supervisor_error(self) -> BaseException | None:
+        """supervisor 가 **예상 밖** 예외로 죽었으면 그 예외. 아니면 None.
+
+        예상된 종료(`stop_event` · `BybitAuthError` · cancel)는 여기 안 담긴다 —
+        그것까지 담으면 정상 재기동이 장애로 보고돼 이 필드가 무의미해진다.
+        """
+        return self._supervisor_error
 
     def _sign(self, expires: int) -> str:
         if self.api_secret is None:
@@ -311,6 +328,12 @@ class BybitPrivateStream:
         if self._stop_event.is_set():
             raise RuntimeError("BybitPrivateStream stop_event set before connect")
         self._supervisor_task = asyncio.create_task(self._supervisor_loop())
+        # ★BL-837 — done-callback 이 없으면 supervisor 의 예상 밖 예외를 **아무도 안 읽는다.**
+        #   `__aenter__` 는 첫 연결만 기다리고 돌아가고, 다음 관측 시점인 `__aexit__` 의
+        #   `_wait_supervisor_done()` 까지 못 간다 — `websocket_task._stream_main` 이
+        #   `await stop_event.wait()` 에서 영원히 멈춰 있기 때문이다. 그 사이 `async with lease:`
+        #   가 `ws:lease:{account_id}` 를 계속 갱신해 **failover 까지 막힌다.**
+        self._supervisor_task.add_done_callback(self._on_supervisor_done)
         # 첫 연결 또는 stop 까지 대기
         first_done = asyncio.create_task(self._first_connect_event.wait())
         stop_done = asyncio.create_task(self._stop_event.wait())
@@ -336,10 +359,41 @@ class BybitPrivateStream:
         if self._auth_error is not None:
             await self._wait_supervisor_done()
             raise self._auth_error
+        # ★BL-837 — 첫 연결 중에 supervisor 가 죽었으면 **원래 예외**를 올린다.
+        #   이 줄이 없으면 아래 `RuntimeError("stop_event set before first connect")` 가
+        #   대신 나가는데 그건 거짓말이다: stop 을 누른 사람은 없고 supervisor 가 죽었다.
+        if self._supervisor_error is not None:
+            await self._wait_supervisor_done()
+            raise self._supervisor_error
         if not self.connected and self._stop_event.is_set():
             await self._wait_supervisor_done()
             raise RuntimeError("BybitPrivateStream stop_event set before first connect")
         return self
+
+    def _on_supervisor_done(self, task: asyncio.Task[None]) -> None:
+        """[BL-837] supervisor 가 죽으면 표면화하고 `stop_event` 를 놓아 lease 를 푼다.
+
+        ★이 콜백은 **절대 raise 하면 안 된다** — 여기서 나는 예외는 asyncio 의 예외 핸들러로
+        새어 원래 원인을 가린다. 그래서 metric 은 `record_metric_safely` 로 감싸고 나머지는
+        예외를 낼 수 없는 호출만 쓴다.
+        """
+        if task.cancelled():
+            # `_wait_supervisor_done()` 이 건 취소 = 정상 종료 경로다.
+            return
+        exc = task.exception()
+        if exc is None:
+            # 루프가 스스로 `return` 했다 — `stop_event` 정상 종료 또는 `BybitAuthError`
+            # (그쪽은 `_auth_error` 가 이미 들고 있고 `__aenter__` 가 올린다).
+            return
+        self._supervisor_error = exc
+        logger.error(
+            "ws_supervisor_crashed account=%s err=%r — stop_event set, lease will be released",
+            self.account_id,
+            exc,
+        )
+        record_metric_safely(qb_ws_supervisor_crash_total.inc)
+        # lease 를 쥔 채 침묵하지 않도록 대기 중인 `_stream_main` 을 깨운다.
+        self._stop_event.set()
 
     async def _wait_supervisor_done(self) -> None:
         if self._supervisor_task is None:

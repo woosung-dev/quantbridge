@@ -196,6 +196,12 @@ def task_entry(payload: str) -> dict:
 - **module-level `asyncio.Semaphore/Lock/Event/Queue` 추가 시 PR 리뷰 의무** —
   게이트 = `tests/tasks/test_no_module_level_loop_bound_state.py`. allowlist 는 현재 1건
 - **fire-and-forget alert 는 `track_pending_alert(task)`** — `_PENDING_ALERTS` 직접 조작 금지(gauge 동기화 누락)
+- **수명이 요청보다 긴 `create_task` 에는 `add_done_callback` 이 붙는다** — 아무도 `await` 하지 않는
+  task 의 예외는 **저장된 채 아무도 안 읽는다**. 콜백에서 ⑴ 예외를 로그+metric 으로 올리고
+  ⑵ 기다리는 쪽을 깨울 event 를 set 해라. 콜백 자신은 **raise 하면 안 된다**(metric 은
+  `record_metric_safely`). **이유:** 2026-08-31 [BL-837] — private WS supervisor 가 죽어도
+  `stop_event` 를 아무도 set 하지 않아 stream 이 **lease 를 쥔 채 영구 침묵**했고 failover 까지
+  막혔다. 표준 = `trading/websocket/bybit_private_stream.py:_on_supervisor_done`
 
 ★배선 상세·allowlist 갱신 절차·signal 훅 전문 = [`celery-prefork.md`](../../docs/development/celery-prefork.md).
 
