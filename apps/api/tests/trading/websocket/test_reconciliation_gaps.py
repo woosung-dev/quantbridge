@@ -13,7 +13,6 @@ alert + ccxt status 매핑을 덮는다. baseline term-missing(90%) + G1 codex �
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
@@ -29,16 +28,8 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
-from src.trading.websocket.reconciliation import Reconciler
-
-
-@pytest.fixture
-def session_factory(db_session):
-    @asynccontextmanager
-    async def factory():
-        yield db_session
-
-    return factory
+from src.trading.repositories.order_repository import OrderRepository
+from src.trading.services.websocket_reconciliation_service import WebSocketReconciliationService
 
 
 @pytest.fixture
@@ -76,14 +67,12 @@ def _make_fetcher(open_orders=None, recent_orders=None):
 
 def _silence_alert(monkeypatch):
     monkeypatch.setattr(
-        "src.trading.websocket.reconciliation.send_critical_alert",
+        "src.trading.services.websocket_reconciliation_service.send_critical_alert",
         AsyncMock(return_value=False),
     )
 
 
-async def test_find_match_via_orderLinkId_key_transitions(
-    submitted_order, session_factory, db_session, monkeypatch
-):
+async def test_find_match_via_orderLinkId_key_transitions(submitted_order, db_session, monkeypatch):
     """exch order 가 clientOrderId 대신 orderLinkId 키 사용 → 매칭 + Filled 전이.
 
     _find_match fallback chain (clientOrderId → orderLinkId → clOrdId) 의 2번째 키.
@@ -95,8 +84,8 @@ async def test_find_match_via_orderLinkId_key_transitions(
             {"orderLinkId": str(order.id), "status": "Filled", "average": "50000.00", "id": "EX-OL"}
         ]
     )
-    reconciler = Reconciler(
-        session_factory=session_factory, fetcher=fetcher, settings=Settings()
+    reconciler = WebSocketReconciliationService(
+        repo=OrderRepository(db_session), fetcher=fetcher, settings=Settings()
     )
     await reconciler.run(account_id=acc.id)
 
@@ -107,9 +96,7 @@ async def test_find_match_via_orderLinkId_key_transitions(
     assert refreshed.state == OrderState.filled
 
 
-async def test_find_match_via_clOrdId_key_transitions(
-    submitted_order, session_factory, db_session, monkeypatch
-):
+async def test_find_match_via_clOrdId_key_transitions(submitted_order, db_session, monkeypatch):
     """exch order 가 clOrdId 키(OKX 스타일) 사용 → 매칭 + Cancelled 전이.
 
     _find_match fallback chain 의 3번째 키. drift 시 cancel 이 unknown 오분류.
@@ -119,8 +106,8 @@ async def test_find_match_via_clOrdId_key_transitions(
     fetcher = _make_fetcher(
         open_orders=[{"clOrdId": str(order.id), "status": "Cancelled", "id": "EX-CO"}]
     )
-    reconciler = Reconciler(
-        session_factory=session_factory, fetcher=fetcher, settings=Settings()
+    reconciler = WebSocketReconciliationService(
+        repo=OrderRepository(db_session), fetcher=fetcher, settings=Settings()
     )
     await reconciler.run(account_id=acc.id)
 
@@ -131,9 +118,7 @@ async def test_find_match_via_clOrdId_key_transitions(
     assert refreshed.state == OrderState.cancelled
 
 
-async def test_rejected_terminal_transition(
-    submitted_order, session_factory, db_session, monkeypatch
-):
+async def test_rejected_terminal_transition(submitted_order, db_session, monkeypatch):
     """exch status Rejected → rejected 전이 + rejectReason 추출 (reconciliation.py:219-221)."""
     order, acc = submitted_order
     _silence_alert(monkeypatch)
@@ -147,8 +132,8 @@ async def test_rejected_terminal_transition(
             }
         ]
     )
-    reconciler = Reconciler(
-        session_factory=session_factory, fetcher=fetcher, settings=Settings()
+    reconciler = WebSocketReconciliationService(
+        repo=OrderRepository(db_session), fetcher=fetcher, settings=Settings()
     )
     await reconciler.run(account_id=acc.id)
 
@@ -161,17 +146,15 @@ async def test_rejected_terminal_transition(
     assert "InsufficientBalance" in refreshed.error_message
 
 
-async def test_non_terminal_status_no_transition(
-    submitted_order, session_factory, db_session, monkeypatch
-):
+async def test_non_terminal_status_no_transition(submitted_order, db_session, monkeypatch):
     """매칭됐지만 status 가 비종료(New) → 전이 없음, state 유지 (reconciliation.py:107 False)."""
     order, acc = submitted_order
     _silence_alert(monkeypatch)
     fetcher = _make_fetcher(
         open_orders=[{"clientOrderId": str(order.id), "status": "New", "id": "EX-NEW"}]
     )
-    reconciler = Reconciler(
-        session_factory=session_factory, fetcher=fetcher, settings=Settings()
+    reconciler = WebSocketReconciliationService(
+        repo=OrderRepository(db_session), fetcher=fetcher, settings=Settings()
     )
     await reconciler.run(account_id=acc.id)
 
@@ -182,9 +165,7 @@ async def test_non_terminal_status_no_transition(
     assert refreshed.state == OrderState.submitted  # 변화 없음
 
 
-async def test_handle_unknown_alert_exception_swallowed(
-    submitted_order, session_factory, db_session, monkeypatch
-):
+async def test_handle_unknown_alert_exception_swallowed(submitted_order, db_session, monkeypatch):
     """unknown order 의 alert 발송이 예외 던져도 swallow + 다음 order 계속 (reconciliation.py:188-189).
 
     G2 false-green 방어: state 유지만 보면 _handle_unknown/alert 호출을 지워도 통과한다.
@@ -208,11 +189,11 @@ async def test_handle_unknown_alert_exception_swallowed(
 
     mock_alert = AsyncMock(side_effect=RuntimeError("slack down"))
     monkeypatch.setattr(
-        "src.trading.websocket.reconciliation.send_critical_alert", mock_alert
+        "src.trading.services.websocket_reconciliation_service.send_critical_alert", mock_alert
     )
     fetcher = _make_fetcher()  # 빈 snapshot → 두 order 모두 unknown
-    reconciler = Reconciler(
-        session_factory=session_factory, fetcher=fetcher, settings=Settings()
+    reconciler = WebSocketReconciliationService(
+        repo=OrderRepository(db_session), fetcher=fetcher, settings=Settings()
     )
     # 예외 전파 없이 완료해야 함
     await reconciler.run(account_id=acc.id)

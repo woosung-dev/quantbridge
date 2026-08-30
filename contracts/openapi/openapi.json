@@ -5724,21 +5724,24 @@
         "type": "object"
       },
       "RegisterAccountRequest": {
+        "additionalProperties": false,
+        "description": "Bybit Demo 계정 등록 입력.\n\n거래소와 모드는 사용자가 고르는 값이 아니다. 서버가 제품 불변식인\n``bybit/demo``로만 저장해 legacy/live 입력이 저장 경로에 들어오지 않게 한다.",
         "properties": {
           "api_key": {
+            "format": "password",
             "maxLength": 200,
             "minLength": 1,
             "title": "Api Key",
-            "type": "string"
+            "type": "string",
+            "writeOnly": true
           },
           "api_secret": {
+            "format": "password",
             "maxLength": 200,
             "minLength": 1,
             "title": "Api Secret",
-            "type": "string"
-          },
-          "exchange": {
-            "$ref": "#/components/schemas/ExchangeName"
+            "type": "string",
+            "writeOnly": true
           },
           "label": {
             "anyOf": [
@@ -5751,27 +5754,9 @@
               }
             ],
             "title": "Label"
-          },
-          "mode": {
-            "$ref": "#/components/schemas/ExchangeMode"
-          },
-          "passphrase": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Passphrase"
           }
         },
         "required": [
-          "exchange",
-          "mode",
           "api_key",
           "api_secret"
         ],

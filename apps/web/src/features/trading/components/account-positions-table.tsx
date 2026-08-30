@@ -226,8 +226,8 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
         <div className="card-body">
           <StateBox
             testId="account-positions-no-accounts"
-            title="등록된 거래소 계정이 없습니다."
-            body="계정을 등록하면 세션과 무관하게 남아 있는 포지션을 표시합니다."
+            title="운영 가능한 Bybit 데모 계정이 없습니다."
+            body="Bybit 데모 계정을 등록하면 세션과 무관하게 남아 있는 포지션을 표시합니다."
           />
         </div>
       </div>

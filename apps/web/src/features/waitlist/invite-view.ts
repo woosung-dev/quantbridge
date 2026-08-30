@@ -13,14 +13,14 @@ export type InviteFetchResult =
   | { kind: "ok"; email: string; status: WaitlistStatus }
   | { kind: "invalid" } // 400 — 서명 불일치 · 만료. ★둘을 가르지 않는다(토큰 추측 힌트).
   | { kind: "not-found" } // 404 — 토큰은 읽혔으나 신청서가 없다
-  | { kind: "error"; message: string };
+  | { kind: "error" };
 
 export type InviteView =
   | { view: "invited"; email: string }
   | { view: "already-joined"; email: string }
   | { view: "not-yet"; email: string }
   | { view: "unusable" }
-  | { view: "unavailable"; message: string };
+  | { view: "unavailable" };
 
 export function resolveInviteView(result: InviteFetchResult): InviteView {
   // 만료·위조·신청서 없음을 **한 갈래**로 합친다 — 어느 쪽인지 알려 주면 토큰을 좁힐 수 있다.
@@ -28,7 +28,7 @@ export function resolveInviteView(result: InviteFetchResult): InviteView {
     return { view: "unusable" };
   }
   if (result.kind === "error") {
-    return { view: "unavailable", message: result.message };
+    return { view: "unavailable" };
   }
   // 이미 가입까지 끝났다 — 다시 가입시키면 두 번째 계정이 생긴다.
   if (result.status === "joined") {

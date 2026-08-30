@@ -77,13 +77,10 @@ export async function verifyInviteToken(token: string): Promise<InviteFetchResul
     // (`waitlist/exceptions.py` — InviteTokenInvalidError / InviteTokenExpiredError).
     if (res.status === 400) return { kind: "invalid" };
     if (res.status === 404) return { kind: "not-found" };
-    if (!res.ok) return { kind: "error", message: `HTTP ${res.status}` };
+    if (!res.ok) return { kind: "error" };
     const parsed = InviteTokenVerifyResponseSchema.parse(await res.json());
     return { kind: "ok", email: parsed.email, status: parsed.status };
-  } catch (err) {
-    return {
-      kind: "error",
-      message: err instanceof Error ? err.message : String(err),
-    };
+  } catch {
+    return { kind: "error" };
   }
 }

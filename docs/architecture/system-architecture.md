@@ -14,13 +14,13 @@ flowchart LR
     QB[QuantBridge\nWeb Application]
     Auth[Better Auth\n(Next 앱 내부)]
     TV[TradingView\nPine Script source]
-    CCXT_EX[CCXT 거래소\nBybit / Binance / OKX]
+    CCXT_EX[Bybit Demo private API\n+공개 시장 데이터]
 
     User -->|로그인| Auth
     User -->|전략·백테스트| QB
     QB -->|JWKS 공개키 검증| Auth
     User -.->|Pine 코드 복사| TV
-    QB -->|OHLCV 수집·주문 실행| CCXT_EX
+    QB -->|공개 OHLCV 수집·Demo 주문 실행| CCXT_EX
 ```
 
 ### 외부 의존성
@@ -29,7 +29,7 @@ flowchart LR
 | ------------------------------- | ---------------------------------------- | --------------------- |
 | Better Auth (자체 호스팅)       | 사용자 인증 (세션 쿠키 · JWT · JWKS)     | auth                  |
 | TradingView                     | Pine Script 코드 원본 (사용자 수동 복사) | strategy (input only) |
-| CCXT 거래소 (Binance/Bybit/OKX) | OHLCV 수집, 주문 실행                    | market_data, trading  |
+| Bybit Demo / 공개 시장 데이터 | Demo 주문·private 계정 조회, OHLCV·funding 수집 | trading, market_data |
 
 ---
 
@@ -54,7 +54,7 @@ flowchart TB
 
     subgraph External["External"]
         Auth[Better Auth\n/api/auth/*]
-        Exch[CCXT 거래소]
+        Exch[Bybit Demo private API\n+공개 시장 데이터]
     end
 
     FE -- HTTPS REST --> API
@@ -69,8 +69,8 @@ flowchart TB
     Worker -- AsyncSession\n(per-call engine + persistent _WORKER_LOOP) --> DB
     Beat -- schedule --> Redis
 
-    Worker -- CCXT 호출\n(Sprint 5+) --> Exch
-    API -- CCXT 호출\n(Sprint 7+ 라이브) --> Exch
+    Worker -- Bybit Demo private 호출\n(주문·private WS) --> Exch
+    API -- 계정 조회·공개 데이터 호출 --> Exch
 ```
 
 ### 컨테이너 책임
@@ -110,14 +110,13 @@ sequenceDiagram
 
     Note over Auth,API: 웹훅 없음 — 사용자 행은 첫 인증 요청에서 생긴다(JIT)
     API->>API: users upsert (auth_subject = JWT sub)
-    API->>API: Svix 서명 검증
     API->>DB: INSERT INTO users
 ```
 
 ### 인증 규칙
 
 - 모든 보호된 엔드포인트: `Depends(get_current_user)` → JWT 검증 → user 컨텍스트 주입
-- Webhook: Svix 서명 + timestamp 검증 (replay 방지)
+- TradingView webhook: HMAC 서명 + timestamp 검증 (replay 방지)
 - 인가: Service 레이어가 `user_id` 인자로 행 소유자 일치 검증
 
 ### 인가 경계
@@ -396,15 +395,16 @@ sequenceDiagram
 
 **WebSocket (Sprint 12 Phase C):**
 
-- `qb_ws_orphan_event_total{exchange, reason}` Counter — 도착 축
-- `qb_ws_orphan_discarded_total{account_id, reason}` Counter — 폐기 축. `reason` 은
+- `qb_ws_orphan_event_total` Counter — 도착 축
+- `qb_ws_orphan_discarded_total{reason}` Counter — 폐기 축. `reason` 은
   `terminal_event_lost`(머니-패스 손실 — reconciler 가 회수 대상) / `non_terminal_ignored`(무해).
   ★종전 `qb_ws_orphan_buffer_size` Gauge 는 [BL-448](../backlog.md) 에서 **삭제**했다 —
   5초 재생 버퍼를 읽는 프로덕션 경로가 없어(`replay_orphan` 호출자 0) 버퍼째 걷어냈다.
-- `qb_ws_reconcile_unknown_total{exchange}` Counter
-- `qb_ws_reconcile_skipped_total{exchange, reason}` Counter
-- `qb_ws_duplicate_enqueue_total{exchange}` Counter
-- `qb_ws_reconnect_total{exchange, reason}` Counter
+- `qb_ws_reconcile_unknown_total` Counter
+- `qb_ws_reconcile_skipped_total` Counter
+- `qb_ws_duplicate_enqueue_total` Counter
+- `qb_ws_reconnect_total` Counter
+- `qb_ws_subscribe_rejected_total` Counter
 
 **Alert (Sprint 19 BL-081):**
 

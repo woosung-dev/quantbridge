@@ -105,15 +105,17 @@ describe("SharedBacktestPage (server component)", () => {
     expect(screen.getByText(/QuantBridge 시작하기/)).toBeInTheDocument();
   });
 
-  it("네트워크 에러 — 일반 에러 안내", async () => {
+  it("네트워크 에러 — 고정 안내만 렌더하고 내부 오류 원문은 노출하지 않는다", async () => {
+    const internalDetail = "http://internal.example:8100/private?token=secret-value";
     (global.fetch as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error("network down"),
+      new Error(internalDetail),
     );
     const ui = await SharedBacktestPage({
       params: Promise.resolve({ token: "tkn-err" }),
     });
     render(ui);
-    expect(screen.getByText(/잠시 후 다시 시도해 주세요/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "잠시 후 다시 시도해 주세요" })).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain(internalDetail);
   });
 
   it("generateMetadata — og:image path 가 token 기반으로 생성", async () => {

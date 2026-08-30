@@ -135,15 +135,17 @@ describe("라이브 세션 목록 쿼리 (BL-423)", () => {
     expect(source).not.toContain("useLiveSessions()");
   });
 
-  it("★활성 전용 소비자가 넓어진 목록을 쓰지 않는다 — quota·KPI 래칫", () => {
+  it("★운영 대상 소비자가 넓어진 목록을 쓰지 않는다 — quota·KPI 래칫", () => {
     // 목록을 비활성까지 넓히면서 생긴 위험: `sessionItems` 를 활성 카운트로 쓰면
     // **최근 종료 세션 5건만으로 quota(≤5)가 잠긴다** — 새 세션을 못 시작한다.
-    // KPI 타일도 같은 함정이다. 둘 다 `activeSessions` 를 쓰는지 소스로 못 박는다.
+    // KPI 타일은 활성 전체를 표시하되, 새 세션 quota 는 Bybit Demo 운영 대상만 센다.
+    // legacy 계정/세션이 quota 를 잠그거나 egress 대상으로 되살아나면 안 된다.
     const source = readFileSync(COCKPIT, "utf8");
 
-    expect(source).toContain("activeSessionsCount={activeSessions.length}");
+    expect(source).toContain("activeSessionsCount={operatingActiveSessions.length}");
     expect(source).not.toContain("sessionItems.length");
-    // 활성만 필요한 포지션 대조표도 그대로여야 한다.
-    expect(source).toContain("sessions={activeSessions}");
+    // 기존 세션은 목록의 read-only 표면에 남지만, private 포지션 조회에는 넣지 않는다.
+    expect(source).toContain("sessions={operatingActiveSessions}");
+    expect(source).toContain("demoSessionIds={operatingSessionIds}");
   });
 });

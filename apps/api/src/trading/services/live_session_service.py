@@ -15,7 +15,6 @@ from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.exceptions import (
-    AccountModeNotAllowed,
     AccountNotFound,
     DemoAccountNotYetStable,
     InvalidStrategySettings,
@@ -26,13 +25,8 @@ from src.trading.exceptions import (
     SizingBaselineUnavailable,
     StrategySettingsRequired,
 )
-from src.trading.models import (
-    ExchangeMode,
-    ExchangeName,
-    LiveSignalInterval,
-    LiveSignalSession,
-    SessionDeactivationReason,
-)
+from src.trading.models import LiveSignalInterval, LiveSignalSession, SessionDeactivationReason
+from src.trading.product_policy import require_bybit_demo_account
 from src.trading.repositories.exchange_account_repository import (
     ExchangeAccountRepository,
 )
@@ -105,19 +99,9 @@ class LiveSignalSessionService:
         if account is None or account.user_id != user_id:
             raise AccountNotFound(req.exchange_account_id)
 
-        # Wave 0 W4 — 라이브 경로 한정 demo-stability readiness 게이트.
-        # 라이브는 어차피 AccountModeNotAllowed(stub)로 막히지만, 게이트를 앞에 둬
-        # cutover(Wave 3) 시 데모 안정화 강제가 그대로 동작하도록 prep. demo 무영향.
-        if account.mode == ExchangeMode.live:
-            await self._enforce_demo_stability(user_id)
-
-        # codex G.0 P2 #1 — ExchangeName.bybit (not 'bybit_futures' string).
-        # Futures 여부는 settings.leverage is not None 으로 dispatch 분기 (Sprint 22 BL-091).
-        if account.exchange != ExchangeName.bybit or account.mode != ExchangeMode.demo:
-            raise AccountModeNotAllowed(
-                exchange=account.exchange.value,
-                mode=account.mode.value,
-            )
+        # legacy live/OKX 행은 보존하지만, 세션 등록은 private API egress의 시작점이다.
+        # 잔고 조회와 거래소 배타성 검사보다 먼저 정책을 적용한다.
+        require_bybit_demo_account(account.exchange, account.mode)
         if account.read_only is True:
             raise ReadOnlyAccountNotAllowed()
 

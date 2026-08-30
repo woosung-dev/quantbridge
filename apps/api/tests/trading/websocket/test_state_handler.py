@@ -26,24 +26,14 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
+from src.trading.repositories.order_repository import OrderRepository
+from src.trading.services.websocket_order_event_service import WebSocketOrderEventService
 from src.trading.websocket.state_handler import StateHandler
 
 
 def _make_settings() -> Settings:
     """SLACK_WEBHOOK_URL 미설정 — alert silent skip."""
     return Settings()
-
-
-@pytest.fixture
-def session_factory(db_session):
-    """test 의 db_session 을 그대로 반환하는 async context manager."""
-    from contextlib import asynccontextmanager
-
-    @asynccontextmanager
-    async def factory():
-        yield db_session
-
-    return factory
 
 
 @pytest.fixture
@@ -73,12 +63,10 @@ async def sample_order(db_session, strategy, user):
     return order, acc
 
 
-async def test_orderLinkId_lookup_transitions_to_filled(
-    sample_order, session_factory, db_session
-):
+async def test_orderLinkId_lookup_transitions_to_filled(sample_order, db_session):
     order, acc = sample_order
-    handler = StateHandler(
-        session_factory=session_factory, settings=_make_settings()
+    handler = WebSocketOrderEventService(
+        repo=OrderRepository(db_session), settings=_make_settings()
     )
     await handler.handle_order_event(
         acc.id,
@@ -99,7 +87,7 @@ async def test_orderLinkId_lookup_transitions_to_filled(
 
 
 async def test_filled_trailing_order_enqueues_place_trailing_stop(
-    db_session, strategy, user, session_factory, monkeypatch
+    db_session, strategy, user, monkeypatch
 ):
     """STEP B (Opus B HIGH) — WS Filled winner + trailing 의도 → place_trailing_stop enqueue.
 
@@ -136,7 +124,9 @@ async def test_filled_trailing_order_enqueues_place_trailing_stop(
     db_session.add(order)
     await db_session.flush()
 
-    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
+    handler = WebSocketOrderEventService(
+        repo=OrderRepository(db_session), settings=_make_settings()
+    )
     await handler.handle_order_event(
         acc.id,
         {
@@ -150,9 +140,7 @@ async def test_filled_trailing_order_enqueues_place_trailing_stop(
     assert calls[0]["args"] == [str(order.id)]
 
 
-async def test_filled_non_trailing_order_does_not_enqueue(
-    sample_order, session_factory, monkeypatch
-):
+async def test_filled_non_trailing_order_does_not_enqueue(sample_order, db_session, monkeypatch):
     """trailing 의도 없는 fill → enqueue 안 함(회귀 0)."""
     import src.tasks.trading as trading_mod
 
@@ -161,7 +149,9 @@ async def test_filled_non_trailing_order_does_not_enqueue(
         trading_mod.place_trailing_stop_task, "apply_async", lambda **kw: calls.append(kw)
     )
     order, acc = sample_order  # trailing_stop=None
-    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
+    handler = WebSocketOrderEventService(
+        repo=OrderRepository(db_session), settings=_make_settings()
+    )
     await handler.handle_order_event(
         acc.id,
         {"orderLinkId": str(order.id), "orderId": "EX-1", "orderStatus": "Filled", "avgPrice": "5"},
@@ -169,9 +159,7 @@ async def test_filled_non_trailing_order_does_not_enqueue(
     assert calls == []
 
 
-async def test_invalid_orderLinkId_falls_back_to_exchange_order_id(
-    sample_order, session_factory, db_session
-):
+async def test_invalid_orderLinkId_falls_back_to_exchange_order_id(sample_order, db_session):
     """orderLinkId 가 UUID 형식 아니면 exchange_order_id 로 lookup."""
     order, acc = sample_order
     # 미리 exchange_order_id 채워두기
@@ -179,8 +167,8 @@ async def test_invalid_orderLinkId_falls_back_to_exchange_order_id(
     db_session.add(order)
     await db_session.flush()
 
-    handler = StateHandler(
-        session_factory=session_factory, settings=_make_settings()
+    handler = WebSocketOrderEventService(
+        repo=OrderRepository(db_session), settings=_make_settings()
     )
     await handler.handle_order_event(
         acc.id,
@@ -191,13 +179,13 @@ async def test_invalid_orderLinkId_falls_back_to_exchange_order_id(
         },
     )
     from sqlalchemy import select
-    async with session_factory() as s:
-        stmt = select(Order).where(Order.id == order.id)  # type: ignore[arg-type]
-        refreshed = (await s.execute(stmt)).scalar_one()
+
+    stmt = select(Order).where(Order.id == order.id)  # type: ignore[arg-type]
+    refreshed = (await db_session.execute(stmt)).scalar_one()
     assert refreshed.state == OrderState.cancelled
 
 
-async def test_unknown_order_is_discarded_without_transition(session_factory):
+async def test_unknown_order_is_discarded_without_transition(db_session):
     """로컬 행이 없는 이벤트는 폐기되고 아무 전이도 일으키지 않는다 (BL-448).
 
     ★종전 이름은 `test_unknown_order_buffered_in_orphan_buffer` 였고 5초 버퍼의 내부
@@ -206,15 +194,13 @@ async def test_unknown_order_is_discarded_without_transition(session_factory):
     것은 **관측 가능한 행위** — 전이 없음 + 폐기 계상 — 로 바뀌었다.
     `_discard_orphan` 의 reason 축은 `test_state_handler_gaps.py` 가 잰다.
     """
-    handler = StateHandler(
-        session_factory=session_factory, settings=_make_settings()
+    handler = WebSocketOrderEventService(
+        repo=OrderRepository(db_session), settings=_make_settings()
     )
     spy = AsyncMock(return_value=0)
     handler._apply_transition = spy  # type: ignore[method-assign]
     account_id = uuid4()
-    before = qb_ws_orphan_discarded_total.labels(
-        account_id=str(account_id), reason="terminal_event_lost"
-    )._value.get()  # type: ignore[attr-defined]
+    before = qb_ws_orphan_discarded_total.labels(reason="terminal_event_lost")._value.get()  # type: ignore[attr-defined]
 
     await handler.handle_order_event(
         account_id,
@@ -227,9 +213,7 @@ async def test_unknown_order_is_discarded_without_transition(session_factory):
 
     spy.assert_not_awaited()
     assert (
-        qb_ws_orphan_discarded_total.labels(
-            account_id=str(account_id), reason="terminal_event_lost"
-        )._value.get()  # type: ignore[attr-defined]
+        qb_ws_orphan_discarded_total.labels(reason="terminal_event_lost")._value.get()  # type: ignore[attr-defined]
         == before + 1
     )
 
@@ -239,15 +223,13 @@ async def test_unknown_order_is_discarded_without_transition(session_factory):
 # 지연된 폐기장이었다(호출자 0). 원문은 git history 에 있다.
 
 
-async def test_rejected_status_triggers_alert(
-    sample_order, session_factory, monkeypatch
-):
+async def test_rejected_status_triggers_alert(sample_order, db_session, monkeypatch):
     from unittest.mock import AsyncMock
 
     mock_alert = AsyncMock(return_value=True)
     order, acc = sample_order
-    handler = StateHandler(
-        session_factory=session_factory,
+    handler = WebSocketOrderEventService(
+        repo=OrderRepository(db_session),
         settings=_make_settings(),
         alert_sender=mock_alert,
     )
@@ -267,3 +249,15 @@ async def test_rejected_status_triggers_alert(
     context = args[0][3] if len(args[0]) > 3 else args.kwargs.get("context")
     assert context is not None
     assert context["reason"] == "Insufficient margin"
+
+
+async def test_state_handler_forwards_transport_payload_to_callback():
+    """Transport adapter는 DB를 열지 않고 조립된 callback만 호출한다."""
+    callback = AsyncMock()
+    handler = StateHandler(callback)
+    account_id = uuid4()
+    payload = {"orderStatus": "Filled"}
+
+    await handler.handle_order_event(account_id, payload)
+
+    callback.assert_awaited_once_with(account_id, payload)

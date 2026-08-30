@@ -21,7 +21,7 @@ const SOURCE_SCAN_EXCLUDED_FILES = new Set([
 
 const DECISION_SURFACE_PATHS = [
   "src/app/page.tsx",
-  "src/app/pricing/page.tsx",
+  "src/features/marketing/components/pricing-page.tsx",
   "src/app/privacy/page.tsx",
   "src/app/terms/page.tsx",
   "src/components/exchange-support-table.tsx",

@@ -120,9 +120,7 @@ async def test_reconcile_async_disposes_engine_on_exception(
         def __call__(self):
             return _bad_session_ctx()
 
-    monkeypatch.setattr(
-        ws_mod, "create_worker_engine_and_sm", lambda: (engine, _SM())
-    )
+    monkeypatch.setattr(ws_mod, "create_worker_engine_and_sm", lambda: (engine, _SM()))
 
     with pytest.raises(RuntimeError, match="boom"):
         await ws_mod._reconcile_async()
@@ -190,26 +188,41 @@ def _make_stream_main_environment(
     account_mock.api_key_encrypted = b"\x00"
     account_mock.api_secret_encrypted = b"\x00"
     account_mock.passphrase_encrypted = None
-    account_mock.mode = MagicMock()
-    account_mock.mode.value = "demo"
+    account_mock.mode = None
 
     @asynccontextmanager
     async def _session_ctx():
         session_mock = MagicMock()
-        session_mock.get = AsyncMock(return_value=account_mock)
         yield session_mock
 
     class _SM:
         def __call__(self):
             return _session_ctx()
 
-    monkeypatch.setattr(
-        ws_mod, "create_worker_engine_and_sm", lambda: (engine, _SM())
+    monkeypatch.setattr(ws_mod, "create_worker_engine_and_sm", lambda: (engine, _SM()))
+
+    repository_module = __import__(
+        "src.trading.repositories.exchange_account_repository",
+        fromlist=["ExchangeAccountRepository"],
     )
 
+    class _ExchangeAccountRepository:
+        def __init__(self, _session: object) -> None:
+            pass
+
+        async def get_by_id(self, _account_id: object) -> object:
+            return account_mock
+
+        async def list_by_exchange_uid(self, _exchange_uid: str) -> list[object]:
+            return []
+
+    monkeypatch.setattr(repository_module, "ExchangeAccountRepository", _ExchangeAccountRepository)
+
     # ExchangeName 비교 우회 — bybit 통과시키기
-    from src.trading.models import ExchangeName
+    from src.trading.models import ExchangeMode, ExchangeName
+
     account_mock.exchange = ExchangeName.bybit
+    account_mock.mode = ExchangeMode.demo
 
     # EncryptionService.decrypt mock
     monkeypatch.setattr(
@@ -221,9 +234,7 @@ def _make_stream_main_environment(
     def _stub_stream_class(*args: object, **kwargs: object):
         return _StubBybitPrivateStream(*args, raise_on_enter=raise_on_enter, **kwargs)
 
-    monkeypatch.setattr(
-        "src.trading.websocket.BybitPrivateStream", _stub_stream_class
-    )
+    monkeypatch.setattr("src.trading.websocket.BybitPrivateStream", _stub_stream_class)
 
     return engine, account_id
 

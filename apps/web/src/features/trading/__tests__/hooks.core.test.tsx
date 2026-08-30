@@ -182,12 +182,9 @@ describe("trading core hooks", () => {
 
   it("거래소 계정 등록이 요청 body를 POST하고 계정 목록 캐시를 무효화한다", async () => {
     const request: RegisterAccountRequest = {
-      exchange: "bybit",
-      mode: "demo",
       label: "Demo account",
       api_key: "api-key",
       api_secret: "api-secret",
-      passphrase: null,
     };
     const response = makeAccount();
     apiFetchMock.mockResolvedValueOnce(response);

@@ -10,7 +10,7 @@
 //   CLAUDE.md의 "실시간 데이터는 WS+Zustand" 규칙 첫 구현체다.
 import { create } from "zustand";
 
-import type { WsStatus } from "@/lib/ws-client";
+import type { WsStatus } from "./ws-client";
 
 export interface RealtimeState {
   status: WsStatus;

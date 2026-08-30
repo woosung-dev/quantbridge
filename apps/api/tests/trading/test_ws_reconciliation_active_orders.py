@@ -23,7 +23,7 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
-from src.trading.websocket.reconciliation import Reconciler
+from src.trading.services.websocket_reconciliation_service import WebSocketReconciliationService
 
 
 def _build_order(state: OrderState = OrderState.submitted) -> Order:
@@ -45,49 +45,29 @@ def _build_order(state: OrderState = OrderState.submitted) -> Order:
     )
 
 
-def _make_session_factory(session: AsyncMock):
-    class _Ctx:
-        async def __aenter__(self) -> AsyncMock:
-            return session
-
-        async def __aexit__(self, *_args: object) -> None:
-            return None
-
-    return lambda: _Ctx()
-
-
 # =============================================================================
 # _apply_transition: rowcount return + dec 호출 X
 # =============================================================================
 
 
 @pytest.mark.asyncio
-async def test_apply_transition_filled_returns_rowcount_no_dec(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_apply_transition_filled_returns_rowcount_no_dec() -> None:
     """BL-027: _apply_transition 가 rowcount return + dec 호출 X (caller responsibility)."""
     repo = AsyncMock()
     repo.transition_to_filled = AsyncMock(return_value=1)
 
-    session = AsyncMock()
-
     settings = MagicMock()
     fetcher = AsyncMock()
-    reconciler = Reconciler(
-        session_factory=_make_session_factory(session),
+    reconciler = WebSocketReconciliationService(
+        repo=repo,
         fetcher=fetcher,
         settings=settings,
     )
-
-    from src.trading.websocket import reconciliation as recon_module
-
-    monkeypatch.setattr(recon_module, "OrderRepository", lambda _: repo)
 
     qb_active_orders.set(1.0)
     local = _build_order()
 
     rc = await reconciler._apply_transition(
-        session,
         local,
         OrderState.filled,
         {"average": "100.0", "filled": "0.0005", "id": "exchange-abc"},
@@ -100,31 +80,21 @@ async def test_apply_transition_filled_returns_rowcount_no_dec(
 
 
 @pytest.mark.asyncio
-async def test_apply_transition_loser_returns_zero(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_apply_transition_loser_returns_zero() -> None:
     repo = AsyncMock()
     repo.transition_to_cancelled = AsyncMock(return_value=0)
-    session = AsyncMock()
-
     settings = MagicMock()
     fetcher = AsyncMock()
-    reconciler = Reconciler(
-        session_factory=_make_session_factory(session),
+    reconciler = WebSocketReconciliationService(
+        repo=repo,
         fetcher=fetcher,
         settings=settings,
     )
 
-    from src.trading.websocket import reconciliation as recon_module
-
-    monkeypatch.setattr(recon_module, "OrderRepository", lambda _: repo)
-
     qb_active_orders.set(1.0)
     local = _build_order()
 
-    rc = await reconciler._apply_transition(
-        session, local, OrderState.cancelled, {}
-    )
+    rc = await reconciler._apply_transition(local, OrderState.cancelled, {})
 
     assert rc == 0
     assert qb_active_orders._value.get() == 1.0
@@ -162,9 +132,8 @@ async def test_run_filled_winner_commits_then_decs(
 
     repo = AsyncMock()
     repo.transition_to_filled = AsyncMock(return_value=1)
-
-    session = AsyncMock()
-    session.commit = AsyncMock()
+    repo.list_active_by_exchange_account = AsyncMock(return_value=[local])
+    repo.commit = AsyncMock()
 
     # _list_local_active 가 local 1건 반환하도록 monkeypatch
     settings = MagicMock()
@@ -179,20 +148,11 @@ async def test_run_filled_winner_commits_then_decs(
             }
         ]
     )
-    reconciler = Reconciler(
-        session_factory=_make_session_factory(session),
+    reconciler = WebSocketReconciliationService(
+        repo=repo,
         fetcher=fetcher,
         settings=settings,
     )
-
-    async def _list_local_active_mock(_session, _account_id):
-        return [local]
-
-    monkeypatch.setattr(reconciler, "_list_local_active", _list_local_active_mock)
-
-    from src.trading.websocket import reconciliation as recon_module
-
-    monkeypatch.setattr(recon_module, "OrderRepository", lambda _: repo)
 
     qb_active_orders.set(1.0)
     partial_counter = qb_partial_fill_total.labels(source="reconciler", kind="entry")
@@ -200,7 +160,7 @@ async def test_run_filled_winner_commits_then_decs(
 
     await reconciler.run(account_id=uuid4())
 
-    session.commit.assert_awaited_once()
+    repo.commit.assert_awaited_once()
     assert qb_active_orders._value.get() == 0.0  # winner-only dec
     assert partial_counter._value.get() == before_partial + 1
 
@@ -214,9 +174,8 @@ async def test_run_filled_loser_commits_no_dec(
 
     repo = AsyncMock()
     repo.transition_to_filled = AsyncMock(return_value=0)  # loser
-
-    session = AsyncMock()
-    session.commit = AsyncMock()
+    repo.list_active_by_exchange_account = AsyncMock(return_value=[local])
+    repo.commit = AsyncMock()
 
     settings = MagicMock()
     fetcher = _FakeFetcher(
@@ -229,26 +188,17 @@ async def test_run_filled_loser_commits_no_dec(
             }
         ]
     )
-    reconciler = Reconciler(
-        session_factory=_make_session_factory(session),
+    reconciler = WebSocketReconciliationService(
+        repo=repo,
         fetcher=fetcher,
         settings=settings,
     )
-
-    async def _list_local_active_mock(_session, _account_id):
-        return [local]
-
-    monkeypatch.setattr(reconciler, "_list_local_active", _list_local_active_mock)
-
-    from src.trading.websocket import reconciliation as recon_module
-
-    monkeypatch.setattr(recon_module, "OrderRepository", lambda _: repo)
 
     qb_active_orders.set(1.0)
 
     await reconciler.run(account_id=uuid4())
 
-    session.commit.assert_awaited_once()
+    repo.commit.assert_awaited_once()
     assert qb_active_orders._value.get() == 1.0  # dec X
 
 
@@ -261,9 +211,8 @@ async def test_run_commit_failure_no_dec(
 
     repo = AsyncMock()
     repo.transition_to_filled = AsyncMock(return_value=1)
-
-    session = AsyncMock()
-    session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    repo.list_active_by_exchange_account = AsyncMock(return_value=[local])
+    repo.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
 
     settings = MagicMock()
     fetcher = _FakeFetcher(
@@ -276,20 +225,11 @@ async def test_run_commit_failure_no_dec(
             }
         ]
     )
-    reconciler = Reconciler(
-        session_factory=_make_session_factory(session),
+    reconciler = WebSocketReconciliationService(
+        repo=repo,
         fetcher=fetcher,
         settings=settings,
     )
-
-    async def _list_local_active_mock(_session, _account_id):
-        return [local]
-
-    monkeypatch.setattr(reconciler, "_list_local_active", _list_local_active_mock)
-
-    from src.trading.websocket import reconciliation as recon_module
-
-    monkeypatch.setattr(recon_module, "OrderRepository", lambda _: repo)
 
     qb_active_orders.set(1.0)
 
@@ -312,9 +252,8 @@ async def test_run_multiple_transitions_winners_only_dec(
     # local_a 가 winner (filled), local_b 는 loser (cancelled rowcount=0)
     repo.transition_to_filled = AsyncMock(return_value=1)
     repo.transition_to_cancelled = AsyncMock(return_value=0)
-
-    session = AsyncMock()
-    session.commit = AsyncMock()
+    repo.list_active_by_exchange_account = AsyncMock(return_value=[local_a, local_b])
+    repo.commit = AsyncMock()
 
     settings = MagicMock()
     fetcher = _FakeFetcher(
@@ -332,24 +271,15 @@ async def test_run_multiple_transitions_winners_only_dec(
             },
         ]
     )
-    reconciler = Reconciler(
-        session_factory=_make_session_factory(session),
+    reconciler = WebSocketReconciliationService(
+        repo=repo,
         fetcher=fetcher,
         settings=settings,
     )
-
-    async def _list_local_active_mock(_session, _account_id):
-        return [local_a, local_b]
-
-    monkeypatch.setattr(reconciler, "_list_local_active", _list_local_active_mock)
-
-    from src.trading.websocket import reconciliation as recon_module
-
-    monkeypatch.setattr(recon_module, "OrderRepository", lambda _: repo)
 
     qb_active_orders.set(2.0)
 
     await reconciler.run(account_id=uuid4())
 
-    session.commit.assert_awaited_once()
+    repo.commit.assert_awaited_once()
     assert qb_active_orders._value.get() == 1.0  # winner 1명만 dec, 2 → 1

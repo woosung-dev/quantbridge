@@ -9,6 +9,7 @@ codex G.0 P1 #4 + G.2 P2 #3 verifier:
 호출 진입점: `_provider_from_order_snapshot_or_fallback(order, account, submit)` +
 `_parse_order_dispatch_snapshot(raw)` 단위 테스트.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -21,7 +22,7 @@ from src.tasks.trading import (
     _parse_order_dispatch_snapshot,
     _provider_from_order_snapshot_or_fallback,
 )
-from src.trading.exceptions import UnsupportedExchangeError
+from src.trading.exceptions import BybitDemoOnlyError, UnsupportedExchangeError
 from src.trading.models import (
     ExchangeAccount,
     ExchangeMode,
@@ -34,7 +35,6 @@ from src.trading.models import (
 from src.trading.providers import (
     BybitDemoProvider,
     BybitFuturesProvider,
-    OkxDemoProvider,
     OrderSubmit,
 )
 
@@ -65,9 +65,7 @@ def _order(snapshot: dict | None = None, leverage: int | None = None) -> Order:
 
 def _fallback_metric_value(reason: str) -> float:
     """qb_order_snapshot_fallback_total{reason=...} 현재 값 (test 격리용 baseline)."""
-    val = REGISTRY.get_sample_value(
-        "qb_order_snapshot_fallback_total", {"reason": reason}
-    )
+    val = REGISTRY.get_sample_value("qb_order_snapshot_fallback_total", {"reason": reason})
     return val if val is not None else 0.0
 
 
@@ -167,9 +165,7 @@ class TestSnapshotAccountDriftRejected:
         account_now_live = _account(ExchangeName.bybit, ExchangeMode.live)
         baseline = _fallback_metric_value("drift")
         with pytest.raises(UnsupportedExchangeError) as exc_info:
-            _provider_from_order_snapshot_or_fallback(
-                order, account_now_live, submit=None
-            )
+            _provider_from_order_snapshot_or_fallback(order, account_now_live, submit=None)
         assert "snapshot" in str(exc_info.value)
         assert _fallback_metric_value("drift") == baseline + 1
 
@@ -181,9 +177,7 @@ class TestSnapshotAccountDriftRejected:
         )
         account_now_okx = _account(ExchangeName.okx, ExchangeMode.demo)
         with pytest.raises(UnsupportedExchangeError) as exc_info:
-            _provider_from_order_snapshot_or_fallback(
-                order, account_now_okx, submit=None
-            )
+            _provider_from_order_snapshot_or_fallback(order, account_now_okx, submit=None)
         assert "snapshot" in str(exc_info.value)
 
     def test_no_drift_proceeds_normally(self) -> None:
@@ -200,14 +194,13 @@ class TestSnapshotAccountDriftRejected:
 class TestLegacyFallback:
     """snapshot 부재 (legacy row) 또는 invalid → account+leverage fallback + metric."""
 
-    def test_legacy_null_snapshot_falls_back(self) -> None:
+    def test_legacy_null_snapshot_with_okx_account_is_blocked_after_metric(self) -> None:
         baseline = _fallback_metric_value("missing")
         order = _order(snapshot=None, leverage=None)
         account = _account(ExchangeName.okx, ExchangeMode.demo)
-        provider = _provider_from_order_snapshot_or_fallback(order, account, submit=None)
-        # account=okx + leverage=None → OkxDemoProvider (fallback)
-        assert isinstance(provider, OkxDemoProvider)
-        # metric inc(reason=missing)
+        with pytest.raises(BybitDemoOnlyError):
+            _provider_from_order_snapshot_or_fallback(order, account, submit=None)
+        # fallback 원인은 관측하되 legacy provider까지는 진행하지 않는다.
         assert _fallback_metric_value("missing") == baseline + 1
 
     def test_invalid_snapshot_falls_back_with_metric(self) -> None:

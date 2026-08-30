@@ -38,6 +38,13 @@ if not os.environ.get("WAITLIST_ADMIN_EMAILS"):
     # 가 만드는 email 과 매칭 불가 (random) — 따라서 테스트는 override 로 admin 검증 우회.
     os.environ["WAITLIST_ADMIN_EMAILS"] = "admin@example.com"
 
+# 테스트는 로컬 `.env.local` 의 운영자 알림 자격증명을 절대 재사용하지 않는다. 일부 task
+# 실패 경로는 best-effort alert 를 보내므로, 이를 비우지 않으면 일반 `pytest`가 외부 HTTPS
+# 대기에 묶인다. 전용 alert 테스트는 각 fixture가 dummy 값을 명시 주입한다.
+os.environ["SLACK_WEBHOOK_URL"] = ""
+os.environ["TELEGRAM_BOT_TOKEN"] = ""
+os.environ["TELEGRAM_CHAT_ID"] = ""
+
 # Sprint 11 Phase C — slowapi rate-limit storage. `.env.example` 의 기본값
 # `redis://redis:6379/3` 은 Docker 내부 호스트명이라 로컬 pytest 에서 해석 불가.
 # `@limiter.limit` 가 붙은 endpoint (예: POST /waitlist) 를 호출하는 테스트는

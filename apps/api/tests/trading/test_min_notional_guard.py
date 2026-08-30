@@ -71,8 +71,7 @@ def _make_exchange_service_stub(
     stub.fetch_balance_usdt = AsyncMock(return_value=usdt_available)
     stub.fetch_mark_price = AsyncMock(return_value=None)
     stub.fetch_min_notional = AsyncMock(return_value=min_notional)
-    stub._repo = MagicMock()
-    stub._repo.get_by_id = AsyncMock(return_value=None)
+    stub.get_execution_account = AsyncMock(return_value=None)
     return stub
 
 

@@ -62,17 +62,13 @@ async def _acquire_advisory_lock(
     conn = await _asyncpg.connect(pg_url)
     try:
         while True:
-            acquired = await conn.fetchval(
-                "SELECT pg_try_advisory_lock($1::bigint)", lock_key
-            )
+            acquired = await conn.fetchval("SELECT pg_try_advisory_lock($1::bigint)", lock_key)
             if acquired:
                 logger.info("alembic_advisory_lock_acquired key=%d", lock_key)
                 return conn
             remaining = deadline - asyncio.get_event_loop().time()
             if remaining <= 0:
-                raise RuntimeError(
-                    f"Advisory lock {lock_key} not acquired within {timeout_s}s"
-                )
+                raise RuntimeError(f"Advisory lock {lock_key} not acquired within {timeout_s}s")
             logger.info(
                 "alembic_advisory_lock_wait key=%d remaining_s=%.1f",
                 lock_key,
@@ -111,9 +107,9 @@ async def run(lock_key: int, timeout_s: int) -> int:
     Raises:
         RuntimeError: lock acquire timeout.
     """
-    from src.core.config import settings
+    from src.core.config import secret_value, settings
 
-    database_url = settings.database_url
+    database_url = secret_value(settings.database_url)
     if not database_url:
         raise RuntimeError("DATABASE_URL not configured")
 

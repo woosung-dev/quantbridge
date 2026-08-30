@@ -25,7 +25,7 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
-from src.trading.websocket.state_handler import StateHandler
+from src.trading.services.websocket_order_event_service import WebSocketOrderEventService
 
 
 def _build_order(state: OrderState = OrderState.submitted) -> Order:
@@ -46,19 +46,6 @@ def _build_order(state: OrderState = OrderState.submitted) -> Order:
     )
 
 
-def _make_session_factory(session: AsyncMock):
-    """async context manager 흉내 — `async with self._session_factory() as session`."""
-
-    class _Ctx:
-        async def __aenter__(self) -> AsyncMock:
-            return session
-
-        async def __aexit__(self, *_args: object) -> None:
-            return None
-
-    return lambda: _Ctx()
-
-
 # =============================================================================
 # _apply_transition: rowcount return + dec 호출 X (caller responsibility)
 # =============================================================================
@@ -70,11 +57,10 @@ async def test_apply_transition_filled_returns_rowcount_no_dec() -> None:
     repo = AsyncMock()
     repo.transition_to_filled = AsyncMock(return_value=1)
 
-    handler = StateHandler.__new__(StateHandler)
+    handler = WebSocketOrderEventService(repo=repo, settings=MagicMock())
     qb_active_orders.set(1.0)
 
     rc = await handler._apply_transition(
-        repo,
         uuid4(),
         OrderState.filled,
         {"avgPrice": "100.0", "cumExecQty": "0.0005", "orderId": "abc"},
@@ -91,12 +77,10 @@ async def test_apply_transition_rejected_returns_rowcount_no_dec() -> None:
     repo = AsyncMock()
     repo.transition_to_rejected = AsyncMock(return_value=1)
 
-    handler = StateHandler.__new__(StateHandler)
+    handler = WebSocketOrderEventService(repo=repo, settings=MagicMock())
     qb_active_orders.set(1.0)
 
-    rc = await handler._apply_transition(
-        repo, uuid4(), OrderState.rejected, {"rejectReason": "fund"}
-    )
+    rc = await handler._apply_transition(uuid4(), OrderState.rejected, {"rejectReason": "fund"})
 
     assert rc == 1
     assert qb_active_orders._value.get() == 1.0
@@ -107,12 +91,10 @@ async def test_apply_transition_cancelled_returns_rowcount_no_dec() -> None:
     repo = AsyncMock()
     repo.transition_to_cancelled = AsyncMock(return_value=1)
 
-    handler = StateHandler.__new__(StateHandler)
+    handler = WebSocketOrderEventService(repo=repo, settings=MagicMock())
     qb_active_orders.set(1.0)
 
-    rc = await handler._apply_transition(
-        repo, uuid4(), OrderState.cancelled, {}
-    )
+    rc = await handler._apply_transition(uuid4(), OrderState.cancelled, {})
 
     assert rc == 1
     assert qb_active_orders._value.get() == 1.0
@@ -124,11 +106,10 @@ async def test_apply_transition_loser_returns_zero() -> None:
     repo = AsyncMock()
     repo.transition_to_filled = AsyncMock(return_value=0)
 
-    handler = StateHandler.__new__(StateHandler)
+    handler = WebSocketOrderEventService(repo=repo, settings=MagicMock())
     qb_active_orders.set(1.0)
 
     rc = await handler._apply_transition(
-        repo,
         uuid4(),
         OrderState.filled,
         {"avgPrice": "100.0", "orderId": "abc"},
@@ -159,28 +140,23 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
     async def _commit() -> None:
         trace.append("commit")
 
-    session = AsyncMock()
-    session.commit = AsyncMock(side_effect=_commit)
+    repo.commit = AsyncMock(side_effect=_commit)
 
     settings = MagicMock()
     user_id = uuid4()
-    handler = StateHandler(
-        session_factory=_make_session_factory(session),
+    handler = WebSocketOrderEventService(
+        repo=repo,
         settings=settings,
         alert_sender=AsyncMock(return_value=True),
         user_id=user_id,
     )
-    # OrderRepository 는 handle_order_event 내부에서 OrderRepository(session) 으로 생성.
-    # repo 객체를 그대로 주입 못 하므로 monkeypatch 로 OrderRepository 클래스 바이패스.
-    from src.trading.websocket import state_handler as sh_module
-
-    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
+    import src.trading.services.websocket_order_event_service as service_module
 
     async def _publish(*_args: object, **_kwargs: object) -> None:
         trace.append("publish")
 
     publisher = AsyncMock(side_effect=_publish)
-    monkeypatch.setattr(sh_module, "publish_realtime", publisher)
+    monkeypatch.setattr(service_module, "publish_realtime", publisher)
 
     qb_active_orders.set(1.0)
     partial_counter = qb_partial_fill_total.labels(source="ws", kind="entry")
@@ -197,7 +173,7 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
         },
     )
 
-    session.commit.assert_awaited_once()
+    repo.commit.assert_awaited_once()
     publisher.assert_awaited_once_with(
         str(user_id),
         "order_update",
@@ -225,19 +201,18 @@ async def test_handle_order_event_partial_fill_splits_ws_metric_by_order_kind(
     repo = AsyncMock()
     repo.get_by_id = AsyncMock(side_effect=[entry_order, close_order])
     repo.transition_to_filled = AsyncMock(return_value=1)
+    repo.commit = AsyncMock()
 
-    session = AsyncMock()
-    handler = StateHandler(
-        session_factory=_make_session_factory(session),
+    handler = WebSocketOrderEventService(
+        repo=repo,
         settings=MagicMock(),
         alert_sender=AsyncMock(return_value=True),
         user_id=uuid4(),
     )
     import src.tasks.trading as task_mod
-    from src.trading.websocket import state_handler as sh_module
+    import src.trading.services.websocket_order_event_service as service_module
 
-    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
-    monkeypatch.setattr(sh_module, "publish_realtime", AsyncMock())
+    monkeypatch.setattr(service_module, "publish_realtime", AsyncMock())
     monkeypatch.setattr(task_mod, "_enqueue_trailing_if_intended", lambda _order: None)
     monkeypatch.setattr(task_mod, "_enqueue_closed_pnl_refresh", lambda _order: None)
     monkeypatch.setattr(task_mod, "_enqueue_conditional_reversal_measure", lambda _order: None)
@@ -282,21 +257,21 @@ async def test_partial_fill_metric_failure_does_not_stop_fill_postprocessing(
     repo = AsyncMock()
     repo.get_by_id = AsyncMock(return_value=order)
     repo.transition_to_filled = AsyncMock(return_value=1)
+    repo.commit = AsyncMock()
 
-    session = AsyncMock()
-    handler = StateHandler(
-        session_factory=_make_session_factory(session),
+    handler = WebSocketOrderEventService(
+        repo=repo,
         settings=MagicMock(),
         alert_sender=AsyncMock(return_value=True),
         user_id=uuid4(),
     )
     import src.common.metrics as metrics_mod
     import src.tasks.trading as task_mod
-    from src.trading.websocket import state_handler as sh_module
 
     called: list[str] = []
-    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
-    monkeypatch.setattr(sh_module, "publish_realtime", AsyncMock())
+    import src.trading.services.websocket_order_event_service as service_module
+
+    monkeypatch.setattr(service_module, "publish_realtime", AsyncMock())
     monkeypatch.setattr(
         task_mod, "_enqueue_trailing_if_intended", lambda _order: called.append("trailing")
     )
@@ -336,21 +311,21 @@ async def test_active_orders_metric_failure_does_not_stop_fill_postprocessing(
     repo = AsyncMock()
     repo.get_by_id = AsyncMock(return_value=order)
     repo.transition_to_filled = AsyncMock(return_value=1)
+    repo.commit = AsyncMock()
 
-    session = AsyncMock()
-    handler = StateHandler(
-        session_factory=_make_session_factory(session),
+    handler = WebSocketOrderEventService(
+        repo=repo,
         settings=MagicMock(),
         alert_sender=AsyncMock(return_value=True),
         user_id=uuid4(),
     )
     import src.common.metrics as metrics_mod
     import src.tasks.trading as task_mod
-    from src.trading.websocket import state_handler as sh_module
 
     called: list[str] = []
-    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
-    monkeypatch.setattr(sh_module, "publish_realtime", AsyncMock())
+    import src.trading.services.websocket_order_event_service as service_module
+
+    monkeypatch.setattr(service_module, "publish_realtime", AsyncMock())
     monkeypatch.setattr(
         task_mod, "_enqueue_trailing_if_intended", lambda _order: called.append("trailing")
     )
@@ -390,24 +365,21 @@ async def test_handle_order_event_filled_loser_commits_no_dec(
     repo = AsyncMock()
     repo.get_by_id = AsyncMock(return_value=order)
     repo.transition_to_filled = AsyncMock(return_value=0)  # loser
-
-    session = AsyncMock()
-    session.commit = AsyncMock()
+    repo.commit = AsyncMock()
 
     settings = MagicMock()
     user_id = uuid4()
-    handler = StateHandler(
-        session_factory=_make_session_factory(session),
+    handler = WebSocketOrderEventService(
+        repo=repo,
         settings=settings,
         alert_sender=AsyncMock(return_value=True),
         user_id=user_id,
     )
 
-    from src.trading.websocket import state_handler as sh_module
+    import src.trading.services.websocket_order_event_service as service_module
 
-    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
     publisher = AsyncMock()
-    monkeypatch.setattr(sh_module, "publish_realtime", publisher)
+    monkeypatch.setattr(service_module, "publish_realtime", publisher)
 
     qb_active_orders.set(1.0)
 
@@ -421,7 +393,7 @@ async def test_handle_order_event_filled_loser_commits_no_dec(
         },
     )
 
-    session.commit.assert_awaited_once()  # commit 자체는 OK (no-op)
+    repo.commit.assert_awaited_once()  # commit 자체는 OK (no-op)
     publisher.assert_not_awaited()
     assert qb_active_orders._value.get() == 1.0  # dec X — race loser
 
@@ -436,21 +408,15 @@ async def test_handle_order_event_rejected_loser_no_alert(
     repo = AsyncMock()
     repo.get_by_id = AsyncMock(return_value=order)
     repo.transition_to_rejected = AsyncMock(return_value=0)  # loser
-
-    session = AsyncMock()
-    session.commit = AsyncMock()
+    repo.commit = AsyncMock()
 
     settings = MagicMock()
     alert_sender = AsyncMock(return_value=True)
-    handler = StateHandler(
-        session_factory=_make_session_factory(session),
+    handler = WebSocketOrderEventService(
+        repo=repo,
         settings=settings,
         alert_sender=alert_sender,
     )
-
-    from src.trading.websocket import state_handler as sh_module
-
-    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
 
     qb_active_orders.set(1.0)
 
@@ -464,7 +430,7 @@ async def test_handle_order_event_rejected_loser_no_alert(
         },
     )
 
-    session.commit.assert_awaited_once()
+    repo.commit.assert_awaited_once()
     assert qb_active_orders._value.get() == 1.0
     alert_sender.assert_not_awaited()  # race loser → alert noise 방어
 
@@ -479,24 +445,21 @@ async def test_handle_order_event_filled_commit_failure_no_dec(
     repo = AsyncMock()
     repo.get_by_id = AsyncMock(return_value=order)
     repo.transition_to_filled = AsyncMock(return_value=1)
-
-    session = AsyncMock()
-    session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    repo.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
 
     settings = MagicMock()
     user_id = uuid4()
-    handler = StateHandler(
-        session_factory=_make_session_factory(session),
+    handler = WebSocketOrderEventService(
+        repo=repo,
         settings=settings,
         alert_sender=AsyncMock(return_value=True),
         user_id=user_id,
     )
 
-    from src.trading.websocket import state_handler as sh_module
+    import src.trading.services.websocket_order_event_service as service_module
 
-    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
     publisher = AsyncMock()
-    monkeypatch.setattr(sh_module, "publish_realtime", publisher)
+    monkeypatch.setattr(service_module, "publish_realtime", publisher)
 
     qb_active_orders.set(1.0)
 
@@ -526,21 +489,15 @@ async def test_handle_order_event_rejected_winner_alerts_and_decs(
     repo = AsyncMock()
     repo.get_by_id = AsyncMock(return_value=order)
     repo.transition_to_rejected = AsyncMock(return_value=1)
-
-    session = AsyncMock()
-    session.commit = AsyncMock()
+    repo.commit = AsyncMock()
 
     settings = MagicMock()
     alert_sender = AsyncMock(return_value=True)
-    handler = StateHandler(
-        session_factory=_make_session_factory(session),
+    handler = WebSocketOrderEventService(
+        repo=repo,
         settings=settings,
         alert_sender=alert_sender,
     )
-
-    from src.trading.websocket import state_handler as sh_module
-
-    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
 
     qb_active_orders.set(1.0)
 
@@ -554,6 +511,6 @@ async def test_handle_order_event_rejected_winner_alerts_and_decs(
         },
     )
 
-    session.commit.assert_awaited_once()
+    repo.commit.assert_awaited_once()
     assert qb_active_orders._value.get() == 0.0
     alert_sender.assert_awaited_once()

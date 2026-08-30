@@ -21,6 +21,20 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 
 
+def secret_value(value: SecretStr | str | None) -> str:
+    """설정 경계에서만 `SecretStr` 원문을 꺼낸다.
+
+    테스트의 `SimpleNamespace`와 기존 운영 스크립트가 주입하는 문자열도 지원한다.
+    연결 factory 밖에서는 이 helper를 쓰지 않아 설정 덤프·로그가 DSN을 마스킹한 채 남는다.
+    """
+
+    if value is None:
+        return ""
+    if isinstance(value, SecretStr):
+        return value.get_secret_value()
+    return value
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env.local", ".env"),
@@ -86,17 +100,19 @@ class Settings(BaseSettings):
         return f"{self.better_auth_url.rstrip('/')}/api/auth/jwks"
 
     # Database — TimescaleDB extension은 동일 DB의 ts schema에 위치 (M2)
-    database_url: str = "postgresql+asyncpg://quantbridge:password@db:5432/quantbridge"
+    database_url: SecretStr = SecretStr(
+        "postgresql+asyncpg://quantbridge:password@db:5432/quantbridge"
+    )
 
     # Redis / Celery
     # ★2026-08-15 surface-truth (S4) — `redis_url`(DB 0 「캐시」) 를 **삭제**했다.
     #   선언·주입은 돼 있었지만 `src/` 전체에서 참조가 **0건**인 죽은 설정이었다. 죽은 설정은
     #   비용이 0 이 아니다 — compose·CI·`.env.example` 6곳이 그 값을 실어 나르면서
     #   「캐시 DB 가 따로 있다」는 그림을 유지했고, 그 그림이 아래 격리 오해를 떠받쳤다.
-    celery_broker_url: str = "redis://redis:6379/1"
-    celery_result_backend: str = "redis://redis:6379/2"
-    redis_lock_url: str = Field(
-        default="redis://redis:6379/3",
+    celery_broker_url: SecretStr = SecretStr("redis://redis:6379/1")
+    celery_result_backend: SecretStr = SecretStr("redis://redis:6379/2")
+    redis_lock_url: SecretStr = Field(
+        default=SecretStr("redis://redis:6379/3"),
         description=(
             "분산 락 + slowapi rate-limit storage 전용 Redis URL (DB 3). "
             "★논리 DB 분리는 **키 이름 충돌만** 막는다 — eviction 격리가 아니다. "

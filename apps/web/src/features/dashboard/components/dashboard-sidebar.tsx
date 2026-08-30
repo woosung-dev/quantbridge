@@ -10,8 +10,8 @@ import { useStrategies } from "@/features/strategy/hooks";
 import { useBacktests } from "@/features/backtest/hooks";
 import { useOpenOrdersCount } from "@/features/trading/hooks";
 
-import { AccountButton } from "./account-button";
-import { DashboardNavList, type NavCounts } from "./dashboard-nav-list";
+import { AccountButton } from "@/components/layout/account-button";
+import { DashboardNavList, type NavCounts } from "@/components/layout/dashboard-nav-list";
 
 type DashboardSidebarProps = {
   pathname: string | null;

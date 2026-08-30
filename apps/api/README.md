@@ -55,7 +55,7 @@ health 계열을 제외한 전부가 `/api/v1` 프리픽스다. 조립 지점은
 | waitlist           | `POST /waitlist` · `GET /waitlist/invite/{token}` · `GET /admin/waitlist` · `POST /admin/waitlist/{id}/approve`                                                              |
 | realtime           | `WS /api/v1/realtime/ws` — Origin 검증 + 첫 메시지 JWT 인증 (5초 타임아웃)                                                                                                   |
 
-OpenAPI 계약(`contracts/openapi/openapi.json`)이 레포에 커밋돼 있고, `mise run openapi-check` 가 drift 를 2단(전량 + orval 부분집합)으로 검사한다.
+OpenAPI 계약(`contracts/openapi/openapi.json`)이 레포에 커밋돼 있고, CI는 `scripts/export_openapi.py --check`로 producer drift를 검사한다. 생성 client는 사용하지 않는다.
 
 ---
 

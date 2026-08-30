@@ -7,6 +7,7 @@
 - triggerBy 는 Bybit 전용 (extend pass-through). OKX 는 미주입.
 - 값 None/False → 키 미포함 (기존 entry 주문 byte-identical 회귀).
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -134,9 +135,7 @@ async def test_bybit_demo_entry_no_exit_fields_is_byte_identical(credentials, by
         price=None,
     )
     await BybitDemoProvider().create_order(credentials, submit)
-    bybit_mock.create_order.assert_awaited_once_with(
-        "BTC/USDT", "market", "buy", "0.001", None
-    )
+    bybit_mock.create_order.assert_awaited_once_with("BTC/USDT", "market", "buy", "0.001", None)
 
 
 # ── Bybit futures (linear) ───────────────────────────────────────────────
@@ -176,11 +175,12 @@ async def test_bybit_futures_trigger_market_reduce_only(credentials, bybit_mock)
     )
 
 
-# ── OKX demo spot ────────────────────────────────────────────────────────
+# ── Legacy OKX — product policy blocks egress ─────────────────────────────
 
 
-async def test_okx_demo_bracket_trigger_no_trigger_by(okx_credentials, okx_mock):
-    """OKX: reduceOnly + triggerPrice + bracket TP/SL + clOrdId. triggerBy 미주입(Bybit 전용)."""
+async def test_okx_legacy_bracket_order_is_blocked_before_submission(okx_credentials, okx_mock):
+    """legacy OKX adapter는 exit param 처리 전에 제품 정책으로 차단한다."""
+    from src.trading.exceptions import BybitDemoOnlyError
     from src.trading.models import OrderSide, OrderType
     from src.trading.providers import OkxDemoProvider, OrderSubmit
 
@@ -197,25 +197,15 @@ async def test_okx_demo_bracket_trigger_no_trigger_by(okx_credentials, okx_mock)
         take_profit=Decimal("52000"),
         stop_loss=Decimal("47000"),
     )
-    await OkxDemoProvider().create_order(okx_credentials, submit)
-    okx_mock.create_order.assert_awaited_once_with(
-        "BTC/USDT",
-        "market",
-        "sell",
-        "0.001",
-        None,
-        {
-            "clOrdId": "cid-3",
-            "reduceOnly": True,
-            "triggerPrice": "48000",
-            "takeProfit": {"triggerPrice": "52000", "price": "52000"},
-            "stopLoss": {"triggerPrice": "47000"},
-        },
-    )
+    with pytest.raises(BybitDemoOnlyError):
+        await OkxDemoProvider().create_order(okx_credentials, submit)
+
+    okx_mock.create_order.assert_not_awaited()
 
 
-async def test_okx_demo_entry_no_exit_fields_is_byte_identical(okx_credentials, okx_mock):
-    """OKX entry (필드 미설정) → 기존 5-arg 호출 (회귀 0)."""
+async def test_okx_legacy_plain_entry_is_blocked_before_submission(okx_credentials, okx_mock):
+    """exit 필드가 없어도 legacy OKX egress는 허용하지 않는다."""
+    from src.trading.exceptions import BybitDemoOnlyError
     from src.trading.models import OrderSide, OrderType
     from src.trading.providers import OkxDemoProvider, OrderSubmit
 
@@ -226,7 +216,7 @@ async def test_okx_demo_entry_no_exit_fields_is_byte_identical(okx_credentials, 
         quantity=Decimal("0.001"),
         price=None,
     )
-    await OkxDemoProvider().create_order(okx_credentials, submit)
-    okx_mock.create_order.assert_awaited_once_with(
-        "BTC/USDT", "market", "buy", "0.001", None
-    )
+    with pytest.raises(BybitDemoOnlyError):
+        await OkxDemoProvider().create_order(okx_credentials, submit)
+
+    okx_mock.create_order.assert_not_awaited()

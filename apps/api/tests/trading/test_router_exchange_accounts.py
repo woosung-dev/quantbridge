@@ -26,8 +26,6 @@ async def test_register_exchange_account_returns_201(client, mock_authed_user):
     res = await client.post(
         "/api/v1/exchange-accounts",
         json={
-            "exchange": "bybit",
-            "mode": "demo",
             "api_key": "ABCD1234EFGH5678",
             "api_secret": "secret_value_here_1234",
             "label": "My Bybit Demo",
@@ -54,8 +52,6 @@ async def test_list_exchange_accounts_returns_registered(
     await client.post(
         "/api/v1/exchange-accounts",
         json={
-            "exchange": "bybit",
-            "mode": "demo",
             "api_key": "ABCD1234EFGH5678",
             "api_secret": "secret_value_here_1234",
         },
@@ -81,8 +77,6 @@ async def test_delete_exchange_account_returns_204(client, mock_authed_user):
     create_res = await client.post(
         "/api/v1/exchange-accounts",
         json={
-            "exchange": "bybit",
-            "mode": "demo",
             "api_key": "ABCD1234EFGH5678",
             "api_secret": "secret_value_here_1234",
         },
@@ -113,8 +107,6 @@ async def test_mask_api_key_short_key(client, mock_authed_user):
     res = await client.post(
         "/api/v1/exchange-accounts",
         json={
-            "exchange": "bybit",
-            "mode": "demo",
             "api_key": "short",
             "api_secret": "secret_value_here_1234",
         },
@@ -122,6 +114,25 @@ async def test_mask_api_key_short_key(client, mock_authed_user):
     assert res.status_code == 201
     body = res.json()
     assert body["api_key_masked"] == "*****"
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_legacy_exchange_mode_fields(client, mock_authed_user):
+    """클라이언트가 live/OKX를 다시 주입해도 저장 계약을 넓히지 않는다."""
+    res = await client.post(
+        "/api/v1/exchange-accounts",
+        json={
+            "exchange": "okx",
+            "mode": "live",
+            "passphrase": "legacy-okx-passphrase",
+            "api_key": "ABCD1234EFGH5678",
+            "api_secret": "secret_value_here_1234",
+        },
+    )
+
+    assert res.status_code == 422, res.text
+    fields = {item["loc"][-1] for item in res.json()["detail"]}
+    assert {"exchange", "mode", "passphrase"} <= fields
 
 
 # ── [BL-762] 라우터가 **공개 표면을 통해서만** 서비스를 부르는지 고정한다 ──────────
@@ -202,8 +213,6 @@ async def test_register_route_does_not_commit_twice(client, mock_authed_user, sp
     res = await client.post(
         "/api/v1/exchange-accounts",
         json={
-            "exchange": "bybit",
-            "mode": "demo",
             "api_key": "ABCD1234EFGH5678",
             "api_secret": "secret_value_here_1234",
         },

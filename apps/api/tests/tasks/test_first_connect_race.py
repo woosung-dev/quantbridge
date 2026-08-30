@@ -8,8 +8,10 @@ codex G.0 P1 #4 verifier:
 이 file 은 task layer 의 TimeoutError → record_network_failure 통합만 verify.
 - record_network_failure 의 threshold 동작은 test_ws_auth_circuit_breaker.py 가 단위 검증.
 """
+
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -40,7 +42,9 @@ async def test_first_connect_timeout_calls_record_network_failure() -> None:
             # 본 test 는 TimeoutError catch 의 호출만 verify — 실제 BybitPrivateStream
             # 진입은 별도 integration 에서 검증
             fake_session = AsyncMock()
-            fake_session.get = AsyncMock(return_value=None)
+            fake_session.execute = AsyncMock(
+                return_value=SimpleNamespace(scalar_one_or_none=lambda: None)
+            )
             yield fake_session
 
         class _FakeSM:
@@ -93,8 +97,6 @@ async def test_record_network_failure_threshold_triggers_block() -> None:
     )
 
     # 3회 누적 시 opened=True 반환 검증 (단위는 test_ws_auth_circuit_breaker.py 에)
-    assert _NETWORK_FAILURE_THRESHOLD == 3, (
-        "Sprint 24 plan v2 명시 threshold = 3 회 누적"
-    )
+    assert _NETWORK_FAILURE_THRESHOLD == 3, "Sprint 24 plan v2 명시 threshold = 3 회 누적"
     # 함수 직접 호출은 Redis 의존 — 단위 test 는 별도 file 에 격리
     assert callable(record_network_failure)

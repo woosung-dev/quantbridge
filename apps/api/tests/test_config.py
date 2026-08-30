@@ -1,4 +1,5 @@
 """Sprint 6 Trading config field validation."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -8,6 +9,7 @@ import pytest
 
 def test_settings_has_trading_fields(monkeypatch):
     from cryptography.fernet import Fernet
+
     test_key = Fernet.generate_key().decode()
     monkeypatch.setenv("TRADING_ENCRYPTION_KEYS", test_key)
     monkeypatch.setenv("EXCHANGE_PROVIDER", "fixture")
@@ -16,6 +18,7 @@ def test_settings_has_trading_fields(monkeypatch):
     monkeypatch.setenv("KILL_SWITCH_CAPITAL_BASE_USD", "10000")
 
     from src.core.config import Settings
+
     s = Settings()
     assert test_key in s.trading_encryption_keys.get_secret_value()
     assert s.exchange_provider == "fixture"
@@ -27,12 +30,14 @@ def test_settings_has_trading_fields(monkeypatch):
 def test_settings_multiple_encryption_keys(monkeypatch):
     """autoplan Eng E4 — MultiFernet 기반 다중 키."""
     from cryptography.fernet import Fernet
+
     k1 = Fernet.generate_key().decode()
     k2 = Fernet.generate_key().decode()
     monkeypatch.setenv("TRADING_ENCRYPTION_KEYS", f"{k1},{k2}")
     monkeypatch.setenv("EXCHANGE_PROVIDER", "fixture")
 
     from src.core.config import Settings
+
     s = Settings()
     keys = s.trading_encryption_keys.get_secret_value()
     assert k1 in keys and k2 in keys
@@ -43,6 +48,7 @@ def test_settings_invalid_encryption_key_raises(monkeypatch):
     monkeypatch.setenv("EXCHANGE_PROVIDER", "fixture")
 
     from src.core.config import Settings
+
     with pytest.raises(ValueError, match="Invalid Fernet key"):
         Settings()
 
@@ -59,3 +65,24 @@ def test_exchange_provider_accepts_bybit_futures(monkeypatch):
     s = Settings()
     assert s.exchange_provider == "bybit_futures"
     assert s.bybit_futures_max_leverage == 20
+
+
+def test_infrastructure_dsns_are_masked_but_connection_adapters_can_unwrap(monkeypatch) -> None:
+    """DSN은 설정 dump에 평문으로 남지 않고, 연결 경계에서만 원문을 꺼낸다."""
+    from cryptography.fernet import Fernet
+
+    from src.core.config import Settings, secret_value
+
+    monkeypatch.setenv("TRADING_ENCRYPTION_KEYS", Fernet.generate_key().decode())
+    dsn = "postgresql+asyncpg://user:encoded%2Fpassword@db/quantbridge"
+    settings = Settings(
+        database_url=dsn,
+        celery_broker_url="redis://broker:password@redis/1",
+        celery_result_backend="redis://result:password@redis/2",
+        redis_lock_url="redis://lock:password@redis/3",
+    )
+
+    dumped = settings.model_dump_json()
+    assert dsn not in dumped
+    assert "password@" not in dumped
+    assert secret_value(settings.database_url) == dsn

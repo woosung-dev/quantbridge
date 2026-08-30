@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-import { FormErrorInline } from "@/components/form-error-inline";
+import { FormErrorInline } from "../form-error-inline";
 import { ApiError } from "@/lib/api-client";
 
 describe("FormErrorInline", () => {

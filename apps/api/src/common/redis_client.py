@@ -17,14 +17,33 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI
+from pydantic import SecretStr
 from redis.asyncio import Redis
 
-from src.core.config import settings
+from src.core.config import secret_value, settings
 
 _LOGGER = logging.getLogger(__name__)
 _pool: Redis | None = None
+
+
+def _safe_redis_endpoint(value: SecretStr | str | None) -> str:
+    """로그용 Redis endpoint. credential·query·fragment는 절대 싣지 않는다."""
+
+    try:
+        parsed = urlsplit(secret_value(value))
+        if not parsed.scheme or not parsed.hostname:
+            return "invalid-redis-url"
+        host = parsed.hostname
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        port = f":{parsed.port}" if parsed.port is not None else ""
+        return f"{parsed.scheme}://{host}{port}{parsed.path or ''}"
+    except ValueError:
+        # 설정 자체가 망가져도 healthcheck의 오류 로그가 다시 예외를 내면 안 된다.
+        return "invalid-redis-url"
 
 
 def get_redis_lock_pool() -> Redis:
@@ -32,7 +51,7 @@ def get_redis_lock_pool() -> Redis:
     global _pool
     if _pool is None:
         _pool = Redis.from_url(
-            settings.redis_lock_url,
+            secret_value(settings.redis_lock_url),
             socket_connect_timeout=2.0,
             socket_timeout=2.0,
             retry_on_timeout=True,
@@ -95,13 +114,16 @@ async def healthcheck_redis_lock(app: FastAPI) -> bool:
     except Exception as exc:  # BLE001
         _LOGGER.warning(
             "redis_lock_pool_ping_failed action_required=true",
-            extra={"url": settings.redis_lock_url, "error": str(exc)},
+            extra={
+                "endpoint": _safe_redis_endpoint(settings.redis_lock_url),
+                "error_type": type(exc).__name__,
+            },
         )
     app.state.redis_lock_healthy = healthy
     qb_redis_lock_pool_healthy.set(1 if healthy else 0)
     if not healthy:
         _LOGGER.warning(
             "redis_lock_pool_degraded action_required=true",
-            extra={"url": settings.redis_lock_url},
+            extra={"endpoint": _safe_redis_endpoint(settings.redis_lock_url)},
         )
     return healthy

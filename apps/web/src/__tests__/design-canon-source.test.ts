@@ -257,9 +257,10 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   // em-dash 각 1건 해소 → 두 항목 제거(래칫 하강).
   ["app/disclaimer/page.tsx", 1],
   ["app/privacy/page.tsx", 5], // 정의 목록 (제3자 처리자). 정당 — 2026-08-17 ADR-034 로 「Clerk — 인증」 행이 빠져 6→5
-  ["app/share/backtests/[token]/page.tsx", 2],
+  ["app/share/backtests/[token]/page.tsx", 1],
+  ["features/backtest/components/share/shared-backtest-page.tsx", 1],
   ["app/terms/page.tsx", 1],
-  ["components/form-error-inline.tsx", 1],
+  ["features/backtest/components/form-error-inline.tsx", 1],
   // W3-G: legal-notice-banner.tsx 를 한국어 C 재스킨하며 "Beta 단계 — H2 말..." em-dash 해소 → 제거.
   ["components/monaco/pine-language.ts", 3],
   ["features/backtest/utils.ts", 2],

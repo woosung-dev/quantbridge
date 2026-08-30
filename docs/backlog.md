@@ -43,7 +43,7 @@
 > (compose 에 `api:` 서비스는 여전히 없으므로 **컨테이너 API 로 가면 되살려라**) ·
 > [BL-619] 관측 장치 배치 후 재관측 **0건**(15.30h 창 · 2분 공백 0) — 부검할 사건이 없다, 재발하면 새로 등재하는 것이 싸다 ·
 > [BL-477] → **[BL-529] 로 병합**(같은 결함의 두 기술이었다 — 477 의 실측은 529 본문이 흡수).
-> ⇒ **28건** — ACTIVE **3**([BL-827]·[BL-833]·[BL-834]) · PARTIAL **1**([BL-529]) · DEFERRED **24**.
+> ⇒ **27건** — ACTIVE **2**([BL-835]·[BL-836]) · PARTIAL **2**([BL-529]·[BL-827]) · DEFERRED **23**.
 > ★**[BL-774] 는 종결이 아니라 재판정**이다 — 마커 `⬜ Open`(판정어 5종 밖) → `⏳ DEFERRED` 로 고치고
 > `backlog-deferred.md` 로 옮겼다. **2026-08-30 사용자 = TradingView 유료 플랜을 지금 결제하지 않는다**
 > (webhook alert 는 유료 기능이라 실측 자체가 불가능) · 그리고 **결제하지 않는 사용자를 타겟팅하는 방향**을
@@ -248,27 +248,6 @@
 ★이 확인은 live-close-completeness 플랜(W4)이 "등재 내용 보강만" 으로 약속했으나 **그 PR 에서 누락**됐고, 사후 Spec 리뷰가 잡아 여기 반영한다. 스코프를 줄인 게 아니라 **적어놓고 안 한 것**이므로 같은 누락이 반복되지 않도록 기록해 둔다.
 
 ---
-
-### BL-834
-
-**Title:** `convert` 는 아직 스키마 강제 밖이고, 토큰 77~97% 절감 경로는 FE 하드코딩으로 도달 불가다
-**Category:** BE+FE / LLM
-**Priority:** P3
-**출처:** 2026-08-27~28 [ADR-040]·[ADR-041] 및 provider 선택 구조(PR #840) 작업 중 표면화
-
-**증상 (실측):** ⑴ `strategy/convert/service.py` 는 `tools=`/`response_schema=` 가 **0건**이라 응답을 문자열로 수동 파싱하고 Gemini 의 ``` 펜스를 손으로 벗긴다 — PR #840 이 세운 `narrative/providers.py`(세 provider 스키마 강제 + `LLM_PROVIDER_ORDER`) 밖에 혼자 남았다. 그래서 `convert` 만 provider 선택이 안 되고 anthropic→gemini 하드코딩이다. ⑵ `mode="sliced"`(`SignalExtractor` 경유, 토큰 **77~97% 절감**)는 BE 구현·테스트 완비인데 FE 가 `"full"` 을 하드코딩한다(`ConvertWithAIButton.tsx:29`) ⇒ **도달 불가**. ⑶ 그 버튼의 유일한 호출처가 422 에러 카드(`form-error-inline.tsx:190`)라 **정상 흐름 진입점이 0개**다.
-**권장 접근:** ⑵⑶ 이 싸다(FE 두 줄 + 진입점 하나). ⑴ 은 convert 의 산출이 **코드 문자열**이라 JSON 스키마 계약을 먼저 정해야 해서 별도 판단이 필요하다 — 옮기지 않기로 정한다면 그 사유를 여기 적어 닫아라.
-
-★★★**2026-08-30 코드 대조 — ⑵ 의 값이 「토큰 절감」보다 세다. `sliced` 는 LLM 을 아예 안 부르는 경로다.**
-`convert/service.py:52-68` 실측: `mode="sliced"` 면 `SignalExtractor` 로 슬라이싱한 뒤 **`result.is_runnable` 이면 그 자리에서 반환한다** — `input_tokens=0, output_tokens=0`, warning 은 「AST 슬라이싱으로 직접 실행 가능한 코드 추출 (**LLM 미사용**)」. 즉 절감은 77~97% 가 아니라 **경우에 따라 100%**(왕복 0회 · 지연 0 · 비용 0)다. 실행 불가일 때만 슬라이스된 코드를 LLM 에 넘긴다. FE 가 `"full"` 을 하드코딩(`ConvertWithAIButton.tsx:29`)하는 한 **이 경로는 한 번도 실행된 적이 없다.**
-
-★★**2026-08-30 — ⑴ 이 P3 에서 「사용자에게 거짓말 중」으로 올라갔다.** 2026-08-29 사용자 결정으로 **anthropic 키를 서버에서 제거**했는데(`status.md` — `LLM_PROVIDER_ORDER=openai,gemini`) `convert/service.py:35-121` 은 여전히 **anthropic → gemini 하드코딩**이다. 결과: ⑴ `anthropic_key is None` 이라 통째로 건너뛰고 **gemini 단독**으로 돌면서 ⑵ 응답 경고문은 `f"Gemini {model} 로 변환 완료 **(fallback)**"` 를 그대로 붙인다 — **fallback 이 아닌데 fallback 이라고 사용자 화면에 적는다**(`_convert_with_gemini` 의 `provider_warnings`). ⑶ `openai` 는 convert 에서 **영원히 도달 불가**다(provider 목록에 없다). ★키가 유효해도 이 셋은 안 고쳐진다 — [BL-833] 과 달리 **설정으로 못 푸는 코드 결함**이다.
-
-★**2026-08-30 ⑵⑶ 종결**(n14 lane `convert-reach` · PR #849 → 통합 #851 `4b270510`). `ConvertWithAIButton` 이 `mode: "sliced"` 를 보내고, 새 전략 위저드가 `declaration.kind === "indicator"` 를 알아보고 변환을 권한 뒤 결과를 에디터에 넣어 재파싱한다. **LLM 왕복 0회 경로가 처음으로 도달 가능해졌다.** 판별력 증거 = 변이(`"sliced"`→`"full"` · `"indicator"`→`"library"`) 둘 다 red.
-★그 수리가 **진입점 사각 하나를 남겼다** — [BL-835]. 미지원 builtin 을 **함께** 가진 indicator 는 위저드에서 버튼을 못 본다.
-
-**상태:** 🟡 PARTIAL — ⑵⑶ 종결(2026-08-30). **남은 것은 ⑴ 뿐이다** — `convert/service.py` 를 `narrative/providers.py` 층으로 옮기는 일이고, 그 앞에 **JSON 스키마 계약 결정**(산출이 코드 문자열이다)이 선다
-**트리거 판정:** 도래 (⑴ 은 anthropic 키 제거로 **이미 발현 중** — 사용자 화면에 `(fallback)` 이라 거짓을 적고 `openai` 는 도달 불가다)
 
 ### BL-827
 

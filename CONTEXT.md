@@ -87,7 +87,7 @@ _Avoid_: backtest engine, 전략 실행기, "지표 계산 가속"(이 표현도
 검증된 Strategy 를 거래소에서 데모/라이브로 실행하는 도메인(구 `exchange` 도메인 통합 — ADR-018).
 
 **LiveSignalSession**:
-한 Strategy 를 실시간 신호로 자동매매하는 활성 세션(`is_active` bool, user 당 active ≤ 5). **현재 Bybit + demo 계정만 허용** — live 는 `AccountModeNotAllowed`(BL-003 mainnet runbook 전, `trading/services/live_session_service.py`).
+한 Strategy 를 실시간 신호로 자동매매하는 활성 세션(`is_active` bool, user 당 active ≤ 5). **Bybit Demo 계정만 허용** — live/다른 거래소는 제품 정책 오류로 차단한다.
 _Avoid_: **TradingSession**(미구현 phantom — 실제 lifecycle 은 LiveSignalSession + Order + LiveSignalEvent). ★단 `strategy/trading_sessions.py` 의 `TradingSession(StrEnum)` 은 **별개 개념**(asia/london/ny 세션 시간대 게이트, Sprint 7d)으로 현역 — phantom 은 엔티티/테이블 이름으로서의 사용을 말한다.
 
 **LiveSignalEvent**:
@@ -103,10 +103,10 @@ _Avoid_: **TradingSession**(미구현 phantom — 실제 lifecycle 은 LiveSigna
 사용자별 거래소 API Key 를 AES-256(Fernet) 암호화 보관하는 계정(평문 미저장, 응답은 마스킹).
 
 **ExchangeName**:
-지원 거래소 enum (`bybit` / `binance` / `okx`). 단 모든 `(ExchangeName, ExchangeMode, has_leverage)` 조합에 provider 가 있는 건 아님 — 실제 라우팅 SSOT 는 `trading/registry.py` PROVIDER_REGISTRY(현재 bybit demo±leverage / okx demo / bybit live).
+저장 enum 은 과거 행 호환을 위해 `bybit` / `binance` / `okx` 값을 보존한다. 단 사용자 계정·주문·private WebSocket egress의 제품 계약은 **Bybit Demo 하나**다. 실제 라우팅 SSOT 는 `trading/registry.py` `PROVIDER_REGISTRY`이며 현재 `bybit/demo`의 spot·linear 두 조합만 등록한다.
 
 **ExchangeMode**:
-거래소 실행 모드로 `demo` 또는 `live` 두 값만 존재(testnet 모드 제거됨). demo 의미는 거래소마다 다름 — Bybit demo = 실 매칭엔진, OKX demo = CCXT sandbox.
+저장 enum 은 `demo` 또는 `live` 두 값을 보존한다(testnet 모드 제거됨). 새 사용자 egress는 언제나 `demo`이고, 과거 `live` 값은 조회·이력 보존만 가능하며 자격증명 복호화·거래소 호출 전에 차단된다. Bybit Demo는 실 매칭엔진을 쓴다.
 _Avoid_: testnet(모드 이름으로는 미사용)
 
 **Trailing Stop Intent**:
@@ -132,7 +132,7 @@ Strategy 가 산출하는 entry / exit / alert 신호(라이브에서는 LiveSig
 pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR-020).
 
 **Demo-first**:
-라이브 손익보호(TP/SL·트레일링)를 데모 경로로 먼저 빌드하고 실자금 라이브는 마지막에 cutover 하는 원칙.
+라이브 손익보호(TP/SL·트레일링)를 Bybit Demo 경로에서만 검증하는 원칙. 실자금 cutover는 제품 범위 밖이다.
 
 ## Relationships
 
@@ -145,7 +145,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 - 한 **LiveSignalEvent** 는 0..1 **Order** 로 dispatch.
 - **Kill Switch** 는 모든 **Order** 발주 전 게이트.
 - **OHLCV** 는 **Backtest** 와 **Trading** 양쪽에 공급(Backtest=배치 Provider, Trading=실시간 WebSocket 별도 경로).
-- **Provider 라우팅 SSOT**: `(ExchangeName, ExchangeMode, has_leverage)` 튜플이 `trading/registry.py` 에서 ExchangeProvider 구현으로 dispatch(예: bybit·demo·leverage=True → BybitFuturesProvider).
+- **Provider 라우팅 SSOT**: `(ExchangeName, ExchangeMode, has_leverage)` 튜플이 `trading/registry.py` 에서 ExchangeProvider 구현으로 dispatch한다. 제품 등록은 Bybit·Demo 두 조합뿐이며, 과거 live/OKX 행은 지우지 않고 egress 전 정책 검사에서 차단한다.
 
 ## Example dialogue
 
@@ -163,7 +163,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 - **"TradingSession"** 이 라이브 lifecycle 을 가리키는 데 쓰임 → 해소: 그런 테이블 없음. **LiveSignalSession** + **Order** + **LiveSignalEvent** 사용. _잔여 드리프트_: `docs/domain/domain-overview.md` §4.1 FK 표 + `entities.md` ENT-007/008 이 phantom `trading_sessions`/`live_trades` 를 실재처럼 표기 → Phase 2 정정 완료(본 브랜치).
 - **"engine" / "backtest engine"** 이 vectorbt 를 지칭 → 해소: 실행 엔진 SSOT 는 **pine_v2**. ★2026-08-06 에 한 겹 더 벗겼다 — 「vectorbt 는 지표계산 전용」이라는 강등 서술**조차** 드리프트였고(코드 import 0건), 의존성 자체를 제거했다. _잔여 드리프트_: `system-architecture.md` L82/L143 → Phase 2 정정 완료.
 - **"exchange"** 가 별도 도메인으로 쓰임 → 해소: **Trading** 으로 통합(ADR-018), `apps/api/src/exchange/` 부재. _잔여 드리프트_: `entities.md` ENT-009 가 `domain: exchange` / `apps/api/src/exchange/models.py` 표기 → Phase 2 정정 완료(본 브랜치).
-- **"testnet"** vs **"demo"** → 해소: testnet 모드 제거됨. **ExchangeMode** = `demo | live` 뿐이고 demo 의미는 거래소별 상이(Bybit demo = 실 매칭엔진 / OKX demo = CCXT sandbox).
+- **"testnet"** vs **"demo"** → 해소: testnet 모드 제거됨. 저장 `ExchangeMode` = `demo | live` 이지만 사용자 egress는 **Bybit Demo만** 허용한다.
 - **"unsupported"**(parse_status) → 해소: 파서는 `ok`/`error` 만 set. 미지원 함수 판정은 백테스트 제출 시 **Coverage Analyzer**(ADR-003 all-or-nothing).
 - **"transpile"** → 해소: pine_v2 는 AST 를 해석(interpret)하며 Python 으로 트랜스파일하지 않음(`exec`/`eval` 금지, ADR-003).
 

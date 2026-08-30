@@ -8,7 +8,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { AlertTriangleIcon, InboxIcon, RefreshCwIcon } from "lucide-react";
 
-import { FormErrorInline } from "@/components/form-error-inline";
+import { FormErrorInline } from "@/features/backtest/components/form-error-inline";
 import { InfoIcon } from "@/components/info-icon";
 import { StateBox } from "@/components/state-box";
 import { StrategyBriefPanel } from "@/features/strategy/components/brief/strategy-brief";

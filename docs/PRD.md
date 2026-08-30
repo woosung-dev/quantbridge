@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | ⑴ | **실자금(mainnet) 안 간다** | 계정 모드는 **Bybit Demo 만**. money-path 「실자금 정밀도」 축은 닫혀 있다 |
 | ⑵ | **Beta 외부 공개 당분간 안 연다** | **실사용자 0명**이 전제다. waitlist 파이프라인은 키만 넣으면 열리지만 열지 않는다 |
-| ⑶ | **멀티 거래소 안 한다** | **Bybit 하나**. ★OKX 는 BE 에 어댑터가 **남아 있다**(`trading/providers.py:1878` `OkxDemoProvider` + `registry.py:41` 등록) — **더 안 키운다**. FE 는 이미 `schemas.ts:114` 에서 `z.enum(["bybit"])` 로 하나만 받는다. **Binance 는 주석뿐이라 진짜 0건** |
+| ⑶ | **멀티 거래소 안 한다** | **Bybit 하나**. 과거 live/OKX 행과 호환 클래스는 보존하지만, `registry.py`와 계정·주문·private WS 경계가 Bybit Demo 이외 egress를 차단한다. FE 등록값도 Bybit Demo으로 고정한다 |
 
 ★**하나가 뒤집히면 `git show 21e40d5c:docs/backlog.md` 에서 해당 축을 되살려라 — 다시 쓰지 마라**
 (`backlog-deferred.md`·`backlog-resolved.md` 동일 SHA). ★**glob 을 쓰지 마라** — `git show <sha>:docs/backlog*.md` 는

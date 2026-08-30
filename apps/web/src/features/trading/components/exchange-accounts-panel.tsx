@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { EMPTY_CELL } from "@/lib/labels";
 import { StateBox } from "@/components/state-box";
 
+import { isBybitDemoAccount } from "../account-policy";
 import { useDeleteExchangeAccount, useExchangeAccounts } from "../hooks";
 import { RegisterExchangeAccountDialog } from "./register-exchange-account-dialog";
 
@@ -35,6 +36,18 @@ function ReadOnlyBadge({ readOnly }: { readOnly: boolean | null }) {
   return (
     <span className="chip warn" data-tone="warning">
       읽기 전용
+    </span>
+  );
+}
+
+function LegacyAccountNotice({ exchange, mode }: { exchange: string; mode: string }) {
+  return (
+    <span className="chip warn" data-tone="warning">
+      운영 차단
+      <span className="sr-only">
+        {" "}
+        {exchange} {mode} 계정은 거래와 조회를 지원하지 않습니다.
+      </span>
     </span>
   );
 }
@@ -109,7 +122,18 @@ export function ExchangeAccountsPanel() {
                     <ModeBadge mode={a.mode} />
                   </td>
                   <td>
-                    {a.label ?? EMPTY_CELL} <ReadOnlyBadge readOnly={a.read_only} />
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span>{a.label ?? EMPTY_CELL}</span>
+                      <ReadOnlyBadge readOnly={a.read_only} />
+                      {!isBybitDemoAccount(a) ? (
+                        <LegacyAccountNotice exchange={a.exchange} mode={a.mode} />
+                      ) : null}
+                    </div>
+                    {!isBybitDemoAccount(a) ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        기존 계정은 보존되며 삭제만 할 수 있습니다.
+                      </p>
+                    ) : null}
                   </td>
                   <td className="mono-l dim">{a.api_key_masked}</td>
                   <td>

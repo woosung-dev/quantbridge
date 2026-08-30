@@ -232,7 +232,7 @@ export function getUnsupportedBuiltinHint(name: string): UnsupportedBuiltinHint 
   //   바로 인덱싱하면 `toString`·`__proto__`·`constructor`·`valueOf`·`hasOwnProperty` 가
   //   **함수를 반환해 truthy 로 잡히고**, 함수를 spread 하면 own enumerable 이 0개라 결과가
   //   `{ name }` 뿐이 된다 — `hint`·`category` 가 사라져 화면에 `undefined` 가 나갔다.
-  //   소비자(`components/form-error-inline.tsx`)가 `hint.hint` 를 렌더하고 `hint.category` 로
+  //   소비자(`features/backtest/components/form-error-inline.tsx`)가 `hint.hint` 를 렌더하고 `hint.category` 로
   //   아이콘을 고르므로 둘 다 깨진다. 자기 소유 키만 적중으로 인정한다.
   const meta = Object.hasOwn(_HINTS, name) ? _HINTS[name] : undefined;
   if (meta) {

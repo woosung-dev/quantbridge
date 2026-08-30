@@ -19,7 +19,7 @@ vi.mock("@/components/ui/sonner", () => ({
   Toaster: () => <div data-testid="toaster" />,
 }));
 
-vi.mock("@/components/layout/dashboard-shell", () => ({
+vi.mock("@/features/dashboard/components/dashboard-shell", () => ({
   DashboardShell: ({ children }: { children: ReactNode }) => (
     <div data-testid="dashboard-shell">{children}</div>
   ),
@@ -39,7 +39,7 @@ vi.mock("@/lib/auth-server", () => ({
 
 import DashboardLayout from "../(dashboard)/layout";
 import RootLayout, { metadata, viewport } from "../layout";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { DashboardShell } from "@/features/dashboard/components/dashboard-shell";
 import { ServerIdentityProvider } from "@/components/providers/server-identity-provider";
 import { ShortcutHelpDialog } from "@/components/shortcut-help-dialog";
 import { getServerAuth } from "@/lib/auth-server";

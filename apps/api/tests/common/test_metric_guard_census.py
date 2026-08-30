@@ -96,14 +96,8 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): 5,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 6,
-    ("apps/api/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): 1,
-    ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): 2,
     ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): 1,
     ("apps/api/src/trading/webhook.py", "qb_order_rejected_total"): 1,
-    ("apps/api/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): 1,
-    ("apps/api/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): 1,
-    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): 1,
-    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): 1,
 }
 
 
@@ -119,14 +113,8 @@ _FROZEN_CENSUS_SCOPE: dict[tuple[str, str], tuple[int, int]] = {
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): (0, 5),
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): (0, 1),
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): (0, 6),
-    ("apps/api/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): (0, 1),
-    ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): (0, 2),
     ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): (0, 1),
     ("apps/api/src/trading/webhook.py", "qb_order_rejected_total"): (0, 1),
-    ("apps/api/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): (0, 1),
-    ("apps/api/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): (0, 1),
-    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): (0, 1),
-    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): (0, 1),
 }
 
 
@@ -582,8 +570,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 17
-    assert sum(_FROZEN_CENSUS.values()) == 30
+    assert len(_FROZEN_CENSUS) == 11
+    assert sum(_FROZEN_CENSUS.values()) == 23
 
     sites = _census_sites()
     actual = _census_counts(sites, _CENSUS_ALLOWLIST)
@@ -739,10 +727,10 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     ),
     # Tier 2 — 내구 쓰기와 체결 후처리 훅 사이의 gauge. 던지면 후처리가 통째로 유실된다.
     (
-        "apps/api/src/trading/websocket/state_handler.py",
-        "handle_order_event",
+        "apps/api/src/trading/services/websocket_order_event_service.py",
+        "_after_committed_winner",
         "qb_active_orders",
-        "WS fill 주 경로. 23줄 아래 가드와 그 전용 회귀 테스트를 도달 불가로 만든다",
+        "WS fill winner의 commit 뒤 후처리. 계측 예외가 trailing·PnL enqueue를 끊는다",
     ),
     (
         "apps/api/src/tasks/trading.py",
@@ -757,10 +745,10 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "watchdog fill",
     ),
     (
-        "apps/api/src/trading/websocket/reconciliation.py",
-        "run",
+        "apps/api/src/trading/services/websocket_reconciliation_service.py",
+        "_after_committed_winner",
         "qb_active_orders",
-        "reconciler fill",
+        "reconciler fill winner의 commit 뒤 후처리",
     ),
     (
         "apps/api/src/tasks/conditional_entry_janitor.py",

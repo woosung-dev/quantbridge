@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
-import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { DashboardShell } from "../dashboard-shell";
 
 // usePathname 만 가변 → mock 모듈 export 를 변수로 통제.
 let mockPathname = "/strategies";

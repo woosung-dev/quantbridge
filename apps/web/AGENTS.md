@@ -27,10 +27,9 @@
 
 - 인증 보호 = **`proxy.ts`** 하나. 공개 라우트가 아니면 `auth.api.getSession()` 으로 **완전 검증**한다.
   **이유:** 검증을 라우트마다 흩으면 새 라우트가 조용히 공개된다. 집행 = `src/__tests__/proxy-gate.test.ts`
-- 클라이언트는 **`useAuthCtx()` 하나만**(`hooks/use-auth-ctx.ts` → `uid`/`userId`/`isSignedIn`/`getToken`).
+- 클라이언트는 **`useAuthCtx()` 하나만**(`hooks/use-auth-ctx.ts` → `uid`/`userId`/`isSignedIn`/`user`/`getToken`).
   `useSession()`·`getAuthToken()` 을 컴포넌트에서 직접 부르지 마라 — 공급자 교체가 그 seam 하나로 끝난 이유다.
-  ★현재 위반 1건(`components/layout/account-button.tsx:29` — 표시용 `user.name`/`email` 이 `AuthCtx` 에 없다).
-  **선례로 삼지 마라.** 재는 것 없음
+  표시용 이름·이메일도 `user`를 통해 받는다. 집행 = `hooks/__tests__/auth-ctx-boundary.test.ts`
 - 서버 컴포넌트 = `getServerAuth()`(`lib/auth-server.ts`) → `{ userId, token }`
 - 직접 JWT 파싱 금지 (예외: `auth-client.ts` 가 **캐시 수명 계산에만** `exp` 를 읽는다)
 - ★**`getSessionCookie()` 를 인증 게이트로 쓰지 마라** — 쿠키 존재만 본다(공식 문서가 "THIS IS NOT SECURE!").
@@ -81,9 +80,10 @@ timeout 콜백에서 `ref.current` 읽기. 실물 = `features/strategy/draft.ts:
 
 ## 4. Directory Structure (FSD Lite)
 
-> 새 기능은 반드시 아래 구조로 배치한다. ★**배치를 재는 기계는 거의 없다** — 예외 하나는
-> `app/(dashboard)/__tests__/thin-routes.test.tsx` 로, **7개 라우트**가 「정적 metadata + 단일 feature 위임」
-> 인지 집행한다. 그 7개 밖의 배치는 여전히 아무도 안 잰다(2026-08-30 정정).
+> 새 기능은 반드시 아래 구조로 배치한다. ★**배치를 재는 기계는 거의 없다** — 예외 둘은
+> `app/(dashboard)/__tests__/thin-routes.test.tsx` 의 **7개 dashboard route**와
+> `app/__tests__/public-thin-routes.test.ts` 의 pricing·invite·share route다. 둘은 「metadata/params +
+> 단일 feature 위임」을 집행한다. 그 밖의 배치는 여전히 사람이 본다(2026-08-30 정정).
 
 ```
 src/
@@ -112,6 +112,10 @@ src/
 `import()` 를 한 규칙이 같이 본다). **이유:** `app/` 은 최상위 조립층이라 아래 층이 거슬러 참조하면 라우트를
 못 옮긴다. ⚠️템플릿 리터럴 ``import(`@/app/${x}`)`` 갈래와 **역방향**(`app/` 안에 로직·화면 컴포넌트를 두는 것)은
 **아무도 안 잰다.**
+
+**★공유층 역방향 경계** — `components/**`·`lib/**` 는 `features/**` 를 import 하면 error다
+(`biome.jsonc` override, alias·상대 경로 모두). 도메인 코드가 필요해지면 shared를 넓히지 말고 해당
+`features/<domain>/` 소유로 옮긴다. 테스트는 예외다.
 
 **★컴포넌트를 옮길 때** — `src/__tests__/no-raw-enum-labels.test.ts` 는 스캔 대상을 디렉터리 목록
 (`SCOPE_MARKERS`)으로 정의하고 사라진 디렉터리를 만나면 **throw 한다**(`:213`). 목록을 함께 고쳐라.

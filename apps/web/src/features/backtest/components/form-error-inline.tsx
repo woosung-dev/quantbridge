@@ -1,14 +1,13 @@
-// 폼 422/4xx/5xx 에러를 inline 카드로 표준 표시하는 공통 컴포넌트.
-// backtest-form 의 unsupported_builtins + friendly_message 카드 패턴을 추출 (Sprint 41 E).
-// 다른 폼 (test-order, exchange-account 등) 에서도 ApiError 를 그대로 넘겨 재사용.
+// 백테스트 폼의 422/4xx/5xx 오류를 inline 카드로 표시한다.
+// unsupported_builtins + friendly_message 카드와 AI 변환 CTA는 backtest 도메인 계약이다.
 // Sprint 44 W C3: icon (warning/error) + 간격 정합 + slide-down entrance (qb-form-slide-down 200ms).
 // pine-compat-experiment: indicatorCode prop 추가 — unsupported 케이스에 AI 변환 CTA 노출.
 
 import Link from "next/link";
 import { TriangleAlertIcon, OctagonXIcon } from "lucide-react";
 
-import { ConvertWithAIButton } from "@/features/backtest/components/ConvertWithAIButton";
-import type { ConvertIndicatorResponse } from "@/features/backtest/schemas";
+import { ConvertWithAIButton } from "./ConvertWithAIButton";
+import type { ConvertIndicatorResponse } from "../schemas";
 
 import {
   getUnsupportedBuiltinHints,

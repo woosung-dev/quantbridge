@@ -170,20 +170,14 @@ describe("verifyInviteToken direct fetch boundary", () => {
     expect(url.searchParams.get("offset")).toBe("-1");
   });
 
-  it("예상 밖 HTTP 오류와 네트워크 오류는 error 결과로 보존한다", async () => {
+  it("예상 밖 HTTP 오류와 네트워크 오류는 원문 없는 error 결과로 축소한다", async () => {
     const fetchMock = vi
       .fn<(_: RequestInfo | URL, _init?: RequestInit) => Promise<Response>>()
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
       .mockRejectedValueOnce(new Error("network unavailable"));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(verifyInviteToken("server-error")).resolves.toEqual({
-      kind: "error",
-      message: "HTTP 503",
-    });
-    await expect(verifyInviteToken("network-error")).resolves.toEqual({
-      kind: "error",
-      message: "network unavailable",
-    });
+    await expect(verifyInviteToken("server-error")).resolves.toEqual({ kind: "error" });
+    await expect(verifyInviteToken("network-error")).resolves.toEqual({ kind: "error" });
   });
 });

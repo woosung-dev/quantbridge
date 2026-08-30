@@ -1,15 +1,12 @@
-"""Bybit Smoke Test — demo/mainnet 주문 경로 검증 ([BL-003]).
+"""Bybit Demo smoke test — 데모 주문 경로 검증.
 
-★2026-08-09 `bybit_demo_smoke.py` 에서 rename 됐다. 이름이 `demo` 인 채로 live 를 다루면
-「데모니까 안전하겠지」 오독을 부르기 때문이다. 참조처는 자기 docstring 하나뿐이었다.
-
-★**직접 부르지 마라 — `tools/scripts/bybit-smoke.sh` 가 정문이다.** 그 셸이 `--dry-run` 기본 ·
-시크릿 파일 권한 검사 · live 경고 배너를 건다. 본 모듈은 승인 뒤 실호출만 담당한다.
+★**직접 부르지 마라 — `tools/scripts/bybit-smoke.sh` 가 정문이다.** 그 셸이
+`--dry-run` 기본과 시크릿 파일 권한 검사를 제공한다. 이 모듈은 Bybit Demo endpoint만
+선택하며 mainnet을 선택하는 인자나 fallback이 없다.
 
 실행 예 (셸을 거치는 정문):
-    tools/scripts/bybit-smoke.sh --dry-run                    # 외부 호출 0건
-    tools/scripts/bybit-smoke.sh --mode demo --confirm        # 데모 실호출
-    tools/scripts/bybit-smoke.sh --mode live --market spot --confirm   # ★실자금
+    tools/scripts/bybit-smoke.sh --dry-run
+    tools/scripts/bybit-smoke.sh --confirm
 
 검증 경로 (`--market linear`):
     1. fetch_balance → USDT > 0 확인
@@ -20,13 +17,8 @@
     6. cancel_order 정상 종료
 
 `--market spot` 은 2·3(마진/레버리지)을 건너뛴다 — spot 계정에 없는 개념이라 거래소가 거부한다.
-★단계 1 smoke($50)가 spot 인 이유: perp 최소 주문 0.001 BTC 는 명목 ~$100 이라 1x 증거금이
-자본을 넘는다. perp 경로는 단계 2 에서 검증한다(`docs/operations/bybit-mainnet-runbook.md`).
-
-★**mode 는 실제로 분기한다.** rename 이전 판은 `mode` 를 인자로 받고도 쓰지 않고
-`enable_demo_trading(True)` 를 하드코딩했다 — choices 가 `demo` 뿐이라 무해했지만, live 를
-여는 순간 「live 를 지정했는데 demo 로 간다」가 된다. 분기 규약은 `providers.py:_apply_bybit_env`
-와 같다: demo → `enable_demo_trading(True)` · live → no-op(기본 `api.bybit.com`).
+★perp 최소 주문은 spot보다 클 수 있으므로 기본 smoke는 호출자가 market/symbol/quantity를
+명시적으로 조정할 수 있게 둔다. 어느 경우에도 Bybit Demo만 사용한다.
 
 모든 단계 JSON으로 로깅. 실패 시 exit code 1.
 """
@@ -69,7 +61,6 @@ async def run_smoke(
     symbol: str,
     quantity: Decimal,
     leverage: int,
-    mode: str = "demo",
     market: str = "linear",
 ) -> int:
     """Return exit code (0=success, 1=failure)."""
@@ -82,15 +73,10 @@ async def run_smoke(
             "options": {"defaultType": market, "testnet": False},
         }
     )
-    # `providers.py:_apply_bybit_env` 와 같은 규약 — demo 만 URL 을 교체한다.
     # enable_demo_trading(True) = URL 교체 + enableDemoTrading 플래그 세팅.
     # URL만 바꾸면 retCode:10032 (/v5/user/query-api 미지원 엔드포인트 호출).
-    if mode == "demo":
-        exchange.enable_demo_trading(True)
-        endpoint = "api-demo.bybit.com"
-    else:
-        endpoint = "api.bybit.com"
-    log_event("smoke_config", endpoint=endpoint, mode=mode, market=market)
+    exchange.enable_demo_trading(True)
+    log_event("smoke_config", endpoint="api-demo.bybit.com", mode="demo", market=market)
 
     try:
         # 1. Balance
@@ -161,7 +147,7 @@ async def run_smoke(
 
         log_event(
             "smoke_success",
-            mode=mode,
+            mode="demo",
             market=market,
             symbol=symbol,
             quantity=str(quantity),
@@ -175,7 +161,6 @@ async def run_smoke(
             "smoke_fail",
             reason="ccxt_error",
             error_type=type(exc).__name__,
-            error=str(exc),
         )
         return 1
     except Exception as exc:
@@ -198,7 +183,7 @@ def main() -> int:
         description="Bybit smoke test — 주문 경로 검증 (정문은 tools/scripts/bybit-smoke.sh)"
     )
     # ★credentials 는 **env 가 정문**이다 — argv 로 넘기면 같은 호스트의 아무 프로세스나
-    # `ps` 로 평문 키를 읽는다. demo 키에서는 무해했지만 mainnet 실키에서는 아니다.
+    # `ps` 로 평문 키를 읽는다.
     # `--api-key`/`--api-secret` 은 로컬 임시 검증용으로 남겨 두되 env 를 우선한다.
     parser.add_argument(
         "--api-key",
@@ -226,15 +211,6 @@ def main() -> int:
         type=int,
         default=1,
         help="Leverage 1~20 (default: 1)",
-    )
-    parser.add_argument(
-        "--mode",
-        choices=["demo", "live"],
-        default="demo",
-        help=(
-            "bybit 환경: demo(api-demo.bybit.com, 가상 자금) · "
-            "live(api.bybit.com, ★실자금). 기본값은 demo 로 fail-safe."
-        ),
     )
     parser.add_argument(
         "--market",
@@ -267,7 +243,6 @@ def main() -> int:
             symbol=args.symbol,
             quantity=args.quantity,
             leverage=args.leverage,
-            mode=args.mode,
             market=args.market,
         )
     )

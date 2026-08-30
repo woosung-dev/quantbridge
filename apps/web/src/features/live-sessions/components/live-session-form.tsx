@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
+import { isBybitDemoAccount } from "@/features/trading/account-policy";
 
 import { useRegisterLiveSession } from "../hooks";
 import { LiveSessionFormSchema, type LiveSessionForm, type LiveSession } from "../schemas";
@@ -67,9 +68,7 @@ export function LiveSessionForm({
   const isQuotaReached = activeSessionsCount >= MAX_LIVE_SESSIONS_PER_USER;
 
   // Bybit 데모만 허용 — UI 에서 사전 필터링 + form-level error 도 백업
-  const allowedAccounts = exchangeAccounts.filter(
-    (a) => a.exchange === "bybit" && a.mode === "demo",
-  );
+  const allowedAccounts = exchangeAccounts.filter(isBybitDemoAccount);
   const selectableAccounts = allowedAccounts.filter((a) => a.read_only !== true);
 
   const form = useForm<LiveSessionForm>({

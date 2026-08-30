@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from src.trading.exceptions import AccountNotFound
+from src.trading.product_policy import is_bybit_demo_account
 from src.trading.providers import BybitFuturesProvider
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.schemas import AccountBalanceResponse
@@ -45,12 +46,14 @@ class AccountBalanceService:
         account = await self._account_repo.get_by_id(account_id)
         if account is None or account.user_id != user_id:
             raise AccountNotFound(account_id)
-        if account.exchange.value != "bybit":
+        # legacy live/OKX 행은 목록·삭제용으로 보존한다. 캐시 hit도 private API의
+        # 현재 상태로 오해되지 않게, cache/key/credential 처리 전에 지원 밖으로 끝낸다.
+        if not is_bybit_demo_account(account.exchange, account.mode):
             return AccountBalanceResponse(
                 account_id=account_id,
                 asset="USDT",
                 supported=False,
-                reason="exchange_unsupported",
+                reason="bybit_demo_only",
                 total=None,
                 free=None,
                 fetched_at=None,
@@ -87,7 +90,9 @@ class AccountBalanceService:
                 fetched_at,
             )
         except Exception as exc:
-            logger.warning("balance_snapshot_cache_read_failed", extra={"error": type(exc).__name__})
+            logger.warning(
+                "balance_snapshot_cache_read_failed", extra={"error": type(exc).__name__}
+            )
             return None
 
     async def _write_cache(
@@ -105,7 +110,9 @@ class AccountBalanceService:
         try:
             await self._redis.set(cache_key, json.dumps(payload), ex=_CACHE_TTL_SECONDS)
         except Exception as exc:  # 캐시 장애는 거래소 잔고 조회를 막지 않는다.
-            logger.warning("balance_snapshot_cache_write_failed", extra={"error": type(exc).__name__})
+            logger.warning(
+                "balance_snapshot_cache_write_failed", extra={"error": type(exc).__name__}
+            )
 
     @staticmethod
     def _response(

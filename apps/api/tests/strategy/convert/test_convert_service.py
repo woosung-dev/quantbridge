@@ -1,80 +1,78 @@
-"""ConvertService 단위 테스트 — LLM 호출 mocking."""
+"""ConvertService는 공통 structured provider contract만 소비한다."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from src.core.config import Settings
 from src.strategy.convert.schemas import ConvertIndicatorRequest
+from src.strategy.convert.service import _CONVERT_SCHEMA, ConvertService
+from src.strategy.narrative.providers import JsonCompletion
+
+_SOURCE = '//@version=5\nindicator("Source")\nplot(close)'
+_CONVERTED = '//@version=5\nstrategy("Converted")\nstrategy.entry("Long", strategy.long)'
 
 
-@pytest.fixture()
-def settings_with_key() -> Settings:
-    return Settings(anthropic_api_key="sk-ant-test-key", gemini_api_key=None)  # type: ignore[arg-type]
-
-
-@pytest.fixture()
-def settings_no_key() -> Settings:
-    return Settings(anthropic_api_key=None, gemini_api_key=None)
-
-
-_SIMPLE_INDICATOR = """\
-//@version=5
-indicator("Test")
-bull = ta.crossover(close, ta.sma(close, 20))
-plotshape(bull, "Buy")
-"""
-
-_FAKE_STRATEGY = (
-    '//@version=5\nstrategy("Test")\n'
-    "bull = ta.crossover(close, ta.sma(close, 20))\n"
-    'strategy.entry("Long", strategy.long, when=bull)'
-)
-
-
-def test_convert_raises_when_no_api_key(settings_no_key: Settings) -> None:
-    from src.strategy.convert.service import ConvertService
-
-    svc = ConvertService(settings_no_key)
-    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
-        svc.convert(ConvertIndicatorRequest(code=_SIMPLE_INDICATOR))
-
-
-def test_convert_full_mode_calls_llm(settings_with_key: Settings) -> None:
-    from src.strategy.convert.service import ConvertService
-
-    fake_msg = SimpleNamespace(
-        content=[SimpleNamespace(text=_FAKE_STRATEGY)],
-        usage=SimpleNamespace(input_tokens=50, output_tokens=30),
+def _settings() -> SimpleNamespace:
+    return SimpleNamespace(
+        llm_provider_order="openai,gemini",
+        openai_model="gpt-test",
+        gemini_model="gemini-test",
     )
-    mock_client = MagicMock()
-    mock_client.messages.create.return_value = fake_msg
-
-    svc = ConvertService(settings_with_key)
-    with patch("anthropic.Anthropic", return_value=mock_client):
-        result = svc.convert(ConvertIndicatorRequest(code=_SIMPLE_INDICATOR, mode="full"))
-
-    assert result.converted_code == _FAKE_STRATEGY
-    assert result.input_tokens == 50
-    assert result.output_tokens == 30
-    assert result.sliced_from is None  # full 모드는 슬라이싱 없음
 
 
-def test_convert_sliced_mode_skips_llm_when_runnable(settings_with_key: Settings) -> None:
-    from src.strategy.convert.service import ConvertService
+def test_full_mode_uses_shared_structured_completion_and_actual_usage() -> None:
+    service = ConvertService(_settings())
+    completion = JsonCompletion(
+        payload={"converted_code": _CONVERTED},
+        provider="openai",
+        input_tokens=50,
+        output_tokens=30,
+    )
 
-    # _SIMPLE_INDICATOR has no unsupported functions → C-ast slicing produces runnable code
-    # → should NOT call LLM at all
-    mock_client = MagicMock()
+    with patch("src.strategy.convert.service.complete_json", return_value=completion) as complete:
+        result = service.convert(ConvertIndicatorRequest(code=_SOURCE, mode="full"))
 
-    svc = ConvertService(settings_with_key)
-    with patch("anthropic.Anthropic", return_value=mock_client):
-        result = svc.convert(ConvertIndicatorRequest(code=_SIMPLE_INDICATOR, mode="sliced"))
+    assert result.converted_code == _CONVERTED
+    assert (result.input_tokens, result.output_tokens) == (50, 30)
+    assert result.warnings[0] == "openai gpt-test 로 변환 완료"
+    assert "fallback" not in " ".join(result.warnings).lower()
+    assert complete.call_args.kwargs["schema"] == _CONVERT_SCHEMA
+    assert complete.call_args.kwargs["tool_name"] == "convert_indicator"
 
-    # LLM should NOT have been called (runnable after slicing)
-    mock_client.messages.create.assert_not_called()
-    assert result.input_tokens == 0  # no LLM call
-    assert result.sliced_from is not None
-    assert result.sliced_to is not None
+
+@pytest.mark.parametrize("payload", [{}, {"converted_code": ""}, {"converted_code": 1}])
+def test_empty_or_malformed_structured_code_fails_closed(payload: dict[str, object]) -> None:
+    service = ConvertService(_settings())
+    completion = JsonCompletion(payload=payload, provider="gemini")
+
+    with (
+        patch("src.strategy.convert.service.complete_json", return_value=completion),
+        pytest.raises(RuntimeError, match="변환 결과가 비어"),
+    ):
+        service.convert(ConvertIndicatorRequest(code=_SOURCE))
+
+
+def test_sliced_runnable_code_skips_provider() -> None:
+    service = ConvertService(_settings())
+    extractor_result = SimpleNamespace(
+        sliced_code='//@version=5\nstrategy("Runnable")',
+        is_runnable=True,
+        token_reduction_pct=42.5,
+        removed_functions=[],
+    )
+
+    with (
+        patch(
+            "src.strategy.convert.service.SignalExtractor",
+            return_value=SimpleNamespace(extract=lambda *_args, **_kwargs: extractor_result),
+        ),
+        patch("src.strategy.convert.service.complete_json") as complete,
+    ):
+        result = service.convert(ConvertIndicatorRequest(code=_SOURCE, mode="sliced"))
+
+    complete.assert_not_called()
+    assert result.input_tokens == result.output_tokens == 0
+    assert result.warnings == ["AST 슬라이싱으로 직접 실행 가능한 코드 추출 (LLM 미사용)"]

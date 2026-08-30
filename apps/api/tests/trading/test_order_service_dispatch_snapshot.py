@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.metrics import qb_metrics_mutation_failed_total
 from src.trading.models import (
-    ExchangeAccount,
     ExchangeMode,
     ExchangeName,
     Order,
@@ -27,6 +26,7 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.schemas import OrderRequest
+from src.trading.services.account_service import ExecutionAccount
 from src.trading.services.order_service import OrderService
 
 
@@ -53,18 +53,15 @@ async def test_execute_fills_dispatch_snapshot_when_exchange_service_injected() 
     repo.save = AsyncMock(return_value=saved_order)
     repo.get_by_id = AsyncMock(return_value=saved_order)
 
-    # exchange_service mock — _repo.get_by_id 가 ExchangeAccount 반환
+    # exchange_service mock — public capability 반환
     exchange_service = MagicMock()
-    account = ExchangeAccount(
+    account = ExecutionAccount(
         id=account_id,
         user_id=uuid4(),
         exchange=ExchangeName.bybit,
         mode=ExchangeMode.demo,
-        api_key_encrypted=b"x",
-        api_secret_encrypted=b"x",
     )
-    exchange_service._repo = MagicMock()
-    exchange_service._repo.get_by_id = AsyncMock(return_value=account)
+    exchange_service.get_execution_account = AsyncMock(return_value=account)
 
     kill_switch = AsyncMock()
     kill_switch.ensure_not_gated = AsyncMock()
@@ -92,7 +89,7 @@ async def test_execute_fills_dispatch_snapshot_when_exchange_service_injected() 
     await svc.execute(req, idempotency_key=None, body_hash=None)
 
     # 핵심: account fetch 호출 + repo.save 가 dispatch_snapshot 채워진 Order 받음
-    exchange_service._repo.get_by_id.assert_awaited_once_with(account_id)
+    exchange_service.get_execution_account.assert_awaited_once_with(account_id)
     save_call = repo.save.call_args
     saved_arg: Order = save_call.args[0]
     assert saved_arg.dispatch_snapshot == {
@@ -130,16 +127,13 @@ async def test_execute_fills_snapshot_with_futures_leverage() -> None:
     repo.get_by_id = AsyncMock(return_value=saved_order)
 
     exchange_service = MagicMock()
-    account = ExchangeAccount(
+    account = ExecutionAccount(
         id=account_id,
         user_id=uuid4(),
         exchange=ExchangeName.bybit,
         mode=ExchangeMode.demo,
-        api_key_encrypted=b"x",
-        api_secret_encrypted=b"x",
     )
-    exchange_service._repo = MagicMock()
-    exchange_service._repo.get_by_id = AsyncMock(return_value=account)
+    exchange_service.get_execution_account = AsyncMock(return_value=account)
     # notional check 우회 — fetch_balance_usdt None
     exchange_service.fetch_balance_usdt = AsyncMock(return_value=None)
     # Wave 1 C5 — min-notional 가드 기본 skip(None=fail-open).

@@ -25,6 +25,10 @@ class FundingRateRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def commit(self) -> None:
+        """서비스가 요청한 저장 경계를 확정한다."""
+        await self.session.commit()
+
     async def upsert_many(self, rows: Sequence[FundingRate]) -> int:
         """FundingRate 행을 멱등 저장하고 **새로 삽입된 수**를 반환한다.
 
@@ -52,7 +56,6 @@ class FundingRateRepository:
                 },
             )
             inserted += result.rowcount  # type: ignore[attr-defined]
-        await self.session.commit()
         return inserted
 
     async def get_funding_series(

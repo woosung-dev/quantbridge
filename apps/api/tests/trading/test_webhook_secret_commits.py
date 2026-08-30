@@ -236,7 +236,6 @@ async def test_order_service_execute_calls_outer_commit():
 @pytest.mark.asyncio
 async def test_register_calls_repo_commit():
     """Sprint 15-A: register() 가 repo.commit() 호출 강제 (broken bug 3rd 재발 방어)."""
-    from src.trading.models import ExchangeMode, ExchangeName
     from src.trading.schemas import RegisterAccountRequest
     from src.trading.services.account_service import ExchangeAccountService
 
@@ -246,8 +245,6 @@ async def test_register_calls_repo_commit():
     svc = ExchangeAccountService(repo=repo, crypto=crypto_mock)
 
     req = RegisterAccountRequest(
-        exchange=ExchangeName.bybit,
-        mode=ExchangeMode.demo,
         api_key="ABCD1234EFGH5678",
         api_secret="secret_value_here_1234",
         label="spy-test",

@@ -127,48 +127,31 @@ def test_error_id_differs_per_request(leak_client: TestClient) -> None:
 
 
 def test_fallback_warning_carries_no_sdk_text() -> None:
-    """★표면 ⑶ — Anthropic→Gemini fallback warning 은 **200 응답**으로 나간다.
+    """성공 응답 warning은 실제 provider/model만 보이고 내부 실패를 반사하지 않는다.
 
     `service.convert()` 를 실제로 태워 `warnings[]` 에 SDK 문자열이 없는지 본다.
     라우터를 안 거치므로 위 두 테스트가 못 잡는 축이다.
     """
-    from pydantic import SecretStr
+    from types import SimpleNamespace
+    from unittest.mock import patch
 
-    from src.core.config import Settings
-    from src.strategy.convert.schemas import ConvertIndicatorRequest, ConvertIndicatorResponse
+    from src.strategy.convert.schemas import ConvertIndicatorRequest
     from src.strategy.convert.service import ConvertService
+    from src.strategy.narrative.providers import JsonCompletion
 
-    settings = Settings(
-        anthropic_api_key=SecretStr("sk-ant-test"),
-        gemini_api_key=SecretStr("gemini-test"),
-    )
+    settings = SimpleNamespace(gemini_model="gemini-test")
     svc = ConvertService(settings)
 
-    def _boom_anthropic(*_args: object, **_kwargs: object) -> object:
-        raise _SdkBoomError(_LEAK_MARKER)
-
-    def _ok_gemini(
-        _code: str,
-        _key: str,
-        warnings: list[str],
-        *_rest: object,
-        **_kwargs: object,
-    ) -> ConvertIndicatorResponse:
-        return ConvertIndicatorResponse(
-            converted_code="//ok",
-            warnings=list(warnings),
-            input_tokens=0,
-            output_tokens=0,
+    with patch(
+        "src.strategy.convert.service.complete_json",
+        return_value=JsonCompletion(payload={"converted_code": "//ok"}, provider="gemini"),
+    ):
+        resp = svc.convert(
+            ConvertIndicatorRequest(code='//@version=5\nindicator("T")\nplot(close)')
         )
-
-    svc._convert_with_anthropic = _boom_anthropic  # type: ignore[method-assign]
-    svc._convert_with_gemini = _ok_gemini  # type: ignore[method-assign]
-
-    resp = svc.convert(ConvertIndicatorRequest(code='//@version=5\nindicator("T")\nplot(close)'))
 
     joined = " ".join(resp.warnings)
     assert _LEAK_MARKER not in joined, "SDK 예외 문자열이 200 응답의 warnings 로 나갔다"
     assert "_SdkBoomError" not in joined, "예외 클래스명이 200 응답의 warnings 로 나갔다"
-    assert any("Gemini fallback" in w for w in resp.warnings), (
-        "fallback 사실 자체는 남아야 한다 — 지우기만 하면 사용자가 무슨 일이 있었는지 모른다"
-    )
+    assert resp.warnings[0] == "gemini gemini-test 로 변환 완료"
+    assert "fallback" not in joined.lower()

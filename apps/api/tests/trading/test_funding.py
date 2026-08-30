@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.trading.models import ExchangeName
+from src.trading.models import ExchangeName, FundingRate
+from src.trading.repositories.funding_rate_repository import FundingRateRepository
 
 # ---------------------------------------------------------------------------
 # fetch_and_store_funding_rates — CCXT monkeypatch
@@ -42,7 +43,7 @@ async def test_fetch_and_store_inserts_new_records():
             exchange_name=ExchangeName.bybit,
             symbol="BTC/USDT:USDT",
             since=now - timedelta(hours=10),
-            session=mock_session,
+            repo=FundingRateRepository(mock_session),
         )
 
     assert inserted == 2  # rowcount=1 per row x 2 rows
@@ -66,7 +67,7 @@ async def test_fetch_and_store_empty_response():
             exchange_name=ExchangeName.bybit,
             symbol="BTC/USDT:USDT",
             since=datetime.now(UTC) - timedelta(hours=2),
-            session=mock_session,
+            repo=FundingRateRepository(mock_session),
         )
 
     assert result == 0
@@ -89,7 +90,7 @@ async def test_fetch_and_store_rejects_ccxt_supported_exchange_outside_exchange_
             exchange_name="kraken",
             symbol="BTC/USDT:USDT",
             since=datetime.now(UTC),
-            session=MagicMock(),
+            repo=FundingRateRepository(MagicMock()),
         )
 
     mock_cls.assert_not_called()
@@ -112,7 +113,7 @@ async def test_backfill_rejects_ccxt_supported_exchange_outside_exchange_name():
             symbol="BTC/USDT:USDT",
             start=datetime.now(UTC),
             end=datetime.now(UTC),
-            session=MagicMock(),
+            repo=FundingRateRepository(MagicMock()),
         )
 
     mock_cls.assert_not_called()
@@ -138,14 +139,14 @@ async def test_backfill_paginates_with_next_timestamp_cursor():
 
     with (
         patch("ccxt.async_support.bybit", MagicMock(return_value=mock_exchange)),
-        patch("src.trading.funding.asyncio.sleep", new=AsyncMock()),
+        patch("src.trading.services.funding_rate_service.asyncio.sleep", new=AsyncMock()),
     ):
         inserted = await backfill_funding_rate_history(
             exchange_name=ExchangeName.bybit,
             symbol="BTC/USDT:USDT",
             start=start,
             end=datetime(2024, 1, 1, 8, tzinfo=UTC),
-            session=mock_session,
+            repo=FundingRateRepository(mock_session),
         )
 
     assert inserted == 2
@@ -182,7 +183,7 @@ async def test_backfill_does_not_store_records_after_end():
             symbol="BTC/USDT:USDT",
             start=start,
             end=end,
-            session=mock_session,
+            repo=FundingRateRepository(mock_session),
         )
 
     assert inserted == 1
@@ -209,7 +210,7 @@ async def test_backfill_is_idempotent_when_all_rows_conflict():
             symbol="BTC/USDT:USDT",
             start=start,
             end=start,
-            session=mock_session,
+            repo=FundingRateRepository(mock_session),
         )
 
     assert inserted == 0
@@ -232,9 +233,34 @@ async def test_backfill_empty_first_page_skips_database():
             symbol="BTC/USDT:USDT",
             start=start,
             end=start,
-            session=mock_session,
+            repo=FundingRateRepository(mock_session),
         )
 
     assert inserted == 0
     mock_session.execute.assert_not_awaited()
     mock_session.commit.assert_not_awaited()
+
+
+async def test_store_rows_commits_repository_once_after_upsert():
+    """저장 transaction 경계는 service가 소유하고 repository commit을 정확히 한 번 요청한다."""
+    from src.trading.services.funding_rate_service import FundingRateService
+
+    repo = MagicMock()
+    repo.upsert_many = AsyncMock(return_value=1)
+    repo.commit = AsyncMock()
+    service = FundingRateService(repo)
+
+    inserted = await service._store_rows(
+        [
+            FundingRate(
+                symbol="BTC/USDT:USDT",
+                exchange=ExchangeName.bybit,
+                funding_rate="0.0001",
+                funding_timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+            )
+        ]
+    )
+
+    assert inserted == 1
+    repo.upsert_many.assert_awaited_once()
+    repo.commit.assert_awaited_once()

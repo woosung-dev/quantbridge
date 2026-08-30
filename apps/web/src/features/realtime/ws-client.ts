@@ -1,5 +1,5 @@
 // 인증된 실시간 이벤트 연결의 재연결·heartbeat 수명을 관리하는 프레임워크 무관 클라이언트.
-import { parseRealtimeEnvelope, type RealtimeEnvelope } from "@/features/realtime/schemas";
+import { parseRealtimeEnvelope, type RealtimeEnvelope } from "./schemas";
 
 export type WsStatus = "idle" | "connecting" | "authed" | "closed";
 

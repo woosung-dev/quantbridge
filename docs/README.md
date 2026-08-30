@@ -28,7 +28,7 @@
 | [`domain/`](./domain/)                   | 용어·엔티티·상태는 무엇인가                        | 같음 — overview, ERD, entities, state machines (★제품 요구는 `PRD.md`)                       |
 | [`api/`](./api/)                         | API·외부 경계는 무엇인가                           | 같음 — endpoints. 계약 원본은 OpenAPI export([ADR-031](./adr/031-api-contract-axis-poc.md)) |
 | [`development/`](./development/)         | 어떻게 설치·검증·병렬 작업·반복 workflow 를 도는가 | 같음 — local setup, gates, CI, worktree, env, `workflows/`                                  |
-| [`operations/`](./operations/)           | 어떻게 배포·운영·진단하는가                        | 같음 — BE/FE deploy, waitlist 활성화, mainnet runbook, live-close, auth setup, `security/` |
+| [`operations/`](./operations/)           | 어떻게 배포·운영·진단하는가                        | 같음 — BE/FE deploy, waitlist 활성화, live-close, auth setup, `security/` |
 | [`design/`](./design/)                   | 화면·상호작용의 정본(프로토타입)은 무엇인가        | 프로토타입은 **테스트 픽스처**다 — `design-canon-*` 가 바이트 대조한다                      |
 | [`adr/`](./adr/README.md)                | 왜 이 선택을 했는가                                | 폐기해도 삭제하지 않고 `Superseded`로 남긴다. 색인 = `adr/README.md`                        |
 | [`lessons.md`](./lessons.md)             | 무엇이 반증됐는가 (LESSON 카드)                    | **400줄** 상한(관례 — 자동 집행은 ADR-037 로 철거). 넘으면 `archive/`로 내린다              |
@@ -45,6 +45,7 @@
 | `docs/reports/` (README·템플릿·auto-dogfood 2026-05-03)     | 2026-08-21 — gitignore 산출 자리. 산출물은 `runs/` | `git show c3b35e5f:docs/reports/README.md`          |
 | `docs/evidence/` (png 4) · `sprint60-interview-template.md` | 2026-08-21 — 참조 0건                              | `git show c3b35e5f:docs/evidence/` · `…/workflows/` |
 | `backlog.md` 의 [BL-547]·[BL-671]·[BL-383]·[BL-811] 본문 4절     | 2026-08-24 n9 — RESOLVED (RESOLVED 는 삭제다)      | `git show 1a1169a5:docs/backlog.md`                 |
+| `operations/bybit-mainnet-runbook.md`                            | 2026-08-30 — 제품 결정이 Bybit Demo 전용으로 고정됨 | `git show cc7c236ba9ac309b1ae885e6a28b05d694f751e3` |
 | 구 `archive/` 375파일 · `dev-log/*.md` 135파일              | 2026-08-06 문서 대개편                             | 아래 `0f0f0b06` 명령                                |
 
 ★**2026-08-06 이전 원문의 「목록」은 파일로 남아 있지 않다 — 명령으로 뽑는다.** `dev-log/INDEX.md`가 색인하는
@@ -60,9 +61,8 @@ git show 0f0f0b06:<위 목록의 경로>                     # 원문 조회
 브랜치에서만 도달 가능해서, 태그가 없으면 squash·rebase 머지 시 fresh clone 에서 위 세 명령이 전부
 `not a valid object name` 으로 깨진다.
 
-★**그 목록 안에 「과거 기록」이 아닌 것이 4건 있다** — Cloud Run 런북 · Grafana 셋업 ·
-Bybit mainnet 체크리스트 · 법무 임시 런북. 아직 실행하지 않은 절차라 배포·메인넷 착수 시
-여기서 꺼내 `operations/`로 갱신 재등재한다 ([BL-617](./backlog.md#bl-617)).
+★**그 목록 안에 「과거 기록」이 아닌 것이 3건 있다** — Cloud Run 런북 · Grafana 셋업 ·
+법무 임시 런북. Bybit mainnet 절차는 제품 범위 밖으로 확정되어 재등재하지 않는다.
 
 루트의 사람용 정본은 [`README.md`](../README.md), [`AGENTS.md`](../AGENTS.md),
 [`CONTEXT.md`](../CONTEXT.md), [`DESIGN.md`](../DESIGN.md)다. [`CLAUDE.md`](../CLAUDE.md)는

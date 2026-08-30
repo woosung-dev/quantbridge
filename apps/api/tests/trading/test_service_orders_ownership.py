@@ -23,6 +23,7 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.schemas import OrderRequest
+from src.trading.services.account_service import ExecutionAccount
 from src.trading.services.order_service import OrderService
 
 
@@ -59,17 +60,19 @@ class _OwnerPort:
         return self._owner_active
 
 
-class _AcctRepo:
-    def __init__(self, account: ExchangeAccount | None) -> None:
-        self._a = account
-
-    async def get_by_id(self, account_id: UUID) -> ExchangeAccount | None:
-        return self._a
-
-
 class _ExchangeSvc:
     def __init__(self, account: ExchangeAccount | None) -> None:
-        self._repo = _AcctRepo(account)
+        self._account = account
+
+    async def get_execution_account(self, account_id: UUID) -> ExecutionAccount | None:
+        if self._account is None:
+            return None
+        return ExecutionAccount(
+            id=self._account.id,
+            user_id=self._account.user_id,
+            exchange=self._account.exchange,
+            mode=self._account.mode,
+        )
 
     async def fetch_balance_usdt(self, account_id: UUID) -> Decimal | None:
         return None

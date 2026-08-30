@@ -12,7 +12,7 @@ from pydantic import SecretStr
 
 from src.auth.models import User
 from src.trading.encryption import EncryptionService
-from src.trading.exceptions import AccountNotFound, ProviderError
+from src.trading.exceptions import AccountNotFound, BybitDemoOnlyError, ProviderError
 from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName
 from src.trading.schemas import RegisterAccountRequest
 
@@ -29,8 +29,6 @@ async def test_register_stores_encrypted_credentials(db_session, user: User, cry
     repo = ExchangeAccountRepository(db_session)
     svc = ExchangeAccountService(repo=repo, crypto=crypto)
     req = RegisterAccountRequest(
-        exchange=ExchangeName.bybit,
-        mode=ExchangeMode.demo,
         api_key="my-api-key",
         api_secret="my-api-secret",
         label="test",
@@ -42,6 +40,8 @@ async def test_register_stores_encrypted_credentials(db_session, user: User, cry
     assert fetched is not None
     assert crypto.decrypt(fetched.api_key_encrypted) == "my-api-key"
     assert crypto.decrypt(fetched.api_secret_encrypted) == "my-api-secret"
+    assert fetched.exchange is ExchangeName.bybit
+    assert fetched.mode is ExchangeMode.demo
 
 
 async def test_get_credentials_for_order_returns_plaintext(db_session, user: User, crypto):
@@ -51,8 +51,6 @@ async def test_get_credentials_for_order_returns_plaintext(db_session, user: Use
     repo = ExchangeAccountRepository(db_session)
     svc = ExchangeAccountService(repo=repo, crypto=crypto)
     req = RegisterAccountRequest(
-        exchange=ExchangeName.bybit,
-        mode=ExchangeMode.demo,
         api_key="key-123",
         api_secret="secret-456",
     )
@@ -62,6 +60,8 @@ async def test_get_credentials_for_order_returns_plaintext(db_session, user: Use
     creds = await svc.get_credentials_for_order(account.id)
     assert creds.api_key == "key-123"
     assert creds.api_secret == "secret-456"
+    assert creds.exchange is ExchangeName.bybit
+    assert creds.environment is ExchangeMode.demo
 
 
 async def test_get_credentials_for_missing_account_raises(db_session, user: User, crypto):
@@ -73,6 +73,28 @@ async def test_get_credentials_for_missing_account_raises(db_session, user: User
 
     with pytest.raises(AccountNotFound):
         await svc.get_credentials_for_order(uuid4())
+
+
+async def test_legacy_account_credentials_are_blocked_before_decrypting() -> None:
+    """보존된 legacy 행은 평문·private API egress로 진행하지 않는다."""
+    from src.trading.services.account_service import ExchangeAccountService
+
+    account = ExchangeAccount(
+        user_id=uuid4(),
+        exchange=ExchangeName.okx,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"key",
+        api_secret_encrypted=b"secret",
+    )
+    repo = MagicMock()
+    repo.get_by_id = AsyncMock(return_value=account)
+    crypto = MagicMock()
+    service = ExchangeAccountService(repo=repo, crypto=crypto)
+
+    with pytest.raises(BybitDemoOnlyError):
+        await service.get_credentials_for_order(account.id)
+
+    crypto.decrypt.assert_not_called()
 
 
 async def test_backfill_only_queries_accounts_without_exchange_uid(db_session, user: User, crypto):
@@ -149,8 +171,6 @@ async def test_register_identity_save_calls_repo_commit(crypto):
     account = await service.register(
         uuid4(),
         RegisterAccountRequest(
-            exchange=ExchangeName.bybit,
-            mode=ExchangeMode.demo,
             api_key="key",
             api_secret="secret",
         ),
@@ -172,8 +192,6 @@ async def test_register_keeps_account_when_identity_query_fails(db_session, user
     account = await service.register(
         user.id,
         RegisterAccountRequest(
-            exchange=ExchangeName.bybit,
-            mode=ExchangeMode.demo,
             api_key="key",
             api_secret="secret",
         ),
@@ -188,9 +206,7 @@ async def test_register_keeps_account_when_identity_query_fails(db_session, user
 # ── Sprint 8+ fetch_balance_usdt ──────────────────────────────────────
 
 
-async def _register_futures_account(
-    db_session, user: User, crypto, *, mode: ExchangeMode = ExchangeMode.demo
-):
+async def _register_futures_account(db_session, user: User, crypto):
     """test fixture: Bybit Futures 모드 계정 1개 저장."""
     from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
     from src.trading.services.account_service import ExchangeAccountService
@@ -198,8 +214,6 @@ async def _register_futures_account(
     repo = ExchangeAccountRepository(db_session)
     svc = ExchangeAccountService(repo=repo, crypto=crypto)
     req = RegisterAccountRequest(
-        exchange=ExchangeName.bybit,
-        mode=mode,
         api_key="fb-key",
         api_secret="fb-secret",
     )
@@ -222,7 +236,7 @@ async def test_fetch_balance_usdt_returns_none_when_provider_not_injected(
 async def test_fetch_balance_usdt_returns_none_for_non_bybit_account(
     db_session, user: User, crypto
 ):
-    """OKX/Binance 등 비-Bybit 계정은 현재 지원 X — None 반환. H2+ 확장 예정."""
+    """보존된 OKX 행은 잔고 provider·자격증명 복호화에 도달하지 않는다."""
     from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
     from src.trading.services.account_service import ExchangeAccountService
 
@@ -230,14 +244,14 @@ async def test_fetch_balance_usdt_returns_none_for_non_bybit_account(
     mock_provider = MagicMock()
     mock_provider.fetch_balance = AsyncMock()  # 호출 안 되어야 함
     svc = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=mock_provider)
-    req = RegisterAccountRequest(
+    account = ExchangeAccount(
+        user_id=user.id,
         exchange=ExchangeName.okx,
         mode=ExchangeMode.demo,
-        api_key="k",
-        api_secret="s",
-        passphrase="p",  # OKX 요구사항
+        api_key_encrypted=crypto.encrypt("k"),
+        api_secret_encrypted=crypto.encrypt("s"),
     )
-    account = await svc.register(user.id, req)
+    await repo.save(account)
     await repo.commit()
 
     result = await svc.fetch_balance_usdt(account.id)
@@ -258,8 +272,6 @@ async def test_fetch_balance_usdt_returns_provider_value_for_bybit(db_session, u
     )
     svc = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=mock_provider)
     req = RegisterAccountRequest(
-        exchange=ExchangeName.bybit,
-        mode=ExchangeMode.demo,
         api_key="fk",
         api_secret="fs",
     )
@@ -296,8 +308,6 @@ async def test_fetch_balance_usdt_returns_none_on_provider_error(
     mock_provider.fetch_balance = AsyncMock(side_effect=ProviderError("network timeout"))
     svc = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=mock_provider)
     req = RegisterAccountRequest(
-        exchange=ExchangeName.bybit,
-        mode=ExchangeMode.demo,
         api_key="ek",
         api_secret="es",
     )

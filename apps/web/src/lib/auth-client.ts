@@ -17,8 +17,16 @@ interface CachedToken {
   expiresAt: number;
 }
 
+interface InFlightToken {
+  generation: number;
+  promise: Promise<string | null>;
+}
+
 let cached: CachedToken | null = null;
-let inFlight: Promise<string | null> | null = null;
+let inFlight: InFlightToken | null = null;
+// 로그아웃·계정 전환은 이전 요청의 결과보다 강한 경계다. 이전 세대가 늦게 끝나도
+// 새 세대의 캐시·inFlight 를 건드릴 수 없게 monotonically 증가시킨다.
+let cacheGeneration = 0;
 
 /** 만료 여유 — 서버 왕복과 시계 오차를 흡수한다. */
 const SKEW_MS = 60_000;
@@ -38,17 +46,29 @@ function decodeExpMs(token: string): number | null {
   }
 }
 
-async function fetchToken(): Promise<string | null> {
-  const res = await fetch("/api/auth/token", { credentials: "include" });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { token?: string };
-  const token = body.token ?? null;
-  if (token) {
-    const expMs = decodeExpMs(token);
-    // `exp` 를 못 읽으면 보수적으로 5분만 캐시한다.
-    cached = { token, expiresAt: expMs ?? Date.now() + 5 * 60_000 };
+async function fetchToken(generation: number): Promise<string | null> {
+  try {
+    const res = await fetch("/api/auth/token", { credentials: "include" });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { token?: string };
+    const token = body.token ?? null;
+
+    // 계정 전환 뒤에 끝난 요청은 어떤 값도 되살리지 않는다. 특히 이전 사용자의
+    // bearer 가 다음 사용자의 queryFn 에 전달되는 것을 막는다.
+    if (generation !== cacheGeneration) return null;
+
+    if (token) {
+      const expMs = decodeExpMs(token);
+      // `exp` 를 못 읽으면 보수적으로 5분만 캐시한다.
+      cached = { token, expiresAt: expMs ?? Date.now() + 5 * 60_000 };
+    }
+    return token;
+  } catch (error) {
+    // 세대가 바뀐 뒤의 실패도 과거 요청의 결과다. 새 세션에 오류를 전파하지 않고
+    // 인증 없음으로 처리해 새 요청이 정본이 되게 한다.
+    if (generation !== cacheGeneration) return null;
+    throw error;
   }
-  return token;
 }
 
 /**
@@ -59,15 +79,21 @@ async function fetchToken(): Promise<string | null> {
  */
 export async function getAuthToken(): Promise<string | null> {
   if (cached && Date.now() < cached.expiresAt - SKEW_MS) return cached.token;
-  if (inFlight) return inFlight;
-  inFlight = fetchToken().finally(() => {
-    inFlight = null;
+  if (inFlight?.generation === cacheGeneration) return inFlight.promise;
+
+  const generation = cacheGeneration;
+  let promise: Promise<string | null>;
+  promise = fetchToken(generation).finally(() => {
+    // A 요청이 clear → B 요청 뒤에 끝나도 B 의 dedupe handle 을 지우면 안 된다.
+    if (inFlight?.promise === promise) inFlight = null;
   });
-  return inFlight;
+  inFlight = { generation, promise };
+  return promise;
 }
 
 /** 로그아웃·계정 전환 시 호출 — 캐시된 JWT 가 남아 다음 사용자로 새지 않게 한다. */
 export function clearAuthTokenCache(): void {
+  cacheGeneration += 1;
   cached = null;
   inFlight = null;
 }

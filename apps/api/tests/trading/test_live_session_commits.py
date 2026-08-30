@@ -8,7 +8,7 @@ Sprint 6 (webhook_secret) → Sprint 13 (OrderService) → Sprint 15-A (Exchange
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -18,7 +18,7 @@ import pytest
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.trading.exceptions import (
-    AccountModeNotAllowed,
+    BybitDemoOnlyError,
     InvalidStrategySettings,
     LiveSessionQuotaExceeded,
     StrategySettingsRequired,
@@ -266,13 +266,12 @@ async def test_register_invalid_settings_does_not_commit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_register_account_mode_live_rejected() -> None:
-    """codex G.0 P2 #1: mode=live → AccountModeNotAllowed (Bybit Demo 한정)."""
+async def test_register_legacy_live_account_is_rejected_before_balance_lookup() -> None:
+    """legacy live 계정은 세션 등록의 private egress 전에 제품 정책으로 차단한다."""
     from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     strategy = _make_strategy(user_id)
-    # mode=live → AccountModeNotAllowed
     account = _make_account(user_id, mode=ExchangeMode.live)
 
     repo = AsyncMock()
@@ -280,30 +279,24 @@ async def test_register_account_mode_live_rejected() -> None:
     account_repo.get_by_id = AsyncMock(return_value=account)
     strategy_repo = AsyncMock()
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
-    # W4 게이트가 AccountModeNotAllowed 보다 앞서므로, stub-block 을 검증하려면
-    # stable user_repo 를 주입해 demo-stability 게이트를 통과시킨다.
-    user_repo = AsyncMock()
-    user_repo.get_created_at = AsyncMock(return_value=datetime.now(UTC) - timedelta(days=3650))
-
     svc = LiveSignalSessionService(
         repo=repo,
         account_repo=account_repo,
         strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
         exclusivity_service=AsyncMock(),
-        user_repo=user_repo,
     )
 
     req = _make_req(strategy.id, account.id)
-    with pytest.raises(AccountModeNotAllowed):
+    with pytest.raises(BybitDemoOnlyError):
         await svc.register(user_id, req)
 
     repo.commit.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_register_exchange_okx_rejected() -> None:
-    """codex G.0 P2 #1: exchange=okx → AccountModeNotAllowed (Bybit only)."""
+async def test_register_legacy_okx_account_is_rejected_before_balance_lookup() -> None:
+    """legacy OKX 계정도 세션 등록에서 제품 정책으로 차단한다."""
     from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
@@ -325,7 +318,7 @@ async def test_register_exchange_okx_rejected() -> None:
     )
 
     req = _make_req(strategy.id, account.id)
-    with pytest.raises(AccountModeNotAllowed):
+    with pytest.raises(BybitDemoOnlyError):
         await svc.register(user_id, req)
 
     repo.commit.assert_not_called()

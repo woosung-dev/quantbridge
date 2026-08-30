@@ -342,7 +342,6 @@ qb_redis_lock_pool_healthy = Gauge(
 qb_ws_orphan_event_total = Counter(
     "qb_ws_orphan_event_total",
     "WS order events arrived before local DB row exists (REST/WS race)",
-    labelnames=("account_id",),
 )
 
 # 11. 폐기 축 — 그 고아 이벤트를 실제로 버린 것 (BL-448).
@@ -356,14 +355,13 @@ qb_ws_orphan_event_total = Counter(
 qb_ws_orphan_discarded_total = Counter(
     "qb_ws_orphan_discarded_total",
     "WS order events discarded because no local order row matched (recovery is the reconciler)",
-    labelnames=("account_id", "reason"),
+    labelnames=("reason",),
 )
 
 # 12. reconnect 직후 reconciliation 에서 exchange 에 없는 local active order.
 qb_ws_reconcile_unknown_total = Counter(
     "qb_ws_reconcile_unknown_total",
     "Local active orders not found in exchange open/recent (state unchanged + alert)",
-    labelnames=("account_id",),
 )
 
 # 13. reconciliation debounce 30s 로 skip 된 횟수.
@@ -382,13 +380,11 @@ qb_ws_duplicate_enqueue_total = Counter(
 qb_ws_reconnect_total = Counter(
     "qb_ws_reconnect_total",
     "WebSocket reconnect attempts",
-    labelnames=("account_id",),
 )
 
 qb_ws_subscribe_rejected_total = Counter(
     "qb_ws_subscribe_rejected_total",
     "WebSocket subscribe negative acknowledgements",
-    labelnames=("account_id",),
 )
 
 # 16. (Sprint 19 BL-081) Pending fire-and-forget alert task 의 현재 in-flight 개수.

@@ -67,7 +67,7 @@ async def test_async_fetch_returns_contract_and_disposes_engine(
     assert type(kwargs["exchange_name"]) is ExchangeName
     assert kwargs["exchange_name"] is ExchangeName.binance
     assert kwargs["symbol"] == "ETH/USDT:USDT"
-    assert kwargs["session"] is session
+    assert kwargs["repo"].session is session
 
 
 @pytest.mark.asyncio
@@ -189,7 +189,7 @@ async def test_async_backfill_parses_dates_and_disposes_engine(
     assert type(kwargs["end"]) is datetime
     assert kwargs["start"] == datetime.fromisoformat(start_iso)
     assert kwargs["end"] == datetime.fromisoformat(end_iso)
-    assert kwargs["session"] is session
+    assert kwargs["repo"].session is session
 
 
 @pytest.mark.asyncio

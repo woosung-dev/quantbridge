@@ -25,23 +25,20 @@ from collections.abc import Callable
 from src.trading import providers
 from src.trading.exceptions import UnsupportedExchangeError
 from src.trading.models import ExchangeMode, ExchangeName
+from src.trading.product_policy import require_bybit_demo_account
 
 # factory signature: () -> ExchangeProvider. 매 dispatch 마다 새 인스턴스.
 ProviderFactory = Callable[[], providers.ExchangeProvider]
 
 
 # (exchange, mode, has_leverage) → factory.
-# Sprint 22 BL-091 의 if-chain 을 그대로 옮긴 것 — 의미 변경 없음.
+# 사용자 계정 dispatch는 Bybit Demo만 허용한다. legacy provider 클래스는 과거 데이터
+# 역직렬화 호환을 위해 남겨도, registry를 통해 외부 client까지 도달할 수는 없다.
 PROVIDER_REGISTRY: dict[tuple[ExchangeName, ExchangeMode, bool], ProviderFactory] = {
     # Bybit Demo Spot
     (ExchangeName.bybit, ExchangeMode.demo, False): providers.BybitDemoProvider,
     # Bybit Demo Linear Perpetual (USDT margined) — Sprint 7a
     (ExchangeName.bybit, ExchangeMode.demo, True): providers.BybitFuturesProvider,
-    # OKX Spot sandbox via CCXT (passphrase 필수) — Sprint 7d
-    (ExchangeName.okx, ExchangeMode.demo, False): providers.OkxDemoProvider,
-    # Bybit Live (BL-003 mainnet runbook 까지 stub. has_leverage 양쪽 모두 동일 stub).
-    (ExchangeName.bybit, ExchangeMode.live, False): providers.BybitLiveProvider,
-    (ExchangeName.bybit, ExchangeMode.live, True): providers.BybitLiveProvider,
 }
 
 
@@ -53,10 +50,11 @@ def dispatch(
     """Sprint 22 BL-091 의 본체. (exchange, mode, has_leverage) → concrete provider.
 
     Sprint 47 BL-202: if-chain → dict registry lookup.
-    실패 정책 (P1 #2): 미지원 조합 → UnsupportedExchangeError(ProviderError) raise.
-    호출처 (`_execute_with_session` line 214 / `_fetch_order_status_with_session`)
-    의 `except ProviderError` 가 자동 catch → Order graceful `rejected` 전이.
+    실패 정책: Bybit Demo 밖의 legacy 계정은 ``BybitDemoOnlyError``로 차단하고,
+    허용 범위 안에서 factory가 없을 때만 ``UnsupportedExchangeError``를 낸다.
+    worker 호출처는 둘 다 안전하게 종결한다.
     """
+    require_bybit_demo_account(exchange, mode)
     key = (exchange, mode, has_leverage)
     factory = PROVIDER_REGISTRY.get(key)
     if factory is None:

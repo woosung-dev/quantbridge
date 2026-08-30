@@ -6,6 +6,7 @@
 - oco_group_id 는 app-side 추적 전용 → ccxt params 미주입(Bybit linear 네이티브 OCO group param 부재).
 - 값 None → 키 미포함 (기존 entry/exit 회귀 0).
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -179,11 +180,12 @@ async def test_bybit_futures_oco_group_id_not_injected(credentials, bybit_mock):
     assert params == {"reduceOnly": True, "triggerPrice": "47000", "triggerDirection": "2"}
 
 
-# ── OKX — triggerDirection / trailingStop 미주입 (Bybit 전용) ──────────────
+# ── Legacy OKX — product policy blocks egress ────────────────────────────
 
 
-async def test_okx_does_not_inject_trigger_direction_or_trailing(okx_credentials, okx_mock):
-    """OKX: trigger_direction/trailing_stop 설정해도 미주입 (triggerPrice/reduceOnly 만)."""
+async def test_okx_legacy_provider_is_blocked_before_order_submission(okx_credentials, okx_mock):
+    """legacy OKX adapter는 주문 param 처리나 CCXT 호출 전에 차단한다."""
+    from src.trading.exceptions import BybitDemoOnlyError
     from src.trading.models import OrderSide, OrderType
     from src.trading.providers import OkxDemoProvider, OrderSubmit
 
@@ -198,18 +200,10 @@ async def test_okx_does_not_inject_trigger_direction_or_trailing(okx_credentials
         trigger_direction=2,  # OKX 에 미주입
         trailing_stop=Decimal("100"),  # OKX 에 미주입
     )
-    await OkxDemoProvider().create_order(okx_credentials, submit)
-    okx_mock.create_order.assert_awaited_once_with(
-        "BTC/USDT",
-        "market",
-        "sell",
-        "0.001",
-        None,
-        {
-            "reduceOnly": True,
-            "triggerPrice": "48000",
-        },
-    )
+    with pytest.raises(BybitDemoOnlyError):
+        await OkxDemoProvider().create_order(okx_credentials, submit)
+
+    okx_mock.create_order.assert_not_awaited()
 
 
 async def test_bybit_futures_entry_no_wave2_fields_byte_identical(credentials, bybit_mock):

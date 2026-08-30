@@ -1,7 +1,7 @@
 // P1-1/11 (S7-A) — RegisterExchangeAccountDialog UX 회귀.
 //
 // 검증 범위:
-//  1) OKX 선택 시 passphrase 비우면 client-side validation block (서버 422 도달 X)
+//  1) Bybit Demo 정책을 UI에서 고정하고 legacy 선택 필드를 보내지 않는다
 //  2) mutation 이 throw 하면 root.serverError 로 inline 표시 (이전엔 무피드백)
 //  3) 재submit 시 stale serverError 가 clearErrors
 
@@ -62,18 +62,16 @@ describe("RegisterExchangeAccountDialog — P1-1/11 (S7-A)", () => {
   it("정상 등록 시 mutateAsync 호출 + 다이얼로그 닫힘", async () => {
     mutateAsyncMock.mockResolvedValueOnce({ id: "acc-1" });
     await renderDialog();
+    expect(screen.getByTestId("bybit-demo-only-notice")).toHaveTextContent("Bybit 데모 전용");
+    expect(screen.queryByText("라이브")).not.toBeInTheDocument();
     await fillAndSubmit({ apiKey: "K1", apiSecret: "S1" });
 
     await waitFor(() => {
-      expect(mutateAsyncMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          exchange: "bybit",
-          mode: "demo",
-          api_key: "K1",
-          api_secret: "S1",
-          passphrase: null,
-        }),
-      );
+      expect(mutateAsyncMock).toHaveBeenCalledWith({
+        label: null,
+        api_key: "K1",
+        api_secret: "S1",
+      });
     });
   });
 
@@ -106,40 +104,29 @@ describe("RegisterExchangeAccountDialog — P1-1/11 (S7-A)", () => {
   });
 });
 
-// C 이식(W3-F): 연결 거래소 Bybit 단일화 회귀. OKX enum·passphrase superRefine 을 걷어냈으므로
-// (1) Bybit + passphrase null 직렬화가 통과하고 (2) OKX 는 enum 단계에서 거부돼야 한다.
-describe("RegisterAccountRequestSchema — Bybit 단일 (OKX 제거)", () => {
-  it("bybit + passphrase null → 통과 (폼이 항상 null 직렬화)", async () => {
+// Bybit Demo는 UI 선택지가 아닌 서버 정책이다. 새 요청에는 credential과 label만 남는다.
+describe("RegisterAccountRequestSchema — Bybit Demo 고정", () => {
+  it("label + API credential만 통과한다", async () => {
     const { RegisterAccountRequestSchema } = await import("../../schemas");
     const result = RegisterAccountRequestSchema.safeParse({
-      exchange: "bybit",
-      mode: "demo",
       label: null,
       api_key: "K",
       api_secret: "S",
-      passphrase: null,
     });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.exchange).toBe("bybit");
-      expect(result.data.passphrase).toBeNull();
-    }
+    if (result.success) expect(result.data).toEqual({ label: null, api_key: "K", api_secret: "S" });
   });
 
-  it("okx → enum 단계에서 거부 (더 이상 지원 거래소가 아님)", async () => {
+  it("legacy exchange/mode/passphrase 입력은 strip 하지 않고 거부한다", async () => {
     const { RegisterAccountRequestSchema } = await import("../../schemas");
     const result = RegisterAccountRequestSchema.safeParse({
       exchange: "okx",
-      mode: "demo",
+      mode: "live",
       label: null,
       api_key: "K",
       api_secret: "S",
       passphrase: "MyPass123",
     });
     expect(result.success).toBe(false);
-    if (!result.success) {
-      const exchangeError = result.error.issues.find((i) => i.path.includes("exchange"));
-      expect(exchangeError).toBeDefined();
-    }
   });
 });

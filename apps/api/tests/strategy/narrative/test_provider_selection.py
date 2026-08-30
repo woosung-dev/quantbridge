@@ -66,7 +66,10 @@ def stub_openai(monkeypatch, captured: dict, *, fail: str | None = None, finish:
             if fail:
                 raise RuntimeError(fail)
             msg = SimpleNamespace(content=json.dumps(PAYLOAD))
-            return SimpleNamespace(choices=[SimpleNamespace(message=msg, finish_reason=finish)])
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=msg, finish_reason=finish)],
+                usage=SimpleNamespace(prompt_tokens=11, completion_tokens=7),
+            )
 
     monkeypatch.setattr(
         P, "OpenAI", lambda api_key: SimpleNamespace(chat=SimpleNamespace(completions=_C()))
@@ -84,7 +87,7 @@ def stub_gemini(monkeypatch, captured: dict, *, fail: str | None = None):
     monkeypatch.setattr(P.genai, "Client", lambda api_key: SimpleNamespace(models=_M()))
 
 
-def call(st) -> tuple[dict, str]:
+def call(st) -> P.JsonCompletion:
     return P.complete_json(st, system="s", user="u", schema=SCHEMA, tool_name="t")
 
 
@@ -104,8 +107,7 @@ def test_configured_order_decides_which_provider_answers(monkeypatch, order, exp
     stub_anthropic(monkeypatch, cap)
     stub_openai(monkeypatch, cap)
     stub_gemini(monkeypatch, cap)
-    _, provider = call(settings(order, anthropic="k", openai="k", gemini="k"))
-    assert provider == expected
+    assert call(settings(order, anthropic="k", openai="k", gemini="k")).provider == expected
 
 
 def test_single_entry_means_no_fallback(monkeypatch):
@@ -122,8 +124,7 @@ def test_unknown_names_are_ignored_not_fatal(monkeypatch):
     cap: dict[str, Any] = {}
     stub_openai(monkeypatch, cap)
     assert P.provider_order(settings("opnai,openai")) == ["openai"]
-    _, provider = call(settings("opnai,openai", openai="k"))
-    assert provider == "openai"
+    assert call(settings("opnai,openai", openai="k")).provider == "openai"
 
 
 # ── ⑵ 키 없는 provider 는 건너뛴다 ───────────────────────────────────────────
@@ -136,8 +137,7 @@ def test_provider_without_key_is_skipped_entirely(monkeypatch):
 
     st = settings("anthropic,openai", openai="k")  # anthropic 키 없음
     assert P.available_providers(st) == ["openai"]
-    _, provider = call(st)
-    assert provider == "openai"
+    assert call(st).provider == "openai"
     assert tried == [], "키 없는 provider 를 시도했다"
 
 
@@ -212,8 +212,17 @@ def test_fallback_moves_on_after_failure(monkeypatch):
     cap: dict[str, Any] = {}
     stub_openai(monkeypatch, cap, fail="boom")
     stub_gemini(monkeypatch, cap)
-    _, provider = call(settings("openai,gemini", openai="k", gemini="k"))
-    assert provider == "gemini"
+    assert call(settings("openai,gemini", openai="k", gemini="k")).provider == "gemini"
+
+
+def test_completion_preserves_actual_provider_usage(monkeypatch) -> None:
+    cap: dict[str, Any] = {}
+    stub_openai(monkeypatch, cap)
+
+    completion = call(settings("openai", openai="k"))
+
+    assert completion.provider == "openai"
+    assert (completion.input_tokens, completion.output_tokens) == (11, 7)
 
 
 def test_truncated_openai_response_is_a_failure_not_partial_json(monkeypatch):

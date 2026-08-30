@@ -18,6 +18,7 @@ import ccxt.async_support as ccxt_async
 from src.common.metrics import ccxt_timer
 from src.trading.encryption import EncryptionService
 from src.trading.models import ExchangeAccount
+from src.trading.product_policy import require_bybit_demo_account
 from src.trading.providers import _apply_bybit_env
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ class BybitReconcileFetcher:
         self._category = category
 
     def _build_exchange(self) -> Any:
+        require_bybit_demo_account(self._account.exchange, self._account.mode)
         api_key = self._crypto.decrypt(self._account.api_key_encrypted)
         api_secret = self._crypto.decrypt(self._account.api_secret_encrypted)
         exchange = ccxt_async.bybit(
@@ -75,9 +77,7 @@ class BybitReconcileFetcher:
         try:
             async with ccxt_timer("bybit", "fetch_open_orders"):
                 # symbol=None → 모든 symbol. params={category} V5 라우팅.
-                raw = await exchange.fetch_open_orders(
-                    None, params={"category": self._category}
-                )
+                raw = await exchange.fetch_open_orders(None, params={"category": self._category})
             return list(raw)
         finally:
             try:
@@ -133,8 +133,7 @@ class BybitReconcileFetcher:
                 logger.debug("ccxt_close_failed_after_fetch_recent")
 
 
-# Sprint 12 dogfood: 1 user x Bybit demo. mode 별 endpoint 라우팅은
-# providers._apply_bybit_env 가 처리. 호출자는 BybitReconcileFetcher 인스턴스를
-# _stream_main 에서 생성하여 Reconciler 에 주입.
+# 현재 제품 정책은 Bybit Demo 하나다. 호출자는 `_stream_main`에서 생성한 뒤
+# Reconciler에 주입하며, 이 어댑터도 복호화 전에 같은 정책을 재검증한다.
 
 __all__ = ["BybitReconcileFetcher"]

@@ -54,17 +54,18 @@ def backfill_funding_rates_task(
 
 
 async def _async_fetch(exchange_name: str, symbol: str, lookback_hours: int) -> dict[str, Any]:
-    from src.trading.funding import fetch_and_store_funding_rates
+    from src.trading import funding as funding_service
+    from src.trading.repositories.funding_rate_repository import FundingRateRepository
 
     since = datetime.now(UTC) - timedelta(hours=lookback_hours)
     engine, sm = create_worker_engine_and_sm()
     try:
         async with sm() as session:
-            inserted = await fetch_and_store_funding_rates(
+            inserted = await funding_service.fetch_and_store_funding_rates(
+                repo=FundingRateRepository(session),
                 exchange_name=ExchangeName(exchange_name),
                 symbol=symbol,
                 since=since,
-                session=session,
             )
         return {"exchange": exchange_name, "symbol": symbol, "inserted": inserted}
     finally:
@@ -74,19 +75,20 @@ async def _async_fetch(exchange_name: str, symbol: str, lookback_hours: int) -> 
 async def _async_backfill(
     exchange_name: str, symbol: str, start_iso: str, end_iso: str
 ) -> dict[str, Any]:
-    from src.trading.funding import backfill_funding_rate_history
+    from src.trading import funding as funding_service
+    from src.trading.repositories.funding_rate_repository import FundingRateRepository
 
     start = datetime.fromisoformat(start_iso)
     end = datetime.fromisoformat(end_iso)
     engine, sm = create_worker_engine_and_sm()
     try:
         async with sm() as session:
-            inserted = await backfill_funding_rate_history(
+            inserted = await funding_service.backfill_funding_rate_history(
+                repo=FundingRateRepository(session),
                 exchange_name=ExchangeName(exchange_name),
                 symbol=symbol,
                 start=start,
                 end=end,
-                session=session,
             )
         return {"exchange": exchange_name, "symbol": symbol, "inserted": inserted}
     finally:

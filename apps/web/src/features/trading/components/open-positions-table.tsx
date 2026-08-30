@@ -237,8 +237,8 @@ export function OpenPositionsTable({
         <div className="card-body">
           <StateBox
             testId="open-positions-no-sessions"
-            title="활성 라이브 세션이 없습니다."
-            body="활성 세션이 생기면 거래소 보고 포지션을 세션별로 대조합니다."
+            title="운영 가능한 Bybit 데모 라이브 세션이 없습니다."
+            body="Bybit 데모 활성 세션이 생기면 거래소 보고 포지션을 세션별로 대조합니다."
           />
         </div>
       </div>
