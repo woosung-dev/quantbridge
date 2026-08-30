@@ -469,30 +469,7 @@ live_signal_gap_ledger_seed session=e9c504f1 symbol=BTC/USDT
 
 ### BL-740
 
-**Title:** Cost-Assumption 9-cell 이 전부 `sharpe=0` 인데 `is_degenerate=False` 다
-**Category:** Backend / stress_test (지표 계산)
-**Priority:** P3
-**Trigger:** Sharpe 를 **판단 입력으로 쓰기 전에** / 또는 다른 grid sweep 에서 같은 값이 보이면
-**Est:** S (1h — 계산 경로 추적)
-**출처:** 2026-08-15 soak-survival ([BL-729] 판독 중 부수 관측)
-
-**원인 / 영향:** `run_cost_assumption_sensitivity` 를 `a22faccb`(1029 trades)로 9-cell 돌렸더니
-**모든 cell 의 `sharpe` 가 `0`** 이었다. `GridSweepMetricsCell.is_degenerate` 는
-「`num_trades=0` 또는 NaN sharpe」일 때 참인데 **`False`** 다 — 즉 계산이 정상 종료하고
-0 을 냈다는 뜻이다. 같은 실행에서 `total_return`·`max_drawdown` 은 cell 마다 정상적으로 갈렸다
-(−7.74% ~ −22.59% / −4.53% ~ −16.69%).
-
-★[BL-729] 의 결론에는 **영향이 없다** — 그 판정은 총수익·MDD 로 했고 Sharpe 를 안 썼다.
-그래서 이번 회차에서 파지 않았다. 다만 **화면은 이 값을 보여준다**.
-
-★두 갈래 중 어느 쪽인지가 먼저다: ⑴ 계산이 실제로 0 을 내는 것(수익률 표준편차 산출 경로) 인지
-⑵ `metrics_cell` 매핑에서 필드가 안 실리는 것인지. 후자면 `is_degenerate` 도 못 잡는 것이
-당연하고, 그렇다면 **NaN 만 보는 degenerate 판정 자체가 좁다**.
-
-**Risk:** 🟢 (표시 축. 지금 무엇을 깨지는 않지만 **0 은 「나쁜 Sharpe」로 읽힌다** — 부재와 구별 불가)
-
-**상태:** ⏳ **대기 (트리거 미도래)** — 관측만 확보됐다. Sharpe 를 판단 입력으로 쓰는 회차가 오거나 다른 grid sweep 에서 같은 값이 보이면 연다 (2026-08-15 soak-survival)
-**트리거 판정:** 미도래 — Sharpe 를 판단에 쓰는 회차가 아직 없다 (2026-08-15 soak-survival)
+→ **2026-08-30 트리거 도래로 `docs/backlog.md` 로 승격**(DEFERRED → ACTIVE). 옵티마이저가 `objective_metric="sharpe_ratio"` 로 Sharpe 를 **판단 입력**으로 쓰고 있었고, 이 항목이 원인 후보로 적어 둔 「NaN 만 보는 degenerate 판정 자체가 좁다」가 **정확히 맞았다**. 원문은 git 에 있다.
 
 ---
 

@@ -306,3 +306,241 @@
 
 **상태:** 🔵 ACTIVE — 2026-08-30 등재, 결함은 수리됨 · **회귀 테스트 미작성**
 **트리거 판정:** 도래 (단독 착수 가능 · 테스트 1건)
+
+---
+
+### BL-837
+
+**Title:** BybitPrivateStream supervisor 가 예상 밖 예외로 죽으면 stream 이 **lease 를 쥔 채** 영구 침묵한다
+**Category:** Backend / trading (websocket)
+**Priority:** P1
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `realtime-ws` 축 (CONTROL 코드 대조 확인)
+
+**증상 (실측):** `bybit_private_stream.py:313` 이 `self._supervisor_task = asyncio.create_task(self._supervisor_loop())` 로 감시 루프를 띄우는데 **`add_done_callback` 이 없다.** `_supervisor_loop` 이 잡는 예외는 `BybitAuthError`(fatal, return) · `ConnectionClosed`/`OSError`(재시도) · `CancelledError`(return) **셋뿐**이므로, 그 밖의 예외는 task 에 저장된 채 **아무도 안 읽는다** — `__aenter__` 는 첫 연결만 기다리고 돌아가고, 다음 관측 시점은 종료(`_wait_supervisor_done`)다. 그 사이 `websocket_task.py:144` 의 `async with lease:` 가 **`ws:lease:{account_id}` 를 계속 갱신**하므로 다른 워커가 넘겨받지도 못한다. ⇒ **private order stream 이 조용히 끊긴 채 failover 도 막힌 상태**가 된다. 라이브에서 이것은 체결을 못 보는 상태다.
+**권장 접근:** supervisor task 에 done-callback 을 달아 ⑴ 예외를 로그+metric 으로 표면화하고 ⑵ `stop_event` 를 set 해 `async with lease:` 가 lease 를 놓게 한다. ★`track_pending_alert` 가 alert task 에 대해 이미 하는 것과 같은 패턴이다 — 그것을 선례로 삼아라.
+**Risk:** 🟠 (라이브 신호 경로 — 수리 자체가 소크 리스크다. 회귀 = `tests/tasks/test_first_connect_race.py` 인접)
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래 (단독 착수 가능)
+
+---
+
+### BL-838
+
+**Title:** `backend-worker` 만 `SLACK_WEBHOOK_URL` 을 못 받아 kill switch·stuck order 경보가 컨테이너에서 무음 소실
+**Category:** Ops / compose 배선
+**Priority:** P1
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `infra-ops` 축 (CONTROL 실측 확인)
+
+**증상 (실측):** `infra/compose/docker-compose.yml` 에서 `SLACK_WEBHOOK_URL` 을 받는 서비스는 **3개뿐**이다 — `backend-ws-stream`(:147) · `backend-optimizer-heavy`(:182) · `backend-beat`(:214). **기본 큐를 도는 `backend-worker`(:93) 의 env 블록에는 없다.** 그런데 `common/alert.py:143-145` 는 `webhook is None` 이면 **`return False` 로 조용히 건너뛴다**(예외도, 로그 경고도 아니다). ⇒ 컨테이너 배포에서 기본 큐가 내는 **모든 critical alert 이 소리 없이 사라진다.**
+**권장 접근:** `backend-worker` env 에 `SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}` 한 줄. ★같이 볼 것 — 「alert 를 내는 큐가 webhook 을 받는가」를 재는 것이 아무것도 없다. compose 4 서비스의 alert env 대칭을 재는 테스트를 함께 두면 다음 서비스 추가에서 재발하지 않는다.
+**Risk:** 🟢 (한 줄. 경보 표면만 넓힌다)
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래 (단독 착수 가능 · 1줄 + 대칭 테스트)
+
+---
+
+### BL-839
+
+**Title:** 느린 WS 클라이언트 1개가 전 사용자의 realtime pubsub listener 를 정지시킨다
+**Category:** Backend / realtime
+**Priority:** P2
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `realtime-ws` 축
+
+**증상:** `realtime/manager.py:72` 의 `send_to_user` 가 timeout 없이 `await` 한다. 단일 listener 태스크가 pubsub 메시지를 순차 배분하므로, TCP 창이 막힌 클라이언트 하나가 **모든 사용자의 실시간을 정지**시킨다.
+**권장 접근:** per-send `asyncio.wait_for` + 초과 시 그 연결만 드롭. 큐를 새로 만들지 말고 timeout 부터 재라(측정 없이 큐를 넣으면 지연만 옮긴다).
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-840
+
+**Title:** public ticker circuit breaker 는 쓰기만 하고 아무도 읽지 않는다 — block 키가 무효다
+**Category:** Backend / tasks
+**Priority:** P2
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `realtime-ws` 축
+
+**증상:** `tasks/websocket_task.py:152` 경로가 circuit breaker 상태를 기록하지만 **그 키를 읽어 차단하는 소비자가 없다.** 게이트가 있다고 믿는 상태에서 게이트가 없는 것이 이 항목의 요지다.
+**권장 접근:** 읽는 쪽을 붙이거나, 안 쓸 것이면 쓰기까지 걷어낸다. ★**둘 중 하나로 끝내라** — 반쪽으로 두면 다음 사람이 또 「보호되고 있다」로 읽는다.
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-841
+
+**Title:** `codex-block-dangerous.sh` 가 `jq` 실패 시 fail-open — `rm -rf /` 를 그대로 통과시킨다
+**Category:** Ops / 가드
+**Priority:** P2
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `infra-ops` 축
+
+**증상:** `tools/scripts/hooks/codex-block-dangerous.sh:16` 이 `jq` 파싱 실패 시 차단이 아니라 **통과**로 떨어진다. 위험 명령 차단기가 fail-open 이면 그것은 차단기가 아니다.
+**권장 접근:** 파싱 실패 = 차단(fail-closed). ★음성 대조로 「깨진 입력이 실제로 막히는가」를 먼저 재라.
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-842
+
+**Title:** `TimescaleProvider` 가 갭을 못 메우면 **짧은 시리즈**를 돌려주고, 백테스트는 요청한 기간으로 라벨된다
+**Category:** Backend / market_data
+**Priority:** P2
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `market-data` 축
+
+**증상 3종 (같은 파일):**
+⑴ `providers/timescale.py:70` — 거래소가 갭을 못 채우면 짧은 시리즈를 그대로 반환한다. 결과 행에는 **요청 기간**이 적히므로 사용자는 좁은 창에서 돈 백테스트를 넓은 창의 결과로 읽는다.
+⑵ `:75` — `pg_advisory_xact_lock` 이 fetch 구간이 아니라 **엔진 실행 전체** 동안 잡혀 있고 `lock_timeout` 이 없다. 옵티마이저/스트레스 테스트가 그 락을 길게 물면 다른 실행이 무한 대기한다.
+⑶ `:109` — 빈 결과가 `DatetimeIndex` 가 아니라 `RangeIndex` 를 갖는다. 같은 무-데이터 입력이 `FixtureProvider` 에서는 깨끗이 실패하는데 이쪽에서는 다르게 흐른다.
+**권장 접근:** ⑴ 은 「채운 실제 구간」을 결과에 싣는 것이 먼저다(조용히 좁히지 말고 보이게 한다). ⑵ 는 락 범위를 fetch 로 좁히고 `lock_timeout` 을 건다. ⑶ 은 빈 시리즈도 `DatetimeIndex` 로 통일.
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-843
+
+**Title:** BL-084 prefork 가드가 `src/common/` 을 **하드코딩 2개 이름**으로 스코프해 `telegram_alert.py` 의 module-level Semaphore 를 못 본다
+**Category:** Backend / 가드 신선도
+**Priority:** P2
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `test-architecture` 축 (CONTROL 실측: module-level Semaphore 는 `common/alert.py:49` · `common/telegram_alert.py:48` **2건**)
+
+**증상:** `tests/tasks/test_no_module_level_loop_bound_state.py:58` 의 스캔 대상이 디렉터리가 아니라 **이름 목록**이라, 목록에 없는 `telegram_alert.py` 는 검사 밖이다. `apps/api/AGENTS.md` §9 는 allowlist 가 「현재 1건」이라고 적지만 실제 module-level Semaphore 는 **2건**이다.
+**권장 접근:** 스코프를 `src/common/**` 디렉터리로 바꾸고 allowlist 를 명시 2건으로 갱신 + 문서의 「1건」 정정. ★목록형 스코프는 **파일이 사라져도 조용히 통과**한다 — 이 레포에서 반복된 유형이다.
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-844
+
+**Title:** FE 실시간이 4401 재시도에서 **같은 캐시 토큰**을 다시 보내 영구 정지된다
+**Category:** FE / realtime
+**Priority:** P2
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `fe-shared` 축
+
+**증상:** `lib/ws-client.ts:156` 의 4401(인증 실패) 1회 재시도가 **토큰 캐시를 비우지 않고** 재연결하므로 같은 만료 토큰을 다시 보낸다. 두 번째 4401 이후 재시도가 끝나 실시간이 영구 정지한다. 동승 결함 — `lib/auth-client.ts:70` 의 `clearAuthTokenCache()` 가 **in-flight fetch 를 못 막아** 로그아웃 직후 JWT 가 다시 캐시된다.
+**권장 접근:** 4401 재시도 전에 캐시 무효화 + 새 토큰 강제 취득. `clearAuthTokenCache` 는 세대 카운터(generation)를 올려 in-flight 응답을 버리게 한다.
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-845
+
+**Title:** CI 가 Playwright spec **31개 중 1개**만 돈다 — 문서는 이 격차를 「1개」로 적어 두었다
+**Category:** Ops / CI 커버리지
+**Priority:** P2
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `test-architecture` 축 (CONTROL 실측 확인)
+
+**증상 (실측):** `apps/web/e2e/` 에 spec 이 **31개**다. `ci.yml` 은 Playwright 를 **아예 안 돌린다**(fe 잡 = `biome`+`tsc`+`vitest`+`build`). Playwright 를 도는 워크플로는 `live-smoke.yml` 하나이고 `--project=chromium-live-smoke` 인데, 그 project 의 `testMatch` 는 `playwright.config.ts:134` 의 `/live-smoke\.spec\.ts$/` — **정확히 1개 파일**이다. ⇒ **30개가 CI 에서 0회 실행**된다.
+★`apps/web/AGENTS.md` §10 은 이 격차를 「`e2e/design-canon-responsive.spec.ts` 는 CI 에서 안 돈다」로 **1건**만 적어 두었다. 실제로는 그 파일이 예외가 아니라 **규칙**이다.
+**권장 접근:** 먼저 **어느 spec 이 다른 게이트로 대체 불가능한 것을 지키는지** 가른다(전부 CI 에 넣는 것이 목표가 아니다 — authed spec 은 secret·DB 를 요구한다). 그다음 문서의 「1건」을 실제 목록으로 바꾼다. ★수치를 고치는 것이 이 항목의 절반이다 — 지금 문서는 커버리지를 **30배 과대**로 읽게 한다.
+**Risk:** 🟢 (지금 무엇을 깨지는 않는다. 「지켜지고 있다」는 오해가 비용이다)
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래 (단독 착수 가능)
+
+---
+
+### BL-846
+
+**Title:** 한 줄에 같은 사용자 함수를 두 번 부르면 두 호출이 **`ta.*` 상태 슬롯을 공유**한다 — 지표값이 조용히 틀어진다
+**Category:** Backend / pine_v2 (실행 SSOT)
+**Priority:** P1
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `pine-v2` 축 (CONTROL 이 설치본으로 **실측 프로브** 확인)
+
+**증상 (실측):** `interpreter.py:1258-1262` 가 호출부 격리 키를 이렇게 만든다 —
+`call_prefix = str(getattr(call_node,"node_id",None) or getattr(call_node,"lineno",None) or id(call_node))`.
+그런데 **`pynescript` 의 `Call` 노드에는 `node_id` 가 없다** — `_attributes` 는
+`['lineno','col_offset','end_lineno','end_col_offset']` 뿐이다(설치본 직접 확인).
+`lineno` 는 1 이상이라 항상 truthy 이므로 `id(call_node)` 폴백에는 **영원히 도달하지 않는다.**
+⇒ `x = f(1) + f(2)` 를 파싱하면 Call 2개가 **둘 다 `lineno=1`** 이고(프로브로 확인),
+`stdlib._scoped_node_id` 가 `hash(prefix) << 32 | node_id` 로 슬롯을 만드므로 **두 호출이 같은 슬롯**을 쓴다.
+함수 안의 `ta.sma`/`ta.ema`/`ta.rma` 버퍼가 뒤섞여 **둘 다 틀린 값**을 낸다.
+
+★이것은 백테스트의 모든 숫자를 만드는 엔진이고, **실패가 조용하다** — 예외도 경고도 없다.
+★골든 코퍼스에는 이 패턴이 **없다**(사용자 함수 정의는 `s3_rsid._inRange` 1건이고 한 줄 중복 호출 0건).
+그래서 기존 baseline 은 안 움직이고, 동시에 **아무도 이 결함을 못 봤던 이유**이기도 하다.
+
+**권장 접근:** 키에 `col_offset` 을 넣는다(`f"{lineno}:{col_offset}"`). 한 줄 수정이다.
+회귀 테스트는 **한 줄에 같은 함수를 서로 다른 인자로 두 번 부르는 Pine** 으로, 두 호출의 지표값이
+독립임을 단언한다. ★음성 대조로 **줄이 다른 두 호출**도 함께 재라(종전에도 그건 맞았다).
+**Risk:** 🟢 (코퍼스 무영향 실측 완료. 수정 후 골든 parity 재확인 필요)
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래 (단독 착수 가능 · 1줄 + 테스트)
+
+---
+
+### BL-847
+
+**Title:** `time` 빌트인이 **달력을 조작**하는데 degraded 플래그가 없다 — `timeframe.period` 는 플래그가 있다
+**Category:** Backend / pine_v2 (신뢰 층)
+**Priority:** P2
+**출처:** 2026-08-30 아키텍처 감사 gap sweep — `pine-v2` 축 (CONTROL 코드 대조 확인)
+
+**증상 (실측):** `interpreter.py:1301-1306` 의 `time` 은 실제 OHLCV 타임스탬프를 **안 읽고**
+`50*365*86_400*1000 + bar_index*60_000` 을 돌려준다 — **2020-01-01 시작 + 전 봉이 1분봉**이라는
+가정을 만들어 낸다. 주석은 「OHLCV 에 timestamp 없으면」이라는 조건을 말하지만 **코드에 그 분기가 없다** —
+언제나 합성값이다. ⇒ `time` 으로 날짜 범위·세션을 거르는 전략은 **의도와 다른 봉에서 매매한다.**
+
+★그런데 `coverage.py` 의 `_DEGRADED_ATTRIBUTES` 에는 **`timeframe.period` 하나뿐**이고 `time` 은 없다.
+`timeframe.period`(기본값 `"1D"`)가 degraded 인데 **달력 전체를 지어내는 `time` 은 아니라는 것**이 모순이다.
+`CONTEXT.md` 의 Degraded Pine 정의 = 「supported 지만 TradingView 와 결과가 달라질 수 있는 호출」에 정확히 해당한다.
+
+**권장 접근:** `time`(그리고 같은 성질이면 `timestamp`)을 degraded 로 올린다 —
+그러면 `allow_degraded_pine=true` 명시 동의 없이는 제출이 막힌다.
+★**이것은 순수 버그 수정이 아니라 제출 게이트 변경**이므로 사용자 판단이 필요하다.
+현재 실사용자 0명이라 차단 위험은 없다. 대안은 OHLCV 실제 timestamp 를 읽게 고치는 것이고 그쪽이 근본적이다 —
+**둘 중 무엇을 할지가 이 항목의 결정 사항**이다.
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, **사용자 결정 필요**(플래그 vs 실제 timestamp 배선)
+**트리거 판정:** 도래
+
+---
+
+### BL-740
+
+**Title:** stress_test 의 sharpe degenerate 판정이 convention 축을 안 읽어 **파산 셀이 「그냥 0」으로 표시**된다
+**Category:** Backend / stress_test (지표 계산)
+**Priority:** P2
+**출처:** 2026-08-15 soak-survival 관측 → **2026-08-30 아키텍처 감사가 원인 확정**
+
+★★**이 항목이 자기 원인을 맞혔다.** 2026-08-15 등재 당시 원인 후보 셋 중 셋째로
+「**NaN 만 보는 degenerate 판정 자체가 좁다**」를 적어 두었고, 트리거를
+「**Sharpe 를 판단 입력으로 쓰기 전에**」로 걸어 두었다. 2026-08-30 감사가 둘 다 성립함을 확인했다 —
+옵티마이저가 `objective_metric="sharpe_ratio"` 로 Sharpe 를 판단에 쓰고 있었고,
+판정은 좁은 정도가 아니라 **convention 축을 통째로 안 읽고 있었다.**
+
+**확정된 원인:** `sharpe_ratio()` 는 equity 가 0 이하로 내려간 실행에
+`(Decimal("0"), "unavailable_nonpositive_equity")` 를 돌려준다 — **값 0 은 「나쁨」이 아니라 「못 잼」**이고
+진실은 convention 이 진다(`backtest/engine/metrics.py` 의 `sharpe_ratio` 계약). 그런데
+`stress_test/engine/grid_result.py:73` 의 `is_degenerate = num_trades == 0 or sharpe is None` 에서
+둘째 절은 `sharpe_ratio: Decimal`(비-옵셔널)이라 **죽은 가지**다. ⇒ 관측된 「전부 0 인데 `is_degenerate=False`」가
+정확히 이것이다. 등재 당시의 후보 ⑴(계산이 0 을 냄)도 ⑵(매핑 누락)도 아닌 **⑶ 판정이 좁다**가 답이었다.
+
+**옵티마이저 절반은 이미 수리됐다** — `optimizer/engine/{_common,grid_search}.py` 는 2026-08-30 에
+`sharpe_is_unavailable(metrics.sharpe_convention)` 축을 받았다(PR #857). 거기서 **파산 파라미터가
+`maximize` 로 「최적」에 뽑히던 것**이 실제 결함이었다(골든 코퍼스 `s2_utbot` 0.0/−298% 가
+`s4_hma_curvature` −7.59/−67% 를 이겼다).
+
+**남은 범위 (이 항목):** stress_test 쪽 3곳 — `engine/grid_result.py:73`(CA·PS 셀 판정) ·
+`engine/walk_forward.py:190`(`oos_sharpe`) · `serializers.py:238`(`_worst_cell_sharpe` 가 **최악 셀을
+드러내려는 지표인데 유일하게 파산한 셀을 숨긴다**).
+**권장 접근:** `GridSweepMetricsCell` / WFA fold DTO 가 `sharpe_convention` 을 싣게 하고 판정·표시가 그것을 읽게 한다.
+★**영속 스키마(`result_jsonb`) 변경을 동반한다** — optimizer 절반과 달리 무해한 수정이 아니다.
+구 실행 행에는 그 필드가 없으므로 **`None` = 소급 판정 안 함** 규약을 그대로 따른다.
+
+**Risk:** 🟡 (표시 축 + 영속 형태 변경. 라이브 경로는 아니다)
+
+**상태:** 🔵 ACTIVE — 2026-08-30 승격, 옵티마이저 절반 수리됨 · **stress_test 절반 미수리**
+**트리거 판정:** 도래 (Sharpe 가 판단 입력이 됐다 — 2026-08-30)
