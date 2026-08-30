@@ -87,12 +87,14 @@
 ★**2026-08-14 gate-surface-close 로 교체됨.** 앞 회차(surface-demo-pack 5단위)는 전건 종결·보류 확정 —
 전문 = `dev-log/2026-08-12-surface-demo-pack.md`(git).
 
-| #   | 단위                              | 담당              | 목표 조건                                                                | 상태     |
-| --- | --------------------------------- | ----------------- | ------------------------------------------------------------------------ | -------- |
-| 1   | [BL-716] 반증 카드 승격 (P1 인계) | CONTROL           | 후보 3종 실제 반복 횟수 재계수 · 3회 초과분만 승격 · ID/경로 선행 수리   | **완료** |
-| 2   | [BL-707] authed e2e 도달성 단언   | codex w1 (슬롯 2) | 기존 `subresourceFail` 단언화 · `net::err_` allowlist 제거 · setup abort | **완료** |
-| 3   | [BL-714] 마감 게이트 브랜치 전제  | codex w2 (슬롯 3) | 입구 거부 · 하네스 ㉖ · ★**케이스 ⑫ 와 변이 M1 불변**                    | **완료** |
-| 4   | [BL-715] 브랜치 잔재 62건 판정    | Agent 배치        | 원격 23건 전수 sha 판정 + 로컬 축 소멸 확인                              | **완료** |
+| #   | 단위                                         | 담당    | 목표 조건                                                                       | 상태          |
+| --- | -------------------------------------------- | ------- | ------------------------------------------------------------------------------- | ------------- |
+| 1   | P1 3건 — limiter 500 · env Golden Rule · repo 리치스루 | CONTROL | 가드 3종 착수 전 red → 수리 → 전량 green                                        | **완료** PR #855 |
+| 2   | P2 6건 + 문서 정정 8곳                       | CONTROL | proxy matcher · funding repo · commit-spy 5 · 계약 2 · StatValue                | **완료** PR #856 |
+| 3   | 파산 계좌가 「최적」으로 뽑히던 결함          | CONTROL | degenerate 게이트가 `sharpe_convention` 을 읽는다 · 골든 코퍼스로 red 재현       | **완료** PR #857 |
+| 4   | gap sweep 8영역 (1차가 안 연 곳)             | CONTROL | pine_v2 · engine 3종 · WS · market_data · alembic · FE 공용 · infra · 테스트 구조 | **완료** BL-837~847 등재 |
+| 5   | [BL-838] worker 경보 무음 소실 (한 줄)       | 미착수  | compose `backend-worker` 에 `SLACK_WEBHOOK_URL` + 4서비스 대칭 테스트           | 대기          |
+| 6   | [BL-837] WS supervisor 침묵 (P1)             | 미착수  | done-callback 으로 예외 표면화 + `stop_event` set 해 lease 해제                 | 대기          |
 
 ★**넷 다 착수 전제가 반증됐고 그것이 이 회차의 최대 산출이다** — 원장이 적어 둔 처방을 그대로
 이행한 단위는 **하나도 없다**. BL-707 은 기전이 성립하지 않았고(`playwright.config.ts` 에 dotenv 가
@@ -569,9 +571,21 @@ FE 이미지 `732ab067` · 컨테이너 안 `model-picker` 마커 실재(양성/
 함께 가진 indicator 는 버튼을 못 본다) · [BL-836](`classify_script().track == "unknown"` 이 브리핑을
 **500** 으로 만들던 잠복 결함 — 기존 `try/except` 밖에서 나던 예외다. **mypy 가 아니었으면 아무도 못 봤다**).
 
-**다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 살아 있는 후보는
+~~**다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 살아 있는 후보는
 **D([BL-827] ⑶ 관측 로그 한 줄)** · **[BL-835]**(FE 한 파일) · **[BL-836]**(테스트 1건) ·
-**AP([BL-774] 사람 동반 필요)**.
+**AP([BL-774] 사람 동반 필요)**.~~
+→ **2026-08-30 아키텍처 정합성 감사가 큐를 갈아치웠다.** 11차원 감사 + gap sweep 8영역으로
+**P1 8건**이 나왔고 그중 **4건을 수리해 PR 3벌**(#855·#856·#857)을 올렸다. 열린 결함은 5 → **16건**.
+전문 = 아래 **「⓫ 2026-08-30 아키텍처 정합성 감사」** 절.
+
+~~**다음 행동 = PR #855 · #856 · #857 을 순서대로 머지한다**~~
+→ **2026-08-30 머지 완료** — #855(`ba1b...`)·#856 은 01:52 UTC 에, #857·#858 은 이어서 머지됐다.
+
+**다음 행동 = [BL-838] compose `backend-worker` 에 `SLACK_WEBHOOK_URL` 한 줄 + 4서비스 대칭 테스트**
+★**[BL-837](WS supervisor 침묵)보다 먼저다.** 반경은 한 줄이지만 순서에 이유가 있다 —
+`alert.py:143` 이 webhook 없으면 조용히 `return False` 하므로, **경보가 살아나야 [BL-837] 이
+실제로 발생했을 때 사람이 알 수 있다.** 경보가 죽은 채로 supervisor 를 고치면 다음 침묵도 똑같이 못 본다.
+★대칭 테스트를 같이 두어라 — 지금은 「alert 를 내는 큐가 webhook 을 받는가」를 **재는 것이 없다**.
 
 > ★★**Stage 5 의 핵심은 기능이 아니라 「막을 수 없는 것을 어떻게 다루나」다.**
 > 사용자 결정으로 LLM 이 Pine 과 Python 을 **둘 다** 내므로 둘이 어긋날 수 있고 **막을 수단이 없다**.
@@ -707,6 +721,52 @@ FE 이미지 `732ab067` · 컨테이너 안 `model-picker` 마커 실재(양성/
 ⑷ 절 구분선 `---` 9개. **가드레일 4축 중 BE 판이 이로써 목표선 아래다**(FE 는 2026-08-24 199줄).
 ★그 뒤의 개발 항목은 **⓪ 표에서 사용자가 고른다** — 열린 16건은 **ACTIVE 3 · PARTIAL 13** 이고,
 11건이 데모 라이브 축이다(나머지 5건 = Pine 관측성·소크 게이트·DX 빌드캐시·TV webhook·로컬 origin).
+
+## ⓫ 2026-08-30 아키텍처 정합성 감사 — **P1 8건 / 수리 4건 / PR 3벌**
+
+**무엇을 했나** — 11차원 read-only 감사(BE 5 · FE 5 · 계약 1) → finding 마다 3-lens 적대적 검증
+→ 1차가 한 번도 안 연 8영역 gap sweep. 검증 에이전트가 세션 한도로 두 번 죽어
+**미검증분은 CONTROL 이 전건 코드 대조**했다(그 과정에서 감사 finding **5건을 기각**).
+
+### 결론 — 구조는 잘 잡혀 있다. 문제는 「검사기 표면 < 실패 표면」이다
+
+하드 룰은 전건 초록이었다 — `session.exec` 0 · `.dict()` 0 · task entry `asyncio.run` 0 ·
+FE 하위층 → `@/app/*` 0 · `any`(비테스트) 0 · `_components/` 0. **grep 으로 잡히는 위반이 없다.**
+확정된 P1 8건은 **전부 게이트가 구조적으로 볼 수 없는 자리**에 있었다.
+
+| P1 | 무엇 | 왜 아무도 못 봤나 | 처리 |
+| --- | --- | --- | --- |
+| 1 | `@limiter.limit` 2건에 `response: Response` 누락 → **성공 호출이 전건 500** | 두 엔드포인트를 HTTP 로 치는 테스트가 **0건**. 이틀 전 머지된 신규 기능([ADR-040]/[ADR-041]) | PR #855 |
+| 2 | `HEALTHZ_CELERY_TIMEOUT_S` 가 `.env.example` 에 없다 (Golden Rule) | 파리티 게이트 2종이 **`Settings` 필드만** 훑는다 — 라우터의 raw `os.environ` 은 사각 | PR #855 |
+| 3 | Service 가 `repo.session` 을 뚫어 DB 를 직접 읽음 (src 유일 1건) | 경계 가드가 이름 그대로 **`select(` 호출만** 셌다 — 원장은 그 0 을 「위반 없음」으로 읽었다([BL-763]) | PR #855 |
+| 4 | `proxy.ts` matcher 앵커 누락 → `/backtests/<id>.png` 가 **인증을 통째로 우회** | `proxy-gate.test.ts` 가 `proxy()` 를 직접 부를 뿐 `config.matcher` 를 **컴파일하지 않는다** | PR #856 |
+| 5 | **파산 계좌가 「최적」으로 뽑힌다** — sharpe 0 이 −7.59 를 이긴다 | degenerate 판정이 값만 보고 **convention 을 안 읽었다**. 죽은 가지(`sharpe is None`)가 살아 있는 척했다 | PR #857 |
+| 6 | `backend-worker` 만 `SLACK_WEBHOOK_URL` 미주입 → 경보 **무음 소실** | `alert.py:143` 이 webhook 없으면 **조용히 `return False`**. compose 4서비스 대칭을 재는 것이 없다 | [BL-838] |
+| 7 | WS supervisor 가 죽으면 **lease 를 쥔 채** 영구 침묵 | `create_task` 에 `add_done_callback` 없음 — 다음 관측 시점이 **종료 때**다 | [BL-837] |
+| 8 | 한 줄 두 호출이 `ta.*` 상태 슬롯 공유 → **지표값이 조용히 틀어진다** | 격리 키가 `node_id or lineno` 인데 `pynescript.Call` 에 **`node_id` 가 없다**(설치본 프로브 확인) | [BL-846] |
+
+### ★게이트를 넓힌 것이 수리만큼 중요하다
+
+- `test_repository_boundary_guard.py` → **3축**(경계 밖 `select(` · `repo.session` 리치스루 · 경계 밖 raw SQL). 종전 1축은 P1 두 건을 **한 건도 안 세고 있었다.**
+- `test_limiter_endpoint_params.py`(신설) — 전 라우터의 `@limiter.limit` 시그니처를 잰다. 같은 방식으로 두 번 죽었다.
+- `test_env_example_contract.py` → raw `os.environ` 축 추가.
+- `proxy-gate.test.ts` → `config.matcher` 를 **실제로 컴파일**해 잰다.
+- 신설 가드 3종 모두 **양성/음성 대조**를 갖고, 착수 전 red 를 눈으로 봤다. commit-spy 5건은 **변이 5/5 RED** 로 판별력을 증명했다.
+
+### ★원장이 자기 원인을 맞혔다 — [BL-740]
+
+2026-08-15 에 「CA 9-cell 이 전부 sharpe=0 인데 `is_degenerate=False`」를 관측하고 원인 후보 셋째로
+**「NaN 만 보는 degenerate 판정 자체가 좁다」**를 적어 둔 뒤 트리거를 **「Sharpe 를 판단 입력으로 쓰기 전에」**로
+걸어 두었다. 2026-08-30 에 **둘 다 성립**했다. DEFERRED → ACTIVE 승격.
+
+### 문서 정정 — 코드가 정본이다
+
+루트 `AGENTS.md` §7 CI 표(mypy·OpenAPI 게이트 누락) · `apps/api/AGENTS.md` §8 트리(`strategy/pine/` 통째 누락,
+그런데 `backtest/engine` 이 그걸 import 한다) · §3(OrderService 세션 예외 등재) · `apps/web/AGENTS.md` §3(예외 3→4곳)
+· §4(thin-routes 가 7라우트를 집행) · `CONTEXT.md`(Pine v1 「철거됨」→ 공유 타입 모듈 현역) ·
+[BL-763] census 의미 · [BL-765] 4,493→**4,606줄**(정책이 순증을 냈다) · `engine/types.py` convention 열거 누락.
+
+---
 
 ## ★회차 이력 tombstone — 2026-04~08 (2026-08-23 통합)
 
