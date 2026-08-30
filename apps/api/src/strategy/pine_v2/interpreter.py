@@ -1254,10 +1254,18 @@ class Interpreter:
         frame: dict[str, Any] = dict(zip(params, actual_args, strict=True))
         self._scope_stack.append(frame)
         # ta.* 상태 격리: call-site별 고유 prefix push → 동일 함수의 서로 다른 호출 위치가
-        # 각자 독립 상태를 가지게 됨. call_node의 node_id/lineno/id 중 가용한 값 사용.
+        # 각자 독립 상태를 가지게 됨.
+        # ★BL-846 — 줄만으로는 call-site 가 안 갈린다. `pynescript` 의 `Call` 은
+        #   `_attributes = ['lineno','col_offset','end_lineno','end_col_offset']` 뿐이고
+        #   `node_id` 가 **없다**(설치본 프로브 확인). `lineno` 는 1 이상이라 항상 truthy 라
+        #   `id(call_node)` 폴백에는 영원히 도달하지 않았고, `z = f(close) + f(open)` 의 두
+        #   호출이 같은 슬롯을 써 `ta.*` 버퍼가 뒤섞였다(예외도 경고도 없는 침묵 오류).
+        #   회귀 = tests/strategy/pine_v2/test_user_fn_callsite_isolation.py
+        lineno = getattr(call_node, "lineno", None)
+        col_offset = getattr(call_node, "col_offset", None)
         call_prefix = str(
             getattr(call_node, "node_id", None)
-            or getattr(call_node, "lineno", None)
+            or (f"{lineno}:{col_offset}" if lineno is not None else None)
             or id(call_node)
         )
         self.stdlib.push_call_prefix(call_prefix)

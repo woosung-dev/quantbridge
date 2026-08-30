@@ -112,6 +112,12 @@ services:
       BACKTEST_STALE_THRESHOLD_SECONDS: ${BACKTEST_STALE_THRESHOLD_SECONDS:-1800}
       PINE_ALERT_HEURISTIC_MODE: ${PINE_ALERT_HEURISTIC_MODE:-strict}
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
+      # BL-838 — alert 채널 env 는 celery 4서비스 전건 대칭이다. 여기 없으면 기본 큐의
+      # kill switch·stuck order·orphan scanner 경보가 `alert.py` 의 `return False` 로
+      # **로그도 예외도 없이** 사라진다. 게이트 = tests/common/test_alert_compose_wiring.py
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - ./apps/api/.metrics:/metrics
     restart: unless-stopped
@@ -145,6 +151,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - ./apps/api/.metrics:/metrics
     restart: unless-stopped
@@ -180,6 +188,8 @@ services:
       DEFAULT_EXCHANGE: ${DEFAULT_EXCHANGE:-bybit}
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - ./apps/api/.metrics:/metrics
     restart: unless-stopped
@@ -212,6 +222,8 @@ services:
       PINE_ALERT_HEURISTIC_MODE: ${PINE_ALERT_HEURISTIC_MODE:-strict}
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - ./apps/api/.metrics:/metrics
       - beat-data:/data
