@@ -325,22 +325,6 @@
 
 ---
 
-### BL-838
-
-**Title:** `backend-worker` 만 `SLACK_WEBHOOK_URL` 을 못 받아 kill switch·stuck order 경보가 컨테이너에서 무음 소실
-**Category:** Ops / compose 배선
-**Priority:** P1
-**출처:** 2026-08-30 아키텍처 감사 gap sweep — `infra-ops` 축 (CONTROL 실측 확인)
-
-**증상 (실측):** `infra/compose/docker-compose.yml` 에서 `SLACK_WEBHOOK_URL` 을 받는 서비스는 **3개뿐**이다 — `backend-ws-stream`(:147) · `backend-optimizer-heavy`(:182) · `backend-beat`(:214). **기본 큐를 도는 `backend-worker`(:93) 의 env 블록에는 없다.** 그런데 `common/alert.py:143-145` 는 `webhook is None` 이면 **`return False` 로 조용히 건너뛴다**(예외도, 로그 경고도 아니다). ⇒ 컨테이너 배포에서 기본 큐가 내는 **모든 critical alert 이 소리 없이 사라진다.**
-**권장 접근:** `backend-worker` env 에 `SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}` 한 줄. ★같이 볼 것 — 「alert 를 내는 큐가 webhook 을 받는가」를 재는 것이 아무것도 없다. compose 4 서비스의 alert env 대칭을 재는 테스트를 함께 두면 다음 서비스 추가에서 재발하지 않는다.
-**Risk:** 🟢 (한 줄. 경보 표면만 넓힌다)
-
-**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
-**트리거 판정:** 도래 (단독 착수 가능 · 1줄 + 대칭 테스트)
-
----
-
 ### BL-839
 
 **Title:** 느린 WS 클라이언트 1개가 전 사용자의 realtime pubsub listener 를 정지시킨다
@@ -448,36 +432,6 @@
 
 **상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
 **트리거 판정:** 도래 (단독 착수 가능)
-
----
-
-### BL-846
-
-**Title:** 한 줄에 같은 사용자 함수를 두 번 부르면 두 호출이 **`ta.*` 상태 슬롯을 공유**한다 — 지표값이 조용히 틀어진다
-**Category:** Backend / pine_v2 (실행 SSOT)
-**Priority:** P1
-**출처:** 2026-08-30 아키텍처 감사 gap sweep — `pine-v2` 축 (CONTROL 이 설치본으로 **실측 프로브** 확인)
-
-**증상 (실측):** `interpreter.py:1258-1262` 가 호출부 격리 키를 이렇게 만든다 —
-`call_prefix = str(getattr(call_node,"node_id",None) or getattr(call_node,"lineno",None) or id(call_node))`.
-그런데 **`pynescript` 의 `Call` 노드에는 `node_id` 가 없다** — `_attributes` 는
-`['lineno','col_offset','end_lineno','end_col_offset']` 뿐이다(설치본 직접 확인).
-`lineno` 는 1 이상이라 항상 truthy 이므로 `id(call_node)` 폴백에는 **영원히 도달하지 않는다.**
-⇒ `x = f(1) + f(2)` 를 파싱하면 Call 2개가 **둘 다 `lineno=1`** 이고(프로브로 확인),
-`stdlib._scoped_node_id` 가 `hash(prefix) << 32 | node_id` 로 슬롯을 만드므로 **두 호출이 같은 슬롯**을 쓴다.
-함수 안의 `ta.sma`/`ta.ema`/`ta.rma` 버퍼가 뒤섞여 **둘 다 틀린 값**을 낸다.
-
-★이것은 백테스트의 모든 숫자를 만드는 엔진이고, **실패가 조용하다** — 예외도 경고도 없다.
-★골든 코퍼스에는 이 패턴이 **없다**(사용자 함수 정의는 `s3_rsid._inRange` 1건이고 한 줄 중복 호출 0건).
-그래서 기존 baseline 은 안 움직이고, 동시에 **아무도 이 결함을 못 봤던 이유**이기도 하다.
-
-**권장 접근:** 키에 `col_offset` 을 넣는다(`f"{lineno}:{col_offset}"`). 한 줄 수정이다.
-회귀 테스트는 **한 줄에 같은 함수를 서로 다른 인자로 두 번 부르는 Pine** 으로, 두 호출의 지표값이
-독립임을 단언한다. ★음성 대조로 **줄이 다른 두 호출**도 함께 재라(종전에도 그건 맞았다).
-**Risk:** 🟢 (코퍼스 무영향 실측 완료. 수정 후 골든 parity 재확인 필요)
-
-**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
-**트리거 판정:** 도래 (단독 착수 가능 · 1줄 + 테스트)
 
 ---
 
