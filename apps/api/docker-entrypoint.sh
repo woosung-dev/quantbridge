@@ -71,6 +71,15 @@ case "$ROLE" in
         ;;
 esac
 
+# ★★★**이 아래 role 분기는 compose 경로에서 하나도 돌지 않는다** (2026-08-30 실측).
+#   compose 는 `command: celery -A src.tasks.celery_app worker …` 를 주므로 `$1` = "celery" 이고,
+#   여기서 매칭되는 것은 **맨 아래 `*)` passthrough** 뿐이다(`exec "$@"`).
+#   `api)` 도 안 돈다 — 서버 API 는 컨테이너가 아니라 호스트 `quantbridge-api.service`
+#   (`apps/api/.venv/bin/uvicorn`)이고, compose 에 api 서비스 자체가 없다.
+#   ⇒ **여기를 고쳐도 배포에 아무 영향이 없다.** 실제로 2026-08-30 에 이 파일의 `uv run` 을
+#     고친 변경이 서버에는 no-op 이었다(효과를 낸 것은 compose 의 `command` 쪽이었다).
+#   살려 두는 이유는 Dockerfile 머리말의 Cloud Run 타깃 계약이다. 그 계약을 버릴 때 함께 지워라.
+#   ★워커 동작을 바꾸려면 `infra/compose/docker-compose*.yml` 의 `command` 를 고쳐라.
 case "$ROLE" in
     api)
         # 컨테이너 API는 worker와 같은 metrics volume을 mount하고 두 multiprocess env를 주입해야 worker 지표를 수집한다.

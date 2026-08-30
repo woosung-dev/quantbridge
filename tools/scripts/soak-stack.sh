@@ -124,6 +124,83 @@ MISSING_LIST_LIMIT=20
 #   ★fetch 실패는 「0」이 아니라 「못 쟀다」(2)다 — 네트워크가 없다고 최신인 것이 아니다.
 QB_SOAK_FETCH_TIMEOUT="${QB_SOAK_FETCH_TIMEOUT:-20}"
 
+# ------------------------------------------------- 워커 이미지 신선도
+#
+# ★**왜 있나** — 2026-08-30 실측: 서버 워커 이미지가 **3주간 낡아** `openai` 가 없었고
+#   제거된 Clerk 시절 패키지(`python-jose`·`clerk-backend-api`)를 아직 갖고 있었다.
+#   `pin` 이 바꾸는 것은 `.soak/src` 뿐이고 **의존성은 이미지에 구워져 있다.**
+#   compose 4서비스에 `image:` 태그가 없고 `up` 은 `--build` 를 안 쓰므로 **재빌드는
+#   아무도 안 한다** — 새 런타임 의존성은 사람이 손으로 재빌드하기 전까지 워커에 닿지 않는다.
+#   그 드리프트를 잡은 것은 감사 중의 우연이었다. 그래서 판정을 코드로 옮긴다.
+#
+# ★**3값이다** — `same` / `stale` / **`unknown`**. 이미지를 못 읽었을 때 `same` 으로 접으면
+#   낡은 이미지를 「최신」이라 말하게 된다. 「못 봤다」를 「없다」로 접지 마라.
+
+_sha256() {  # _sha256 <file> — stdout = hex. 못 읽으면 빈 문자열 + rc=1
+  [ -f "$1" ] || return 1
+  if command -v sha256sum > /dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  else
+    shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
+
+_worker_image() {  # compose 가 짓는 이름과 같은 규칙(<project>-<service>). project = ROOT 의 basename
+  echo "${QB_WORKER_IMAGE:-$(basename "${ROOT}")-backend-worker}"
+}
+
+_image_freshness() {  # stdout: "<same|stale|unknown> <image-sha> <repo-sha>"
+  local img repo
+  repo="$(_sha256 "${ROOT}/apps/api/uv.lock")" || repo=""
+  # ★`--network none` — 판정이 네트워크를 타면 안 된다. `--entrypoint ""` 로 role 분기를 건너뛴다.
+  img="$(docker run --rm --network none --entrypoint "" "$(_worker_image)" \
+    sha256sum /app/uv.lock 2> /dev/null | cut -d' ' -f1)"
+  if [ -z "${img}" ] || [ -z "${repo}" ]; then
+    printf 'unknown %s %s\n' "${img:--}" "${repo:--}"
+  elif [ "${img}" = "${repo}" ]; then
+    printf 'same %s %s\n' "${img}" "${repo}"
+  else
+    printf 'stale %s %s\n' "${img}" "${repo}"
+  fi
+}
+
+_print_image_freshness() {  # 출력 fd 는 호출부가 정한다
+  local line state img repo
+  line="$(_image_freshness)"
+  state="$(printf '%s' "${line}" | cut -d' ' -f1)"
+  img="$(printf '%s' "${line}" | cut -d' ' -f2)"
+  repo="$(printf '%s' "${line}" | cut -d' ' -f3)"
+  case "${state}" in
+    same)
+      echo "  이미지 의존성: 레포 uv.lock 과 동일 (${img:0:12})"
+      ;;
+    stale)
+      echo "  이미지 의존성: ★낡았다 — 이미지 ${img:0:12} ≠ 레포 ${repo:0:12}"
+      echo "    워커는 이미지에 구워진 venv 로 돈다. 새 런타임 의존성은 재빌드 전까지 안 닿는다."
+      echo "    재빌드: docker compose --project-directory \"\${PWD}\" \\"
+      echo "              -f infra/compose/docker-compose.yml \\"
+      echo "              -f infra/compose/docker-compose.isolated.yml \\"
+      echo "              -f infra/compose/docker-compose.soak.yml \\"
+      echo "              build backend-worker backend-ws-stream backend-optimizer-heavy backend-beat"
+      ;;
+    *)
+      echo "  이미지 의존성: 측정 못 함 — 이미지($(_worker_image))를 못 읽었다"
+      echo "    ★이것은 「동일하다」가 아니다. 이미지가 없거나 docker 를 못 부른 것이다."
+      ;;
+  esac
+}
+
+_warn_if_image_not_fresh() {  # same 이 아닐 때만 stderr 로 찍는다
+  local state
+  state="$(_image_freshness | cut -d' ' -f1)"
+  [ "${state}" = "same" ] && return 0
+  {
+    echo
+    echo "── 워커 이미지 신선도 ──"
+    _print_image_freshness
+  } >&2
+}
+
 _missing_commits() {  # _missing_commits <sha> — 0 = 쟀다 / 2 = 못 쟀다
   local to
   # `timeout` 이 없으면(맥 기본) 붙이지 않는다 — 그래도 fetch 는 시도한다.
@@ -267,6 +344,7 @@ _up() {
       echo "✓ 기존 고정본 스택을 재사용하고 **새 창을 열었다** — ${now_iso}"
       echo "  커밋: ${file_sha}  (PID ${main_pid} 가 보는 값과 일치)"
       echo "  ★이전 창의 실격 사건은 이제 FAIL 을 만들지 않는다(누적은 0 에서 다시 센다)."
+      _warn_if_image_not_fresh
       return 0
     fi
     echo "⚠ 실행 중 프로세스가 보는 커밋(${proc_sha:-없음})이 고정본(${file_sha})과 다르다 — 재기동한다." >&2
@@ -278,7 +356,9 @@ _up() {
   sha="$(cut -d' ' -f1 "${STAMP_FILE}")"
 
   # ★배너를 기다린다 — `up -d` 는 컨테이너 생성만 기다리고 celery 준비는 안 기다린다.
-  #   컨테이너가 새로 만들어지면 `uv run` 이 환경을 동기화하느라 실측 ~2.5분이 든다.
+  #   ★2026-08-30 정정 — 종전 주석은 「컨테이너가 새로 만들어지면 `uv run` 이 환경을
+  #   동기화하느라 실측 ~2.5분」이었다. PR #861 이 그 `uv run` 을 지웠다(기동마다 dev 28개를
+  #   PyPI 에서 받고 있었다). 이제 배너는 수 초 안에 뜬다 — 600초 상한은 여유로 남긴다.
   echo "▶ celery 기동 배너 대기 (최대 600초) …"
   waited=0
   while [ "${waited}" -lt 600 ]; do
@@ -296,6 +376,8 @@ _up() {
   _record_event up "${sha}" "${ready}"
   echo "✓ 소크 스택 기동 — ${sha}"
   echo "  창 시작(celery ready): ${ready}   [대기 ${waited}초]"
+  # ★마지막에 찍는다 — 성공 줄 **위**에 있으면 스크롤에 밀려 아무도 안 읽는다.
+  _warn_if_image_not_fresh
 }
 
 _down() {
@@ -470,6 +552,9 @@ _status() {
   else
     echo "  (없음)"
   fi
+
+  echo "── 워커 이미지 신선도 ──"
+  _print_image_freshness
 
   echo "── 활성 라이브 세션 ──"
   local active
