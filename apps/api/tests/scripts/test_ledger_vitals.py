@@ -1,6 +1,10 @@
-"""원장 활력 ①·② 축의 awk 판정을 임시 원장으로 고정한다.
+"""원장 활력 ①~④ 축의 판정을 임시 원장으로 고정한다.
 
 ★이 테스트는 DB 픽스처를 쓰지 않는다. 실제 docs 원장 대신 argv 테스트 오버라이드를 쓴다.
+
+★★**픽스처의 「다음 행동」에는 `§5` 가 붙어 있다** — ④(방향 게이트)가 2026-08-31 에 켜지면서
+①②③ 을 재는 판이 전부 ④ 에 걸렸다(CI 9건 red). 각 테스트가 **자기 축만** 재게 하려고 기본값에
+넣은 것이고, ④ 자신은 아래 전용 4건이 잰다.
 """
 
 from __future__ import annotations
@@ -32,7 +36,7 @@ def run(status_text: str, backlog_text: str, tmp_path: Path) -> subprocess.Compl
     )
 
 
-def _status_with_zero_table(next_actions: str = "다음 행동 = 하나", rows: int = 3) -> str:
+def _status_with_zero_table(next_actions: str = "다음 행동 = 하나 (PRD §5)", rows: int = 3) -> str:
     """축 ①을 재는 동안 ②를 통과시키는 최소 status 본문을 만든다."""
     data_rows = "\n".join(f"| 후보 {number} |" for number in range(1, rows + 1))
     return f"""{next_actions}
@@ -45,8 +49,8 @@ def _status_with_zero_table(next_actions: str = "다음 행동 = 하나", rows: 
 
 
 def _status_with_next_action(zero_section: str) -> str:
-    """축 ②를 재는 동안 ①을 통과시키는 최소 status 본문을 만든다."""
-    return f"""다음 행동 = 하나
+    """축 ②를 재는 동안 ①④를 통과시키는 최소 status 본문을 만든다."""
+    return f"""다음 행동 = 하나 (PRD §5)
 
 {zero_section}
 """
@@ -63,7 +67,9 @@ def _pipe_table(rows: int) -> str:
 def test_next_action_allows_one_and_rejects_two(tmp_path: Path) -> None:
     """살아 있는 다음 행동 하나는 통과하고, 둘은 ① 위반으로 실패한다."""
     allowed = run(_status_with_zero_table(), "", tmp_path)
-    rejected = run(_status_with_zero_table("다음 행동 = 하나\n다음 행동 = 둘"), "", tmp_path)
+    rejected = run(
+        _status_with_zero_table("다음 행동 = 하나 (PRD §5)\n다음 행동 = 둘 (PRD §5)"), "", tmp_path
+    )
 
     assert allowed.returncode == 0
     assert "다음 행동=1" in allowed.stdout
@@ -75,7 +81,7 @@ def test_next_action_allows_one_and_rejects_two(tmp_path: Path) -> None:
 def test_next_action_inside_strikethrough_is_ignored(tmp_path: Path) -> None:
     """같은 줄의 취소선 안쪽 지시는 세지 않고, 살아 있는 한 개만 센다."""
     result = run(
-        _status_with_zero_table("~~다음 행동 = 옛것~~ → 새 사실. 다음 행동 = 현재 것"),
+        _status_with_zero_table("~~다음 행동 = 옛것~~ → 새 사실. 다음 행동 = 현재 것 (PRD §5)"),
         "",
         tmp_path,
     )
@@ -87,7 +93,9 @@ def test_next_action_inside_strikethrough_is_ignored(tmp_path: Path) -> None:
 def test_next_action_inside_inline_code_is_ignored(tmp_path: Path) -> None:
     """인라인 코드의 다음 행동 표기는 인용이므로 세지 않는다."""
     result = run(
-        _status_with_zero_table("`다음 행동 =` 는 인용이다. 다음 행동 = 현재 것"), "", tmp_path
+        _status_with_zero_table("`다음 행동 =` 는 인용이다. 다음 행동 = 현재 것 (PRD §5)"),
+        "",
+        tmp_path,
     )
 
     assert result.returncode == 0
@@ -102,7 +110,7 @@ def test_next_action_inside_indented_and_quoted_fences_is_ignored(tmp_path: Path
 > ~~~
 다음 행동 = 인용 코드
 > ~~~
-다음 행동 = 현재 것"""
+다음 행동 = 현재 것 (PRD §5)"""
     result = run(_status_with_zero_table(next_actions), "", tmp_path)
 
     assert result.returncode == 0
@@ -158,7 +166,7 @@ def test_resolved_backlog_section_fails_third_axis_with_its_id(tmp_path: Path) -
 
 
 def test_backlog_without_resolved_section_passes_third_axis(tmp_path: Path) -> None:
-    """RESOLVED 판정 섹션이 없으면 세 축 모두 통과한다."""
+    """RESOLVED 판정 섹션이 없으면 네 축 모두 통과한다."""
     result = run(
         _status_with_zero_table(),
         """### BL-102 진행 중
@@ -168,7 +176,7 @@ def test_backlog_without_resolved_section_passes_third_axis(tmp_path: Path) -> N
     )
 
     assert result.returncode == 0
-    assert "✓ ledger-vitals 3축 통과" in result.stdout
+    assert "✓ ledger-vitals 4축 통과" in result.stdout
     assert "다음 행동=1" in result.stdout
     assert "⓪ 행=3" in result.stdout
     assert "역류=0" in result.stdout
@@ -339,3 +347,56 @@ def test_file_overrides_announce_test_mode_to_stderr(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert "test-mode" in result.stderr
+
+
+# ── ④ 방향 게이트 (2026-08-31 신설) ─────────────────────────────────────────
+# 근거 사고 = `docs/status.md` ⓬. ①②③ 은 전부 **양(量)** 을 재서 14 회차 연속으로
+# 결함 수리가 진입점에 앉은 것을 한 번도 못 봤다. ★이 축이 아는 것은 「§5 를 명시했는가」
+# 까지다 — 「실제로 전진시키는가」는 사람이 판정한다(스크립트 주석이 그 한계를 적는다).
+
+
+def test_fourth_axis_passes_when_next_action_names_prd_section_five(tmp_path: Path) -> None:
+    """진입점이 §5 를 겨냥하면 통과하고, 겨냥한 줄 번호를 출력에 남긴다."""
+    result = run(
+        _status_with_zero_table("다음 행동 = d1 실사용 루프 — PRD §5⑵ 를 전진시킨다"), "", tmp_path
+    )
+
+    assert result.returncode == 0
+    assert "§5 겨냥=" in result.stdout
+
+
+def test_fourth_axis_rejects_next_action_without_prd_reference(tmp_path: Path) -> None:
+    """§5 참조가 없으면 ④ 위반이다 — ①②③ 은 전부 초록인 판이어야 판별력이 있다."""
+    result = run(_status_with_zero_table("다음 행동 = ⓪ 표에서 결함을 고른다"), "", tmp_path)
+
+    assert result.returncode == 1
+    assert "✗ ④" in result.stdout
+    assert "§5" in result.stdout
+    # ①②③ 은 걸리지 않았다 — 이 red 의 원인이 ④ 하나임을 단언한다.
+    assert "✗ ①" not in result.stdout
+    assert "✗ ②" not in result.stdout
+    assert "✗ ③" not in result.stdout
+
+
+def test_fourth_axis_gives_first_axis_the_lower_bound_it_lacked(tmp_path: Path) -> None:
+    """진입점이 0 개인 상태도 red 다 — ① 은 상한만 재서 0 을 통과시킨다."""
+    result = run(_status_with_zero_table("~~다음 행동 = 끝난 것~~ → 새 사실. PRD §5"), "", tmp_path)
+
+    assert result.returncode == 1
+    assert "✗ ④" in result.stdout
+    assert "0개" in result.stdout
+    assert "✗ ①" not in result.stdout
+
+
+def test_fourth_axis_window_is_five_lines(tmp_path: Path) -> None:
+    """§5 는 진입점 줄부터 5줄 안에 있어야 한다 — 근거를 옆에 적게 하려는 폭이다."""
+    inside = run(
+        _status_with_zero_table("다음 행동 = 하나\n\nA\n\nPRD §5 를 전진시킨다"), "", tmp_path
+    )
+    outside = run(
+        _status_with_zero_table("다음 행동 = 하나\n\nA\n\nB\n\nPRD §5 를 전진시킨다"), "", tmp_path
+    )
+
+    assert inside.returncode == 0, inside.stdout
+    assert outside.returncode == 1, outside.stdout
+    assert "✗ ④" in outside.stdout
