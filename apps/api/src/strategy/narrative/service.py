@@ -97,14 +97,19 @@ class NarrativeService:
             facts=json.dumps(facts, ensure_ascii=False, indent=2),
             numbered_source=number_source(source),
         )
-        raw, provider = complete_json(
+        completion = complete_json(
             settings_override or self._settings,
             system=SYSTEM_PROMPT,
             user=user,
             schema=_OUTPUT_SCHEMA,
             tool_name=_TOOL_NAME,
         )
-        return self._build(raw, source, source_hash, provider=provider)
+        return self._build(
+            completion.payload,
+            source,
+            source_hash,
+            provider=completion.provider,
+        )
 
     # ── 근거 검증 ────────────────────────────────────────────────────────
     def _build(

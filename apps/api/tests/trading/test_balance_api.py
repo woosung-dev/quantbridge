@@ -17,14 +17,19 @@ from src.common.exceptions import AppException
 from src.main import app_exc_handler
 from src.trading.dependencies import get_balance_service
 from src.trading.exceptions import ProviderError
-from src.trading.models import ExchangeName
+from src.trading.models import ExchangeMode, ExchangeName
 from src.trading.providers import BalanceSnapshot, Credentials
 from src.trading.router import router
 from src.trading.services.balance_service import AccountBalanceService
 
 
-def _account(account_id, user_id, exchange=ExchangeName.bybit):
-    return SimpleNamespace(id=account_id, user_id=user_id, exchange=exchange)
+def _account(
+    account_id,
+    user_id,
+    exchange: ExchangeName = ExchangeName.bybit,
+    mode: ExchangeMode = ExchangeMode.demo,
+):
+    return SimpleNamespace(id=account_id, user_id=user_id, exchange=exchange, mode=mode)
 
 
 def _service(account, redis_value=None, provider_result=None):
@@ -113,7 +118,9 @@ async def test_balance_api_returns_404_for_non_owner():
 @pytest.mark.asyncio
 async def test_balance_api_returns_unsupported_for_non_bybit_account():
     account_id, user_id = uuid4(), uuid4()
-    service, account_service, provider, _ = _service(_account(account_id, user_id, ExchangeName.okx))
+    service, account_service, provider, _ = _service(
+        _account(account_id, user_id, ExchangeName.okx)
+    )
     app = _app(service, user_id)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -124,7 +131,7 @@ async def test_balance_api_returns_unsupported_for_non_bybit_account():
         "account_id": str(account_id),
         "asset": "USDT",
         "supported": False,
-        "reason": "exchange_unsupported",
+        "reason": "bybit_demo_only",
         "total": None,
         "free": None,
         "fetched_at": None,

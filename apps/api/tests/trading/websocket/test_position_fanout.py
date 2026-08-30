@@ -4,12 +4,16 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
 import src.trading.websocket.position_fanout as position_fanout
-from src.trading.websocket.position_fanout import PositionFanoutHandler, PrivateTopicRouter
+from src.trading.websocket.position_fanout import (
+    PositionFanoutHandler,
+    PositionFanoutTargets,
+    PrivateTopicRouter,
+)
 
 
 class _RecordingRedis:
@@ -23,37 +27,6 @@ class _RecordingRedis:
         self.deleted.append(key)
 
 
-def _session_factory():
-    @asynccontextmanager
-    async def _session():
-        yield object()
-
-    return _session
-
-
-def _install_sessions(monkeypatch: pytest.MonkeyPatch, sessions: list[object]) -> None:
-    class _SessionRepo:
-        def __init__(self, _session: object) -> None:
-            pass
-
-        async def list_active_by_account(self, _account_id: object) -> list[object]:
-            return sessions
-
-    monkeypatch.setattr(position_fanout, "LiveSignalSessionRepository", _SessionRepo)
-
-    class _AccountRepo:
-        def __init__(self, _session: object) -> None:
-            pass
-
-        async def get_by_id(self, _account_id: object) -> None:
-            return None
-
-        async def list_by_exchange_uid(self, _exchange_uid: str) -> list[object]:
-            return []
-
-    monkeypatch.setattr(position_fanout, "ExchangeAccountRepository", _AccountRepo)
-
-
 def _handler(
     monkeypatch: pytest.MonkeyPatch,
     sessions: list[object],
@@ -61,14 +34,20 @@ def _handler(
     *,
     min_interval_s: float = 2.0,
     clock=None,
+    sibling_account_ids: list[UUID] | None = None,
 ) -> tuple[PositionFanoutHandler, _RecordingRedis, AsyncMock]:
-    _install_sessions(monkeypatch, sessions)
     publisher = AsyncMock()
     monkeypatch.setattr(position_fanout, "publish_realtime", publisher)
     recorded_redis = redis or _RecordingRedis()
+
+    async def _load_targets(account_id: UUID) -> PositionFanoutTargets:
+        return PositionFanoutTargets(
+            account_ids=[account_id, *(sibling_account_ids or [])], sessions=sessions
+        )
+
     return (
         PositionFanoutHandler(
-            _session_factory(),
+            _load_targets,
             recorded_redis,
             "user-1",
             uuid4(),
@@ -150,9 +129,7 @@ async def test_position_side_normalization(
         min_interval_s=0,
     )
 
-    await handler.handle_position_event(
-        {"symbol": "BTCUSDT", "side": reported_side, "size": size}
-    )
+    await handler.handle_position_event({"symbol": "BTCUSDT", "side": reported_side, "size": size})
 
     assert publisher.await_args.args[2]["side"] == expected_side
 
@@ -179,7 +156,9 @@ async def test_position_debounce_does_not_skip_cache_delete(
 
 
 @pytest.mark.asyncio
-async def test_position_deletes_only_matching_session_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_position_deletes_only_matching_session_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     matching = SimpleNamespace(id=uuid4(), symbol="BTC/USDT")
     other = SimpleNamespace(id=uuid4(), symbol="ETH/USDT")
     handler, redis, _ = _handler(monkeypatch, [matching, other])
@@ -220,7 +199,6 @@ async def test_router_ignores_acks_and_warns_on_rejected_subscribe(
         position_fanout.logger, "warning", lambda msg, *a, **k: warnings.append(str(msg))
     )
     counter = MagicMock()
-    counter.labels.return_value = MagicMock()
     monkeypatch.setattr(position_fanout, "qb_ws_subscribe_rejected_total", counter)
 
     await router.handle_message({"op": "subscribe", "success": True})
@@ -228,8 +206,7 @@ async def test_router_ignores_acks_and_warns_on_rejected_subscribe(
     await router.handle_message({"topic": "unknown", "data": []})
 
     assert [w for w in warnings if "ws_subscribe_rejected" in w]
-    counter.labels.assert_called_once_with(account_id=str(account_id))
-    counter.labels.return_value.inc.assert_called_once()
+    counter.inc.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -281,21 +258,11 @@ async def test_position_event_without_active_sessions_still_clears_account_cache
 
 
 @pytest.mark.asyncio
-async def test_position_event_clears_uid_sibling_account_caches(monkeypatch: pytest.MonkeyPatch) -> None:
-    handler, redis, _ = _handler(monkeypatch, [])
+async def test_position_event_clears_uid_sibling_account_caches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sibling_id = uuid4()
-
-    class _AccountRepo:
-        def __init__(self, _session: object) -> None:
-            pass
-
-        async def get_by_id(self, _account_id: object) -> object:
-            return SimpleNamespace(exchange_uid="same-uid")
-
-        async def list_by_exchange_uid(self, _exchange_uid: str) -> list[object]:
-            return [SimpleNamespace(id=handler._account_id), SimpleNamespace(id=sibling_id)]
-
-    monkeypatch.setattr(position_fanout, "ExchangeAccountRepository", _AccountRepo)
+    handler, redis, _ = _handler(monkeypatch, [], sibling_account_ids=[sibling_id])
 
     await handler.handle_position_event({"symbol": "BTCUSDT", "side": "Buy", "size": "1"})
 
@@ -308,7 +275,7 @@ async def test_position_event_clears_uid_sibling_account_caches(monkeypatch: pyt
 @pytest.mark.asyncio
 async def test_stream_main_wires_private_topic_router(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.tasks import websocket_task
-    from src.trading.models import ExchangeName
+    from src.trading.models import ExchangeMode, ExchangeName
 
     captured: dict[str, object] = {}
     account_id = str(uuid4())
@@ -316,7 +283,7 @@ async def test_stream_main_wires_private_topic_router(monkeypatch: pytest.Monkey
         exchange=ExchangeName.bybit,
         api_key_encrypted=b"key",
         api_secret_encrypted=b"secret",
-        mode=SimpleNamespace(value="demo"),
+        mode=ExchangeMode.demo,
         user_id=uuid4(),
     )
 
@@ -326,9 +293,7 @@ async def test_stream_main_wires_private_topic_router(monkeypatch: pytest.Monkey
 
     @asynccontextmanager
     async def _session():
-        session = MagicMock()
-        session.get = AsyncMock(return_value=account)
-        yield session
+        yield MagicMock()
 
     class _SessionFactory:
         def __call__(self):
@@ -346,10 +311,26 @@ async def test_stream_main_wires_private_topic_router(monkeypatch: pytest.Monkey
         async def __aexit__(self, *args: object) -> None:
             return None
 
-    monkeypatch.setattr(websocket_task, "create_worker_engine_and_sm", lambda: (_Engine(), _SessionFactory()))
+    class _AccountRepository:
+        def __init__(self, _session: object) -> None:
+            pass
+
+        async def get_by_id(self, _account_id: UUID) -> object:
+            return account
+
+        async def list_by_exchange_uid(self, _exchange_uid: str) -> list[object]:
+            return []
+
+    monkeypatch.setattr(
+        websocket_task, "create_worker_engine_and_sm", lambda: (_Engine(), _SessionFactory())
+    )
     monkeypatch.setattr("src.trading.encryption.EncryptionService.decrypt", lambda *_: "plain")
     monkeypatch.setattr("src.trading.websocket.BybitPrivateStream", _Stream)
     monkeypatch.setattr("src.common.redis_client.get_redis_lock_pool", _RecordingRedis)
+    monkeypatch.setattr(
+        "src.trading.repositories.exchange_account_repository.ExchangeAccountRepository",
+        _AccountRepository,
+    )
 
     await websocket_task._stream_main(account_id)
 

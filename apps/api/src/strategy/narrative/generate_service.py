@@ -126,14 +126,14 @@ class GenerateService:
     def generate(self, req: GenerateStrategyRequest) -> GenerateStrategyResponse:
         user = USER_TEMPLATE.format(prompt=req.prompt, symbol=req.symbol, timeframe=req.timeframe)
         effective = resolve_override(self._settings, provider=req.provider, model=req.model)
-        raw, provider = complete_json(
+        completion = complete_json(
             effective,
             system=SYSTEM_PROMPT,
             user=user,
             schema=_OUTPUT_SCHEMA,
             tool_name=_TOOL_NAME,
         )
-        return self._build(raw, provider=provider)
+        return self._build(completion.payload, provider=completion.provider)
 
     # ── 판정 + 대조 ──────────────────────────────────────────────────────
     def _build(self, raw: dict[str, Any], *, provider: str) -> GenerateStrategyResponse:

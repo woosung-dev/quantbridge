@@ -185,12 +185,9 @@ describe("trading API contract", () => {
 
   it("거래소 계정 등록은 API 키 요청 body를 POST하고 응답을 파싱한다", async () => {
     const request = {
-      exchange: "bybit" as const,
-      mode: "demo" as const,
       label: "Demo futures",
       api_key: "test-api-key",
       api_secret: "test-api-secret",
-      passphrase: null,
     };
     apiFetchMock.mockResolvedValueOnce(ACCOUNT);
 

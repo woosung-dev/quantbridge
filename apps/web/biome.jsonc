@@ -172,6 +172,49 @@
       "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     },
     {
+      // 공유층은 도메인을 거슬러 import 하지 않는다. 도메인 전용 UI/transport는
+      // features/<domain>/으로 옮기고, 여기에는 도메인을 모르는 leaf만 남긴다.
+      // 위 전역 app/ 금지도 이 override에서 함께 유지한다(override는 options를 교체한다).
+      "includes": ["src/components/**", "src/lib/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/app/*",
+                      "@/app/**",
+                      "./app/*",
+                      "./app/**",
+                      "../**/app/*",
+                      "../**/app/**"
+                    ],
+                    "message": "하위 층은 app/ 을 import 하지 않는다 (ADR-035). 공유가 필요하면 그 컴포넌트를 features/<domain>/components/ 또는 components/ 로 올려라."
+                  },
+                  {
+                    "group": [
+                      "@/features/*",
+                      "@/features/**",
+                      "./features/*",
+                      "./features/**",
+                      "../features/*",
+                      "../features/**",
+                      "../**/features/*",
+                      "../**/features/**"
+                    ],
+                    "message": "components/·lib/ 공유층은 features/ 를 import 하지 않는다. 도메인 전용 코드라면 해당 feature 로 옮겨라."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       // ADR-035 는 **하위 층에만** 건다. 라우트끼리의 참조는 대상이 아니다.
       // 검사기 테스트·e2e 는 소스를 문자열로 훑는 도구라 `while ((m = re.exec(s)))` 관용구와
       // 헬퍼 `export` 가 의도다.

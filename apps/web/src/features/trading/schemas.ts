@@ -107,17 +107,16 @@ export const AccountBalanceSchema = z.object({
 });
 export type AccountBalance = z.infer<typeof AccountBalanceSchema>;
 
-// C 이식(W3-F): 연결된 거래소는 Bybit 하나뿐이라 FE 등록 폼에서 OKX 를 제거했다(캐논 §4.8).
-// OKX 전용 passphrase superRefine 도 함께 걷어냈다. passphrase 필드는 BE 계약(항상 전송, 기본
-// null)을 위해 nullable 로 남기되 폼은 항상 null 을 보낸다. 백엔드 enum·마케팅 로드맵은 불변.
-export const RegisterAccountRequestSchema = z.object({
-  exchange: z.enum(["bybit"]),
-  mode: z.enum(["demo", "live"]),
-  label: z.string().nullable(),
-  api_key: z.string().min(1, "API Key를 입력해주세요"),
-  api_secret: z.string().min(1, "API Secret을 입력해주세요"),
-  passphrase: z.string().nullable(),
-});
+// 계정 등록은 선택지가 아니라 제품 정책이다. 서버가 Bybit Demo를 고정하므로 클라이언트는
+// 사용자가 실제로 입력하는 값만 보낸다. strict 는 오래된 exchange/mode/passphrase 입력을
+// 조용히 strip 하지 않고 즉시 드러내게 한다.
+export const RegisterAccountRequestSchema = z
+  .object({
+    label: z.string().nullable(),
+    api_key: z.string().min(1, "API Key를 입력해주세요"),
+    api_secret: z.string().min(1, "API Secret을 입력해주세요"),
+  })
+  .strict();
 export type RegisterAccountRequest = z.infer<typeof RegisterAccountRequestSchema>;
 
 // Wave 2 크로스도메인 계약 (W-B liquidation, 미머지) — 청산가 on-the-fly 계산 응답.

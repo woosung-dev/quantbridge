@@ -16,7 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { clearAuthTokenCache, deleteAccount, signOut, useSession } from "@/lib/auth-client";
+import { useAuthCtx } from "@/hooks/use-auth-ctx";
+import { clearAuthTokenCache, deleteAccount, signOut } from "@/lib/auth-client";
 
 /** 표시용 머리글자 — 이름 → 이메일 → 물음표 순으로 떨어진다. */
 function initialOf(name: string | null | undefined, email: string | null | undefined): string {
@@ -26,8 +27,7 @@ function initialOf(name: string | null | undefined, email: string | null | undef
 
 export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
   const router = useRouter();
-  const { data } = useSession();
-  const user = data?.user;
+  const { user } = useAuthCtx();
   const box = size === "lg" ? "size-11 min-h-11 min-w-11" : "size-9 min-h-9 min-w-9";
 
   const [confirmOpen, setConfirmOpen] = useState(false);

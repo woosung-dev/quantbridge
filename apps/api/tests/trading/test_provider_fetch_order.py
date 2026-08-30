@@ -19,15 +19,6 @@ def credentials():
     return Credentials(api_key="fetch-test", api_secret="fetch-secret")
 
 
-@pytest.fixture
-def credentials_okx():
-    from src.trading.providers import Credentials
-
-    return Credentials(
-        api_key="okx-fetch", api_secret="okx-secret", passphrase="okx-pass"
-    )
-
-
 # -------------------------------------------------------------------------
 # OrderStatusFetch dataclass + helper
 # -------------------------------------------------------------------------
@@ -123,12 +114,8 @@ def bybit_fetch_mock(monkeypatch):
     mock_exchange.close = AsyncMock()
     mock_exchange.load_markets = AsyncMock()
     mock_exchange.market = MagicMock(return_value={"id": "BTCUSDT"})
-    mock_exchange.privateGetV5OrderRealtime = AsyncMock(
-        return_value={"result": {"list": []}}
-    )
-    mock_exchange.privateGetV5OrderHistory = AsyncMock(
-        return_value={"result": {"list": []}}
-    )
+    mock_exchange.privateGetV5OrderRealtime = AsyncMock(return_value={"result": {"list": []}})
+    mock_exchange.privateGetV5OrderHistory = AsyncMock(return_value={"result": {"list": []}})
     mock_bybit_cls = MagicMock(return_value=mock_exchange)
     import ccxt.async_support as ccxt_async
 
@@ -166,9 +153,7 @@ async def test_bybit_demo_fetch_order_uses_credentials(credentials, bybit_fetch_
     mock_exchange.close.assert_awaited_once()
 
 
-async def test_bybit_demo_fetch_order_open_status_maps_submitted(
-    credentials, bybit_fetch_mock
-):
+async def test_bybit_demo_fetch_order_open_status_maps_submitted(credentials, bybit_fetch_mock):
     mock_exchange, _ = bybit_fetch_mock
     mock_exchange.fetch_order = AsyncMock(
         return_value={
@@ -188,9 +173,7 @@ async def test_bybit_demo_fetch_order_open_status_maps_submitted(
     assert result.filled_price is None
 
 
-async def test_bybit_demo_fetch_order_canceled_maps_cancelled(
-    credentials, bybit_fetch_mock
-):
+async def test_bybit_demo_fetch_order_canceled_maps_cancelled(credentials, bybit_fetch_mock):
     mock_exchange, _ = bybit_fetch_mock
     mock_exchange.fetch_order = AsyncMock(
         return_value={
@@ -231,9 +214,7 @@ async def test_bybit_futures_fetch_order_uses_linear(credentials, bybit_fetch_mo
     mock_exchange.close.assert_awaited_once()
 
 
-async def test_bybit_fetch_order_passes_acknowledged_param(
-    credentials, bybit_fetch_mock
-):
+async def test_bybit_fetch_order_passes_acknowledged_param(credentials, bybit_fetch_mock):
     """BL-404 — ccxt bybit fetchOrder 는 params["acknowledged"]=True 없이
     ArgumentsRequired 를 raise (last-500-orders 제약 인지 게이트). 누락 시
     watchdog fetch 전면 실패 → 라이브 주문 submitted 영구 고착 (2026-07-05
@@ -258,9 +239,7 @@ async def test_bybit_futures_conditional_fetch_order_passes_trigger_param(
     mock_exchange, _ = bybit_fetch_mock
     from src.trading.providers import BybitFuturesProvider
 
-    await BybitFuturesProvider().fetch_order(
-        credentials, "conditional-1", "BTC/USDT", trigger=True
-    )
+    await BybitFuturesProvider().fetch_order(credentials, "conditional-1", "BTC/USDT", trigger=True)
 
     call = mock_exchange.fetch_order.await_args
     assert call.kwargs["params"] == {"acknowledged": True, "trigger": True}
@@ -441,9 +420,7 @@ async def test_bybit_futures_client_id_lookup_raises_on_probe_failure(
     mock_exchange.privateGetV5OrderHistory.assert_not_awaited()
 
 
-async def test_bybit_futures_fetch_order_normalizes_spot_symbol(
-    credentials, bybit_fetch_mock
-):
+async def test_bybit_futures_fetch_order_normalizes_spot_symbol(credentials, bybit_fetch_mock):
     """BL-404 — watchdog 이 DB order.symbol(spot 포맷 `BTC/USDT`)을 그대로 전달하면
     ccxt 가 category=spot 으로 조회해 linear 주문이 OrderNotFound (2026-07-05
     실 demo 대조: `BTC/USDT:USDT`=OK / `BTC/USDT`=NotFound). create_order 와
@@ -457,54 +434,24 @@ async def test_bybit_futures_fetch_order_normalizes_spot_symbol(
 
 
 # -------------------------------------------------------------------------
-# OkxDemoProvider.fetch_order — passphrase + sandbox
+# Legacy OkxDemoProvider.fetch_order — product policy
 # -------------------------------------------------------------------------
 
 
-@pytest.fixture
-def okx_fetch_mock(monkeypatch):
-    mock_exchange = MagicMock()
-    mock_exchange.fetch_order = AsyncMock(
-        return_value={
-            "id": "okx-order-7",
-            "average": 51000.0,
-            "amount": 0.005,
-            "filled": 0.005,
-            "status": "closed",
-            "symbol": "BTC/USDT",
-        }
-    )
-    mock_exchange.close = AsyncMock()
-    mock_okx_cls = MagicMock(return_value=mock_exchange)
+async def test_okx_demo_fetch_order_is_blocked_before_ccxt_client_creation(monkeypatch):
     import ccxt.async_support as ccxt_async
 
-    monkeypatch.setattr(ccxt_async, "okx", mock_okx_cls)
-    return mock_exchange, mock_okx_cls
-
-
-async def test_okx_demo_fetch_order_uses_passphrase(credentials_okx, okx_fetch_mock):
-    mock_exchange, mock_okx_cls = okx_fetch_mock
-    from src.trading.providers import OkxDemoProvider
-
-    provider = OkxDemoProvider()
-    result = await provider.fetch_order(credentials_okx, "okx-order-7", "BTC/USDT")
-
-    mock_okx_cls.assert_called_once()
-    call_kwargs = mock_okx_cls.call_args.args[0]
-    assert call_kwargs["password"] == "okx-pass"
-    mock_exchange.set_sandbox_mode.assert_called_once_with(True)
-    mock_exchange.fetch_order.assert_awaited_once_with("okx-order-7", "BTC/USDT")
-    assert result.status == "filled"
-    assert result.filled_price == Decimal("51000.0")
-    mock_exchange.close.assert_awaited_once()
-
-
-async def test_okx_demo_fetch_order_rejects_missing_passphrase(okx_fetch_mock):
-    """OKX 는 passphrase 없으면 ProviderError fast-fail (계약 위반 차단)."""
-    from src.trading.exceptions import ProviderError
+    from src.trading.exceptions import BybitDemoOnlyError
     from src.trading.providers import Credentials, OkxDemoProvider
 
-    provider = OkxDemoProvider()
-    creds = Credentials(api_key="x", api_secret="y")  # passphrase=None
-    with pytest.raises(ProviderError):
-        await provider.fetch_order(creds, "okx-1", "BTC/USDT")
+    okx_factory = MagicMock()
+    monkeypatch.setattr(ccxt_async, "okx", okx_factory)
+
+    with pytest.raises(BybitDemoOnlyError):
+        await OkxDemoProvider().fetch_order(
+            Credentials(api_key="okx-fetch", api_secret="okx-secret", passphrase="okx-pass"),
+            "okx-order-7",
+            "BTC/USDT",
+        )
+
+    okx_factory.assert_not_called()

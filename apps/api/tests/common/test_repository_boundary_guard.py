@@ -273,3 +273,67 @@ def test_no_service_reaches_through_a_repository_to_its_session() -> None:
         "Repository 를 뚫고 AsyncSession 을 직접 쓴다 (apps/api/AGENTS.md §3): "
         f"{sorted(violations)}"
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 세 번째 축 — Repository 밖에서 **raw SQL 을 실행**하는 경로
+#
+# ★첫 축은 `select(` 만, 두 번째 축은 `repo.session` 리치스루만 센다. `session.execute(text("INSERT …"))`
+#   는 둘 다에 안 걸려서 `trading/funding.py` 의 멱등 INSERT 가 오래 Repository 밖에 있었다
+#   (2026-08-30 아키텍처 감사). 실행되는 raw SQL 만 센다 — `server_default=text("NOW()")` 같은
+#   컬럼 기본값은 DDL 이라 세지 않는다.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _executed_raw_sql(path: Path) -> list[tuple[str, int]]:
+    """`<something>.execute(text(...))` 형태만 센다."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
+    found: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "execute" or not node.args:
+            continue
+        first = node.args[0]
+        if (
+            isinstance(first, ast.Call)
+            and isinstance(first.func, ast.Name)
+            and first.func.id == "text"
+        ):
+            found.append((relative_path, node.lineno))
+    return found
+
+
+def test_raw_sql_detector_ignores_column_defaults_and_orm_statements() -> None:
+    """양성/음성 대조 — 실행되는 raw SQL 만 세고 DDL 기본값·ORM 문장은 안 센다."""
+    tree = ast.parse(
+        """
+await session.execute(text("INSERT INTO t VALUES (1)"))
+await conn.execute(text("SELECT 1"))
+await session.execute(select(Model))
+Field(sa_column=Column(server_default=text("NOW()")))
+session.execute()
+"""
+    )
+    hits = [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "execute"
+        and node.args
+        and isinstance(node.args[0], ast.Call)
+        and isinstance(node.args[0].func, ast.Name)
+        and node.args[0].func.id == "text"
+    ]
+
+    assert hits == [2, 3]
+
+
+def test_no_raw_sql_is_executed_outside_the_repository_layer() -> None:
+    violations = {hit for path in _scoped_source_paths() for hit in _executed_raw_sql(path)}
+
+    assert violations == set(), (
+        f"raw SQL 실행은 Repository 층만 한다 (apps/api/AGENTS.md §3): {sorted(violations)}"
+    )

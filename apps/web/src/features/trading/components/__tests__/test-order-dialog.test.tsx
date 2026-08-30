@@ -54,22 +54,32 @@ vi.mock("@/features/strategy/hooks", () => ({
 
 // G.4 P1 #5 — KS active 시 submit 차단을 위해 useIsOrderDisabledByKs mock 도 노출.
 const isKsDisabledMock = vi.fn(() => false);
+const exchangeAccountsMock = vi.fn<
+  () => Array<{
+    id: string;
+    exchange: string;
+    mode: string;
+    label: string;
+    api_key_masked: string;
+    created_at: string;
+  }>
+>(() => [
+  {
+    id: ACCOUNT_ID,
+    exchange: "bybit",
+    mode: "demo",
+    label: "main",
+    api_key_masked: "***",
+    created_at: "2026-04-26T00:00:00Z",
+  },
+]);
 // Wave 2 — 청산가 미리보기 hook 반환값 제어용 mock.
 const liquidationMock = vi.fn<() => { data: unknown }>(() => ({
   data: undefined,
 }));
 vi.mock("../../hooks", () => ({
   useExchangeAccounts: () => ({
-    data: [
-      {
-        id: ACCOUNT_ID,
-        exchange: "bybit",
-        mode: "demo",
-        label: "main",
-        api_key_masked: "***",
-        created_at: "2026-04-26T00:00:00Z",
-      },
-    ],
+    data: exchangeAccountsMock(),
     isLoading: false,
     isError: false,
   }),
@@ -140,6 +150,16 @@ const FIXED_UUID = "abcdef00-0000-4000-a000-000000000000";
 beforeEach(() => {
   vi.spyOn(crypto, "randomUUID").mockReturnValue(FIXED_UUID);
   strategiesMock.mockReturnValue({ items: [STRATEGY_WITH_SETTINGS], total: 1 });
+  exchangeAccountsMock.mockReturnValue([
+    {
+      id: ACCOUNT_ID,
+      exchange: "bybit",
+      mode: "demo",
+      label: "main",
+      api_key_masked: "***",
+      created_at: "2026-04-26T00:00:00Z",
+    },
+  ]);
 });
 
 import { TestOrderDialog } from "../test-order-dialog";
@@ -182,6 +202,33 @@ function clickSubmit() {
 }
 
 describe("TestOrderDialog", () => {
+  it("Bybit Demo 외 legacy 계정은 주문 대상 select에 넣지 않는다", () => {
+    exchangeAccountsMock.mockReturnValue([
+      {
+        id: ACCOUNT_ID,
+        exchange: "bybit",
+        mode: "demo",
+        label: "main",
+        api_key_masked: "***",
+        created_at: "2026-04-26T00:00:00Z",
+      },
+      {
+        id: "legacy-live",
+        exchange: "bybit",
+        mode: "live",
+        label: "legacy",
+        api_key_masked: "***",
+        created_at: "2026-04-26T00:00:00Z",
+      },
+    ]);
+
+    renderDialog();
+    openDialog();
+
+    expect(screen.getByText("bybit / demo (main)")).toBeInTheDocument();
+    expect(screen.queryByText("bybit / live (legacy)")).not.toBeInTheDocument();
+  });
+
   it("validates empty fields — inline error 표시 + fetch 미호출", async () => {
     readWebhookSecretMock.mockReturnValue("test_secret_abc");
     const fetchMock = vi.fn();

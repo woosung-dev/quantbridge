@@ -81,6 +81,22 @@ class ProviderError(AppException):
     code = "provider_error"
 
 
+class BybitDemoOnlyError(ProviderError):
+    """현재 제품 범위 밖 계정의 private API/거래 egress 차단.
+
+    ``ProviderError`` 하위로 두어 worker의 기존 graceful reject 경로가 이 오류를
+    안전하게 종결한다. HTTP에서는 provider 장애가 아니라 제품 정책 위반이므로 422다.
+    """
+
+    status_code = 422
+    code = "bybit_demo_only"
+
+    def __init__(self, *, exchange: object, mode: object) -> None:
+        self.exchange = exchange
+        self.mode = mode
+        super().__init__("사용자 거래는 Bybit Demo 계정에서만 지원합니다.")
+
+
 class TrailingContractError(ProviderError):
     """재시도해도 안 고쳐지는 money-path 계약 위반 — 즉시 alert + give up(non-retryable).
 

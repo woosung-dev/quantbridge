@@ -127,11 +127,11 @@ erDiagram
     exchange_accounts {
         uuid id PK "uuid4 — trading schema"
         uuid user_id FK "→ users.id CASCADE, indexed"
-        enum exchange "ExchangeName: bybit | binance | okx"
-        enum mode "ExchangeMode: demo | live"
+        enum exchange "ExchangeName: bybit | binance | okx (legacy 값 보존)"
+        enum mode "ExchangeMode: demo | live (legacy 값 보존)"
         bytea api_key_encrypted "AES-256 Fernet, NOT NULL"
         bytea api_secret_encrypted "AES-256 Fernet, NOT NULL"
-        bytea passphrase_encrypted "nullable (OKX 전용)"
+        bytea passphrase_encrypted "nullable (legacy passphrase 보존)"
         varchar label "nullable (max 120)"
         datetime created_at "server_default NOW()"
         datetime updated_at "onupdate NOW()"
@@ -470,7 +470,7 @@ CREATE INDEX ix_ohlcv_symbol_tf_time_desc ON ts.ohlcv (symbol, timeframe, time);
 
 ### trading.funding_rates (✅ Sprint 6+ 구현 — 일반 테이블, hypertable 아님)
 
-선물 포지션 PnL 보정용 funding rate 기록 (Bybit/OKX USDT Perpetual 8시간 정산). 시계열 데이터이나 hypertable 이 아닌 `trading` 스키마 일반 테이블이다.
+선물 포지션 PnL 보정용 funding rate 기록. 과거/공개 시장 데이터의 exchange enum 호환은 유지하지만, 이 테이블은 사용자 계정·주문 egress 경계가 아니다. 시계열 데이터이나 hypertable 이 아닌 `trading` 스키마 일반 테이블이다.
 
 ```sql
 -- 마이그레이션: apps/api/alembic/versions/20260421_0001_add_funding_rates_table.py

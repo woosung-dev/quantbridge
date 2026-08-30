@@ -1,20 +1,16 @@
-# Wave 0 W4 — 데모 안정화 readiness 게이트 (라이브 경로 한정) 테스트
+# Bybit Demo 전용 제품 정책 — legacy live 세션 등록 차단 테스트
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
 from src.strategy.models import ParseStatus, PineVersion, Strategy
-from src.trading.exceptions import AccountModeNotAllowed, DemoAccountNotYetStable
+from src.trading.exceptions import BybitDemoOnlyError
 from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName
 from src.trading.schemas import RegisterLiveSessionRequest
-from src.trading.services.live_session_service import (
-    _MIN_DEMO_STABLE_DAYS,
-    LiveSignalSessionService,
-)
+from src.trading.services.live_session_service import LiveSignalSessionService
 from tests.trading.test_live_session_commits import _make_balance_service
 
 _VALID_SETTINGS = {
@@ -79,34 +75,17 @@ def _svc(*, strategy, account, created_at):
 
 
 @pytest.mark.asyncio
-async def test_live_not_yet_stable_raises():
-    """라이브 + 경과일 < N → DemoAccountNotYetStable (AccountModeNotAllowed 보다 먼저)."""
+async def test_legacy_live_is_blocked_before_stability_profile_lookup():
+    """제품 범위 밖 live 계정은 사용자 profile 조회보다 먼저 차단한다."""
     user_id = uuid4()
-    created = datetime.now(UTC) - timedelta(days=_MIN_DEMO_STABLE_DAYS - 1, hours=1)
-    svc, repo, _ = _svc(
+    svc, repo, user_repo = _svc(
         strategy=_strategy(user_id),
         account=_account(user_id, mode=ExchangeMode.live),
-        created_at=created,
+        created_at=None,
     )
-    with pytest.raises(DemoAccountNotYetStable) as ei:
+    with pytest.raises(BybitDemoOnlyError):
         await svc.register(user_id, _req(uuid4(), uuid4()))
-    assert ei.value.min_required == _MIN_DEMO_STABLE_DAYS
-    assert ei.value.days_elapsed == _MIN_DEMO_STABLE_DAYS - 1
-    repo.commit.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_live_boundary_exactly_n_days_passes_gate():
-    """경계: 정확히 N일 경과 → 게이트 통과 → 라이브 stub(AccountModeNotAllowed) 도달."""
-    user_id = uuid4()
-    created = datetime.now(UTC) - timedelta(days=_MIN_DEMO_STABLE_DAYS, hours=1)
-    svc, repo, _ = _svc(
-        strategy=_strategy(user_id),
-        account=_account(user_id, mode=ExchangeMode.live),
-        created_at=created,
-    )
-    with pytest.raises(AccountModeNotAllowed):
-        await svc.register(user_id, _req(uuid4(), uuid4()))
+    user_repo.get_created_at.assert_not_awaited()
     repo.commit.assert_not_called()
 
 
@@ -126,18 +105,3 @@ async def test_demo_path_skips_gate_no_user_repo_call(monkeypatch: pytest.Monkey
     user_repo.get_created_at.assert_not_called()
     repo.commit.assert_awaited_once()
     delay.assert_called_once_with()
-
-
-@pytest.mark.asyncio
-async def test_live_missing_created_at_fails_closed():
-    """user.created_at None (조회 실패) → fail-closed → DemoAccountNotYetStable(days=0)."""
-    user_id = uuid4()
-    svc, repo, _ = _svc(
-        strategy=_strategy(user_id),
-        account=_account(user_id, mode=ExchangeMode.live),
-        created_at=None,
-    )
-    with pytest.raises(DemoAccountNotYetStable) as ei:
-        await svc.register(user_id, _req(uuid4(), uuid4()))
-    assert ei.value.days_elapsed == 0
-    repo.commit.assert_not_called()

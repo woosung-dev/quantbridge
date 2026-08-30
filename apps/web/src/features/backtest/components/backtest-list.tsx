@@ -36,6 +36,7 @@ import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import { formatDateTime, formatPercent } from "@/features/backtest/utils";
 import { useStrategies } from "@/features/strategy/hooks";
 import { StateBox } from "@/components/state-box";
+import { StatValue } from "@/components/stat-value";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
@@ -159,7 +160,9 @@ export function BacktestList() {
           <div>
             <h1 className="report-title">백테스트</h1>
             <div className="report-meta">
-              <span className="chip">실행 {total}건</span>
+              <span className="chip">
+                실행 <StatValue isError={isError}>{total}건</StatValue>
+              </span>
               <span className="chip">Bybit</span>
               <span className="chip accent">바 단위 이벤트 루프</span>
             </div>
@@ -183,7 +186,9 @@ export function BacktestList() {
           <p className="eyebrow">
             <span className="num">01</span> 목록
           </p>
-          <h2 className="section-title">실행 {total}건</h2>
+          <h2 className="section-title">
+            실행 <StatValue isError={isError}>{total}건</StatValue>
+          </h2>
           <p className="section-desc">
             최근에 실행한 순서로 정렬했습니다. 심볼과 주기는 전략의 기본값이 아니라 그 실행에 실제로
             쓴 값입니다.

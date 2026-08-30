@@ -70,7 +70,7 @@ describe("[BL-072] 초대 페이지 렌더", () => {
   });
 
   it("error — 「못 쓰는 토큰」과 **다른 화면**이어야 재시도할지 알 수 있다", async () => {
-    const err = await render({ kind: "error", message: "HTTP 502" });
+    const err = await render({ kind: "error" });
     const unusable = await render({ kind: "invalid" });
     // ★`toContain` 으로 제목을 가르려 하지 마라 — "확인할 수 없습니다" 는
     //   "지금은 확인할 수 없습니다" 의 **부분문자열**이라 판별이 안 된다([BL-766] 과 같은 함정).
@@ -89,7 +89,7 @@ describe("[S3] 초대 페이지 브랜드 정합", () => {
       { kind: "ok", email: "a@b.co", status: "pending" },
       { kind: "ok", email: "a@b.co", status: "joined" },
       { kind: "invalid" },
-      { kind: "error", message: "HTTP 502" },
+      { kind: "error" },
     ];
     for (const branch of branches) {
       const html = await render(branch);

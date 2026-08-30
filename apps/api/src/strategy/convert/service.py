@@ -1,32 +1,25 @@
-# indicator → strategy LLM 변환 서비스 (Anthropic 우선 + Gemini fallback)
+"""indicator → strategy 변환 서비스.
+
+모든 LLM 호출은 narrative provider selector를 통해서만 수행한다. 따라서 provider
+순서·fallback·structured output·usage 정규화가 narrative/generate/convert에 동일하게
+적용된다.
+"""
+
 from __future__ import annotations
 
-import logging
-
-import anthropic
-from google import genai
-from google.genai import types as genai_types
-from tenacity import (
-    RetryError,
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from typing import Any
 
 from src.core.config import Settings
 from src.strategy.convert.prompt import SYSTEM_PROMPT, USER_TEMPLATE
 from src.strategy.convert.schemas import ConvertIndicatorRequest, ConvertIndicatorResponse
+from src.strategy.narrative.providers import complete_json
 from src.strategy.pine_v2.signal_extractor import SignalExtractor
 
-logger = logging.getLogger(__name__)
-
-_ANTHROPIC_TRANSIENT = (
-    anthropic.APIConnectionError,
-    anthropic.APITimeoutError,
-    anthropic.RateLimitError,
-    anthropic.InternalServerError,
-)
+_CONVERT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"converted_code": {"type": "string", "minLength": 1}},
+    "required": ["converted_code"],
+}
 
 
 class ConvertService:
@@ -34,15 +27,6 @@ class ConvertService:
         self._settings = settings
 
     def convert(self, req: ConvertIndicatorRequest) -> ConvertIndicatorResponse:
-        anthropic_key = self._settings.anthropic_api_key
-        gemini_key = self._settings.gemini_api_key
-
-        if anthropic_key is None and gemini_key is None:
-            raise RuntimeError(
-                "ANTHROPIC_API_KEY 또는 GEMINI_API_KEY 중 하나가 필요합니다. "
-                ".env.local에 키를 추가하세요."
-            )
-
         code_to_send = req.code
         sliced_from: int | None = None
         sliced_to: int | None = None
@@ -50,8 +34,7 @@ class ConvertService:
         warnings: list[str] = []
 
         if req.mode == "sliced":
-            extractor = SignalExtractor()
-            result = extractor.extract(req.code, mode="ast")
+            result = SignalExtractor().extract(req.code, mode="ast")
             sliced_from = len(req.code.splitlines())
             sliced_to = len(result.sliced_code.splitlines())
             token_reduction_pct = result.token_reduction_pct
@@ -71,142 +54,27 @@ class ConvertService:
             if result.removed_functions:
                 warnings.append(f"제거된 드로잉 함수: {', '.join(result.removed_functions)}")
 
-        anthropic_error: Exception | None = None
-        if anthropic_key is not None:
-            try:
-                return self._convert_with_anthropic(
-                    code_to_send,
-                    anthropic_key.get_secret_value(),
-                    warnings,
-                    sliced_from,
-                    sliced_to,
-                    token_reduction_pct,
-                )
-            except RetryError as exc:
-                last = exc.last_attempt.exception()
-                anthropic_error = last if isinstance(last, Exception) else exc
-                logger.exception("Anthropic 변환 transient retry 모두 실패")
-            except anthropic.AnthropicError as exc:
-                anthropic_error = exc
-                logger.exception("Anthropic 변환 영구 실패 (%s)", type(exc).__name__)
-            except Exception as exc:
-                anthropic_error = exc
-                logger.exception("Anthropic 변환 중 예상치 못한 예외")
-
-        if gemini_key is not None:
-            try:
-                fallback_warnings = list(warnings)
-                if anthropic_error is not None:
-                    # ★[BL-772] SDK 예외 문자열을 응답에 싣지 않는다. 이 warning 은 **200 응답**
-                    #   본문으로 나가므로 실패 경로보다 더 자주 노출된다 — provider 이름까지만.
-                    #   상세는 위 except 블록의 logger.exception 이 이미 갖고 있다.
-                    fallback_warnings.append("Anthropic 실패 → Gemini fallback")
-                return self._convert_with_gemini(
-                    code_to_send,
-                    gemini_key.get_secret_value(),
-                    fallback_warnings,
-                    sliced_from,
-                    sliced_to,
-                    token_reduction_pct,
-                )
-            except Exception as exc:
-                # ★[BL-772] 이 RuntimeError 의 문자열은 router 가 503 body 로 그대로 내보낸다.
-                #   SDK 예외 문자열(엔드포인트 URL·모델명·요청 ID)을 심지 마라 — provider 이름까지다.
-                logger.exception("Gemini fallback 도 실패")
-                if anthropic_error is not None:
-                    raise RuntimeError("양쪽 provider 모두 실패") from exc
-                raise RuntimeError("Gemini 변환 실패") from exc
-
-        assert anthropic_error is not None
-        raise RuntimeError("Anthropic 변환 실패 (Gemini fallback 미설정)") from anthropic_error
-
-    @retry(
-        retry=retry_if_exception_type(_ANTHROPIC_TRANSIENT),
-        wait=wait_exponential(multiplier=1, min=1, max=8),
-        stop=stop_after_attempt(3),
-        reraise=True,
-    )
-    def _call_anthropic(self, client: anthropic.Anthropic, code: str) -> anthropic.types.Message:
-        return client.messages.create(
-            model=self._settings.anthropic_model,
-            max_tokens=4096,
+        completion = complete_json(
+            self._settings,
             system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": USER_TEMPLATE.format(code=code)}],
+            user=USER_TEMPLATE.format(code=code_to_send),
+            schema=_CONVERT_SCHEMA,
+            tool_name="convert_indicator",
         )
+        converted = completion.payload.get("converted_code")
+        if not isinstance(converted, str) or not converted.strip():
+            raise RuntimeError("LLM 변환 결과가 비어 있습니다")
 
-    def _convert_with_anthropic(
-        self,
-        code: str,
-        api_key: str,
-        warnings: list[str],
-        sliced_from: int | None,
-        sliced_to: int | None,
-        token_reduction_pct: float | None,
-    ) -> ConvertIndicatorResponse:
-        client = anthropic.Anthropic(api_key=api_key)
-        response = self._call_anthropic(client, code)
-
-        first_block = response.content[0] if response.content else None
-        converted = first_block.text if first_block and hasattr(first_block, "text") else ""
-
+        model = getattr(self._settings, f"{completion.provider}_model", completion.provider)
         provider_warnings = [
-            f"Anthropic {self._settings.anthropic_model} 로 변환 완료",
+            f"{completion.provider} {model} 로 변환 완료",
             *warnings,
+            *self._heuristic_quality_warnings(code_to_send, converted),
         ]
-        provider_warnings.extend(self._heuristic_quality_warnings(code, converted))
-
         return ConvertIndicatorResponse(
             converted_code=converted,
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
-            warnings=provider_warnings,
-            sliced_from=sliced_from,
-            sliced_to=sliced_to,
-            token_reduction_pct=token_reduction_pct,
-        )
-
-    def _convert_with_gemini(
-        self,
-        code: str,
-        api_key: str,
-        warnings: list[str],
-        sliced_from: int | None,
-        sliced_to: int | None,
-        token_reduction_pct: float | None,
-    ) -> ConvertIndicatorResponse:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=self._settings.gemini_model,
-            contents=USER_TEMPLATE.format(code=code),
-            config=genai_types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=4096,
-            ),
-        )
-
-        converted = (response.text or "").strip()
-        if converted.startswith("```"):
-            lines = converted.splitlines()
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].startswith("```"):
-                lines = lines[:-1]
-            converted = "\n".join(lines)
-
-        usage = response.usage_metadata
-        input_tokens = (usage.prompt_token_count if usage else None) or 0
-        output_tokens = (usage.candidates_token_count if usage else None) or 0
-
-        provider_warnings = [
-            f"Gemini {self._settings.gemini_model} 로 변환 완료 (fallback)",
-            *warnings,
-        ]
-        provider_warnings.extend(self._heuristic_quality_warnings(code, converted))
-
-        return ConvertIndicatorResponse(
-            converted_code=converted,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
+            input_tokens=completion.input_tokens,
+            output_tokens=completion.output_tokens,
             warnings=provider_warnings,
             sliced_from=sliced_from,
             sliced_to=sliced_to,

@@ -30,8 +30,8 @@ export function AccountBalanceSection({ accounts }: { accounts: readonly Account
         <div className="card-body">
           <StateBox
             testId="account-balance-empty"
-            title="활성 라이브 세션이 없습니다."
-            body="활성 세션이 참조하는 거래소 계정의 잔고만 표시합니다."
+            title="활성 Bybit 데모 세션이 없습니다."
+            body="활성 Bybit 데모 세션이 참조하는 거래소 계정의 잔고만 표시합니다."
           />
         </div>
       </div>

@@ -96,7 +96,16 @@ vi.mock("@/features/trading", async () => ({
 }));
 vi.mock("../kill-switch-banner", () => ({ KillSwitchBanner: () => null }));
 vi.mock("../account-balance-section", () => ({ AccountBalanceSection: () => null }));
-vi.mock("../open-positions-table", () => ({ OpenPositionsTable: () => null }));
+const openPositionsProps = vi.fn();
+vi.mock("../open-positions-table", () => ({
+  OpenPositionsTable: (props: {
+    sessions: readonly { id: string }[];
+    demoSessionIds: ReadonlySet<string>;
+  }) => {
+    openPositionsProps(props);
+    return null;
+  },
+}));
 const accountPositionsProps = vi.fn();
 vi.mock("../account-positions-table", () => ({
   AccountPositionsTable: (props: { accounts: readonly { id: string }[] }) => {
@@ -392,9 +401,9 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
     });
   });
 
-  it("★계정 잔여 포지션 표에 활성 세션이 아니라 **등록된 모든 계정**을 넘긴다", () => {
-    // BL-498 의 핵심 배선. 활성 세션 기준으로 좁히면 세션 0건일 때 잔여 노출이
-    // 다시 화면에서 사라진다 — 그게 이 기능이 존재하는 이유다.
+  it("★계정 잔여 포지션 표에는 활성 세션과 무관한 모든 Bybit Demo 계정만 넘긴다", () => {
+    // Bybit Demo 계정은 세션이 0건이어도 남은 노출을 보지만, legacy 계정에는
+    // 잔고·포지션 조회 egress 자체를 만들지 않는다.
     useLiveSessionsMock.mockReturnValue({
       data: { items: [] },
       isError: false,
@@ -402,8 +411,10 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
     });
     useExchangeAccountsMock.mockReturnValue({
       data: [
-        { id: "acc-1", mode: "demo", label: "데모 1" },
-        { id: "acc-2", mode: "demo", label: "데모 2" },
+        { id: "acc-1", exchange: "bybit", mode: "demo", label: "데모 1" },
+        { id: "acc-2", exchange: "bybit", mode: "demo", label: "데모 2" },
+        { id: "legacy-live", exchange: "bybit", mode: "live", label: "기존 라이브" },
+        { id: "legacy-okx", exchange: "okx", mode: "demo", label: "기존 OKX" },
       ],
       isError: false,
       isPending: false,
@@ -414,6 +425,34 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
 
     const last = accountPositionsProps.mock.calls.at(-1)?.[0];
     expect(last.accounts.map((a: { id: string }) => a.id)).toEqual(["acc-1", "acc-2"]);
+  });
+
+  it("★세션별 포지션 대조도 Bybit Demo 운영 세션만 private 조회한다", () => {
+    useLiveSessionsMock.mockReturnValue({
+      data: {
+        items: [
+          { id: "demo-session", is_active: true, exchange_account_id: "demo-account" },
+          { id: "legacy-session", is_active: true, exchange_account_id: "legacy-account" },
+        ],
+      },
+      isError: false,
+      isPending: false,
+    });
+    useExchangeAccountsMock.mockReturnValue({
+      data: [
+        { id: "demo-account", exchange: "bybit", mode: "demo", label: "데모" },
+        { id: "legacy-account", exchange: "bybit", mode: "live", label: "기존 라이브" },
+      ],
+      isError: false,
+      isPending: false,
+    });
+    openPositionsProps.mockClear();
+
+    render(<TradingCockpit />);
+
+    const last = openPositionsProps.mock.calls.at(-1)?.[0];
+    expect(last.sessions.map((session: { id: string }) => session.id)).toEqual(["demo-session"]);
+    expect(last.demoSessionIds).toEqual(new Set(["demo-session"]));
   });
 
   // --- BL-663 — 5초 틱의 재조정 범위 ---------------------------------------

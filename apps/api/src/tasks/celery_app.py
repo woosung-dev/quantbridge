@@ -20,7 +20,7 @@ from celery.signals import (
 
 from src.common.logging_config import configure_logging
 from src.common.metrics_multiproc import mark_metrics_process_dead
-from src.core.config import settings
+from src.core.config import secret_value, settings
 
 if TYPE_CHECKING:
     from src.market_data.providers.ccxt import CCXTProvider
@@ -52,8 +52,8 @@ def _configure_worker_logging(**_kwargs: object) -> None:
 
 celery_app = Celery(
     "quantbridge",
-    broker=settings.celery_broker_url,
-    backend=settings.celery_result_backend,
+    broker=secret_value(settings.celery_broker_url),
+    backend=secret_value(settings.celery_result_backend),
     include=[
         "src.tasks.backtest",
         "src.tasks.trading",

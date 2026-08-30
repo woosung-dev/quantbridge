@@ -13,6 +13,7 @@ from uuid import uuid4
 import pytest
 
 from src.trading import models
+from src.trading.exceptions import BybitDemoOnlyError
 from src.trading.websocket import reconcile_fetcher
 from src.trading.websocket.reconcile_fetcher import BybitReconcileFetcher
 
@@ -104,6 +105,23 @@ async def test_build_exchange_decrypts_creds_and_configures(
     assert cfg["secret"] == "dec:enc-secret"
     assert cfg["options"]["defaultType"] == "spot"
     assert cfg["options"]["testnet"] is False
+
+
+def test_build_exchange_rejects_legacy_live_before_decrypt_or_client_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """legacy live 행은 복호화·CCXT client 생성 전에 fail-closed 처리한다."""
+    account = _make_account()
+    account.mode = models.ExchangeMode.live
+    crypto = _make_crypto()
+    bybit_cls = MagicMock()
+    monkeypatch.setattr(reconcile_fetcher.ccxt_async, "bybit", bybit_cls)
+
+    with pytest.raises(BybitDemoOnlyError):
+        BybitReconcileFetcher(account=account, crypto=crypto)._build_exchange()
+
+    crypto.decrypt.assert_not_called()
+    bybit_cls.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -239,9 +257,7 @@ async def test_fetch_recent_orders_canceled_failure_returns_closed_only(
     account = _make_account()
     mock_exchange = _patch_ccxt(monkeypatch)
     mock_exchange.has = {"fetchCanceledOrders": True}
-    mock_exchange.fetch_canceled_orders = AsyncMock(
-        side_effect=RuntimeError("rate limit")
-    )
+    mock_exchange.fetch_canceled_orders = AsyncMock(side_effect=RuntimeError("rate limit"))
     fetcher = BybitReconcileFetcher(account=account, crypto=_make_crypto())
 
     # closed 결과만 반환되어야 함 (RuntimeError 가 caller 까지 전파되지 않음)

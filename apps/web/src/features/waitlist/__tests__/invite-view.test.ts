@@ -51,8 +51,8 @@ describe("[BL-072] resolveInviteView", () => {
   });
 
   it("네트워크 실패는 「사용 불가」와 다른 갈래다", () => {
-    const view = resolveInviteView({ kind: "error", message: "HTTP 502" });
-    expect(view).toEqual({ view: "unavailable", message: "HTTP 502" });
+    const view = resolveInviteView({ kind: "error" });
+    expect(view).toEqual({ view: "unavailable" });
     // ★서버가 안 닿는 것과 토큰이 못 쓰는 것을 합치면 사용자가 재시도할지 포기할지 모른다.
     expect(view.view).not.toBe("unusable");
   });

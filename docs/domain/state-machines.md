@@ -154,7 +154,7 @@ stateDiagram-v2
 ### 3.2 LiveSignalSession — 자동매매 세션 (`trading/models.py:LiveSignalSession`)
 
 - 상태 = `is_active` (bool). `register()` → active, `deactivate()` → inactive. partial unique index (is_active=true 만 unique → deactivate 후 재INSERT 가능).
-- 가드: Bybit Demo 한정 (`AccountModeNotAllowed`, BL-003 mainnet runbook 완료 전), user 당 active ≤ 5 (`LiveSessionQuotaExceeded`), strategy/account 소유권 검증.
+- 가드: Bybit Demo 한정 (`AccountModeNotAllowed`), user 당 active ≤ 5 (`LiveSessionQuotaExceeded`), strategy/account 소유권 검증.
 - ★**읽기 전용 키 거부** (`ReadOnlyAccountNotAllowed`, 422 `read_only_account_not_allowed` —
   2026-08-15 surface-truth U1). 종전에는 read-only 키로 세션을 **열 수는 있는데 닫을 수 없었다**
   (청산이 `close_service` 에서 422 `read_only_key`). `read_only is True` 만 막는다 — `None` 은

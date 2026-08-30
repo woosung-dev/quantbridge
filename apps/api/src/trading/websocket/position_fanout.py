@@ -3,16 +3,16 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
 from src.common.metrics import qb_ws_subscribe_rejected_total
+from src.common.metrics_multiproc import record_metric_safely
 from src.market_data.constants import to_bybit_raw_symbol
 from src.trading.realtime_publisher import publish_realtime
-from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
-from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.services.position_service import (
     account_position_snapshot_cache_key,
     position_snapshot_cache_key,
@@ -22,7 +22,16 @@ from src.trading.websocket.state_handler import StateHandler
 
 logger = logging.getLogger(__name__)
 
-SessionFactory = Callable[[], Any]
+
+@dataclass(frozen=True)
+class PositionFanoutTargets:
+    """position 이벤트가 무효화할 계정·세션 cache 대상."""
+
+    account_ids: Sequence[UUID]
+    sessions: Sequence[Any]
+
+
+PositionTargetsLoader = Callable[[UUID], Awaitable[PositionFanoutTargets]]
 
 
 class PositionFanoutHandler:
@@ -30,14 +39,14 @@ class PositionFanoutHandler:
 
     def __init__(
         self,
-        session_factory: SessionFactory,
+        targets_loader: PositionTargetsLoader,
         redis: Any,
         user_id: str,
         account_id: UUID,
         min_interval_s: float = 2.0,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self._session_factory = session_factory
+        self._targets_loader = targets_loader
         self._redis = redis
         self._user_id = user_id
         self._account_id = account_id
@@ -65,31 +74,14 @@ class PositionFanoutHandler:
         if size == 0:
             side = "flat"
 
-        async with self._session_factory() as session:
-            sessions = await LiveSignalSessionRepository(session).list_active_by_account(
-                self._account_id
-            )
-            account_ids = [self._account_id]
-            try:
-                account = await ExchangeAccountRepository(session).get_by_id(self._account_id)
-                if account is not None and account.exchange_uid is not None:
-                    for sibling in await ExchangeAccountRepository(session).list_by_exchange_uid(
-                        account.exchange_uid
-                    ):
-                        if sibling.id != self._account_id:
-                            account_ids.append(sibling.id)
-            except Exception as exc:
-                logger.warning(
-                    "account_position_snapshot_sibling_lookup_failed account=%s err=%s",
-                    self._account_id,
-                    exc,
-                )
+        targets = await self._targets_loader(self._account_id)
+        sessions = targets.sessions
 
         # ★계정 스코프 스냅샷은 활성 세션 유무와 무관하게 버린다(BL-498). 아래 순회는
         #   활성 세션만 보고 `if not sessions: return` 으로 빠지는데, 계정 표는 바로 그
         #   상태(활성 0건)를 위해 존재한다.
         try:
-            for account_id in account_ids:
+            for account_id in targets.account_ids:
                 await self._redis.delete(account_position_snapshot_cache_key(account_id))
         except Exception as exc:
             logger.warning(
@@ -154,8 +146,10 @@ class PrivateTopicRouter(MessageEventHandler):
                 try:
                     await self._position_handler.handle_position_event(item)
                 except Exception as exc:
-                    logger.warning("position_handler_failed account=%s err=%s", self._account_id, exc)
+                    logger.warning(
+                        "position_handler_failed account=%s err=%s", self._account_id, exc
+                    )
             return
         if msg.get("op") == "subscribe" and msg.get("success") is False:
             logger.warning("ws_subscribe_rejected account=%s msg=%s", self._account_id, msg)
-            qb_ws_subscribe_rejected_total.labels(account_id=str(self._account_id)).inc()
+            record_metric_safely(qb_ws_subscribe_rejected_total.inc)

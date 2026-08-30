@@ -33,7 +33,7 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 
 from src.common.metrics import qb_ws_reconcile_skipped_total, qb_ws_reconnect_total
-from src.common.metrics_multiproc import _count_safely, record_metric_safely
+from src.common.metrics_multiproc import record_metric_safely
 
 logger = logging.getLogger(__name__)
 
@@ -277,7 +277,7 @@ class BybitPrivateStream:
                     return
                 # 연결 끊김 → reconnect 카운트 + metric
                 self.reconnect_count += 1
-                _count_safely(qb_ws_reconnect_total, account_id=str(self.account_id))
+                record_metric_safely(qb_ws_reconnect_total.inc)
                 logger.info(
                     "ws_supervisor_reconnect account=%s count=%d backoff=%.1f",
                     self.account_id,

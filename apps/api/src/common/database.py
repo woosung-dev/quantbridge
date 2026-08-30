@@ -12,10 +12,10 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from src.core.config import settings
+from src.core.config import secret_value, settings
 
 engine = create_async_engine(
-    settings.database_url,
+    secret_value(settings.database_url),
     echo=settings.debug,
     pool_pre_ping=True,
     future=True,

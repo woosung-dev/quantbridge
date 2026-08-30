@@ -68,9 +68,9 @@
 - ~~**판정 스크립트 2벌** — `tools/scripts/bl-audit.sh --list <판정어>` 가 정본이고 `tools/scripts/bl-trigger-sweep.sh` 가 `ACTIVE ∪ PARTIAL` 을 훑는다. **파서를 3벌로 만들지 마라**~~
   → **2026-08-19 [ADR-037]** 두 스크립트는 철거됐다(원문 = `git show harness-v1:tools/scripts/`).
   판정어 5종 규칙은 산문으로 유지한다 — 판정은 섹션의 상태줄 `**상태:**` 를 직접 읽는다.
-- ★**[BL-003] 을 이어받는다면 첫 파일은 하나다** —
-  [`bybit-mainnet-runbook.md`](./operations/bybit-mainnet-runbook.md).
-  **§0(착수 전 재측정)을 먼저 돌려라** — 이 문서의 실측에는 유효기한이 있다.
+- ~~★**[BL-003] 을 이어받는다면 첫 파일은 하나다 — `bybit-mainnet-runbook.md`.**~~
+  → **2026-08-30 제품 범위가 Bybit Demo 전용으로 고정돼 런북을 삭제했다.** 원문 좌표는
+  [`docs/README.md`](./README.md)의 tombstone이 갖는다.
 - ★**원장은 파일 둘이고 축은 판정어다**: `backlog.md`(ACTIVE ∪ PARTIAL + 인덱스 표 전량) ·
   `backlog-deferred.md`(DEFERRED). ★**RESOLVED 는 파일이 아니라 삭제다**(2026-08-23 · `AGENTS.md` §6) —
   닫힌 BL 본문의 좌표는 [`docs/README.md`](./README.md) 가 갖는다.
@@ -570,10 +570,8 @@ FE 이미지 `732ab067` · 컨테이너 안 `model-picker` 마커 실재(양성/
 **500** 으로 만들던 잠복 결함 — 기존 `try/except` 밖에서 나던 예외다. **mypy 가 아니었으면 아무도 못 봤다**).
 
 **다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 살아 있는 후보는
-**F([BL-834] ⑴ BE `convert` → provider 층 · 이 회차가 「다음 회차 1순위」로 지목)** ·
 **D([BL-827] ⑶ 관측 로그 한 줄)** · **[BL-835]**(FE 한 파일) · **[BL-836]**(테스트 1건) ·
 **AP([BL-774] 사람 동반 필요)**.
-★[BL-834] ⑴ 은 **JSON 스키마 계약 결정이 선행**이다(산출이 코드 문자열이다) — 착수 첫 step 이 그것이다.
 
 > ★★**Stage 5 의 핵심은 기능이 아니라 「막을 수 없는 것을 어떻게 다루나」다.**
 > 사용자 결정으로 LLM 이 Pine 과 Python 을 **둘 다** 내므로 둘이 어긋날 수 있고 **막을 수단이 없다**.
@@ -738,7 +736,6 @@ FE 이미지 `732ab067` · 컨테이너 안 `model-picker` 마커 실재(양성/
 | **C**  | ~~[BL-832] 콜드 파스가 **프로세스 경계마다** 다시 든다 — AST 를 프로세스 밖으로 캐시 ~~ | P1  | ★★★ | 중 | M | **건드림** | **2026-08-26 종결** — 로컬 디스크 L2 캐시 구현·변이 5/5·전량 5,440 green. 아래 ⓻ 참조. ~~옛 근거: [BL-829] preflight 가 이 항목을 낳았다. 그 항목의 전제(「지배 성분 = full-context 재시도」)가 실측으로 깨졌고(SLL 로 204→0 을 만들어도 **3.7%**), 진짜 지배 성분은 `closure_` **96.8%** 였다. 콜드 비용을 줄이는 **유일하게 실측된 축**이 이것이다 — pickle 왕복 digest 보존 확인, `i3_drfx` **53.38초 → 0.0048초**. ★첫 step 은 구현이 아니라 **저장소·pickle 신뢰 경계 결정** |
 | **D**  | ~~[BL-827] `openapi-check` 가 CI 밖이라 계약 drift 를 아무도 안 봤다~~ → **⑴⑵ 종결 · ⑶ 만 남음** | P3 | ★★★ | 하 | S | 0줄 | **2026-08-30 n14 lane 1 종결**(PR #850 → #851 `4b270510`) — `ci.yml` backend 잡에 `export_openapi.py --check` + `uv run mypy src` 를 **차단 게이트**로 얹었고, PoC 7좌표를 지웠고, 계약 파일을 **+848줄** 재생성해 엔드포인트 4종을 되돌렸다. CI 와 머지 후 main 재측정 둘 다 rc=0. ★**남은 것은 ⑶ 하나** — `_to_detail` 에 `direction_counts[0] >= m.num_trades` 위반을 관측 로그로(응답은 깨지 말 것). 근거는 `deriveTradeCounts` 의 침묵 보정이다 |
 | **E**  | ~~[BL-833] Optimizer 폼이 Pine 변수명을 **손으로 타이핑**하게 한다~~ | P3 | ★★ | 하 | S | 0줄 | **2026-08-30 종결 — RESOLVED 라 섹션 삭제**(PR #848 → #851 `4b270510` · 좌표는 이 SHA). `useStrategyInputs` 가 `GET /strategies/{id}` → `POST /strategies/parse` 로 `inputs` 를 얻고, `var_name` 이 드롭다운이 됐다. 스윕 불가는 **숨기지 않고 비활성 + 사유**. `inputs` 가 비면 자유 입력이 남아 폼이 잠기지 않는다. ★**착수 전 원장이 반증됐다** — 「폼이 쥔 것은 `strategy_id`」는 거짓이고 실제로는 `backtest_id` 였다. `strategy_id` 는 picker 가 이미 렌더하는 `BacktestSummary` 에 있어 **추가 요청 0회**라는 결론만 살아남았다 |
-| **F**  | [BL-834] `convert` 만 스키마 강제·provider 선택 **밖**에 남았다 → **⑵⑶ 종결 · ⑴ 만 남음** | P3 → ★**실질 P2** | ★★ | 중 | M | **건드림** | **2026-08-30 n14 lane 2 가 ⑵⑶ 을 닫았다**(PR #849 → #851 `4b270510`) — `mode:"sliced"` 로 **LLM 왕복 0회 경로가 처음으로 도달 가능**해졌고, 새 전략 위저드가 `declaration.kind === "indicator"` 를 알아보고 변환을 권한 뒤 결과를 에디터에 넣어 재파싱한다. ★**남은 ⑴ 이 다음 회차 1순위다** — `convert/service.py` 가 `narrative/providers.py` 층 밖이라 **anthropic→gemini 하드코딩**이고, 2026-08-29 anthropic 키 제거 뒤로 gemini 단독으로 돌면서 응답에 **`(fallback)`** 이라 **사용자에게 거짓을 적는다**. `openai` 는 도달 불가. ★착수 첫 step 은 코드가 아니라 **JSON 스키마 계약 결정**이다(산출이 코드 문자열이다) |
 | **G**  | [BL-835] 위저드의 indicator 변환 진입점이 `supported` 분기에만 있다 | P3 | ★ | 하 | S | 0줄 | **2026-08-30 등재** — n14 lane 2 의 diff 를 사람이 읽다가 나왔다. `parse-result-panel.tsx` 가 변환 블록을 `SupportedBody` 안에 두는데 그 분기의 게이트가 `unsupported_builtins.length === 0` 이라, **indicator 이면서 미지원 builtin 을 함께 가진** 스크립트는 버튼을 못 본다 — [BL-834] ⑶ 이 없애려던 「422 를 받아야 버튼을 만난다」로 되돌아간다. ★조건은 `declaration.kind` 하나로 유지해라 |
 | **H**  | [BL-836] `track == "unknown"` 잠복 500 은 수리됐는데 **그 경로를 재는 테스트가 0건**이다 | P3 | ★★ | 하 | S | 0줄 | **2026-08-30 등재** — `Track` 도메인에 `"unknown"` 이 있는데 `StrategyBriefResponse.track` 은 `"S"/"A"/"M"` 셋과 `None` 만 받으므로 브리핑이 **500** 이었다. 예외가 `try` 본문 밖(응답 조립)에서 나 기존 `except` 가 못 잡았다. **mypy 를 게이트로 올리지 않았으면 아무도 못 봤다.** 지금 초록은 「`unknown` 이 안 난다」가 아니라 **「아무도 안 재고 있다」**다 |
 

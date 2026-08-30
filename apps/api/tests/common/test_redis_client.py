@@ -11,9 +11,11 @@ src/common/redis_client.py 의 5 가지 계약:
 from __future__ import annotations
 
 import asyncio
+import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import SecretStr
 from redis.asyncio import Redis
 
 
@@ -40,6 +42,15 @@ def test_reset_pool_clears_singleton() -> None:
     reset_redis_lock_pool()
     b = get_redis_lock_pool()
     assert a is not b, "reset 후 신규 인스턴스가 생성되어야 한다"
+
+
+def test_safe_redis_endpoint_never_returns_credentials_or_raises() -> None:
+    from src.common.redis_client import _safe_redis_endpoint
+
+    assert _safe_redis_endpoint("redis://user:secret@redis:6379/3?token=leak#fragment") == (
+        "redis://redis:6379/3"
+    )
+    assert _safe_redis_endpoint("redis://redis:bad-port/3") == "invalid-redis-url"
 
 
 def test_get_pool_safe_across_event_loops() -> None:
@@ -157,3 +168,48 @@ async def test_healthcheck_absorbs_get_pool_value_error() -> None:
 
     assert result is False
     assert fake_app.state.redis_lock_healthy is False
+
+
+def test_redis_factory_receives_unwrapped_secret_dsn(monkeypatch: pytest.MonkeyPatch) -> None:
+    """SecretStr은 설정에 남고 Redis 연결 factory만 실제 URL을 받는다."""
+    from src.common import redis_client
+
+    url = "redis://user:encoded%2Fpassword@redis:6379/3"
+    redis_client.reset_redis_lock_pool()
+    monkeypatch.setattr(redis_client.settings, "redis_lock_url", SecretStr(url))
+
+    with patch.object(redis_client.Redis, "from_url") as from_url:
+        redis_client.get_redis_lock_pool()
+
+    assert from_url.call_args.args[0] == url
+    redis_client.reset_redis_lock_pool()
+
+
+@pytest.mark.asyncio
+async def test_redis_failure_log_redacts_url_and_exception_text(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """URL userinfo와 예외 메시지는 healthcheck 로그에 남지 않는다."""
+    from src.common import redis_client
+
+    secret = "encoded%2Fpassword"
+    url = f"redis://user:{secret}@redis:6379/3?token=leak#fragment"
+    fake_app = type("FakeApp", (), {"state": type("State", (), {})()})()
+    monkeypatch.setattr(redis_client.settings, "redis_lock_url", SecretStr(url))
+
+    with (
+        patch.object(
+            redis_client,
+            "get_redis_lock_pool",
+            side_effect=RuntimeError(f"failed {url}"),
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert await redis_client.healthcheck_redis_lock(fake_app) is False
+
+    rendered = " ".join(
+        str(value) for record in caplog.records for value in record.__dict__.values()
+    )
+    assert secret not in rendered
+    assert "token=leak" not in rendered
+    assert "redis://redis:6379/3" in rendered

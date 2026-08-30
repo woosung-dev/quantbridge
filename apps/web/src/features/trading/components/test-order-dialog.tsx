@@ -36,6 +36,7 @@ import {
 import { useStrategies } from "@/features/strategy/hooks";
 import { readWebhookSecret } from "@/features/strategy/webhook-secret-storage";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
+import { isBybitDemoAccount } from "../account-policy";
 import type { LiquidationParams } from "../api";
 import { useExchangeAccounts, useIsOrderDisabledByKs, useLiquidationInfo } from "../hooks";
 import {
@@ -64,6 +65,7 @@ function TestOrderDialogInner() {
     is_archived: false,
   });
   const accountsQuery = useExchangeAccounts();
+  const operatingAccounts = accountsQuery.data?.filter(isBybitDemoAccount) ?? [];
 
   const form = useForm<TestOrderFormValues>({
     resolver: zodV4Resolver(TEST_ORDER_FORM_SCHEMA),
@@ -258,7 +260,7 @@ function TestOrderDialogInner() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {accountsQuery.data?.map((a) => (
+                        {operatingAccounts.map((a) => (
                           <SelectItem key={a.id} value={a.id}>
                             {a.exchange} / {a.mode}
                             {a.label ? ` (${a.label})` : ""}
@@ -266,6 +268,9 @@ function TestOrderDialogInner() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {operatingAccounts.length === 0 ? (
+                      <p className="field-hint">Bybit 데모 계정을 먼저 등록해 주세요.</p>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}

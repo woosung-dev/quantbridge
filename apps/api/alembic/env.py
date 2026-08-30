@@ -22,7 +22,7 @@ from alembic import context
 from src.auth import better_auth_tables as _better_auth_tables  # noqa: F401
 from src.auth import models as _auth_models  # noqa: F401
 from src.backtest import models as _backtest_models  # noqa: F401
-from src.core.config import settings
+from src.core.config import secret_value, settings
 from src.market_data import models as _market_data_models  # noqa: F401
 
 # ★2026-08-17 [BL-770] — optimizer·waitlist 가 빠져 있었다. `table=True` 모델이 metadata 에
@@ -43,7 +43,7 @@ if config.config_file_name is not None:
 _injected_url = config.get_main_option("sqlalchemy.url")
 if not _injected_url or _injected_url == "driver://user:pass@localhost/dbname":
     # alembic.ini 기본값이거나 미설정이면 settings 에서 주입
-    config.set_main_option("sqlalchemy.url", settings.database_url)
+    config.set_main_option("sqlalchemy.url", secret_value(settings.database_url))
 
 target_metadata = SQLModel.metadata
 

@@ -5,7 +5,7 @@
 // getToken 은 queryKey 에 절대 넣지 않는다(H-2) — queryFn 모듈 팩토리 인자로만 전달.
 //
 // ★2026-08-17 ADR-034 — 공급자가 Clerk 에서 Better Auth 로 바뀌었지만 **이 파일의 계약은
-//   그대로다**. 앱 전체가 이 4필드만 소비하도록 모아 둔 덕에 교체가 이 한 파일에서 끝났다.
+//   그대로다**. 앱 전체가 이 seam 만 소비하도록 모아 둔 덕에 교체가 이 한 파일에서 끝났다.
 
 import { useMemo } from "react";
 
@@ -23,6 +23,8 @@ export interface AuthCtx {
   userId: string | null | undefined;
   /** 로딩 중에는 `undefined` — 「아직 모른다」와 「로그아웃」을 구분한다. */
   isSignedIn: boolean | undefined;
+  /** 표시용 최소 사용자 정보. 컴포넌트가 provider hook 을 직접 부르지 않게 한다. */
+  user: { name: string | null; email: string | null } | null;
   getToken: TokenGetter;
 }
 
@@ -35,6 +37,9 @@ export function useAuthCtx(): AuthCtx {
   //   낡은 SSR 값이 살아남으면 안 된다.
   const userId = isPending ? serverUserId : (data?.user?.id ?? null);
   const signedIn = Boolean(data?.session);
+  const hasUser = data?.user != null;
+  const userName = data?.user?.name ?? null;
+  const userEmail = data?.user?.email ?? null;
   // ★참조를 고정한다 — 이 훅은 화면 곳곳에서 불리고, 매 렌더 새 객체를 내면 그것을 dependency
   //   로 쓰는 소비자가 생겼을 때 조용히 루프가 된다(`rerender-dependencies`). 원시값 두 개만
   //   dep 로 둔다. `getToken` 은 모듈 스코프 함수라 이미 안정적이다.
@@ -43,8 +48,9 @@ export function useAuthCtx(): AuthCtx {
       uid: userId ?? ANON_USER_ID,
       userId,
       isSignedIn: isPending ? undefined : signedIn,
+      user: hasUser ? { name: userName, email: userEmail } : null,
       getToken: getAuthToken,
     }),
-    [userId, isPending, signedIn],
+    [userId, isPending, signedIn, hasUser, userName, userEmail],
   );
 }

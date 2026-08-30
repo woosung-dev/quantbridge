@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { liveSessionKeys } from "@/features/live-sessions/query-keys";
 import { tradingKeys } from "@/features/trading/query-keys";
-import type { RealtimeClient, RealtimeWsClientOptions } from "@/lib/ws-client";
+import type { RealtimeClient, RealtimeWsClientOptions } from "./ws-client";
 
 import { RealtimeBridge, realtimeWsUrl } from "./realtime-bridge";
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Bybit smoke — 주문 경로 1회 검증의 **정문** ([BL-003]).
+# Bybit Demo smoke — 주문 경로 1회 검증의 **정문**.
 #
 # 사용:
 #   tools/scripts/bybit-smoke.sh                                   # dry-run (기본) · 네트워크 호출 0건
-#   tools/scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.production --mode live --market spot --confirm
+#   tools/scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.demo --market spot --confirm
 #
 # 종료 코드: 0=검사 통과(또는 실호출 성공) · 1=검사/실행 실패 · 2=사용법 오류
 #
@@ -39,7 +39,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 . "${SCRIPT_DIR}/lib/mise-shim-path.sh"
 qb_pin_tool_path || true
 
-MODE="demo"
 MARKET="linear"
 SYMBOL=""
 QUANTITY=""
@@ -70,7 +69,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) CONFIRM="no"; shift ;;
     --confirm) CONFIRM="yes"; shift ;;
-    --mode) need_val "$@"; MODE="$2"; shift 2 ;;
+    --mode) die "--mode 는 지원하지 않는다. Bybit Demo 전용이다" ;;
     --market) need_val "$@"; MARKET="$2"; shift 2 ;;
     --symbol) need_val "$@"; SYMBOL="$2"; shift 2 ;;
     --quantity) need_val "$@"; QUANTITY="$2"; shift 2 ;;
@@ -82,13 +81,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# credentials 를 argv 로 주는 것은 `ps` 노출이다. demo 에서는 경고, live 에서는 거부.
+# credentials 를 argv 로 주는 것은 `ps` 노출이다.
 if [[ "${ARGV_CREDS}" == "yes" ]]; then
-  [[ "${MODE}" == "live" ]] && die "--api-key/--api-secret 을 argv 로 주지 마라 (ps 노출). live 에서는 --env-file 만 허용한다"
-  printf '  ⚠ credentials 를 argv 로 받았다 — ps 에 노출된다. --env-file 을 써라.\n' >&2
+  die "--api-key/--api-secret 을 argv 로 주지 마라 (ps 노출). --env-file 을 써라"
 fi
 
-[[ "${MODE}" == "demo" || "${MODE}" == "live" ]] || die "--mode 는 demo|live (받은 값: ${MODE})"
 [[ "${MARKET}" == "spot" || "${MARKET}" == "linear" ]] || die "--market 은 spot|linear (받은 값: ${MARKET})"
 
 # 심볼 기본값은 market 을 따라간다 — linear 에 spot 심볼을 주면 거래소가 조용히 다른 것을 연다.
@@ -107,11 +104,11 @@ if [[ -z "${QUANTITY}" ]]; then
 fi
 
 if [[ -z "${ENV_FILE}" ]]; then
-  ENV_FILE="${HOME}/quantbridge/.env.production"
+  ENV_FILE="${HOME}/quantbridge/.env.demo"
 fi
 
 # ── 검사 (네트워크 호출 0건 · 로컬 stat·sed·grep 은 돈다) ───────────────────────────────────────────────────────
-printf '══ bybit-smoke  mode=%s  market=%s  symbol=%s ══\n' "${MODE}" "${MARKET}" "${SYMBOL}"
+printf '══ bybit-demo-smoke  market=%s  symbol=%s ══\n' "${MARKET}" "${SYMBOL}"
 
 [[ -f "${ENV_FILE}" ]] || die "시크릿 파일이 없다: ${ENV_FILE}  (--env-file 로 지정하거나 runbook §시크릿 절차를 따라라)"
 
@@ -159,20 +156,13 @@ check_value() {
 check_value "${KEY_VAR}" "${RAW_KEY}"
 check_value "${SECRET_VAR}" "${RAW_SECRET}"
 
-if [[ "${MODE}" == "live" ]]; then
-  printf '\n'
-  printf '  ★★★ mode=live — **실자금**이다. api.bybit.com 으로 진짜 주문이 나간다.\n'
-  printf '      진행 전 확인: 출금 권한 OFF · IP whitelist 등록 · 레버리지 1:1\n'
-  printf '      절차 전문 = docs/operations/bybit-mainnet-runbook.md\n\n'
-fi
-
-CMD_DISPLAY="uv run python scripts/bybit_smoke.py --mode ${MODE} --market ${MARKET} --symbol ${SYMBOL} --quantity ${QUANTITY} --leverage ${LEVERAGE}"
+CMD_DISPLAY="uv run python scripts/bybit_smoke.py --market ${MARKET} --symbol ${SYMBOL} --quantity ${QUANTITY} --leverage ${LEVERAGE}"
 
 if [[ "${CONFIRM}" != "yes" ]]; then
   printf '  ── dry-run — 네트워크 호출 0건. 거래소에 아무것도 보내지 않았다.\n'
   printf '  실행될 명령 (credentials 는 env 로만 건넨다 · argv 노출 없음):\n'
   printf '    cd %s/apps/api && %s\n' "${REPO_ROOT}" "${CMD_DISPLAY}"
-  printf '\n  실행하려면 --confirm 을 붙여라. ★live 는 사용자 승인 뒤에만.\n'
+  printf '\n  실행하려면 --confirm 을 붙여라. Demo 주문이 실제로 생성·취소된다.\n'
   exit 0
 fi
 
@@ -182,14 +172,13 @@ _execute() {
   BYBIT_SMOKE_API_KEY="${RAW_KEY}" \
   BYBIT_SMOKE_API_SECRET="${RAW_SECRET}" \
     uv run python scripts/bybit_smoke.py \
-      --mode "${MODE}" \
       --market "${MARKET}" \
       --symbol "${SYMBOL}" \
       --quantity "${QUANTITY}" \
       --leverage "${LEVERAGE}"
 }
 
-printf '  ── 실호출 시작 (mode=%s)\n' "${MODE}"
+printf '  ── Bybit Demo 실호출 시작\n'
 _execute
 RC=$?
 printf '\n종료 코드 %d  (0=성공)\n' "${RC}"

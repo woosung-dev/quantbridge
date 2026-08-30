@@ -37,12 +37,12 @@ from src.backtest.models import BacktestStatus
 from src.backtest.repository import BacktestRepository
 from src.backtest.schemas import CreateBacktestRequest
 from src.backtest.service import BacktestService
-from src.core.config import settings
+from src.core.config import secret_value, settings
 from src.market_data.providers.fixture import FixtureProvider
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.strategy.repository import StrategyRepository
 
-engine = create_async_engine(settings.database_url, echo=False)
+engine = create_async_engine(secret_value(settings.database_url), echo=False)
 SM = async_sessionmaker(engine, expire_on_commit=False)
 
 

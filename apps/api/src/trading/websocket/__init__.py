@@ -2,8 +2,8 @@
 
 M2 Slim scope (codex G3 결정):
 - BybitPrivateStream: auth + heartbeat + reconnect + first-connect reconcile
-- StateHandler: orderLinkId 우선 lookup + orphan buffer (FIFO max 1000, 5s TTL)
-- Reconciler: terminal-evidence-only state transition (Cancelled/Rejected/Filled)
+- StateHandler/Reconciler: transport callback adapter
+- DB transition은 `trading.services.websocket_*`가 Repository를 통해 처리
 
 dogfood 1-user 가정 (Sprint 13+ multi-account scaling).
 """

@@ -278,27 +278,32 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant W as ws-stream Worker<br/>(--pool=solo)
+    participant W as ws-stream Worker<br/>(prefork + Redis lease)
     participant Sup as BybitPrivateStream<br/>supervisor
     participant Stream as websockets connection
-    participant SH as StateHandler
+    participant SH as StateHandler<br/>(transport adapter)
+    participant SVC as WS order/reconcile service
+    participant Repo as OrderRepository
     participant DB as PostgreSQL
     participant Beat as Celery Beat (5분)
     participant Rec as Reconciler
-    participant CCXT as fetchOrder REST
+    participant CCXT as open/recent orders REST
 
-    W->>Sup: reconcile_ws_streams beat trigger
+    Beat->>W: reconcile_ws_streams: 없는 stream만 재-enqueue
+    W->>Sup: private stream task 시작
     Sup->>Stream: connect + auth (60s startup timeout)
     Stream-->>Sup: subscribed (order topic)
 
     Note over Sup,Stream: 정상 흐름 — order event 수신
     Stream-->>SH: order event {orderLinkId=UUID, status, ...}
-    SH->>DB: SELECT WHERE id = orderLinkId
+    SH->>SVC: callback(account_id, payload)
+    SVC->>Repo: local order lookup + terminal transition
+    Repo->>DB: SELECT / conditional UPDATE
     alt UUID 매핑 OK
-        SH->>DB: UPDATE state (terminal evidence only)
-    else UUID 미상 / pending → terminal 점프
-        SH->>SH: 폐기 — qb_ws_orphan_event_total.inc() (도착 축)
-        SH->>SH: qb_ws_orphan_discarded_total{reason}.inc() (폐기 축)
+        SVC->>Repo: commit
+        SVC->>SVC: commit 뒤 winner 효과<br/>(realtime·metric·후속 task)
+    else UUID 미상
+        SVC->>SVC: 즉시 폐기 — orphan arrival + discarded{reason}
     end
 
     Note over Sup,Stream: 끊김 — supervisor 재시작
@@ -307,39 +312,37 @@ sequenceDiagram
     Sup->>Stream: reconnect + reauth
     Sup->>Sup: qb_ws_reconnect_total.inc()
 
-    Note over Beat,Rec: 5분 beat — orphan + WS 끊김 보강
-    Beat->>Rec: reconcile_ws_streams
-    Rec->>DB: SELECT WHERE state IN ('submitted')<br/>AND created_at < now - 30s
-    Rec->>CCXT: fetchOrder(orderLinkId)
-    CCXT-->>Rec: unified status
-    alt status == 'closed' AND cumExecQty == quantity
-        Rec->>DB: UPDATE state = filled
-    else status == 'canceled'
-        Rec->>DB: UPDATE state = cancelled
-    else ambiguous (open / submitted)
-        Rec->>Rec: skip — qb_ws_reconcile_skipped_total.inc()
+    Note over Sup,Rec: first connect·reconnect 뒤 reconciliation (30초 debounce)
+    Sup->>Rec: reconcile callback
+    Rec->>SVC: callback(account_id)
+    SVC->>Repo: local pending/submitted 조회
+    SVC->>CCXT: fetch_open_orders + fetch_recent_orders
+    CCXT-->>SVC: snapshot
+    alt terminal evidence
+        SVC->>Repo: conditional UPDATE + commit
+        SVC->>SVC: commit 뒤 winner 효과
+    else local order not in snapshot
+        SVC->>SVC: state 유지 + unknown metric + alert
     end
 ```
 
 ### 7.3 핵심 결정 (Sprint 12)
 
 - **supervisor 패턴** — supervisor task 가 child stream task 의 종료를 감지하여 자동 재시작 (1→30s exponential)
-- **`--pool=solo` 강제** — prefork 워커 의 `worker_shutdown` hook 이 main process 만 신호 받음 (자식 프로세스의 `_STOP_EVENTS` 미연결). solo pool 은 main 이 직접 task 실행
-- **OrderLinkId UUID 매핑** — CCXT 어댑터가 `params={orderLinkId: str(Order.id)}` 전달. WebSocket order event 가 들어오면 StateHandler 가 UUID 로 정확 매핑
-- **orphan_buffer FIFO max 1000** — UUID 미상 / pending → terminal 점프 등 즉시 매핑 불가 event 임시 보존
-- **terminal-evidence-only transition** — Reconciler 는 명확 매핑 (`closed + cumExecQty == quantity` → filled, `canceled` → cancelled) 만 적용. ambiguous 손대지 않음
+- **prefork + Redis lease** — stream task 중복은 분산 lease로 막고 worker child의 영속 loop에서 실행한다.
+- **OrderLinkId UUID 매핑** — CCXT 어댑터가 `params={orderLinkId: str(Order.id)}` 전달. `StateHandler`는 DB를 직접 만지지 않고 서비스 callback으로 넘긴다.
+- **즉시 orphan 폐기** — 재생 버퍼는 호출자가 없어 삭제했다. 종결 이벤트와 무해한 비종결 이벤트는 `reason` label로 구분해 관측한다.
+- **terminal-evidence-only transition** — Reconciliation service는 명확한 terminal snapshot만 반영하고, 모호하거나 없는 행은 상태를 바꾸지 않는다.
 - **best-effort Slack alert** — KillSwitch event save 직후 alert task. alert 실패 ≠ KillSwitch 차단
 
 ### 7.4 신규 metrics
 
 §7.2 시퀀스 안에 표시. 카탈로그는 [`system-architecture.md`](./system-architecture.md) §8.
 
-### 7.5 Sprint 13+ 이관
+### 7.5 제품 경계
 
-- prefork+Redis lease 패턴 확장 (현재 `--pool=solo` 우회)
-- partial fill `cumExecQty` tracking
-- auth circuit breaker (1h TTL)
-- OKX Private WebSocket 어댑터
+- private WebSocket은 **Bybit Demo 계정만** 연결한다. 과거 live/OKX 행은 보존하되 stream 재등록·자격증명 복호화 전에 차단한다.
+- 공개 ticker·과거 OHLCV/funding 수집은 사용자 private egress와 별도 경계다.
 
 ---
 

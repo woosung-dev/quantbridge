@@ -6,6 +6,7 @@
 markets precision** 으로, provider 가 float() 대신 거래소 precision 문자열을 제출하는지
 deterministic 하게 검증한다(네트워크 없음 — load_markets/create_order/set_* 만 stub).
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -20,7 +21,6 @@ from src.trading.providers import (
     BybitDemoProvider,
     BybitFuturesProvider,
     Credentials,
-    OkxDemoProvider,
     OrderSubmit,
 )
 
@@ -113,10 +113,12 @@ async def test_bybit_futures_submits_precision_string(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_okx_demo_submits_precision_string(monkeypatch):
-    ex = ccxt_async.okx()
-    captured = _inject_market(ex, "BTC/USDT")
-    monkeypatch.setattr(providers.ccxt_async, "okx", lambda *a, **k: ex)
+async def test_okx_legacy_provider_is_blocked_before_precision_or_ccxt(monkeypatch):
+    from src.trading.exceptions import BybitDemoOnlyError
+    from src.trading.providers import OkxDemoProvider
+
+    okx_factory = AsyncMock()
+    monkeypatch.setattr(providers.ccxt_async, "okx", okx_factory)
 
     order = OrderSubmit(
         symbol="BTC/USDT",
@@ -125,14 +127,12 @@ async def test_okx_demo_submits_precision_string(monkeypatch):
         quantity=_QTY,
         price=_PRICE,
     )
-    await OkxDemoProvider().create_order(
-        Credentials(api_key="k", api_secret="s", passphrase="p", environment=ExchangeMode.demo),
-        order,
-    )
+    with pytest.raises(BybitDemoOnlyError):
+        await OkxDemoProvider().create_order(
+            Credentials(api_key="k", api_secret="s", passphrase="p"), order
+        )
 
-    assert isinstance(captured["amount"], str)
-    assert captured["amount"] == ex.amount_to_precision("BTC/USDT", _QTY)
-    assert captured["price"] == ex.price_to_precision("BTC/USDT", _PRICE)
+    okx_factory.assert_not_called()
 
 
 @pytest.mark.asyncio

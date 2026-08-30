@@ -39,7 +39,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.auth.models import User
-from src.core.config import settings
+from src.core.config import secret_value, settings
 
 
 def _mask(value: str | None) -> str:
@@ -102,7 +102,7 @@ async def _main() -> int:
     parser.add_argument("--confirm", action="store_true", help="실제로 UPDATE 한다")
     args = parser.parse_args()
 
-    engine = create_async_engine(settings.database_url, echo=False)
+    engine = create_async_engine(secret_value(settings.database_url), echo=False)
     maker = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with maker() as session:

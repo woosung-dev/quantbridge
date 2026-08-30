@@ -1,17 +1,7 @@
 """422 응답이 요청 원문을 되돌려 주지 않는다 (2026-08-15 surface-truth · S2).
 
-**실사고 모양** — `RegisterAccountRequest` 의 `@model_validator(mode="after")` 는 body 파싱
-**뒤에** 돈다. FastAPI 기본 `RequestValidationError` 핸들러가 `exc.errors()` 를 그대로
-직렬화하므로, `loc == ["body"]` 인 그 에러의 `"input"` 에는 **요청 body 전체**가 실린다.
-2026-08-15 실측:
-
-    POST /api/v1/exchange-accounts {"exchange":"okx", ..., "api_secret":"SUPER_SECRET_VALUE"}
-    → 422 {"detail":[{"type":"value_error", "loc":["body"],
-                       "msg":"Value error, OKX accounts require a passphrase",
-                       "input":{"api_key":"AKIA_REAL_KEY","api_secret":"SUPER_SECRET_VALUE"}}]}
-
-거래소 API secret 평문이 응답 body 로 되돌아오면 브라우저 콘솔·프록시 로그·에러 텔레메트리에
-남는다. 트리거는 OKX 등록 시 passphrase 누락 하나면 된다.
+등록 계약이 legacy `exchange`/`mode`/`passphrase` 입력을 거절할 때도 FastAPI validation
+응답이 API key와 secret을 되돌려서는 안 된다.
 
 ★**이 파일은 세 종류를 함께 잰다** — 양성(값이 없다) · **음성 대조**(진단 정보는 남는다) ·
 회귀(정상 등록은 그대로 201). 음성 대조가 없으면 「422 body 를 통째로 비우기」로도 통과해
@@ -48,13 +38,14 @@ def _assert_no_credentials(raw: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_okx_missing_passphrase_422_hides_request_body(client, mock_authed_user):
-    """★양성 — `mode="after"` validator 경로. body 전체가 `input` 에 실리던 자리다."""
+async def test_legacy_fields_422_hides_request_body(client, mock_authed_user):
+    """★양성 — extra="forbid" 경로도 요청 자격증명을 응답에 넣지 않는다."""
     res = await client.post(
         "/api/v1/exchange-accounts",
         json={
             "exchange": "okx",
-            "mode": "demo",
+            "mode": "live",
+            "passphrase": _PASSPHRASE,
             "api_key": _API_KEY,
             "api_secret": _API_SECRET,
         },
@@ -69,8 +60,6 @@ async def test_field_level_422_hides_field_value(client, mock_authed_user):
     res = await client.post(
         "/api/v1/exchange-accounts",
         json={
-            "exchange": "bybit",
-            "mode": "demo",
             "api_key": _API_KEY,
             "api_secret": _API_SECRET + "x" * 200,  # max_length=200 초과
         },
@@ -89,8 +78,6 @@ async def test_422_still_reports_which_field_and_why(client, mock_authed_user):
     res = await client.post(
         "/api/v1/exchange-accounts",
         json={
-            "exchange": "bybit",
-            "mode": "demo",
             "api_key": _API_KEY,
             "api_secret": _API_SECRET + "x" * 200,
         },
@@ -100,7 +87,7 @@ async def test_422_still_reports_which_field_and_why(client, mock_authed_user):
     assert isinstance(detail, list) and detail, f"기본 봉투 모양이 유지돼야 한다: {res.text}"
     err = detail[0]
     assert err["loc"][-1] == "api_secret", f"어느 필드인지 남아야 한다: {err}"
-    assert err["type"] == "string_too_long", f"어떤 규칙인지 남아야 한다: {err}"
+    assert err["type"] == "too_long", f"어떤 규칙인지 남아야 한다: {err}"
     assert err["msg"], f"사람이 읽을 사유가 남아야 한다: {err}"
 
 
@@ -110,8 +97,6 @@ async def test_valid_registration_still_succeeds(client, mock_authed_user):
     res = await client.post(
         "/api/v1/exchange-accounts",
         json={
-            "exchange": "bybit",
-            "mode": "demo",
             "api_key": "ABCD1234EFGH5678",
             "api_secret": "secret_value_here_1234",
             "label": "redaction regression",

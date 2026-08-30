@@ -5,8 +5,9 @@ ExchangeAccountService.fetch_balance_usdt 주입 시, leverage 포함 limit orde
 notional/leverage ≤ available x 0.95, 0.95 = open/close fee 버퍼). 초과 시 NotionalExceeded 422.
 
 price=None (market order)과 exchange_service 미주입은 검증 건너뜀 (기존 경로 유지).
-balance fetch 실패: demo 는 skip(fail-open), live 는 BalanceUnverified(fail-closed).
+balance fetch 실패: demo 는 skip(fail-open). legacy live 계정은 잔고 조회 전 제품 정책으로 차단한다.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -20,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
 from src.trading.encryption import EncryptionService
-from src.trading.exceptions import NotionalExceeded
+from src.trading.exceptions import BybitDemoOnlyError, NotionalExceeded
 from src.trading.models import (
     ExchangeAccount,
     ExchangeMode,
@@ -28,6 +29,8 @@ from src.trading.models import (
     OrderSide,
     OrderType,
 )
+from src.trading.product_policy import require_bybit_demo_account
+from src.trading.services.account_service import ExecutionAccount
 
 
 @pytest.fixture
@@ -70,7 +73,7 @@ def _make_exchange_service_stub(
     snapshot_account=None,
     mark_price: Decimal | None = None,
 ):
-    """ExchangeAccountService 대체 stub — fetch_balance_usdt + Sprint 23 BL-102 _repo.get_by_id.
+    """ExchangeAccountService 대체 stub — public execution-account capability 사용.
 
     snapshot_account: dispatch_snapshot(+CF5 live fail-closed mode 판정)용 account.
     기본 None → snapshot=None (legacy fallback, demo fail-open).
@@ -81,8 +84,19 @@ def _make_exchange_service_stub(
     stub.fetch_mark_price = AsyncMock(return_value=mark_price)
     # Wave 1 C5 — min-notional 가드 기본 skip(None=fail-open). max-notional 거동 회귀 0.
     stub.fetch_min_notional = AsyncMock(return_value=None)
-    stub._repo = MagicMock()
-    stub._repo.get_by_id = AsyncMock(return_value=snapshot_account)
+
+    async def get_execution_account(_: UUID) -> ExecutionAccount | None:
+        if snapshot_account is None:
+            return None
+        require_bybit_demo_account(snapshot_account.exchange, snapshot_account.mode)
+        return ExecutionAccount(
+            id=snapshot_account.id,
+            user_id=snapshot_account.user_id,
+            exchange=snapshot_account.exchange,
+            mode=snapshot_account.mode,
+        )
+
+    stub.get_execution_account = get_execution_account
     return stub
 
 
@@ -172,7 +186,8 @@ async def test_notional_check_skipped_for_market_order_when_mark_unavailable(
     from src.trading.services.order_service import OrderService
 
     exchange_stub = _make_exchange_service_stub(
-        Decimal("1"), mark_price=None  # mark 미가용
+        Decimal("1"),
+        mark_price=None,  # mark 미가용
     )
     svc = OrderService(
         session=db_session,
@@ -216,9 +231,7 @@ async def test_notional_market_order_uses_mark_price_within_limit(
     from src.trading.schemas import OrderRequest
     from src.trading.services.order_service import OrderService
 
-    exchange_stub = _make_exchange_service_stub(
-        Decimal("1000"), mark_price=Decimal("50000")
-    )
+    exchange_stub = _make_exchange_service_stub(Decimal("1000"), mark_price=Decimal("50000"))
     svc = OrderService(
         session=db_session,
         repo=OrderRepository(db_session),
@@ -239,9 +252,7 @@ async def test_notional_market_order_uses_mark_price_within_limit(
     )
     resp, _ = await svc.execute(req, idempotency_key=None)
     assert resp.leverage == 5
-    exchange_stub.fetch_mark_price.assert_awaited_once_with(
-        exchange_account.id, "BTC/USDT:USDT"
-    )
+    exchange_stub.fetch_mark_price.assert_awaited_once_with(exchange_account.id, "BTC/USDT:USDT")
     exchange_stub.fetch_balance_usdt.assert_awaited_once()
 
 
@@ -258,9 +269,7 @@ async def test_notional_market_order_exceeding_with_mark_price_raises(
     from src.trading.schemas import OrderRequest
     from src.trading.services.order_service import OrderService
 
-    exchange_stub = _make_exchange_service_stub(
-        Decimal("100"), mark_price=Decimal("50000")
-    )
+    exchange_stub = _make_exchange_service_stub(Decimal("100"), mark_price=Decimal("50000"))
     svc = OrderService(
         session=db_session,
         repo=OrderRepository(db_session),
@@ -286,16 +295,12 @@ async def test_notional_market_order_exceeding_with_mark_price_raises(
     assert exc_info.value.leverage == 20
 
 
-async def test_notional_market_order_live_mark_unavailable_fail_closed(
+async def test_legacy_live_market_order_is_blocked_before_mark_lookup(
     db_session: AsyncSession, strategy, user: User, crypto: EncryptionService
 ):
-    """P1-13 (S5-B): live 계좌 + market order + mark fetch 실패 → BalanceUnverified.
-
-    audit DEC-7 spirit: live money path 는 검증 불가 시 fail-closed (silent 통과 금지).
-    """
+    """legacy live 계좌는 mark/balance 조회 전에 제품 정책으로 차단한다."""
     from uuid import uuid4
 
-    from src.trading.exceptions import BalanceUnverified
     from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
     from src.trading.services.order_service import OrderService
@@ -331,9 +336,9 @@ async def test_notional_market_order_live_mark_unavailable_fail_closed(
         leverage=5,
         margin_mode="cross",
     )
-    with pytest.raises(BalanceUnverified):
+    with pytest.raises(BybitDemoOnlyError):
         await svc.execute(req, idempotency_key=None)
-    exchange_stub.fetch_mark_price.assert_awaited_once()
+    exchange_stub.fetch_mark_price.assert_not_awaited()
     exchange_stub.fetch_balance_usdt.assert_not_awaited()
 
 
@@ -410,13 +415,12 @@ async def test_notional_1x_position_over_balance_rejected(
     assert exc_info.value.leverage == 1
 
 
-async def test_notional_balance_unavailable_live_fail_closed(
+async def test_legacy_live_account_is_blocked_before_balance_lookup(
     db_session: AsyncSession, strategy, user: User, crypto: EncryptionService
 ):
-    """CF5 — live 계좌 balance fetch 실패(None) → BalanceUnverified (fail-closed)."""
+    """legacy live 계좌는 balance fetch 실패 여부와 무관하게 먼저 차단한다."""
     from uuid import uuid4
 
-    from src.trading.exceptions import BalanceUnverified
     from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
     from src.trading.services.order_service import OrderService
@@ -448,8 +452,9 @@ async def test_notional_balance_unavailable_live_fail_closed(
         leverage=5,
         margin_mode="cross",
     )
-    with pytest.raises(BalanceUnverified):
+    with pytest.raises(BybitDemoOnlyError):
         await svc.execute(req, idempotency_key=None)
+    exchange_stub.fetch_balance_usdt.assert_not_awaited()
 
 
 async def test_converted_market_entry_uses_mark_buffer_not_trigger_price(
@@ -491,6 +496,4 @@ async def test_converted_market_entry_uses_mark_buffer_not_trigger_price(
         await svc.execute(converted, idempotency_key=None)
 
     assert exc_info.value.notional == Decimal("95.88")
-    exchange_stub.fetch_mark_price.assert_awaited_once_with(
-        exchange_account.id, "BTC/USDT:USDT"
-    )
+    exchange_stub.fetch_mark_price.assert_awaited_once_with(exchange_account.id, "BTC/USDT:USDT")

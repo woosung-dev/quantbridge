@@ -45,7 +45,10 @@ import { WorkspaceEquityCard } from "./workspace-equity-card";
 const RECENT_RUNS_LIMIT = 8;
 const STRATEGY_FETCH_LIMIT = 100;
 const RUNS_ENDPOINT = "GET /api/v1/backtests";
-const OPTIMIZATION_RUNS_ENDPOINT = "GET /api/v1/optimizations";
+// ★실제 경로다 — `main.py:428` 이 optimizer 라우터를 `/api/v1` 프리픽스로 마운트하고
+//   `optimizer/router.py:97` 이 `/runs` 를 낸다. 2026-08-30 까지 여기 적힌 값은
+//   `/api/v1/optimizations` 였는데 **그런 경로는 없다** — 장애 때 사람을 엉뚱한 곳으로 보냈다.
+const OPTIMIZATION_RUNS_ENDPOINT = "GET /api/v1/optimizer/runs";
 const METER_CAP_PCT = 150;
 const RECENT_RUN_TYPE_LABEL = {
   backtest: "백테스트",

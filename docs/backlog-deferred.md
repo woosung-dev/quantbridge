@@ -538,6 +538,13 @@ live_signal_gap_ledger_seed session=e9c504f1 symbol=BTC/USDT
 `session.execute` / `db.execute` 가 repository 밖에서 돌면 그 쿼리는 **repository 테스트가
 보는 표면 밖**이고, 스키마가 바뀔 때 같이 안 움직인다.
 
+★★**2026-08-30 정정 — 이 항목의 census 를 「경계 밖 접근 0건」으로 읽으면 안 된다.**
+`tests/common/test_repository_boundary_guard.py` 는 이름 그대로 **`select(` 호출만** 셌다.
+그래서 `repo.session.get(...)` 리치스루(`trading/kill_switch.py`)와 `session.execute(text("INSERT …"))`
+(`trading/funding.py`)는 **한 건도 안 세어졌고**, 그 0 이 「위반 없음」으로 읽혔다.
+둘 다 2026-08-30 에 수리했고 **게이트를 3축으로 늘렸다**(경계 밖 `select(` · `repo.session` 리치스루 ·
+경계 밖 raw SQL 실행). 잔여는 `tasks/` 의 `session.get(ExchangeAccount, …)` **8곳**이다 — 아래 표와 별개 축.
+
 **2026-08-16 실측 — 9건 / 6파일** (원장의 종전 「8건」을 정정한다):
 
 | 파일                                      | 건수 |
@@ -577,14 +584,17 @@ raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족�
 
 ### BL-765
 
-**Title:** `src/tasks/live_signal.py` 가 4,493줄 — 레포 최대 단일 파일
+**Title:** `src/tasks/live_signal.py` 가 4,606줄 — 레포 최대 단일 파일
 **Category:** Backend / 구조 (tasks)
 **Priority:** P3
 **Trigger:** ★그 파일을 실질적으로 손대는 회차 (분할 자체를 목적으로 착수하지 마라)
 **Est:** L
 **출처:** 2026-08-15 surface-truth 아키텍처 감사 §B ([BL-759] 에서 분리) · 2026-08-16 실측 재확인
 
-**원인 / 영향:** 2026-08-16 실측 **4,493줄**. 같은 도메인의 repository 2종은 338·220줄이다.
+**원인 / 영향:** 2026-08-30 실측 **4,606줄 / 84 top-level def**(private 80 + `@shared_task` 4).
+~~2026-08-16 실측 4,493줄~~ → **+113줄**. 같은 도메인의 repository 2종은 338·220줄이다.
+★**「손대는 회차에 조금씩 뗀다」는 정책이 지금까지 순증을 냈다** — 트리거가 도래한 회차(n8·n9·n10)마다
+줄이 늘었지 줄지 않았다. 다음 재측정 때 이 숫자가 또 올라가 있으면 정책 자체를 바꿔라.
 이 파일은 소크의 심장이고([BL-003] 판정이 여기서 나온다) 회차마다 손이 간다 — 한 파일이
 크다는 것 자체보다 **변경 충돌면이 넓다**는 것이 비용이다.
 

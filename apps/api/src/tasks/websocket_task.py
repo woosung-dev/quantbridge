@@ -23,6 +23,7 @@ from celery import shared_task
 
 from src.common.alert import send_critical_alert
 from src.common.metrics import qb_ws_duplicate_enqueue_total
+from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.core.config import get_settings
 from src.tasks.celery_app import celery_app  # noqa: F401 — Celery beat 가 모듈 import
 
@@ -61,18 +62,13 @@ def signal_all_stop_events() -> int:
             count += 1
             logger.info("ws_stream_stop_signaled account=%s", account_id)
         except Exception as exc:
-            logger.warning(
-                "ws_stream_stop_signal_failed account=%s err=%s", account_id, exc
-            )
+            logger.warning("ws_stream_stop_signal_failed account=%s err=%s", account_id, exc)
     return count
 
 
 # Bybit V5 Private WebSocket endpoint.
 # Demo endpoint 는 공식 문서 기준 (https://bybit-exchange.github.io/docs/v5/ws/connect).
-_BYBIT_WS_ENDPOINTS: dict[str, str] = {
-    "demo": "wss://stream-demo.bybit.com/v5/private",
-    "live": "wss://stream.bybit.com/v5/private",
-}
+_BYBIT_DEMO_WS_ENDPOINT = "wss://stream-demo.bybit.com/v5/private"
 _PUBLIC_TICKER_LEASE_ID = "public-ticker"
 _PUBLIC_TICKER_REFRESH_S = 60.0
 
@@ -130,14 +126,14 @@ async def _run_async(account_id: str) -> dict[str, Any]:
     # `BybitAuthError` 또는 network 3회 누적으로 set 됐을 가능성. TTL 3600s 만료
     # 또는 수동 해제 (`redis-cli DEL`) 후 재개.
     if await is_circuit_open(account_id):
-        qb_ws_auth_circuit_total.labels(outcome="skipped").inc()
+        _count_safely(qb_ws_auth_circuit_total, outcome="skipped")
         logger.info("ws_stream_circuit_open_skip account=%s", account_id)
         return {"status": "circuit_open", "account_id": account_id}
 
     lease = await acquire_ws_lease(account_id)
     if lease is None:
         # Redis 장애 또는 contention (다른 worker 보유) — duplicate 처리
-        qb_ws_duplicate_enqueue_total.inc()
+        record_metric_safely(qb_ws_duplicate_enqueue_total.inc)
         logger.info("ws_stream_duplicate_skip account=%s", account_id)
         return {"status": "duplicate", "account_id": account_id}
 
@@ -155,7 +151,7 @@ async def _run_public_ticker_async() -> dict[str, Any]:
 
     lease = await acquire_ws_lease(_PUBLIC_TICKER_LEASE_ID)
     if lease is None:
-        qb_ws_duplicate_enqueue_total.inc()
+        record_metric_safely(qb_ws_duplicate_enqueue_total.inc)
         logger.info("ws_public_ticker_duplicate_skip")
         return {"status": "duplicate"}
 
@@ -193,9 +189,7 @@ async def _public_ticker_stream_main(
             _STOP_EVENTS[_PUBLIC_TICKER_LEASE_ID] = (loop, stop_event)
 
         try:
-            async with BybitPublicTickerStream(
-                symbols=symbols, stop_event=stop_event
-            ) as stream:
+            async with BybitPublicTickerStream(symbols=symbols, stop_event=stop_event) as stream:
                 while not stop_event.is_set():
                     waiters = [asyncio.create_task(stop_event.wait())]
                     if lease_lost_event is not None:
@@ -250,7 +244,12 @@ async def _stream_main(
     """
     from src.common.redis_client import get_redis_lock_pool
     from src.trading.encryption import EncryptionService
-    from src.trading.models import ExchangeAccount, ExchangeName
+    from src.trading.product_policy import require_bybit_demo_account
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.websocket_order_event_service import WebSocketOrderEventService
+    from src.trading.services.websocket_reconciliation_service import WebSocketReconciliationService
     from src.trading.websocket import (
         BybitAuthError,
         BybitPrivateStream,
@@ -259,6 +258,7 @@ async def _stream_main(
         Reconciler,
         StateHandler,
     )
+    from src.trading.websocket.position_fanout import PositionFanoutTargets
 
     settings = get_settings()
     # Sprint 17 Phase B P1 #3 — engine 1개를 stream lifetime 동안 유지하고 모든
@@ -269,32 +269,54 @@ async def _stream_main(
         # 1. ExchangeAccount fetch + credentials decrypt
         async with sm() as session:
             account_uuid = UUID(account_id)
-            account = await session.get(ExchangeAccount, account_uuid)
+            account = await ExchangeAccountRepository(session).get_by_id(account_uuid)
             if account is None:
                 logger.error("ws_stream_account_not_found account=%s", account_id)
                 return {"status": "error", "reason": "account_not_found"}
-            if account.exchange != ExchangeName.bybit:
-                # OKX 는 Sprint 13 (다른 endpoint + signing 방식)
-                logger.warning(
-                    "ws_stream_unsupported_exchange account=%s exchange=%s",
-                    account_id,
-                    account.exchange,
-                )
-                return {"status": "error", "reason": "unsupported_exchange"}
+            require_bybit_demo_account(account.exchange, account.mode)
 
             crypto = EncryptionService(settings.trading_encryption_keys)
             api_key = crypto.decrypt(account.api_key_encrypted)
             api_secret = crypto.decrypt(account.api_secret_encrypted)
-            env = account.mode.value  # "demo" | "live"
 
-        endpoint = _BYBIT_WS_ENDPOINTS.get(env, _BYBIT_WS_ENDPOINTS["demo"])
+        endpoint = _BYBIT_DEMO_WS_ENDPOINT
 
-        # 2. Handler / Reconciler 조립 — sm() 가 stream lifetime 동안 새 session 발급.
-        handler = StateHandler(
-            session_factory=sm, settings=settings, user_id=account.user_id
-        )
+        # 2. Transport callback 조립. session은 각 callback의 composition 경계에서만 연다.
+        async def handle_order_event(event_account_id: UUID, payload: dict[str, Any]) -> None:
+            async with sm() as session:
+                service = WebSocketOrderEventService(
+                    repo=OrderRepository(session),
+                    settings=settings,
+                    user_id=account.user_id,
+                )
+                await service.handle_order_event(event_account_id, payload)
+
+        async def load_position_targets(event_account_id: UUID) -> PositionFanoutTargets:
+            async with sm() as session:
+                sessions = await LiveSignalSessionRepository(session).list_active_by_account(
+                    event_account_id
+                )
+                account_ids = [event_account_id]
+                accounts = ExchangeAccountRepository(session)
+                try:
+                    event_account = await accounts.get_by_id(event_account_id)
+                    if event_account is not None and event_account.exchange_uid is not None:
+                        for sibling in await accounts.list_by_exchange_uid(
+                            event_account.exchange_uid
+                        ):
+                            if sibling.id != event_account_id:
+                                account_ids.append(sibling.id)
+                except Exception as exc:
+                    logger.warning(
+                        "account_position_snapshot_sibling_lookup_failed account=%s err=%s",
+                        event_account_id,
+                        exc,
+                    )
+            return PositionFanoutTargets(account_ids=account_ids, sessions=sessions)
+
+        handler = StateHandler(handle_order_event)
         position_handler = PositionFanoutHandler(
-            sm,
+            load_position_targets,
             get_redis_lock_pool(),
             str(account.user_id),
             account_uuid,
@@ -307,9 +329,17 @@ async def _stream_main(
         from src.trading.websocket.reconcile_fetcher import BybitReconcileFetcher
 
         fetcher = BybitReconcileFetcher(account=account, crypto=crypto)
-        reconciler: Reconciler | None = Reconciler(
-            session_factory=sm, fetcher=fetcher, settings=settings
-        )
+
+        async def reconcile_stream(reconcile_account_id: UUID) -> None:
+            async with sm() as session:
+                service = WebSocketReconciliationService(
+                    repo=OrderRepository(session),
+                    fetcher=fetcher,
+                    settings=settings,
+                )
+                await service.run(account_id=reconcile_account_id)
+
+        reconciler: Reconciler | None = Reconciler(reconcile_stream)
 
         stop_event = asyncio.Event()
 
@@ -347,17 +377,13 @@ async def _stream_main(
                         asyncio.create_task(lease_lost_event.wait()),
                     ]
                     try:
-                        await asyncio.wait(
-                            waiters, return_when=asyncio.FIRST_COMPLETED
-                        )
+                        await asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED)
                     finally:
                         for p in waiters:
                             if not p.done():
                                 p.cancel()
                     if lease_lost_event.is_set() and not stop_event.is_set():
-                        logger.warning(
-                            "ws_stream_lease_lost_terminating account=%s", account_id
-                        )
+                        logger.warning("ws_stream_lease_lost_terminating account=%s", account_id)
                         return {
                             "status": "lease_lost",
                             "account_id": account_id,
@@ -369,9 +395,7 @@ async def _stream_main(
                 "reconnect_count": stream.reconnect_count,
             }
         except BybitAuthError as exc:
-            logger.error(
-                "ws_stream_auth_failed account=%s err=%s", account_id, exc
-            )
+            logger.error("ws_stream_auth_failed account=%s err=%s", account_id, exc)
             # Sprint 24 BL-013 (codex G.0 P1 #3): BybitAuthError 즉시 circuit breaker.
             # `ws:auth:blocked:{account_id}` SET PX 3_600_000 — 1h Beat 재시도 noise 차단.
             # 운영자 manual fix (API key 회전 / IP whitelist / clock) + `redis-cli DEL` 수동 해제.
@@ -431,9 +455,10 @@ def reconcile_ws_streams() -> dict[str, Any]:
 
 async def _reconcile_async() -> dict[str, Any]:
     """Sprint 17 Phase B: per-call engine + finally dispose."""
-    from sqlalchemy import select
-
-    from src.trading.models import ExchangeAccount, ExchangeName
+    from src.trading.models import ExchangeName
+    from src.trading.product_policy import is_bybit_demo_account
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 
     enqueued: list[str] = []
     skipped: list[str] = []
@@ -441,16 +466,14 @@ async def _reconcile_async() -> dict[str, Any]:
     engine, sm = create_worker_engine_and_sm()
     try:
         async with sm() as session:
-            # Sprint 13+ scope: TradingSession.is_active 또는 별도 ws_enabled 컬럼 검토.
-            # 현재는 모든 Bybit demo/live 계정이 stream 대상.
-            stmt = select(ExchangeAccount).where(
-                ExchangeAccount.exchange == ExchangeName.bybit,  # type: ignore[arg-type]
-            )
-            accounts = (await session.execute(stmt)).scalars().all()
-            from src.trading.repositories.live_signal_session_repository import (
-                LiveSignalSessionRepository,
-            )
-
+            # 현재 제품 범위는 Bybit Demo뿐이다. legacy live 행은 보존하되 stream을 재등록하지 않는다.
+            accounts = [
+                account
+                for account in await ExchangeAccountRepository(session).list_by_exchange(
+                    ExchangeName.bybit
+                )
+                if is_bybit_demo_account(account.exchange, account.mode)
+            ]
             active_symbols = await LiveSignalSessionRepository(
                 session
             ).list_distinct_active_symbols()

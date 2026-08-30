@@ -37,7 +37,7 @@ from src.common.metrics import qb_order_rejected_total
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import (
     AccountOwnershipMismatch,
-    BalanceUnverified,
+    BybitDemoOnlyError,
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
@@ -55,6 +55,7 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
+from src.trading.product_policy import require_bybit_demo_account
 
 
 @pytest.fixture
@@ -157,10 +158,8 @@ async def test_notional_reject_increments_metric(
     exchange_stub.fetch_balance_usdt = AsyncMock(return_value=Decimal("100"))
     # Wave 1 C5 — min-notional 가드 기본 skip(None=fail-open). max-notional reject 검증 회귀 0.
     exchange_stub.fetch_min_notional = AsyncMock(return_value=None)
-    # Sprint 23 BL-102: OrderService._execute_inner 가 dispatch snapshot 채움 위해
-    # account fetch. notional reject 검증만 하므로 None 반환 OK (snapshot=None → legacy fallback).
-    exchange_stub._repo = MagicMock()
-    exchange_stub._repo.get_by_id = AsyncMock(return_value=None)
+    # capability 부재는 production 경로가 아니므로 snapshot 없이 risk reject만 검증한다.
+    exchange_stub.get_execution_account = AsyncMock(return_value=None)
 
     svc = OrderService(
         session=db_session,
@@ -277,9 +276,7 @@ async def test_idempotency_conflict_reject_increments_metric(
     db_session.add(existing)
     await db_session.commit()
 
-    counter = qb_order_rejected_total.labels(
-        exchange="unknown", reason="idempotency_conflict"
-    )
+    counter = qb_order_rejected_total.labels(exchange="unknown", reason="idempotency_conflict")
     before = counter._value.get()
 
     svc = OrderService(
@@ -352,8 +349,13 @@ def _exchange_stub(
     stub.fetch_balance_usdt = AsyncMock(return_value=balance)
     stub.fetch_min_notional = AsyncMock(return_value=min_notional)
     stub.fetch_mark_price = AsyncMock(return_value=mark_price)
-    stub._repo = MagicMock()
-    stub._repo.get_by_id = AsyncMock(return_value=account)
+
+    async def get_execution_account(_: UUID) -> MagicMock | None:
+        if account is not None:
+            require_bybit_demo_account(account.exchange, account.mode)
+        return account
+
+    stub.get_execution_account = get_execution_account
     return stub
 
 
@@ -381,7 +383,9 @@ def _svc(db_session: AsyncSession, **kwargs):
 
 
 async def test_risk_sizing_reject_survives_metric_failure(
-    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount,
+    db_session: AsyncSession,
+    strategy,
+    exchange_account: ExchangeAccount,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A1 (`order_service.py:129`) — 서버 권위 risk 사이징 거절 직전의 계측 실패.
@@ -417,7 +421,9 @@ async def test_risk_sizing_reject_survives_metric_failure(
 
 
 async def test_ownership_mismatch_reject_survives_metric_failure(
-    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount,
+    db_session: AsyncSession,
+    strategy,
+    exchange_account: ExchangeAccount,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A2 (`order_service.py:169`) — TRD-4 cross-tenant IDOR 차단 직전의 계측 실패.
@@ -453,7 +459,9 @@ async def test_ownership_mismatch_reject_survives_metric_failure(
 
 
 async def test_leverage_cap_reject_survives_metric_failure(
-    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount,
+    db_session: AsyncSession,
+    strategy,
+    exchange_account: ExchangeAccount,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A3 (`order_service.py:200`) — `LeverageCapExceeded` 는 호출자가 타입으로 분기한다."""
@@ -482,7 +490,9 @@ async def test_leverage_cap_reject_survives_metric_failure(
 
 
 async def test_min_notional_reject_survives_metric_failure(
-    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount,
+    db_session: AsyncSession,
+    strategy,
+    exchange_account: ExchangeAccount,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A4 (`order_service.py:245`) — 최소 주문 cost 미달 거절 직전의 계측 실패."""
@@ -514,7 +524,9 @@ async def test_min_notional_reject_survives_metric_failure(
 
 
 async def test_notional_reject_survives_metric_failure(
-    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount,
+    db_session: AsyncSession,
+    strategy,
+    exchange_account: ExchangeAccount,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A5 (`order_service.py:264`) — 증거금 초과 거절 직전의 계측 실패."""
@@ -546,27 +558,24 @@ async def test_notional_reject_survives_metric_failure(
 
 
 @pytest.mark.parametrize("market_order", [False, True])
-async def test_balance_unverified_reject_survives_metric_failure(
-    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount,
-    monkeypatch: pytest.MonkeyPatch, market_order: bool,
+async def test_legacy_live_account_is_rejected_before_risk_metric_gate(
+    db_session: AsyncSession,
+    strategy,
+    exchange_account: ExchangeAccount,
+    monkeypatch: pytest.MonkeyPatch,
+    market_order: bool,
 ) -> None:
-    """A6 (`:279`) · A7 (`:291`) — live fail-closed 거절 직전의 계측 실패.
-
-    ★**A6/A7 의 근거를 축소해 적는다** (codex G1 BLOCKING#2 · 코드 대조로 확인).
-    `BalanceUnverified` 는 `tasks/live_signal.py:3239` 결정론적-거절 튜플에도,
-    `:2793` 무재시도 튜플에도 **없다**. 따라서 dispatch 경로의 재시도 거동은 가드 전후로
-    **같다** — 이 두 자리의 해로운 귀결은 **H5(HTTP 표면) 하나**다. 그 이상을 주장하지 않는다.
-    """
+    """legacy live 계정은 risk/metric 경로보다 먼저 egress capability에서 막힌다."""
     from src.trading.schemas import OrderRequest
 
     calls: list[str] = []
     monkeypatch.setattr(qb_order_rejected_total, "labels", _explode_labels(calls))
 
     live_account = _account_stub(user_id=uuid4(), mode=ExchangeMode.live)
+    exchange_service = _exchange_stub(account=live_account, balance=None, mark_price=None)
     svc = _svc(
         db_session,
-        # A6 = 가격은 있는데 잔고 조회 실패 / A7 = market 인데 mark price 조회 실패
-        exchange_service=_exchange_stub(account=live_account, balance=None, mark_price=None),
+        exchange_service=exchange_service,
     )
     req = OrderRequest(
         strategy_id=strategy.id,
@@ -580,14 +589,18 @@ async def test_balance_unverified_reject_survives_metric_failure(
         margin_mode="cross",
     )
 
-    with pytest.raises(BalanceUnverified) as exc_info:
+    with pytest.raises(BybitDemoOnlyError):
         await svc.execute(req, idempotency_key=None)
 
-    _assert_domain_rejection(exc_info, calls)
+    assert calls == []
+    exchange_service.fetch_mark_price.assert_not_awaited()
+    exchange_service.fetch_balance_usdt.assert_not_awaited()
 
 
 async def test_session_closed_reject_survives_metric_failure(
-    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount,
+    db_session: AsyncSession,
+    strategy,
+    exchange_account: ExchangeAccount,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A8 (`order_service.py:303`) — 거래 시간대 밖 거절 직전의 계측 실패."""
@@ -614,7 +627,9 @@ async def test_session_closed_reject_survives_metric_failure(
 
 
 async def test_kill_switch_reject_survives_metric_failure(
-    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount,
+    db_session: AsyncSession,
+    strategy,
+    exchange_account: ExchangeAccount,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A9 (`order_service.py:327`) — kill switch 차단 직전의 계측 실패.
@@ -647,7 +662,9 @@ async def test_kill_switch_reject_survives_metric_failure(
 
 
 async def test_idempotency_conflict_reject_survives_metric_failure(
-    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount,
+    db_session: AsyncSession,
+    strategy,
+    exchange_account: ExchangeAccount,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A10 (`order_service.py:341`) — idempotency 충돌 거절 직전의 계측 실패.

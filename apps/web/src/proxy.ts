@@ -104,7 +104,10 @@ export default async function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // ★확장자 제외는 **첫 세그먼트에만** 건다(`[^/?]*`). 앵커 없이 `[^?]*` 로 두면 판정이 경로
+    //   어디서나 걸려 `/backtests/<id>.png` 같은 **동적 세그먼트 경로가 인증 게이트를 통째로
+    //   건너뛴다**(2026-08-30 아키텍처 감사). 회귀 = `__tests__/proxy-gate.test.ts` 의 matcher 절.
+    "/((?!_next|[^/?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
   ],
 };

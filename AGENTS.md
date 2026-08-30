@@ -42,7 +42,8 @@ Trading(CCXT 주문) / Market Data(TimescaleDB).
 - **거래소** — CCXT(Bybit demo) · **LLM** — provider **순서는 코드가 아니라 설정**이 정한다
   (`LLM_PROVIDER_ORDER` = `anthropic`·`openai`·`gemini` 중 쉼표 목록). 브리핑 해설·전략 생성의 호출부는
   `strategy/narrative/providers.py` **한 곳**이고 세 provider 모두 **스키마를 강제**한다.
-  ★`strategy/convert/service.py` 는 아직 그 층 밖이다 — 거기는 스키마 강제가 0이라 문자열을 손으로 파싱한다
+  `strategy/convert/service.py`도 같은 층의 `complete_json` 계약을 쓰며, `converted_code` JSON schema와
+  실제 provider·token usage를 소비한다.
 - **테스트** — BE `pytest` · FE `vitest` + Playwright e2e · **lint 는 BE `ruff` / FE `biome` 단독**([ADR-039](./docs/adr/039-frontend-biome.md))
 - **도구 버전 SSOT = 루트 `mise.toml` 하나**([ADR-036](./docs/adr/036-tool-version-ssot-mise.md)) — 숫자를 다른 곳에 적지 마라(예외는 Dockerfile 2곳)
 
@@ -85,6 +86,9 @@ mise tasks             # 전체 목록   ·  mise run help ·  mise ls  # 도구
 # ★ALWAYS — BE pytest 는 .env.local 을 **통째로** 소싱한다 (DATABASE_URL 단독 주입 금지 — §3)
 cd apps/api && set -a; . ./.env.local; set +a; uv run pytest
 
+cd apps/api && uv run mypy src                # BE 타입 (차단 게이트)
+cd apps/api && uv run python scripts/export_openapi.py --check   # OpenAPI drift (차단 게이트)
+
 cd apps/web && pnpm exec biome check .        # FE lint (단독 게이트)
 ./tools/scripts/ledger-vitals.sh              # 원장 3축
 ```
@@ -126,7 +130,7 @@ herdr 함대 래퍼는 2026-08-13 제거됐다([ADR-030](./docs/adr/030-harness-
 | `.husky/pre-push` | main/master 직접 push (`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*` 는 통과) |
 | pre-commit `ledger-vitals.sh` | `다음 행동` ≤1 · ⓪ 표 ≥1행 · RESOLVED 역류 0 |
 | pre-commit lint-staged | 스테이지된 `.py` 에 `ruff check --fix` + `ruff format` |
-| CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` + `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` |
+| CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` → `scripts/export_openapi.py --check`(OpenAPI drift) → `mypy src` → `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` |
 | `tools/scripts/hooks/` | codex 레이어 가드 (위험 명령 차단) |
 
 ★**CI 는 `ruff format` 을 안 잰다** — 레포에 format 드리프트가 상시 있고 그것은 red 가 아니다.

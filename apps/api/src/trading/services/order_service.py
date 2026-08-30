@@ -34,7 +34,7 @@ from src.trading.kill_switch import KillSwitchService
 from src.trading.models import ExchangeMode, Order, OrderState
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import OrderRequest, OrderResponse
-from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.account_service import ExchangeAccountService, ExecutionAccount
 from src.trading.services.protocols import OrderDispatcher, StrategySessionsPort
 
 logger = logging.getLogger(__name__)
@@ -201,6 +201,14 @@ class OrderService:
         4. idempotency 경로: lock → existing 확인 → hash 비교 → gate → INSERT
         5. commit 후 Celery dispatch (visibility race 방지)
         """
+        # 계정 capability를 한 번만 읽어 제품 정책, 소유권, dispatch snapshot에 쓴다.
+        # OrderService가 다른 service의 private repository/암호문 모델에 도달하지 않는다.
+        execution_account: ExecutionAccount | None = None
+        if self._exchange_service is not None:
+            execution_account = await self._exchange_service.get_execution_account(
+                req.exchange_account_id
+            )
+
         # ── TRD-4: cross-tenant ownership gate (모든 side-effect 이전) ──
         # webhook 경로는 strategy HMAC 으로만 인증되고 exchange_account_id 를 caller
         # payload 에서 받으므로, account 소유자 != strategy 소유자면 거부해야 한다
@@ -209,12 +217,11 @@ class OrderService:
         # (get_order_service / live_signal) 에서 강제. 둘 다 없으면 검증 불가 →
         # data-layer 강제는 Phase C(TI-5) 후속.
         if self._sessions_port is not None and self._exchange_service is not None:
-            owner_account = await self._exchange_service._repo.get_by_id(req.exchange_account_id)
             strategy_owner = await self._sessions_port.get_owner(req.strategy_id)
             if (
-                owner_account is None
+                execution_account is None
                 or strategy_owner is None
-                or owner_account.user_id != strategy_owner
+                or execution_account.user_id != strategy_owner
             ):
                 _count_safely(
                     qb_order_rejected_total, exchange="unknown", reason="ownership_mismatch"
@@ -240,19 +247,18 @@ class OrderService:
         _metric_exchange = "unknown"
 
         # Sprint 23 BL-102 — dispatch snapshot 채움 (codex G.0 P1 #3 fix).
-        # exchange_service 주입 시 account fetch 후 (exchange, mode, has_leverage) 저장.
+        # exchange_service 주입 시 policy-verified account fetch 후 (exchange, mode,
+        # has_leverage) 저장.
         # exchange_service None (test 환경) → snapshot=None → tasks/trading.py legacy fallback.
         # OrderService.execute 의 inner transaction 시작 전에 미리 fetch 하여 양쪽 INSERT 분기
         # (idempotent vs non-idempotent) 모두에서 동일 snapshot 사용.
         dispatch_snapshot: dict[str, object] | None = None
-        if self._exchange_service is not None:
-            account = await self._exchange_service._repo.get_by_id(req.exchange_account_id)
-            if account is not None:
-                dispatch_snapshot = {
-                    "exchange": account.exchange.value,
-                    "mode": account.mode.value,
-                    "has_leverage": req.leverage is not None and req.leverage > 0,
-                }
+        if execution_account is not None:
+            dispatch_snapshot = {
+                "exchange": execution_account.exchange.value,
+                "mode": execution_account.mode.value,
+                "has_leverage": req.leverage is not None and req.leverage > 0,
+            }
 
         if not flatten:
             # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.

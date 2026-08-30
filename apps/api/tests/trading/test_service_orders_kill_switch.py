@@ -21,6 +21,7 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.schemas import OrderRequest
+from src.trading.services.account_service import ExecutionAccount
 
 
 @pytest.fixture
@@ -99,10 +100,21 @@ class _OwnerPort:
 
 
 class _AccountLookup:
-    """OrderService 가 소유 게이트에서 쓰는 것은 `exchange_service._repo` 뿐이다."""
+    """OrderService 소유 게이트용 public execution-account capability fake."""
 
     def __init__(self, repo) -> None:
         self._repo = repo
+
+    async def get_execution_account(self, account_id: UUID) -> ExecutionAccount | None:
+        account = await self._repo.get_by_id(account_id)
+        if account is None:
+            return None
+        return ExecutionAccount(
+            id=account.id,
+            user_id=account.user_id,
+            exchange=account.exchange,
+            mode=account.mode,
+        )
 
 
 # ---------- tests ----------

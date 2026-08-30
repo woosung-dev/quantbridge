@@ -31,11 +31,11 @@ _COMPOSE_HOSTS = ("://redis:", "@db:", "://db:")
 
 def _settings_infra_fields() -> dict[str, str]:
     """`Settings` 에서 기본값이 compose 호스트를 가리키는 필드 → 환경변수명."""
-    from src.core.config import Settings
+    from src.core.config import Settings, secret_value
 
     out: dict[str, str] = {}
     for name, field in Settings.model_fields.items():
-        default = field.default
+        default = secret_value(field.default)
         if not isinstance(default, str):
             continue
         if any(tok in default for tok in _COMPOSE_HOSTS):

@@ -11,9 +11,9 @@ import { usePathname } from "next/navigation";
 
 import { RealtimeBridge } from "@/features/realtime/realtime-bridge";
 
-import { DashboardHeader } from "./dashboard-header";
+import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
-import { MobileNav } from "./mobile-nav";
+import { MobileNav } from "@/components/layout/mobile-nav";
 
 // 페이지 타이틀 매핑 (상단바 breadcrumb). 미매핑 경로는 마지막 세그먼트로 폴백.
 const PAGE_TITLE_MAP: Record<string, string> = {

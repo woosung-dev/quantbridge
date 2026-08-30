@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from src.core.config import settings
+from src.core.config import secret_value, settings
 
 
 def create_worker_engine_and_sm() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
@@ -38,6 +38,6 @@ def create_worker_engine_and_sm() -> tuple[AsyncEngine, async_sessionmaker[Async
     테스트에서는 본 함수를 monkeypatch 로 대체하여 공유 세션 / no-op engine
     주입 가능.
     """
-    engine = create_async_engine(settings.database_url, echo=False)
+    engine = create_async_engine(secret_value(settings.database_url), echo=False)
     sm = async_sessionmaker(engine, expire_on_commit=False)
     return engine, sm

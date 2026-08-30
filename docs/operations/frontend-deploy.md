@@ -68,6 +68,8 @@ XHR 도 FE 컨테이너의 SSR 헤어핀도 그 리다이렉트를 못 따라간
 ```
 FRONTEND_URL=https://qb.woosung.dev              # CORS(main.py) + WS origin 검사(realtime/router.py)
 PROMETHEUS_BEARER_TOKEN=<openssl rand -hex 32>   # 공개 /metrics 차단
+BETTER_AUTH_URL=https://qb.woosung.dev           # JWT iss/aud — FE와 반드시 동일
+BETTER_AUTH_JWKS_URL=http://127.0.0.1:3200/api/auth/jwks  # API→FE 내부 JWKS
 ```
 
 `~/quantbridge/.env`:
@@ -75,7 +77,14 @@ PROMETHEUS_BEARER_TOKEN=<openssl rand -hex 32>   # 공개 /metrics 차단
 ```
 QB_FRONTEND_TAG=<맥에서 build 한 태그>
 QB_TUNNEL_TOKEN=<3.1 의 토큰>
+BETTER_AUTH_SECRET=<openssl rand -base64 32>
+BETTER_AUTH_URL=https://qb.woosung.dev
+BETTER_AUTH_DATABASE_URL=postgresql://<auth-role>:<password>@<db-host>:5432/<db-name>
 ```
+
+`BETTER_AUTH_SECRET`·`BETTER_AUTH_URL`·`BETTER_AUTH_DATABASE_URL`은 frontend compose가
+기동 전에 요구한다. API의 `BETTER_AUTH_URL`은 동일 공개 origin, `BETTER_AUTH_JWKS_URL`은
+컨테이너 내부 FE 주소여야 터널 왕복 없이 JWT를 검증한다.
 
 ★`PROMETHEUS_BEARER_TOKEN` 은 `APP_ENV=production` 없이도 강제된다. **게이트가 `QB_METRICS_URL`
 없이(= `.metrics` 직독) 도는지 먼저 확인해라** — HTTP 갈래는 베어러 헤더를 안 보내서 401 이 되고

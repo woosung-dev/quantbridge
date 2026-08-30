@@ -25,10 +25,10 @@ beforeEach(() => {
 });
 
 describe("AccountBalanceSection", () => {
-  it("활성 세션 계정이 없으면 빈 상태를 표시한다", () => {
+  it("활성 Bybit 데모 세션 계정이 없으면 빈 상태를 표시한다", () => {
     render(<AccountBalanceSection accounts={[]} />);
     expect(screen.getByTestId("account-balance-empty")).toHaveTextContent(
-      "활성 라이브 세션이 없습니다.",
+      "활성 Bybit 데모 세션이 없습니다.",
     );
   });
 

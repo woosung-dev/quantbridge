@@ -27,7 +27,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
 
 from src.common.metrics import qb_rate_limit_throttled_total
-from src.core.config import Environment, settings
+from src.core.config import Environment, secret_value, settings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ def create_limiter() -> Limiter:
     """
     return Limiter(
         key_func=rate_limit_key,
-        storage_uri=settings.redis_lock_url,
+        storage_uri=secret_value(settings.redis_lock_url),
         # limits 라이브러리의 RedisStorage 가 sync redis.Redis 를 만들므로
         # async event loop 차단 방지 위해 socket timeout 강제 (codex Critical).
         # storage_options 는 redis.Redis(**options) 로 그대로 전달 (**options kwarg 지원 확인됨).

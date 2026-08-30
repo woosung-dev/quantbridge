@@ -4,17 +4,33 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import AccountNotFound, ProviderError
-from src.trading.models import ExchangeAccount, ExchangeName
+from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName
+from src.trading.product_policy import is_bybit_demo_account, require_bybit_demo_account
 from src.trading.providers import BybitFuturesProvider, Credentials
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.schemas import RegisterAccountRequest, mask_api_key
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionAccount:
+    """주문 경로가 필요한 비밀 없는 계정 capability.
+
+    OrderService가 repository나 암호문 모델에 도달하지 않도록, 소유권·dispatch에
+    필요한 식별자와 제품 정책이 검증된 조합만 전달한다.
+    """
+
+    id: UUID
+    user_id: UUID
+    exchange: ExchangeName
+    mode: ExchangeMode
 
 
 class ExchangeAccountService:
@@ -29,15 +45,12 @@ class ExchangeAccountService:
         self._bybit_futures_provider = bybit_futures_provider
 
     async def register(self, user_id: UUID, req: RegisterAccountRequest) -> ExchangeAccount:
-        # Sprint 7d: passphrase는 선택적. 존재 시 동일 AES-256 레이어로 암호화.
-        passphrase_ct = self._crypto.encrypt(req.passphrase) if req.passphrase else None
         account = ExchangeAccount(
             user_id=user_id,
-            exchange=req.exchange,
-            mode=req.mode,
-            api_key_encrypted=self._crypto.encrypt(req.api_key),
-            api_secret_encrypted=self._crypto.encrypt(req.api_secret),
-            passphrase_encrypted=passphrase_ct,
+            exchange=ExchangeName.bybit,
+            mode=ExchangeMode.demo,
+            api_key_encrypted=self._crypto.encrypt(req.api_key.get_secret_value()),
+            api_secret_encrypted=self._crypto.encrypt(req.api_secret.get_secret_value()),
             label=req.label,
         )
         saved = await self._repo.save(account)
@@ -57,6 +70,19 @@ class ExchangeAccountService:
 
     async def list_for_user(self, user_id: UUID) -> Sequence[ExchangeAccount]:
         return await self._repo.list_by_user(user_id)
+
+    async def get_execution_account(self, account_id: UUID) -> ExecutionAccount | None:
+        """Bybit Demo egress에만 쓸 수 있는 비밀 없는 계정 capability를 반환한다."""
+        account = await self._repo.get_by_id(account_id)
+        if account is None:
+            return None
+        require_bybit_demo_account(account.exchange, account.mode)
+        return ExecutionAccount(
+            id=account.id,
+            user_id=account.user_id,
+            exchange=account.exchange,
+            mode=account.mode,
+        )
 
     async def delete_for_user(self, account_id: UUID, user_id: UUID) -> None:
         """소유권 검사 + 삭제 + 커밋을 한 경계 안에 둔다.
@@ -88,7 +114,7 @@ class ExchangeAccountService:
 
     async def _populate_exchange_identity(self, account: ExchangeAccount) -> bool:
         if (
-            account.exchange != ExchangeName.bybit
+            not is_bybit_demo_account(account.exchange, account.mode)
             or account.exchange_uid is not None
             or self._bybit_futures_provider is None
         ):
@@ -108,15 +134,13 @@ class ExchangeAccountService:
         return True
 
     def _credentials_for(self, account: ExchangeAccount) -> Credentials:
-        passphrase_pt = (
-            self._crypto.decrypt(account.passphrase_encrypted)
-            if account.passphrase_encrypted is not None
-            else None
-        )
+        # 반드시 복호화보다 먼저 확인한다. legacy live/OKX 행은 데이터로 보존하지만
+        # private API에 쓸 평문 자격증명으로는 절대 바꾸지 않는다.
+        require_bybit_demo_account(account.exchange, account.mode)
         return Credentials(
             api_key=self._crypto.decrypt(account.api_key_encrypted),
             api_secret=self._crypto.decrypt(account.api_secret_encrypted),
-            passphrase=passphrase_pt,
+            exchange=account.exchange,
             environment=account.mode,
         )
 
@@ -125,6 +149,7 @@ class ExchangeAccountService:
         account = await self._repo.get_by_id(account_id)
         if account is None:
             raise AccountNotFound(account_id)
+        require_bybit_demo_account(account.exchange, account.mode)
         logger.info(
             "trading_credentials_decrypted",
             extra={
@@ -147,7 +172,9 @@ class ExchangeAccountService:
         account = await self._repo.get_by_id(account_id)
         if account is None:
             return None
-        if self._bybit_futures_provider is None or account.exchange.value != "bybit":
+        if self._bybit_futures_provider is None or not is_bybit_demo_account(
+            account.exchange, account.mode
+        ):
             return None
         creds = await self.get_credentials_for_order(account_id)
         try:
@@ -173,7 +200,9 @@ class ExchangeAccountService:
         account = await self._repo.get_by_id(account_id)
         if account is None:
             return None
-        if self._bybit_futures_provider is None or account.exchange.value != "bybit":
+        if self._bybit_futures_provider is None or not is_bybit_demo_account(
+            account.exchange, account.mode
+        ):
             return None
         creds = await self.get_credentials_for_order(account_id)
         try:
@@ -204,7 +233,9 @@ class ExchangeAccountService:
         account = await self._repo.get_by_id(account_id)
         if account is None:
             return None
-        if self._bybit_futures_provider is None or account.exchange.value != "bybit":
+        if self._bybit_futures_provider is None or not is_bybit_demo_account(
+            account.exchange, account.mode
+        ):
             return None
         creds = await self.get_credentials_for_order(account_id)
         try:

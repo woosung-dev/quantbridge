@@ -12,6 +12,31 @@ from uuid import UUID, uuid4
 import pytest
 
 
+def _install_exchange_account_repository(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    account: object | None = None,
+    accounts: list[object] | None = None,
+) -> None:
+    """task 조립이 repository 경계를 통해 계정을 읽는 계약용 fake."""
+    repository_module = import_module("src.trading.repositories.exchange_account_repository")
+
+    class _ExchangeAccountRepository:
+        def __init__(self, _session: object) -> None:
+            pass
+
+        async def get_by_id(self, _account_id: UUID) -> object | None:
+            return account
+
+        async def list_by_exchange(self, _exchange: object) -> list[object]:
+            return accounts or []
+
+        async def list_by_exchange_uid(self, _exchange_uid: str) -> list[object]:
+            return []
+
+    monkeypatch.setattr(repository_module, "ExchangeAccountRepository", _ExchangeAccountRepository)
+
+
 @pytest.mark.parametrize(
     ("task_name", "coroutine_name", "expected"),
     [
@@ -160,7 +185,7 @@ async def test_private_stream_builds_handlers_and_returns_reconnect_count_on_sto
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Bybit 계정 stream은 복호화·handler 조립 뒤 shutdown signal로 정상 종료한다."""
-    from src.trading.models import ExchangeAccount, ExchangeName
+    from src.trading.models import ExchangeMode, ExchangeName
 
     websocket_module = import_module("src.tasks.websocket_task")
     encryption_module = import_module("src.trading.encryption")
@@ -174,11 +199,10 @@ async def test_private_stream_builds_handlers_and_returns_reconnect_count_on_sto
         exchange=ExchangeName.bybit,
         api_key_encrypted=b"encrypted-key",
         api_secret_encrypted=b"encrypted-secret",
-        mode=SimpleNamespace(value="demo"),
+        mode=ExchangeMode.demo,
         user_id=user_id,
     )
     session = MagicMock()
-    session.get = AsyncMock(return_value=account)
     engine = MagicMock()
     engine.dispose = AsyncMock()
     settings = SimpleNamespace(trading_encryption_keys=["test-key"])
@@ -226,19 +250,22 @@ async def test_private_stream_builds_handlers_and_returns_reconnect_count_on_sto
     monkeypatch.setattr(trading_websocket_module, "Reconciler", reconciler)
     monkeypatch.setattr(trading_websocket_module, "BybitPrivateStream", private_stream_factory)
     monkeypatch.setattr(reconcile_fetcher_module, "BybitReconcileFetcher", reconcile_fetcher)
+    _install_exchange_account_repository(monkeypatch, account=account)
 
     result = await websocket_module._stream_main(account_id)
 
     assert result == {"status": "completed", "account_id": account_id, "reconnect_count": 4}
-    session.get.assert_awaited_once_with(ExchangeAccount, account_uuid)
     assert crypto.decrypt.call_args_list[0].args == (b"encrypted-key",)
     assert crypto.decrypt.call_args_list[1].args == (b"encrypted-secret",)
-    state_handler.assert_called_once_with(session_factory=ANY, settings=settings, user_id=user_id)
+    state_handler.assert_called_once()
+    assert callable(state_handler.call_args.args[0])
     position_handler.assert_called_once_with(ANY, redis_pool, str(user_id), account_uuid)
     topic_router.assert_called_once()
+    reconciler.assert_called_once()
+    assert callable(reconciler.call_args.args[0])
     reconcile_fetcher.assert_called_once_with(account=account, crypto=crypto)
     private_stream_kwargs = private_stream_factory.call_args.kwargs
-    assert private_stream_kwargs["endpoint"] == websocket_module._BYBIT_WS_ENDPOINTS["demo"]
+    assert private_stream_kwargs["endpoint"] == websocket_module._BYBIT_DEMO_WS_ENDPOINT
     assert private_stream_kwargs["api_key"] == "api-key"
     assert private_stream_kwargs["api_secret"] == "api-secret"
     assert private_stream_kwargs["account_id"] == account_uuid
@@ -256,12 +283,16 @@ async def test_reconcile_enqueues_only_inactive_private_and_public_streams(
     websocket_module = import_module("src.tasks.websocket_task")
     lease_module = import_module("src.tasks._ws_lease")
     repository_module = import_module("src.trading.repositories.live_signal_session_repository")
-    first_account = SimpleNamespace(id=uuid4())
-    second_account = SimpleNamespace(id=uuid4())
+    from src.trading.models import ExchangeMode, ExchangeName
+
+    first_account = SimpleNamespace(id=uuid4(), exchange=ExchangeName.bybit, mode=ExchangeMode.demo)
+    second_account = SimpleNamespace(
+        id=uuid4(), exchange=ExchangeName.bybit, mode=ExchangeMode.demo
+    )
+    legacy_live_account = SimpleNamespace(
+        id=uuid4(), exchange=ExchangeName.bybit, mode=ExchangeMode.live
+    )
     session = MagicMock()
-    result = MagicMock()
-    result.scalars.return_value.all.return_value = [first_account, second_account]
-    session.execute = AsyncMock(return_value=result)
     engine = MagicMock()
     engine.dispose = AsyncMock()
 
@@ -287,6 +318,9 @@ async def test_reconcile_enqueues_only_inactive_private_and_public_streams(
         websocket_module, "create_worker_engine_and_sm", lambda: (engine, _SessionMaker())
     )
     monkeypatch.setattr(repository_module, "LiveSignalSessionRepository", _LiveSessionRepository)
+    _install_exchange_account_repository(
+        monkeypatch, accounts=[first_account, second_account, legacy_live_account]
+    )
     monkeypatch.setattr(lease_module, "is_lease_active", is_lease_active)
     monkeypatch.setattr(websocket_module.run_bybit_private_stream, "delay", private_delay)
     monkeypatch.setattr(websocket_module.run_bybit_public_ticker_stream, "delay", public_delay)
@@ -307,6 +341,7 @@ async def test_reconcile_enqueues_only_inactive_private_and_public_streams(
         websocket_module._PUBLIC_TICKER_LEASE_ID,
     ]
     private_delay.assert_called_once_with(second_id)
+    assert str(legacy_live_account.id) not in reconciled["enqueued"]
     public_delay.assert_called_once_with()
     engine.dispose.assert_awaited_once_with()
 
@@ -510,7 +545,6 @@ async def test_private_stream_missing_account_logs_error_and_disposes_engine(
     engine = MagicMock()
     engine.dispose = AsyncMock()
     session = MagicMock()
-    session.get = AsyncMock(return_value=None)
     logger = MagicMock()
 
     @asynccontextmanager
@@ -528,11 +562,59 @@ async def test_private_stream_missing_account_logs_error_and_disposes_engine(
         lambda: (engine, _SessionMaker()),
     )
     monkeypatch.setattr(websocket_module, "logger", logger)
+    _install_exchange_account_repository(monkeypatch, account=None)
 
     result = await websocket_module._stream_main(account_id)
 
     assert result == {"status": "error", "reason": "account_not_found"}
     logger.error.assert_called_once_with("ws_stream_account_not_found account=%s", account_id)
+    engine.dispose.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_private_stream_rejects_legacy_live_before_decrypt_or_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """보존된 live 계정은 private WS 자격증명 복호화·endpoint 선택 전에 차단한다."""
+    from src.trading.exceptions import BybitDemoOnlyError
+    from src.trading.models import ExchangeMode, ExchangeName
+
+    websocket_module = import_module("src.tasks.websocket_task")
+    encryption_module = import_module("src.trading.encryption")
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+    account_id = str(uuid4())
+    account = SimpleNamespace(
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.live,
+        api_key_encrypted=b"encrypted-key",
+        api_secret_encrypted=b"encrypted-secret",
+    )
+
+    @asynccontextmanager
+    async def session_context():
+        yield MagicMock()
+
+    class _SessionMaker:
+        def __call__(self):
+            return session_context()
+
+    crypto_cls = MagicMock()
+    stream_factory = MagicMock()
+    monkeypatch.setattr(
+        websocket_module,
+        "create_worker_engine_and_sm",
+        lambda: (engine, _SessionMaker()),
+    )
+    monkeypatch.setattr(encryption_module, "EncryptionService", crypto_cls)
+    monkeypatch.setattr("src.trading.websocket.BybitPrivateStream", stream_factory)
+    _install_exchange_account_repository(monkeypatch, account=account)
+
+    with pytest.raises(BybitDemoOnlyError):
+        await websocket_module._stream_main(account_id)
+
+    crypto_cls.assert_not_called()
+    stream_factory.assert_not_called()
     engine.dispose.assert_awaited_once_with()
 
 
@@ -546,9 +628,6 @@ async def test_reconcile_zero_accounts_and_symbols_skips_all_enqueue(
     engine = MagicMock()
     engine.dispose = AsyncMock()
     session = MagicMock()
-    query_result = MagicMock()
-    query_result.scalars.return_value.all.return_value = []
-    session.execute = AsyncMock(return_value=query_result)
     private_delay = MagicMock()
     public_delay = MagicMock()
 
@@ -573,6 +652,7 @@ async def test_reconcile_zero_accounts_and_symbols_skips_all_enqueue(
         lambda: (engine, _SessionMaker()),
     )
     monkeypatch.setattr(repository_module, "LiveSignalSessionRepository", _LiveSessionRepository)
+    _install_exchange_account_repository(monkeypatch, accounts=[])
     monkeypatch.setattr(websocket_module.run_bybit_private_stream, "delay", private_delay)
     monkeypatch.setattr(websocket_module.run_bybit_public_ticker_stream, "delay", public_delay)
 

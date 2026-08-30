@@ -17,7 +17,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.trading.models import OrderSide, OrderState
+from src.trading.models import ExchangeMode, ExchangeName, OrderSide, OrderState
 from src.trading.providers import PositionInfo
 from src.trading.services.conditional_entry_planner import (
     build_conditional_entry_key,
@@ -289,7 +289,8 @@ async def test_task_body_counts_the_bucket_it_measured(monkeypatch: pytest.Monke
         api_key_encrypted=b"k",
         api_secret_encrypted=b"s",
         passphrase_encrypted=None,
-        mode="demo",
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
     )
     provider = AsyncMock()
     provider.fetch_position = AsyncMock(return_value=_position("long", Decimal("8")))
@@ -367,7 +368,8 @@ async def test_exchange_failure_is_unmeasured_not_silence(monkeypatch: pytest.Mo
         api_key_encrypted=b"k",
         api_secret_encrypted=b"s",
         passphrase_encrypted=None,
-        mode="demo",
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
     )
     provider = AsyncMock()
     provider.fetch_position = AsyncMock(side_effect=ProviderError("network down"))
@@ -435,7 +437,11 @@ async def test_confirmed_reversal_schedules_the_closed_pnl_refresh(
     order_id = uuid4()
     order = _reversal_order(order_id)
     account = SimpleNamespace(
-        api_key_encrypted=b"k", api_secret_encrypted=b"s", passphrase_encrypted=None, mode="demo"
+        api_key_encrypted=b"k",
+        api_secret_encrypted=b"s",
+        passphrase_encrypted=None,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
     )
     scheduled = _install_measure_stubs(monkeypatch, order, account)
 
@@ -466,7 +472,11 @@ async def test_plain_entry_does_not_schedule_a_refresh(monkeypatch: pytest.Monke
     order_id = uuid4()
     order = _reversal_order(order_id)
     account = SimpleNamespace(
-        api_key_encrypted=b"k", api_secret_encrypted=b"s", passphrase_encrypted=None, mode="demo"
+        api_key_encrypted=b"k",
+        api_secret_encrypted=b"s",
+        passphrase_encrypted=None,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
     )
     scheduled = _install_measure_stubs(monkeypatch, order, account)
 
@@ -496,7 +506,11 @@ async def test_unmeasured_does_not_schedule_and_is_left_to_the_sweep(
     order_id = uuid4()
     order = _reversal_order(order_id)
     account = SimpleNamespace(
-        api_key_encrypted=b"k", api_secret_encrypted=b"s", passphrase_encrypted=None, mode="demo"
+        api_key_encrypted=b"k",
+        api_secret_encrypted=b"s",
+        passphrase_encrypted=None,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
     )
     scheduled = _install_measure_stubs(monkeypatch, order, account)
 

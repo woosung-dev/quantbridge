@@ -9,7 +9,7 @@ import {
   createRealtimeWsClient,
   type RealtimeClient,
   type RealtimeWsClientOptions,
-} from "@/lib/ws-client";
+} from "./ws-client";
 import { liveSessionKeys } from "@/features/live-sessions/query-keys";
 import { tradingKeys } from "@/features/trading/query-keys";
 

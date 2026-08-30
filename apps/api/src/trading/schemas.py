@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from src.common.normalized_symbol import NormalizedSymbol
 from src.trading.models import (
@@ -21,21 +21,17 @@ from src.trading.models import (
 
 
 class RegisterAccountRequest(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """Bybit Demo 계정 등록 입력.
 
-    exchange: ExchangeName
-    mode: ExchangeMode
-    api_key: str = Field(min_length=1, max_length=200)
-    api_secret: str = Field(min_length=1, max_length=200)
-    # Sprint 7d: OKX auth 3요소. Bybit/Binance는 생략 가능.
-    passphrase: str | None = Field(default=None, min_length=1, max_length=200)
+    거래소와 모드는 사용자가 고르는 값이 아니다. 서버가 제품 불변식인
+    ``bybit/demo``로만 저장해 legacy/live 입력이 저장 경로에 들어오지 않게 한다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: SecretStr = Field(min_length=1, max_length=200)
+    api_secret: SecretStr = Field(min_length=1, max_length=200)
     label: str | None = Field(default=None, max_length=120)
-
-    @model_validator(mode="after")
-    def _require_passphrase_for_okx(self) -> RegisterAccountRequest:
-        if self.exchange == ExchangeName.okx and not self.passphrase:
-            raise ValueError("OKX accounts require a passphrase")
-        return self
 
 
 class ExchangeAccountResponse(BaseModel):

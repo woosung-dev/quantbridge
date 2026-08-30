@@ -7,7 +7,7 @@
 // 주지 않으면 React Query 키가 `anon` → 진짜 id 로 흔들려 목록·배지 요청이 전부 두 번 나간다.
 // `getServerAuth()` 는 `React.cache` 라 같은 요청의 페이지 호출과 왕복을 공유한다.
 import type { ReactNode } from "react";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { DashboardShell } from "@/features/dashboard/components/dashboard-shell";
 import { ServerIdentityProvider } from "@/components/providers/server-identity-provider";
 import { ShortcutHelpDialog } from "@/components/shortcut-help-dialog";
 import { getServerAuth } from "@/lib/auth-server";

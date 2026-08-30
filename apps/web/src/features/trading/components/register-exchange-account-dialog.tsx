@@ -1,6 +1,5 @@
-// 거래소 계정 등록 다이얼로그. Bybit demo/live 모드로 API key/secret 을 입력받아
-// RegisterAccountRequestSchema(zodV4Resolver)로 검증한 뒤 useRegisterExchangeAccount
-// mutation 으로 등록한다. 현재 연결 거래소는 Bybit 하나뿐이라 passphrase 는 항상 null 로 보낸다.
+// 거래소 계정 등록 다이얼로그. 제품 정책이 Bybit Demo를 고정하므로 API key/secret과 레이블만
+// 입력받아 RegisterAccountRequestSchema(zodV4Resolver)로 검증한 뒤 mutation으로 등록한다.
 "use client";
 
 import { useState } from "react";
@@ -19,13 +18,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useRegisterExchangeAccount } from "../hooks";
 import { RegisterAccountRequestSchema, type RegisterAccountRequest } from "../schemas";
 
@@ -38,12 +30,9 @@ export function RegisterExchangeAccountDialog() {
     // @hookform/resolvers/zod 와 호환 안 됨 → 공유 zodV4Resolver 사용.
     resolver: zodV4Resolver(RegisterAccountRequestSchema),
     defaultValues: {
-      exchange: "bybit",
-      mode: "demo",
       label: null,
       api_key: "",
       api_secret: "",
-      passphrase: null,
     },
   });
 
@@ -52,8 +41,7 @@ export function RegisterExchangeAccountDialog() {
     // 이전엔 try/catch 없이 mutateAsync 가 throw 시 unhandled rejection → 사용자 무피드백.
     form.clearErrors("root.serverError");
     try {
-      // C 이식(W3-F): 연결 거래소는 Bybit 하나뿐이라 passphrase 는 항상 null 로 보낸다.
-      await register.mutateAsync({ ...values, passphrase: null });
+      await register.mutateAsync(values);
       setOpen(false);
       form.reset();
     } catch (err) {
@@ -76,50 +64,9 @@ export function RegisterExchangeAccountDialog() {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="exchange"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>거래소</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="거래소 선택" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="bybit">Bybit</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      현재 연결된 거래소는 Bybit 하나입니다.
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="mode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>모드</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="demo">데모</SelectItem>
-                        <SelectItem value="live">라이브</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <p className="notice-inline" data-testid="bybit-demo-only-notice">
+                <strong>Bybit 데모 전용</strong>. 새 계정은 Bybit Demo 환경으로만 등록됩니다.
+              </p>
               <FormField
                 control={form.control}
                 name="label"

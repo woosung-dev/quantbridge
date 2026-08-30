@@ -18,13 +18,12 @@ reconciler 하나이며 그쪽은 `tests/trading/websocket/test_reconciliation*.
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 
-import src.trading.websocket.state_handler as state_handler_mod
+import src.trading.services.websocket_order_event_service as state_handler_mod
 from src.common.metrics import qb_ws_orphan_discarded_total, qb_ws_orphan_event_total
 from src.core.config import Settings
 from src.trading.models import (
@@ -36,32 +35,20 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
-from src.trading.websocket.state_handler import StateHandler
+from src.trading.repositories.order_repository import OrderRepository
+from src.trading.services.websocket_order_event_service import WebSocketOrderEventService
 
 
-def _discarded(account_id, reason: str) -> float:
-    return qb_ws_orphan_discarded_total.labels(
-        account_id=str(account_id), reason=reason
-    )._value.get()  # type: ignore[attr-defined]
+def _discarded(reason: str) -> float:
+    return qb_ws_orphan_discarded_total.labels(reason=reason)._value.get()  # type: ignore[attr-defined]
 
 
-def _arrived(account_id) -> float:
-    return qb_ws_orphan_event_total.labels(
-        account_id=str(account_id)
-    )._value.get()  # type: ignore[attr-defined]
+def _arrived() -> float:
+    return qb_ws_orphan_event_total._value.get()  # type: ignore[attr-defined]
 
 
 def _make_settings() -> Settings:
     return Settings()
-
-
-@pytest.fixture
-def session_factory(db_session):
-    @asynccontextmanager
-    async def factory():
-        yield db_session
-
-    return factory
 
 
 @pytest.fixture
@@ -91,7 +78,7 @@ async def sample_order(db_session, strategy, user):
 
 
 async def test_orphan_terminal_event_is_counted_as_discarded(
-    session_factory, monkeypatch: pytest.MonkeyPatch
+    db_session, monkeypatch: pytest.MonkeyPatch
 ):
     """로컬 행이 없는 **종결** 이벤트 → 폐기 축 카운터 +1 + WARNING 로그.
 
@@ -104,11 +91,13 @@ async def test_orphan_terminal_event_is_counted_as_discarded(
     하므로, 그것을 밟는 시험이 먼저 돌면 레코드가 사라진다. 같은 함정을
     `test_position_fanout.py:216` 이 이미 기록해 뒀고 거기 쓰인 관용구를 그대로 따른다.
     """
-    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
+    handler = WebSocketOrderEventService(
+        repo=OrderRepository(db_session), settings=_make_settings()
+    )
     account_id = uuid4()
-    before_lost = _discarded(account_id, "terminal_event_lost")
-    before_ignored = _discarded(account_id, "non_terminal_ignored")
-    before_arrived = _arrived(account_id)
+    before_lost = _discarded("terminal_event_lost")
+    before_ignored = _discarded("non_terminal_ignored")
+    before_arrived = _arrived()
 
     warnings: list[str] = []
     monkeypatch.setattr(
@@ -121,37 +110,37 @@ async def test_orphan_terminal_event_is_counted_as_discarded(
         account_id, {"orderLinkId": str(uuid4()), "orderStatus": "Filled"}
     )
 
-    assert _discarded(account_id, "terminal_event_lost") == before_lost + 1
+    assert _discarded("terminal_event_lost") == before_lost + 1
     # 두 reason 이 서로를 오염시키지 않는다 — 그래야 경보 문턱을 걸 수 있다.
-    assert _discarded(account_id, "non_terminal_ignored") == before_ignored
+    assert _discarded("non_terminal_ignored") == before_ignored
     # 도착 축은 그대로 살아 있다 (기존 대시보드 계약 불변).
-    assert _arrived(account_id) == before_arrived + 1
+    assert _arrived() == before_arrived + 1
     # 종결 폐기는 debug 가 아니라 warning 이어야 한다 — 종전엔 프로덕션 레벨에서 무음이었다.
     assert [w for w in warnings if "ws_orphan_discarded" in w]
 
 
-async def test_orphan_non_terminal_event_uses_a_distinct_reason(session_factory):
+async def test_orphan_non_terminal_event_uses_a_distinct_reason(db_session):
     """로컬 행이 없는 **비종결** 이벤트 → 다른 reason 으로 계상 (머니-패스 손실 아님).
 
     로컬 행이 있었어도 `New` 는 어차피 skip 이므로 이 폐기는 무해하다. 종결 유실과 한
     카운터로 뭉치면 경보가 상시 발화해 쓸모가 없어진다 — 축을 나눈 이유가 이것이다.
     """
-    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
+    handler = WebSocketOrderEventService(
+        repo=OrderRepository(db_session), settings=_make_settings()
+    )
     account_id = uuid4()
-    before_lost = _discarded(account_id, "terminal_event_lost")
-    before_ignored = _discarded(account_id, "non_terminal_ignored")
+    before_lost = _discarded("terminal_event_lost")
+    before_ignored = _discarded("non_terminal_ignored")
 
     await handler.handle_order_event(
         account_id, {"orderLinkId": str(uuid4()), "orderStatus": "New"}
     )
 
-    assert _discarded(account_id, "non_terminal_ignored") == before_ignored + 1
-    assert _discarded(account_id, "terminal_event_lost") == before_lost
+    assert _discarded("non_terminal_ignored") == before_ignored + 1
+    assert _discarded("terminal_event_lost") == before_lost
 
 
-async def test_non_terminal_status_skips_transition(
-    sample_order, session_factory, db_session
-):
+async def test_non_terminal_status_skips_transition(sample_order, db_session):
     """order 존재 + 비종료 status(New) → early-return guard, _apply_transition 미호출.
 
     G2 false-green 방어: state 유지만 보면 guard(state_handler.py:103) 를 지워도
@@ -161,7 +150,9 @@ async def test_non_terminal_status_skips_transition(
     from unittest.mock import AsyncMock
 
     order, acc = sample_order
-    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
+    handler = WebSocketOrderEventService(
+        repo=OrderRepository(db_session), settings=_make_settings()
+    )
     spy = AsyncMock(return_value=0)
     handler._apply_transition = spy  # type: ignore[method-assign]
 

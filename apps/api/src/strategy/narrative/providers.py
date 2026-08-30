@@ -7,8 +7,7 @@ anthropic 401 · 서버는 셋 다 비어 있음). provider 를 늘릴 때마다
 대신 순서를 설정(`LLM_PROVIDER_ORDER`)으로 빼고 호출부를 하나로 모은다.
 
 ★**세 provider 모두 스키마를 강제한다.** 프롬프트로 형식을 부탁하면 모델이 안 지킬 수 있지만
-SDK 스키마는 지킨다. `convert/service.py` 는 이 인자가 없어 문자열을 손으로 파싱하는데,
-그것이 이 층을 만든 이유이기도 하다.
+SDK 스키마는 지킨다. `convert/service.py`도 같은 `complete_json` 계약을 사용한다.
 
 | provider | 강제 수단 | 비고 |
 | --- | --- | --- |
@@ -25,6 +24,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import anthropic
@@ -45,6 +45,21 @@ _ANTHROPIC_TRANSIENT = (
 )
 
 KNOWN_PROVIDERS = ("anthropic", "openai", "gemini")
+
+
+@dataclass(frozen=True)
+class JsonCompletion:
+    """공통 structured completion 결과.
+
+    호출자는 성공한 provider와 실제 SDK usage를 함께 받아야 한다. payload만 반환하면
+    fallback 뒤의 provider를 추측하게 되고, convert처럼 사용량을 응답 계약에 싣는
+    호출부는 provider별 SDK를 다시 알아야 한다.
+    """
+
+    payload: dict[str, Any]
+    provider: str
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 def secret(value: Any) -> str:
@@ -108,7 +123,7 @@ def _strict(schema: dict[str, Any]) -> dict[str, Any]:
 )
 def _call_anthropic(
     settings: Settings, *, system: str, user: str, schema: dict[str, Any], tool_name: str
-) -> dict[str, Any]:
+) -> JsonCompletion:
     client = anthropic.Anthropic(api_key=_key_for(settings, "anthropic"))
     response = client.messages.create(
         model=settings.anthropic_model,
@@ -124,14 +139,20 @@ def _call_anthropic(
         if getattr(block, "type", None) == "tool_use" and getattr(block, "name", "") == tool_name:
             payload = getattr(block, "input", None)
             if isinstance(payload, dict):
-                return payload
+                usage = getattr(response, "usage", None)
+                return JsonCompletion(
+                    payload=payload,
+                    provider="anthropic",
+                    input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
+                    output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+                )
     # ★빈 결과를 성공으로 내면 화면이 침묵으로 거짓말한다.
     raise RuntimeError("도구 호출 응답이 오지 않았습니다")
 
 
 def _call_openai(
     settings: Settings, *, system: str, user: str, schema: dict[str, Any], tool_name: str
-) -> dict[str, Any]:
+) -> JsonCompletion:
     client = OpenAI(api_key=_key_for(settings, "openai"))
     response = client.chat.completions.create(
         model=settings.openai_model,
@@ -153,12 +174,18 @@ def _call_openai(
     payload = json.loads(content or "{}")
     if not isinstance(payload, dict):
         raise RuntimeError("JSON 객체가 아닙니다")
-    return payload
+    usage = getattr(response, "usage", None)
+    return JsonCompletion(
+        payload=payload,
+        provider="openai",
+        input_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
+        output_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+    )
 
 
 def _call_gemini(
     settings: Settings, *, system: str, user: str, schema: dict[str, Any], tool_name: str
-) -> dict[str, Any]:
+) -> JsonCompletion:
     client = genai.Client(api_key=_key_for(settings, "gemini"))
     response = client.models.generate_content(
         model=settings.gemini_model,
@@ -173,7 +200,13 @@ def _call_gemini(
     payload = json.loads(response.text or "{}")
     if not isinstance(payload, dict):
         raise RuntimeError("JSON 객체가 아닙니다")
-    return payload
+    usage = getattr(response, "usage_metadata", None)
+    return JsonCompletion(
+        payload=payload,
+        provider="gemini",
+        input_tokens=int(getattr(usage, "prompt_token_count", 0) or 0),
+        output_tokens=int(getattr(usage, "candidates_token_count", 0) or 0),
+    )
 
 
 _ADAPTERS = {
@@ -190,8 +223,8 @@ def complete_json(
     user: str,
     schema: dict[str, Any],
     tool_name: str,
-) -> tuple[dict[str, Any], str]:
-    """설정 순서대로 시도해 **구조화 JSON** 과 실제 응답한 provider 이름을 돌려준다.
+) -> JsonCompletion:
+    """설정 순서대로 시도해 provider·usage를 포함한 구조화 결과를 돌려준다.
 
     키가 없는 provider 는 건너뛰고, 실패하면 다음으로 넘어간다. 전부 실패하면 RuntimeError.
     ★provider 예외 문자열은 **로그에만** 남는다([BL-772]).
@@ -207,7 +240,7 @@ def complete_json(
         try:
             return _ADAPTERS[name](
                 settings, system=system, user=user, schema=schema, tool_name=tool_name
-            ), name
+            )
         except Exception as exc:
             logger.exception(
                 "llm provider failed provider=%s exc_type=%s", name, type(exc).__name__

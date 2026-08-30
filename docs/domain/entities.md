@@ -132,10 +132,11 @@
 - **도메인:** trading (구 `exchange` 도메인 통합 — ADR-018, `apps/api/src/exchange/` 부재)
 - **코드:** `apps/api/src/trading/models.py` (`class ExchangeAccount`)
 - **테이블:** `exchange_accounts`
-- **책임:** 사용자별 거래소 API Key 보관 + 권한 메타.
+- **책임:** 사용자별 거래소 API Key 보관 + 권한 메타. 과거 live/OKX 행은 삭제하지 않는다.
 - **핵심 필드:** `user_id`, `exchange`, `mode`, 암호화된 API key/secret/passphrase, `label`, 거래소 UID/권한 메타.
 - **불변량:**
   - 평문 키 절대 DB 미저장
+  - 새 등록·주문·private API는 **Bybit Demo만** 허용. legacy 행은 조회·삭제용으로만 남고 복호화·egress 전에 차단
   - API 응답에서 `api_key_masked="****abcd"` 형태로만 노출
   - 참조 중인 주문·세션과의 정확한 FK 정책은 `erd.md`와 모델이 정본
 

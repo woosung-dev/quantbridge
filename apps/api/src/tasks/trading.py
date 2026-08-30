@@ -17,7 +17,6 @@ has_leverage) 3-tuple 기반 dynamic. settings.exchange_provider 는 dispatch pa
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from collections import Counter
 from collections.abc import Sequence
@@ -53,6 +52,7 @@ from src.trading.account_identity import dedupe_accounts_by_exchange_uid
 from src.trading.alerting import send_rule_alert
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import (
+    BybitDemoOnlyError,
     OrderNotFound,
     ProviderError,
     TrailingContractError,
@@ -76,6 +76,7 @@ from src.trading.models import (
     OrderSide,
     OrderState,
 )
+from src.trading.product_policy import is_bybit_demo_account, require_bybit_demo_account
 from src.trading.providers import (
     BybitFuturesProvider,
     ClosedOrderMeta,
@@ -199,6 +200,21 @@ def _build_exchange_provider(account: ExchangeAccount, submit: OrderSubmit) -> E
     _has_leverage(order))` 를 직접 호출 (OrderSubmit 부재).
     """
     return _provider_for_account_and_leverage(account.exchange, account.mode, _has_leverage(submit))
+
+
+def _credentials_for_account(account: ExchangeAccount, crypto: EncryptionService) -> Credentials:
+    """계정 암호문을 egress용 자격증명으로 바꾸는 유일한 worker 경로.
+
+    정책 검사는 복호화보다 앞선다. legacy live/OKX 행을 worker가 읽어도 평문과
+    거래소 요청으로 진행하지 않는다.
+    """
+    require_bybit_demo_account(account.exchange, account.mode)
+    return Credentials(
+        api_key=crypto.decrypt(account.api_key_encrypted),
+        api_secret=crypto.decrypt(account.api_secret_encrypted),
+        exchange=account.exchange,
+        environment=account.mode,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -351,7 +367,40 @@ async def _execute_with_session(
                 "error_message": error_msg,
             }
 
-        # 2. Transition: pending → submitted
+        # 2. Product policy before any submitted transition, credential decrypt, or egress.
+        # Legacy pending rows must become terminally rejected without ever authenticating to
+        # their historical exchange account.
+        account = await session.get(ExchangeAccount, order.exchange_account_id)
+        if account is None:
+            error_msg = "exchange_account_missing"
+            rows = await repo.transition_to_rejected(
+                order_id, error_message=error_msg, failed_at=datetime.now(UTC)
+            )
+            await session.commit()
+            if rows == 1:
+                record_metric_safely(qb_active_orders.dec)
+            return {"order_id": str(order_id), "state": "rejected", "error_message": error_msg}
+        try:
+            require_bybit_demo_account(account.exchange, account.mode)
+        except BybitDemoOnlyError as exc:
+            error_msg = exc.code
+            logger.warning(
+                "order_product_policy_blocked",
+                extra={
+                    "order_id": str(order_id),
+                    "exchange": account.exchange.value,
+                    "mode": account.mode.value,
+                },
+            )
+            rows = await repo.transition_to_rejected(
+                order_id, error_message=error_msg, failed_at=datetime.now(UTC)
+            )
+            await session.commit()
+            if rows == 1:
+                record_metric_safely(qb_active_orders.dec)
+            return {"order_id": str(order_id), "state": "rejected", "error_message": error_msg}
+
+        # 3. Transition: pending → submitted
         now = datetime.now(UTC)
         rows = await repo.transition_to_submitted(order_id, submitted_at=now)
         if rows == 0:
@@ -361,40 +410,22 @@ async def _execute_with_session(
             )
             return {"order_id": str(order_id), "state": "conflict", "skipped": True}
         await session.commit()
-        account = None
-        with contextlib.suppress(Exception):
-            account = await session.get(ExchangeAccount, order.exchange_account_id)
-        if account is not None:
-            await publish_realtime(
-                str(account.user_id),
-                "order_update",
-                {
-                    "order_id": str(order.id),
-                    "state": OrderState.submitted.value,
-                    "symbol": order.symbol,
-                    "side": order.side.value,
-                    "source": "rest",
-                },
-            )
+        await publish_realtime(
+            str(account.user_id),
+            "order_update",
+            {
+                "order_id": str(order.id),
+                "state": OrderState.submitted.value,
+                "symbol": order.symbol,
+                "side": order.side.value,
+                "source": "rest",
+            },
+        )
 
-        # 3. Decrypt credentials
+        # 4. Decrypt credentials
         try:
             crypto = EncryptionService(settings.trading_encryption_keys)
-            account = await session.get(ExchangeAccount, order.exchange_account_id)
-            if account is None:
-                raise OrderNotFound(order_id)  # account missing — treat as error
-
-            passphrase_pt = (
-                crypto.decrypt(account.passphrase_encrypted)
-                if account.passphrase_encrypted is not None
-                else None
-            )
-            creds = Credentials(
-                api_key=crypto.decrypt(account.api_key_encrypted),
-                api_secret=crypto.decrypt(account.api_secret_encrypted),
-                passphrase=passphrase_pt,
-                environment=account.mode,
-            )
+            creds = _credentials_for_account(account, crypto)
         except Exception as e:
             error_msg = f"credential_decrypt_failed: {type(e).__name__}"
             logger.error(
@@ -416,7 +447,7 @@ async def _execute_with_session(
                 "error_message": error_msg,
             }
 
-        # 4. Call exchange provider — Sprint 22 BL-091 dynamic dispatch.
+        # 5. Call exchange provider — Sprint 22 BL-091 dynamic dispatch.
         try:
             order_submit = OrderSubmit(
                 symbol=order.symbol,
@@ -448,9 +479,8 @@ async def _execute_with_session(
                 trailing_stop=order.trailing_stop if order.reduce_only else None,
             )
             # Sprint 22 BL-091 + Sprint 23 BL-102: snapshot 우선 dispatch.
-            # snapshot 부재 (legacy row) 또는 invalid (DB manual mutation) → account 현재값
-            # fallback. UnsupportedExchangeError(ProviderError) / BybitLiveProvider stub /
-            # OkxFuturesUnsupported 모두 아래 except ProviderError 가 graceful 처리.
+            # snapshot 부재 또는 invalid JSONB는 account 현재값으로 fallback한다. 제품 정책은
+            # submitted 전 이미 검사했으며, 이후 provider 오류는 아래에서 안전히 종결한다.
             provider = _provider_from_order_snapshot_or_fallback(
                 order, account, submit=order_submit
             )
@@ -777,17 +807,7 @@ async def _fetch_order_status_with_session(
             if account is None:
                 return {"order_id": str(order_id), "skipped": "account_missing"}
 
-            passphrase_pt = (
-                crypto.decrypt(account.passphrase_encrypted)
-                if account.passphrase_encrypted is not None
-                else None
-            )
-            creds = Credentials(
-                api_key=crypto.decrypt(account.api_key_encrypted),
-                api_secret=crypto.decrypt(account.api_secret_encrypted),
-                passphrase=passphrase_pt,
-                environment=account.mode,
-            )
+            creds = _credentials_for_account(account, crypto)
         except Exception as e:
             logger.error(
                 "watchdog_credential_decrypt_failed",
@@ -1073,17 +1093,7 @@ async def _cancel_order_with_session(order_id: UUID, sm: Any) -> dict[str, Any]:
             account = await session.get(ExchangeAccount, order.exchange_account_id)
             if account is None:
                 return {"order_id": str(order_id), "skipped": "account_missing"}
-            passphrase_pt = (
-                crypto.decrypt(account.passphrase_encrypted)
-                if account.passphrase_encrypted is not None
-                else None
-            )
-            creds = Credentials(
-                api_key=crypto.decrypt(account.api_key_encrypted),
-                api_secret=crypto.decrypt(account.api_secret_encrypted),
-                passphrase=passphrase_pt,
-                environment=account.mode,
-            )
+            creds = _credentials_for_account(account, crypto)
         except Exception as e:
             logger.error(
                 "cancel_credential_decrypt_failed",
@@ -1365,24 +1375,14 @@ async def _place_trailing_stop_with_session(
             return {"skipped": "account_missing"}
         # P2(codex) — 트레일링은 Bybit linear(futures) 전용. 비-Bybit/spot 주문에 trailing_stop
         #   이 붙어도(manual API 경로) BybitFuturesProvider 발주 차단(doomed task / wrong creds).
-        if account.exchange != ExchangeName.bybit or order.leverage is None:
+        if not is_bybit_demo_account(account.exchange, account.mode) or order.leverage is None:
             logger.info(
                 "trailing_skip_unsupported_exchange",
                 extra={"order_id": str(order_id), "exchange": str(account.exchange)},
             )
             _count_safely(qb_trailing_placement_total, outcome="skipped_unsupported")
             return {"skipped": "unsupported_exchange"}
-        passphrase_pt = (
-            crypto.decrypt(account.passphrase_encrypted)
-            if account.passphrase_encrypted is not None
-            else None
-        )
-        creds = Credentials(
-            api_key=crypto.decrypt(account.api_key_encrypted),
-            api_secret=crypto.decrypt(account.api_secret_encrypted),
-            passphrase=passphrase_pt,
-            environment=account.mode,
-        )
+        creds = _credentials_for_account(account, crypto)
         # exchange IO 전에 필요한 필드만 추출 (detached instance 회피).
         symbol = order.symbol
         entry_side = order.side
@@ -1540,22 +1540,12 @@ async def _refresh_closed_pnl_with_session(
         if account is None:
             _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_incomplete")
             return {"skipped": "account_missing", "order_id": str(order_id)}
-        if account.exchange != ExchangeName.bybit or order.leverage is None:
+        if not is_bybit_demo_account(account.exchange, account.mode) or order.leverage is None:
             _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_unsupported")
             return {"skipped": "unsupported_exchange", "order_id": str(order_id)}
         try:
             crypto = EncryptionService(settings.trading_encryption_keys)
-            passphrase_pt = (
-                crypto.decrypt(account.passphrase_encrypted)
-                if account.passphrase_encrypted is not None
-                else None
-            )
-            creds = Credentials(
-                api_key=crypto.decrypt(account.api_key_encrypted),
-                api_secret=crypto.decrypt(account.api_secret_encrypted),
-                passphrase=passphrase_pt,
-                environment=account.mode,
-            )
+            creds = _credentials_for_account(account, crypto)
         except Exception as exc:
             logger.error(
                 "closed_pnl_credential_decrypt_failed",
@@ -1736,17 +1726,7 @@ async def _measure_conditional_reversal_with_session(
             }
         try:
             crypto = EncryptionService(settings.trading_encryption_keys)
-            passphrase_pt = (
-                crypto.decrypt(account.passphrase_encrypted)
-                if account.passphrase_encrypted is not None
-                else None
-            )
-            creds = Credentials(
-                api_key=crypto.decrypt(account.api_key_encrypted),
-                api_secret=crypto.decrypt(account.api_secret_encrypted),
-                passphrase=passphrase_pt,
-                environment=account.mode,
-            )
+            creds = _credentials_for_account(account, crypto)
         except Exception as exc:
             logger.error(
                 "reversal_measure_credential_decrypt_failed",
@@ -2025,7 +2005,7 @@ async def _sweep_closed_pnl_with_session(
     for account in accounts:
         summary["accounts"] += 1
         try:
-            if account.exchange != ExchangeName.bybit:
+            if not is_bybit_demo_account(account.exchange, account.mode):
                 _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_unsupported")
                 continue
             try:
@@ -2034,17 +2014,7 @@ async def _sweep_closed_pnl_with_session(
                 _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_unsupported")
                 continue
             crypto = EncryptionService(settings.trading_encryption_keys)
-            passphrase = (
-                crypto.decrypt(account.passphrase_encrypted)
-                if account.passphrase_encrypted is not None
-                else None
-            )
-            creds = Credentials(
-                api_key=crypto.decrypt(account.api_key_encrypted),
-                api_secret=crypto.decrypt(account.api_secret_encrypted),
-                passphrase=passphrase,
-                environment=account.mode,
-            )
+            creds = _credentials_for_account(account, crypto)
             # 원장은 최근 7일 한 창만 담는다. 과거로 훑던 창과 워터마크는 범위 축소로
             # 걷어냈다 — 그보다 오래된 거래소 청산은 원장에 들어오지 않는다(의도된 계약).
             start_ms = now_ms - _EXIT_WINDOW_MS

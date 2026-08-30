@@ -18,7 +18,7 @@ from __future__ import annotations
 import pytest
 
 from src.trading import registry
-from src.trading.exceptions import ProviderError, UnsupportedExchangeError
+from src.trading.exceptions import BybitDemoOnlyError, ProviderError
 from src.trading.models import ExchangeMode, ExchangeName
 from src.trading.providers import BybitDemoProvider
 
@@ -39,14 +39,9 @@ def test_dispatch_returns_new_instance_per_call() -> None:
     assert first is not second  # per-call 생성 (singleton 아님)
 
 
-def test_dispatch_okx_live_futures_unsupported() -> None:
-    """미지원 매트릭스 마지막 빈칸 (okx, live, True) → UnsupportedExchangeError.
-
-    registry 는 (bybit, live, True) 만 등록 — okx live futures 는 미등록.
-    .key 보존(호출처 로깅/rejected 사유)까지 단언.
-    """
+def test_dispatch_legacy_okx_live_futures_is_blocked_by_product_policy() -> None:
+    """registry는 legacy provider를 만들기 전에 Bybit Demo 제품 정책을 강제한다."""
     key = (ExchangeName.okx, ExchangeMode.live, True)
-    with pytest.raises(UnsupportedExchangeError) as exc_info:
+    with pytest.raises(BybitDemoOnlyError) as exc_info:
         registry.dispatch(*key)
-    assert exc_info.value.key == key
     assert isinstance(exc_info.value, ProviderError)

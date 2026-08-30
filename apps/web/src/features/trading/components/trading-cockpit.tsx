@@ -43,6 +43,7 @@ import { AccountPositionsTable } from "./account-positions-table";
 import { OpenPositionsTable } from "./open-positions-table";
 import { SessionDiagnostics } from "./session-diagnostics";
 import { UnrealizedPnlKpi } from "./unrealized-pnl-kpi";
+import { isBybitDemoAccount } from "../account-policy";
 
 const STRATEGY_FETCH_LIMIT = 100;
 
@@ -87,6 +88,10 @@ export function TradingCockpit() {
     () => accountsQ.data ?? [],
     [accountsQ.data],
   );
+  const operatingAccountItems = useMemo(
+    () => accountItems.filter(isBybitDemoAccount),
+    [accountItems],
+  );
   const ksItems = useMemo<readonly KillSwitchEvent[]>(
     () => ksQ.data?.items ?? [],
     [ksQ.data?.items],
@@ -107,16 +112,18 @@ export function TradingCockpit() {
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
-  const demoSessionIds = useMemo(() => {
-    const demoAccountIds = new Set(
-      accountItems.filter((account) => account.mode === "demo").map((account) => account.id),
-    );
+  const operatingSessionIds = useMemo(() => {
+    const operatingAccountIds = new Set(operatingAccountItems.map((account) => account.id));
     return new Set(
       activeSessions
-        .filter((session) => demoAccountIds.has(session.exchange_account_id))
+        .filter((session) => operatingAccountIds.has(session.exchange_account_id))
         .map((session) => session.id),
     );
-  }, [accountItems, activeSessions]);
+  }, [operatingAccountItems, activeSessions]);
+  const operatingActiveSessions = useMemo(
+    () => activeSessions.filter((session) => operatingSessionIds.has(session.id)),
+    [activeSessions, operatingSessionIds],
+  );
   // BL-663 — 미실현 손익 추정은 `<UnrealizedPnlKpi>` 안으로 내렸다. 그 훅이 WS ticker 를
   // 구독하므로 여기서 부르면 활성 세션 심볼이 틱할 때마다 §01~§08 전체가 재조정된다.
   const accountsCount = accountItems.length;
@@ -134,7 +141,7 @@ export function TradingCockpit() {
   }, [accountItems]);
   const activeAccountTargets = useMemo(() => {
     const ids = new Set(
-      activeSessions
+      operatingActiveSessions
         .map((session) => session.exchange_account_id)
         .filter((id): id is string => typeof id === "string" && id.length > 0),
     );
@@ -142,18 +149,18 @@ export function TradingCockpit() {
       id,
       label: accountLabelById.get(id) ?? id.slice(0, 8),
     }));
-  }, [accountLabelById, activeSessions]);
-  // BL-498 — 계정 스코프 포지션은 **모든** 등록 계정을 순회한다. 활성 세션 기준으로
-  // 좁히면 세션이 0건일 때 잔여 노출이 다시 화면에서 사라진다.
+  }, [accountLabelById, operatingActiveSessions]);
+  // 계정 스코프 포지션은 활성 세션과 무관하게 모든 **운영 가능한 Bybit Demo** 계정을 순회한다.
+  // legacy 계정은 보존·삭제 표면만 남기며 잔고/포지션 egress 대상이 아니다.
   const allAccountTargets = useMemo(
     () =>
-      accountItems.map((account) => ({
+      operatingAccountItems.map((account) => ({
         id: account.id,
         label: accountLabelById.get(account.id) ?? account.id.slice(0, 8),
         exchangeUid: account.exchange_uid,
         readOnly: account.read_only,
       })),
-    [accountItems, accountLabelById],
+    [operatingAccountItems, accountLabelById],
   );
   const strategyNameBySessionId = useMemo(() => {
     const map = new Map<string, string>();
@@ -175,14 +182,14 @@ export function TradingCockpit() {
   );
   const formAccounts = useMemo(
     () =>
-      accountItems.map((a) => ({
+      operatingAccountItems.map((a) => ({
         id: a.id,
         exchange: a.exchange,
         mode: a.mode,
         label: a.label,
         read_only: a.read_only,
       })),
-    [accountItems],
+    [operatingAccountItems],
   );
 
   // BL-664 — 인자 없는 `invalidateQueries()` 는 **앱 캐시 전체**를 stale 로 만들어 마운트된 활성
@@ -304,7 +311,7 @@ export function TradingCockpit() {
             </p>
           </article>
 
-          <UnrealizedPnlKpi sessions={activeSessions} />
+          <UnrealizedPnlKpi sessions={operatingActiveSessions} />
         </div>
       </section>
 
@@ -315,10 +322,7 @@ export function TradingCockpit() {
             <span className="num">02</span> 계좌 잔고
           </p>
           <h2 className="section-title">활성 세션 계정의 잔고</h2>
-          <p className="section-desc">
-            활성 라이브 세션이 참조하는 거래소 계정만 표시합니다. 지원하지 않는 계정도 이유를 숨기지
-            않습니다.
-          </p>
+          <p className="section-desc">활성 Bybit 데모 세션이 참조하는 거래소 계정만 표시합니다.</p>
         </header>
         <AccountBalanceSection accounts={activeAccountTargets} />
       </section>
@@ -331,14 +335,16 @@ export function TradingCockpit() {
           </p>
           <h2 className="section-title">거래소 보고 포지션</h2>
           <p className="section-desc">
-            먼저 계정에 남아 있는 포지션을 활성 세션과 무관하게 보여주고, 그 아래에서 같은 계정과
-            심볼을 쓰는 다른 전략도 합치지 않고 세션별로 대조합니다.
+            운영 가능한 Bybit 데모 계정에 남은 포지션을 활성 세션과 무관하게 보여주고, 그 아래에서
+            같은 계정과 심볼을 쓰는 다른 전략도 합치지 않고 세션별로 대조합니다.
           </p>
         </header>
         <AccountPositionsTable accounts={allAccountTargets} />
         <OpenPositionsTable
-          sessions={activeSessions}
-          demoSessionIds={demoSessionIds}
+          // 세션별 대조도 거래소 private API를 부른다. legacy 행은 목록·삭제용으로만
+          // 남기므로, 청산 버튼만 막는 대신 fetch 대상 자체를 운영 계정으로 좁힌다.
+          sessions={operatingActiveSessions}
+          demoSessionIds={operatingSessionIds}
           resolveStrategyName={(sessionId, fallback) =>
             strategyNameBySessionId.get(sessionId) ?? fallback
           }
@@ -383,8 +389,8 @@ export function TradingCockpit() {
           </p>
           <h2 className="section-title">연결된 거래소</h2>
           <p className="section-desc">
-            세션이 주문을 낼 거래소 계정입니다. 데모와 라이브를 모드로 구분하고 API 키는 마스킹해
-            보여 줍니다.
+            새 계정은 Bybit 데모 전용입니다. 기존 지원 범위 밖 계정은 보존·삭제만 가능하며 API 키는
+            마스킹해 보여 줍니다.
           </p>
         </header>
         <ExchangeAccountsPanel />
@@ -417,7 +423,7 @@ export function TradingCockpit() {
               <LiveSessionForm
                 strategies={formStrategies}
                 exchangeAccounts={formAccounts}
-                activeSessionsCount={activeSessions.length}
+                activeSessionsCount={operatingActiveSessions.length}
                 onSuccess={handleSessionSelect}
               />
             </div>

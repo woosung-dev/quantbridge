@@ -87,7 +87,7 @@ beforeEach(() => {
 describe("OpenPositionsTable", () => {
   it("활성 세션이 없으면 빈 상태를 정직하게 표시한다", () => {
     render(<OpenPositionsTable sessions={[]} demoSessionIds={demoSessionIds} />);
-    expect(screen.getByText("활성 라이브 세션이 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("운영 가능한 Bybit 데모 라이브 세션이 없습니다.")).toBeInTheDocument();
   });
 
   it("지원 응답이지만 열린 포지션이 없으면 별도 빈 상태를 표시한다", () => {

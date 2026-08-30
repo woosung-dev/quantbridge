@@ -60,7 +60,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from src.auth.models import User
 from src.backtest.models import Backtest, BacktestStatus, BacktestTrade, TradeDirection, TradeStatus
 from src.backtest.serializers import equity_curve_to_jsonb
-from src.core.config import settings
+from src.core.config import secret_value, settings
 from src.optimizer.models import OptimizationKind, OptimizationRun, OptimizationStatus
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.trading.encryption import EncryptionService
@@ -334,7 +334,7 @@ def _build_exchange_account(owner_id: UUID, crypto: EncryptionService) -> Exchan
 
 
 async def _run(email: str, confirm: bool) -> int:
-    url = settings.database_url
+    url = secret_value(settings.database_url)
     database = _assert_disposable_database(url)
 
     engine = create_async_engine(url)
