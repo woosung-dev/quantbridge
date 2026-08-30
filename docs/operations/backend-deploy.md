@@ -213,11 +213,34 @@ SHA="$(git rev-parse HEAD)"
 #   재시작이 곧 장애다 — 2026-08-28 실측: `openai>=1.60` 이 추가됐고 `src.main` 이
 #   `strategy.router → service → narrative.service → narrative.providers` 로 그 체인을 문다.
 #   Celery 워커 4대는 이미지에 굽힌 것을 쓰고 task 18개 중 이 체인을 무는 것은 0개다.
+#   ★★**2026-08-30 정정 — 이 문장이 조사를 멈추게 했다.** 「워커는 안 문다」는 참이지만
+#     그 다음 질문(「그럼 워커 이미지는 언제 갱신되나」)을 막았다. 답은 **아무도 안 한다** 였고
+#     서버 이미지는 3주간 낡아 `openai` 가 없고 제거된 Clerk 패키지를 갖고 있었다. ⇒ 아래 ①-b.
 (cd apps/api && uv sync)
 # ★재시작 **전에** import 를 재라. 살아 있는 API 를 죽이고 나서 알면 늦다.
 #   `src` 는 설치 패키지가 아니라 CWD 의존이라 `PYTHONPATH=.` 가 필요하다(§8 BE AGENTS).
 (cd apps/api && set -a && . ./.env.local && set +a \
   && PYTHONPATH=. .venv/bin/python -c "import src.main; src.main.create_app()")
+
+# ①-b 워커 이미지 신선도. ★`pin` 은 `.soak/src` 만 바꾸고 **의존성은 이미지에 구워져 있다.**
+#   compose 4서비스에 `image:` 태그가 없고 `up` 은 `--build` 를 안 쓰므로 **재빌드하는 주체가
+#   없다** — 여기서 사람이 판정하지 않으면 아무도 안 한다.
+tools/scripts/soak-stack.sh status 2>&1 | sed -n '/워커 이미지 신선도/,/활성 라이브/p'
+#   「★낡았다」면 아래를 먼저 돌려라(2 OCPU 공유 · 실측 약 10분).
+#   ★**소크를 내린 뒤에 빌드해라.** 빌드가 CPU 를 먹어 워커가 굶으면 실격이 기록에 남는다 —
+#     `down` 으로 창을 닫는 것은 실격이 아니지만 굶어 죽는 것은 실격이다.
+#   ★FE·cloudflared 는 별도 compose 프로젝트라 빌드 중에도 공개 사이트는 안 끊긴다.
+#
+#   tools/scripts/soak-stack.sh down
+#   docker compose --project-directory "$PWD" \
+#     -f infra/compose/docker-compose.yml \
+#     -f infra/compose/docker-compose.isolated.yml \
+#     -f infra/compose/docker-compose.soak.yml \
+#     build backend-worker backend-ws-stream backend-optimizer-heavy backend-beat
+#
+#   재빌드했으면 **기동 전에** 되짚어라(2026-08-30 이 4축으로 확인했다):
+#   docker run --rm --network none --entrypoint "" <이미지> python -c "import openai"   # 있어야 한다
+#   docker run --rm --network none --entrypoint "" <이미지> python -c "import pytest"   # 없어야 한다(dev 제외)
 
 # ② 대상 DB·현재 revision·적용 대기만 읽는다. DDL 없음.
 tools/scripts/soak-stack.sh migrate
