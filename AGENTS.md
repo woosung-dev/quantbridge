@@ -67,7 +67,7 @@ Trading(CCXT 주문) / Market Data(TimescaleDB).
 - **ALWAYS** — 확인된 사실 / 추론(`[가정]`) / 확인 필요(`[확인 필요]`) 구분 표기
 - **ALWAYS** — 승인이 필요한 것은 **배포 · 실주문 · 남의 데이터 삭제** 셋뿐. 커밋·작업 브랜치 push·PR 생성은 **승인 불요** — 거기서 멈추지 말고 **PR 까지 올려라**
 - **ALWAYS** — **green = CI 단일 게이트**([ADR-037](./docs/adr/037-harness-zero-base.md)). 로컬 pre-flight 의식 없음 — PR 을 올리면 CI(be: `ruff`+`pytest` / fe: `biome`+`tsc`+`vitest`+`build`)가 판정한다. 미리 보려면 §5 의 러너를 직접 돌려라
-- **ALWAYS** — `gh pr create` 전 `docs/status.md` 에 **살아 있는 `다음 행동 =` 이 둘 이상이면 안 된다**. 끝난 것은 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다. 기계 집행 = pre-commit 의 `ledger-vitals.sh` 3축
+- **ALWAYS** — `gh pr create` 전 `docs/status.md` 에 **살아 있는 `다음 행동 =` 이 둘 이상이면 안 된다**. 끝난 것은 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다. 기계 집행 = pre-commit 의 `ledger-vitals.sh` **4축**
 - **ALWAYS** — Sprint kickoff 첫 step = **baseline 재측정 preflight**. 본인 인상·plan 가정·사용자 prompt 가정 **모두 실측 전 신뢰 금지**
 - **ALWAYS** — codex finding 은 **코드 대조 후에만** 채택 (phantom finding 차단)
 - 리뷰 도구는 **둘** — `/qb-review`(체크리스트 1패스, 가벼운 변경) · `/review-code`(3차원 병렬 + finding 당 skeptic 3명 2/3 다수결, 무거운 변경)
@@ -90,7 +90,7 @@ cd apps/api && uv run mypy src                # BE 타입 (차단 게이트)
 cd apps/api && uv run python scripts/export_openapi.py --check   # OpenAPI drift (차단 게이트)
 
 cd apps/web && pnpm exec biome check .        # FE lint (단독 게이트)
-./tools/scripts/ledger-vitals.sh              # 원장 3축
+./tools/scripts/ledger-vitals.sh              # 원장 4축
 ```
 
 ★**판정 명령에 파이프를 붙이지 마라** — `pytest ... | tail` 은 pytest 가 아니라 **tail 의 rc** 를 읽는다.
@@ -128,7 +128,7 @@ herdr 함대 래퍼는 2026-08-13 제거됐다([ADR-030](./docs/adr/030-harness-
 | 훅/게이트 | 무엇을 막나 |
 | --- | --- |
 | `.husky/pre-push` | main/master 직접 push (`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*` 는 통과) |
-| pre-commit `ledger-vitals.sh` | `다음 행동` ≤1 · ⓪ 표 ≥1행 · RESOLVED 역류 0 |
+| pre-commit `ledger-vitals.sh` | `다음 행동` ≤1 **∧ ≥1** · ⓪ 표 ≥1행 · RESOLVED 역류 0 · ★**진입점이 `PRD.md` §5 를 겨냥**(2026-08-31 ④ 신설 — ①②③ 은 전부 양만 잰다) |
 | pre-commit lint-staged | 스테이지된 `.py` 에 `ruff check --fix` + `ruff format` |
 | CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` → `scripts/export_openapi.py --check`(OpenAPI drift) → `mypy src` → `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` |
 | `tools/scripts/hooks/` | codex 레이어 가드 (위험 명령 차단) |

@@ -452,7 +452,7 @@ cd ../web && pnpm tsc --noEmit
 # ADR-037 제로베이스: docs-audit·header-audit task 철거 — 원문 = git show harness-v1:mise.toml
 # 원장 사활 최소 검사만 슬림 복귀(사고 실증 2건 근거): ledger-vitals
 [tasks.ledger-vitals]
-description = "원장 사활 3축 — 다음 행동 ≤1 · ⓪ 표 ≥3행 · RESOLVED 역류 0 (ADR-037)"
+description = "원장 사활 4축 — 다음 행동 ≤1 · ⓪ 표 ≥1행 · RESOLVED 역류 0 · 진입점이 PRD §5 겨냥 (ADR-037)"
 run = "tools/scripts/ledger-vitals.sh"
 
 # OpenAPI 계약 drift — 커밋된 `contracts/openapi/openapi.json` 이 현재 코드의 산출물과 같은가.
