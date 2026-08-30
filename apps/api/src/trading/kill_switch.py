@@ -24,7 +24,6 @@ from src.common.metrics import qb_kill_switch_triggered_total
 from src.core.config import Settings, get_settings
 from src.trading.exceptions import KillSwitchActive
 from src.trading.models import (
-    ExchangeAccount,
     KillSwitchEvent,
     KillSwitchTriggerType,
 )
@@ -279,12 +278,12 @@ class KillSwitchService:
             # savepoint *밖*에서 호출되므로 (order_service E9 restructure) 여기 commit 은
             # pending event 만 영속화 + alert/dedup 계약 보존 (alert storm 방지).
             await self._events_repo.commit()
-            account = None
+            owner_id = None
             with contextlib.suppress(Exception):
-                account = await self._events_repo.session.get(ExchangeAccount, account_id)
-            if account is not None:
+                owner_id = await self._events_repo.get_account_user_id(account_id)
+            if owner_id is not None:
                 await publish_realtime(
-                    str(account.user_id),
+                    str(owner_id),
                     "kill_switch",
                     {"event_id": str(created.id), "trigger_type": result.trigger_type},
                 )
