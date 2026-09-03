@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "전략 → 백테스트 → 데모 트레이딩 데이터 흐름",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1085,
+      500
+    ],
+    "views": [
+      {
+        "id": "parse-gate",
+        "label": "파스 게이트",
+        "focus": [
+          "pinesrc",
+          "parse",
+          "strategiestbl"
+        ],
+        "note": "미지원 builtin 이 하나라도 있으면 실행 전에 전체를 차단한다 (ADR-003)."
+      },
+      {
+        "id": "backtest-path",
+        "label": "백테스트 경로",
+        "focus": [
+          "strategiestbl",
+          "ohlcvtbl",
+          "worker",
+          "bttbl",
+          "ui"
+        ],
+        "note": "고정된 strategy_version + 봉 시계열로 재현 가능한 실행."
+      },
+      {
+        "id": "live-path",
+        "label": "라이브 경로",
+        "focus": [
+          "strategiestbl",
+          "worker",
+          "tradetbl",
+          "exchange"
+        ],
+        "note": "같은 인터프리터가 60초 주기로 신호를 평가하고 주문으로 내린다."
+      }
+    ]
+  },
+  "stages": [
+    {
+      "label": "입력"
+    },
+    {
+      "label": "파스 · 적재"
+    },
+    {
+      "label": "실행 (Celery)"
+    },
+    {
+      "label": "테이블"
+    },
+    {
+      "label": "소비"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pinesrc",
+      "type": "external",
+      "label": "Pine v4/v5 소스",
+      "sublabel": "사용자 붙여넣기",
+      "stage": 0,
+      "row": 0,
+      "width": 150,
+      "tag": "TradingView"
+    },
+    {
+      "id": "ohlcvsrc",
+      "type": "external",
+      "label": "Bybit 시장 데이터",
+      "sublabel": "OHLCV · funding rate",
+      "stage": 0,
+      "row": 2,
+      "width": 150,
+      "tag": "CCXT"
+    },
+    {
+      "id": "parse",
+      "type": "backend",
+      "label": "파스 · 커버리지",
+      "sublabel": "parser_adapter + coverage",
+      "stage": 1,
+      "row": 0,
+      "width": 172,
+      "tag": "all-or-nothing"
+    },
+    {
+      "id": "strategiestbl",
+      "type": "database",
+      "label": "전략 원장",
+      "sublabel": "strategies · strategy_versions",
+      "stage": 1,
+      "row": 1,
+      "width": 172
+    },
+    {
+      "id": "ohlcvtbl",
+      "type": "database",
+      "label": "ts.ohlcv",
+      "sublabel": "TimescaleDB hypertable",
+      "stage": 1,
+      "row": 2,
+      "width": 172,
+      "tag": "PK(time,symbol,tf)"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Celery 워커",
+      "sublabel": "pine_v2 인터프리터",
+      "stage": 2,
+      "row": 1,
+      "width": 172,
+      "tag": "backtest.run · live_signal"
+    },
+    {
+      "id": "bttbl",
+      "type": "database",
+      "label": "백테스트 결과",
+      "sublabel": "backtests · backtest_trades",
+      "stage": 3,
+      "row": 0,
+      "width": 172
+    },
+    {
+      "id": "derivedtbl",
+      "type": "database",
+      "label": "파생 분석",
+      "sublabel": "stress_tests · optimization_runs",
+      "stage": 3,
+      "row": 1,
+      "width": 172
+    },
+    {
+      "id": "tradetbl",
+      "type": "database",
+      "label": "트레이딩 원장",
+      "sublabel": "trading.orders · live_signal_*",
+      "stage": 3,
+      "row": 2,
+      "width": 172
+    },
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "리포트 · 코크핏",
+      "sublabel": "9섹션 · 차트 · CSV",
+      "stage": 4,
+      "row": 0,
+      "width": 172
+    },
+    {
+      "id": "exchange",
+      "type": "external",
+      "label": "Bybit Demo 계정",
+      "sublabel": "주문 전송 · 체결 대조",
+      "stage": 4,
+      "row": 2,
+      "width": 172,
+      "tag": "exchange_exits"
+    }
+  ],
+  "flows": [
+    {
+      "id": "src-parse",
+      "from": "pinesrc",
+      "to": "parse",
+      "label": "Pine 원문",
+      "classification": "사용자 입력",
+      "variant": "emphasis",
+      "labelDy": 53
+    },
+    {
+      "id": "parse-strategy",
+      "from": "parse",
+      "to": "strategiestbl",
+      "label": "parse_status · 미지원 목록",
+      "classification": "실행 가능 판정",
+      "labelDy": 24
+    },
+    {
+      "id": "ohlcv-load",
+      "from": "ohlcvsrc",
+      "to": "ohlcvtbl",
+      "label": "봉 백필 · upsert",
+      "classification": "시장 데이터",
+      "labelDy": 53
+    },
+    {
+      "id": "strategy-run",
+      "from": "strategiestbl",
+      "to": "worker",
+      "label": "고정 버전 + 설정",
+      "classification": "재현 가능 입력",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelDy": 75,
+      "labelDx": -100
+    },
+    {
+      "id": "ohlcv-run",
+      "from": "ohlcvtbl",
+      "to": "worker",
+      "label": "봉 시계열",
+      "classification": "Decimal"
+    },
+    {
+      "id": "bt-result",
+      "from": "worker",
+      "to": "bttbl",
+      "label": "체결 거래 · 성과 지표",
+      "classification": "backtest.run"
+    },
+    {
+      "id": "live-ledger",
+      "from": "worker",
+      "to": "tradetbl",
+      "label": "신호 이벤트 → 주문",
+      "classification": "멱등 키",
+      "variant": "emphasis"
+    },
+    {
+      "id": "bt-derived",
+      "from": "bttbl",
+      "to": "derivedtbl",
+      "label": "같은 조건 재실행",
+      "classification": "파생 분석",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "straight",
+      "labelDy": 24
+    },
+    {
+      "id": "bt-ui",
+      "from": "bttbl",
+      "to": "ui",
+      "label": "리포트 · 공유 링크",
+      "classification": "읽기 전용",
+      "route": "straight",
+      "labelAt": [
+        953,
+        208
+      ]
+    },
+    {
+      "id": "derived-ui",
+      "from": "derivedtbl",
+      "to": "ui",
+      "label": "분포 · 히트맵",
+      "classification": "파생 지표",
+      "variant": "dashed",
+      "labelAt": [
+        953,
+        248
+      ]
+    },
+    {
+      "id": "ledger-exchange",
+      "from": "tradetbl",
+      "to": "exchange",
+      "label": "주문 · 체결 대조",
+      "classification": "실집행",
+      "variant": "security",
+      "route": "straight",
+      "labelDy": 53
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "재현성",
+      "items": [
+        "실행은 strategies 가 아니라 strategy_versions 를 가리킨다 — 원문이 바뀌어도 과거 백테스트가 흔들리지 않는다",
+        "idempotency_key 가 같은 조건의 중복 실행을 막는다"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "같은 엔진 · 집행 경계",
+      "items": [
+        "백테스트와 라이브 신호가 같은 워커 풀에서 pine_v2 를 공유한다",
+        "계정 모드는 Bybit demo 하나 — exchange_exits 가 청산 내역을 원장과 대조한다"
+      ]
+    }
+  ]
+}

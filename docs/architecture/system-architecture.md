@@ -3,6 +3,10 @@
 > **목적:** C4 Level 1~2 (System Context + Container) 다이어그램 + 인증/인가 경계.
 > **SSOT:** 컴포넌트 코드는 `apps/web/`, `apps/api/`. 인프라는 `docker-compose.yml`, `.github/workflows/ci.yml`.
 > 데이터 흐름 시퀀스는 [`data-flow.md`](./data-flow.md), 도메인 경계는 [`domain-overview.md`](../domain/domain-overview.md).
+> **인터랙티브 판**: [`diagrams/system-architecture.html`](./diagrams/system-architecture.html) ·
+> [`diagrams/strategy-to-trading-dataflow.html`](./diagrams/strategy-to-trading-dataflow.html) —
+> 자립형 HTML(외부 의존 0). 구조가 바뀌면 옆의 `*.archify.json` 을 고쳐 다시 렌더한다
+> (`node <archify>/bin/archify.mjs deliver <type> <spec>.json <out>.html --quality showcase`).
 
 ---
 
