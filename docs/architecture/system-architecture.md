@@ -429,7 +429,7 @@ sequenceDiagram
 
 > 프로덕션 토폴로지 선택과 배포 trigger는 [`PRD.md`](../PRD.md) §0 **결정 3건**이 정본이다.
 
-~~현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.~~ → **2026-09-04 정정.** 실제 토폴로지는 오라클 A1(aarch64) 한 대다 — Cloudflare Tunnel(`cloudflared`, host 네트워크) + Access OTP 뒤에 FE 컨테이너(standalone, 루프백 3200)와 **호스트 systemd `quantbridge-api.service` 의 uvicorn**(루프백 8100)이 있고, Celery 워커 4 + db + redis 는 소크 compose 3층(`docker-compose.yml` + `.isolated.yml` + `.soak.yml`, 워커는 `.soak/src` 고정 스냅샷 mount)이다. 절차 정본 = [`../operations/frontend-deploy.md`](../operations/frontend-deploy.md) · [`../operations/backend-deploy.md`](../operations/backend-deploy.md). 실자금·외부 공개는 제품 범위 밖이다([`PRD.md`](../PRD.md) §0).
+~~현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.~~ → **2026-09-04 정정.** 실제 토폴로지는 오라클 A1(aarch64) 한 대다 — Cloudflare Tunnel(`cloudflared`, host 네트워크) + Access OTP 뒤에 FE 컨테이너(standalone, 루프백 3200)와 **호스트 systemd `quantbridge-api.service` 의 uvicorn**(루프백 8100)이 있고, Celery 워커 3 + beat 스케줄러 1 + db + redis 는 소크 compose 3층(`docker-compose.yml` + `.isolated.yml` + `.soak.yml`, Celery 서비스는 `.soak/src` 고정 스냅샷 mount)이다. 절차 정본 = [`../operations/frontend-deploy.md`](../operations/frontend-deploy.md) · [`../operations/backend-deploy.md`](../operations/backend-deploy.md). 실자금·외부 공개는 제품 범위 밖이다([`PRD.md`](../PRD.md) §0).
 
 ---
 

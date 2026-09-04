@@ -242,7 +242,7 @@
       "id": "infra",
       "type": "cloud",
       "label": "infra/compose — 4 compose",
-      "sublabel": "db · redis · 워커 4 · FE",
+      "sublabel": "db · redis · 워커 3 + beat 1",
       "pos": [
         865,
         396
@@ -328,7 +328,7 @@
       "id": "service-repo",
       "from": "api-service",
       "to": "api-repo",
-      "label": "AsyncSession"
+      "label": "repo 호출"
     },
     {
       "id": "repo-alembic",
@@ -361,19 +361,14 @@
       "from": "api-tasks",
       "to": "pine",
       "label": "v2_adapter",
-      "variant": "emphasis"
+      "variant": "emphasis",
+      "labelDy": 10
     },
     {
-      "id": "router-pine",
-      "from": "api-router",
+      "id": "service-pine",
+      "from": "api-service",
       "to": "pine",
-      "label": "parse · coverage",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "labelAt": [
-        676,
-        191
-      ]
+      "label": "parse · coverage"
     },
     {
       "id": "ci-backend",
@@ -408,7 +403,7 @@
       "id": "infra-tasks",
       "from": "infra",
       "to": "api-tasks",
-      "label": "compose 4 워커",
+      "label": "워커 3 + beat 1",
       "fromSide": "top",
       "toSide": "bottom"
     },

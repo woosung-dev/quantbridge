@@ -5030,7 +5030,7 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Boundaries (behind everything) -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="docker compose — db · redis · 워커 4 서비스" x="560" y="166" width="507" height="250" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="docker compose — db · redis · 워커 3 + beat 1" x="560" y="166" width="507" height="250" rx="12" class="c-region" stroke-width="1"/>
 
         <!-- Connection paths (before components for correct z-order) -->
         <path data-edge-from="browser" data-edge-to="web" data-edge-label="HTTPS · 세션 쿠키" data-edge-key="0" data-edge-id="browser-web" data-composition-points="119,196;119,116" d="M 119 196 L 119 116" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
@@ -5112,8 +5112,8 @@
         <text data-detail="context" x="676" y="100" class="t-muted" font-size="9" text-anchor="middle">알림 웹훅 (HMAC 서명)</text>
         </g>
 
-        <g id="node-redis" data-node-id="redis" data-node-label="Redis 7" tabindex="0" role="button" aria-label="Focus Redis 7, 브로커 · 락 · pub/sub, docker compose — db · redis · 워커 4 서비스" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="브로커 · 락 · pub/sub" data-node-tag="noeviction · AOF" data-node-context="docker compose — db · redis · 워커 4 서비스">
-          <title>Redis 7 · 브로커 · 락 · pub/sub · docker compose — db · redis · 워커 4 서비스 · noeviction · AOF</title>
+        <g id="node-redis" data-node-id="redis" data-node-label="Redis 7" tabindex="0" role="button" aria-label="Focus Redis 7, 브로커 · 락 · pub/sub, docker compose — db · redis · 워커 3 + beat 1" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="브로커 · 락 · pub/sub" data-node-tag="noeviction · AOF" data-node-context="docker compose — db · redis · 워커 3 + beat 1">
+          <title>Redis 7 · 브로커 · 락 · pub/sub · docker compose — db · redis · 워커 3 + beat 1 · noeviction · AOF</title>
           <rect x="590" y="196" width="172" height="60" rx="6" class="c-mask"/>
           <rect x="590" y="196" width="172" height="60" rx="6" class="c-messagebus" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(596 202) scale(0.6875)">
@@ -5127,8 +5127,8 @@
         <text data-detail="fine" x="676" y="248" class="t-messagebus" font-size="7" text-anchor="middle">noeviction · AOF</text>
         </g>
 
-        <g id="node-pg" data-node-id="pg" data-node-label="PostgreSQL 15 + Timescale" tabindex="0" role="button" aria-label="Focus PostgreSQL 15 + Timescale, public · trading · ts.ohlcv, docker compose — db · redis · 워커 4 서비스" aria-pressed="false" data-node-kind="database" data-node-sublabel="public · trading · ts.ohlcv" data-node-tag="24 테이블 · alembic 45" data-node-context="docker compose — db · redis · 워커 4 서비스">
-          <title>PostgreSQL 15 + Timescale · public · trading · ts.ohlcv · docker compose — db · redis · 워커 4 서비스 · 24 테이블 · alembic 45</title>
+        <g id="node-pg" data-node-id="pg" data-node-label="PostgreSQL 15 + Timescale" tabindex="0" role="button" aria-label="Focus PostgreSQL 15 + Timescale, public · trading · ts.ohlcv, docker compose — db · redis · 워커 3 + beat 1" aria-pressed="false" data-node-kind="database" data-node-sublabel="public · trading · ts.ohlcv" data-node-tag="24 테이블 · alembic 45" data-node-context="docker compose — db · redis · 워커 3 + beat 1">
+          <title>PostgreSQL 15 + Timescale · public · trading · ts.ohlcv · docker compose — db · redis · 워커 3 + beat 1 · 24 테이블 · alembic 45</title>
           <rect x="590" y="336" width="172" height="60" rx="6" class="c-mask"/>
           <rect x="590" y="336" width="172" height="60" rx="6" class="c-database" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(596 342) scale(0.6875)">
@@ -5140,15 +5140,15 @@
         <text data-detail="fine" x="676" y="388" class="t-database" font-size="7" text-anchor="middle">24 테이블 · alembic 45</text>
         </g>
 
-        <g id="node-celery" data-node-id="celery" data-node-label="Celery 워커 ×4" tabindex="0" role="button" aria-label="Focus Celery 워커 ×4, 큐 3종 + beat · prefork, docker compose — db · redis · 워커 4 서비스" aria-pressed="false" data-node-kind="backend" data-node-sublabel="큐 3종 + beat · prefork" data-node-tag="compose 4 서비스" data-node-context="docker compose — db · redis · 워커 4 서비스">
-          <title>Celery 워커 ×4 · 큐 3종 + beat · prefork · docker compose — db · redis · 워커 4 서비스 · compose 4 서비스</title>
+        <g id="node-celery" data-node-id="celery" data-node-label="Celery 워커 3 + beat 1" tabindex="0" role="button" aria-label="Focus Celery 워커 3 + beat 1, 큐 3종 · prefork 워커, docker compose — db · redis · 워커 3 + beat 1" aria-pressed="false" data-node-kind="backend" data-node-sublabel="큐 3종 · prefork 워커" data-node-tag="compose 4 서비스" data-node-context="docker compose — db · redis · 워커 3 + beat 1">
+          <title>Celery 워커 3 + beat 1 · 큐 3종 · prefork 워커 · docker compose — db · redis · 워커 3 + beat 1 · compose 4 서비스</title>
           <rect x="865" y="196" width="172" height="60" rx="6" class="c-mask"/>
           <rect x="865" y="196" width="172" height="60" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(871 202) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="951" y="224" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Celery 워커 ×4</text>
-        <text data-detail="context" x="951" y="240" class="t-muted" font-size="9" text-anchor="middle">큐 3종 + beat · prefork</text>
+          <text data-node-label="" data-detail-anchor="" x="951" y="224" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Celery 워커 3 + beat 1</text>
+        <text data-detail="context" x="951" y="240" class="t-muted" font-size="9" text-anchor="middle">큐 3종 · prefork 워커</text>
         <text data-detail="fine" x="951" y="248" class="t-backend" font-size="7" text-anchor="middle">compose 4 서비스</text>
         </g>
 
@@ -5232,9 +5232,9 @@
         </g>
 
         <!-- Boundary labels (foreground masks keep routes out of titles) -->
-        <g data-graph-role="structural-frame-label" data-composition-frame-id="0" data-composition-frame-kind="region" data-composition-frame-label="docker compose — db · redis · 워커 4 서비스">
-          <rect data-graph-role="structural-frame-label-mask" x="564" y="176" width="242.2" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="568" y="189" class="t-cloud" font-size="9" font-weight="600">docker compose — db · redis · 워커 4 서비스</text>
+        <g data-graph-role="structural-frame-label" data-composition-frame-id="0" data-composition-frame-kind="region" data-composition-frame-label="docker compose — db · redis · 워커 3 + beat 1">
+          <rect data-graph-role="structural-frame-label-mask" x="564" y="176" width="253" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="568" y="189" class="t-cloud" font-size="9" font-weight="600">docker compose — db · redis · 워커 3 + beat 1</text>
         </g>
 
         <!-- Legend -->
@@ -5455,7 +5455,7 @@
         <ul>
           <li>&bull; 백테스트·스트레스·옵티마이저는 REST 제출(202) → Celery → pine_v2 → Postgres. API 핸들러는 실행하지 않는다</li>
           <li>&bull; 라이브는 beat 가 60초마다 live_signal.evaluate_all 을 깨우고 같은 pine_v2 가 신호를 낸다 — 체결 권한은 주문 원장(ADR-025)</li>
-          <li>&bull; 큐 3종 = celery(기본) · ws_stream · optimizer_heavy. 워커 4 = worker · ws-stream · optimizer-heavy · beat</li>
+          <li>&bull; 큐 3종 = celery(기본) · ws_stream · optimizer_heavy. 워커 3 = backend-worker · backend-ws-stream · backend-optimizer-heavy. backend-beat 는 스케줄러</li>
         </ul>
       </div>
 

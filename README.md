@@ -11,7 +11,7 @@ Pine Script 를 파이썬으로 **트랜스파일하지 않는다.** AST 를 봉
 | 개발       | 2026-04-14 ~ 현재 · 1인 개발 · 커밋 1,384 · 머지 PR 723                                                |
 | 백엔드     | Python 234파일 · 56.0k LOC · 3-Layer 도메인 7 · 테이블 24 (앱 19 + 인증 5) · 마이그레이션 45           |
 | Pine 엔진  | `pine_v2` 24모듈 8.8k LOC · `ta.*` 23종 · `array.*` 15종                                               |
-| 비동기     | Celery 태스크 28 · beat 스케줄 16 · 큐 3 (`celery` · `ws_stream` · `optimizer_heavy`) · 워커 컨테이너 4 |
+| 비동기     | Celery 태스크 28 · beat 스케줄 16 · 큐 3 (`celery` · `ws_stream` · `optimizer_heavy`) · compose 서비스 4 (워커 3 + beat 1) |
 | API        | REST 경로 57 · 오퍼레이션 67 · WebSocket 1 — 계약은 `contracts/openapi/openapi.json` 에 커밋            |
 | 프론트엔드 | 라우트 26 · feature 도메인 12 · TypeScript 260파일 31.8k LOC                                            |
 | 테스트     | pytest 555파일 4,616 케이스 · vitest 292파일 · Playwright 31 spec                                       |
@@ -102,7 +102,7 @@ flowchart LR
         WSR["WS /api/v1/realtime/ws<br/>ConnectionManager"]
     end
 
-    subgraph Workers["Celery 워커 — compose 4 서비스 (prefork · 영속 _WORKER_LOOP)"]
+    subgraph Workers["Celery compose — 워커 3 + beat 1 (prefork 워커 · 영속 _WORKER_LOOP)"]
         W["backend-worker · 큐 celery<br/>backtest.run · stress_test.run · live_signal.*"]
         H["backend-optimizer-heavy · 큐 optimizer_heavy<br/>optimizer.run"]
         S["backend-ws-stream · 큐 ws_stream<br/>Bybit private/public WS 상주"]
@@ -154,7 +154,7 @@ GitHub 은 HTML 을 렌더하지 않는다 — 클론한 뒤 브라우저로 열
 | ---------------- | ----------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------ |
 | `apps/web`       | Next.js 16 App Router · **Better Auth 서버 본체** · `proxy.ts` 세션 게이트    | `fe` → uvicorn 과 별도 프로세스, :3000    | `quantbridge-frontend` 컨테이너 (standalone), 루프백 :3200   |
 | `apps/api`       | FastAPI 100% async · JWKS 검증 · WS fan-out · 백테스트 dispatch               | `be` → uvicorn :8000                      | 호스트 systemd `quantbridge-api.service` 의 uvicorn, 루프백 :8100 |
-| Celery 워커 4    | `backend-worker` · `backend-ws-stream` · `backend-optimizer-heavy` · `backend-beat` | `up` → compose (`infra/compose/docker-compose.yml`) | 소크 compose 3층 — 워커는 `.soak/src` **고정 스냅샷**을 mount |
+| Celery 워커 3 + beat 1 | `backend-worker` · `backend-ws-stream` · `backend-optimizer-heavy` · `backend-beat` | `up` → compose (`infra/compose/docker-compose.yml`) | 소크 compose 3층 — 4 서비스는 `.soak/src` **고정 스냅샷**을 mount |
 | PostgreSQL       | `timescale/timescaledb:2.14.2-pg15` · 스키마 `public` · `trading` · `ts`      | compose :5432 (격리 :5433)                | compose (루프백 :5433)                                        |
 | Redis            | `redis:7-alpine` · `noeviction` · AOF rewrite 8mb · 쓰기 프로브 healthcheck   | compose :6379 (격리 :6380)                | compose (루프백 :6380)                                        |
 | 공개 경로        | —                                                                             | —                                         | Cloudflare Tunnel(`cloudflared`, host 네트워크) + Access OTP  |

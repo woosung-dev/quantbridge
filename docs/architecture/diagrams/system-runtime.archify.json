@@ -173,8 +173,8 @@
     {
       "id": "celery",
       "type": "backend",
-      "label": "Celery 워커 ×4",
-      "sublabel": "큐 3종 + beat · prefork",
+      "label": "Celery 워커 3 + beat 1",
+      "sublabel": "큐 3종 · prefork 워커",
       "tag": "compose 4 서비스",
       "pos": [
         865,
@@ -219,7 +219,7 @@
   "boundaries": [
     {
       "kind": "region",
-      "label": "docker compose — db · redis · 워커 4 서비스",
+      "label": "docker compose — db · redis · 워커 3 + beat 1",
       "wraps": [
         "redis",
         "pg",
@@ -337,7 +337,7 @@
       "items": [
         "백테스트·스트레스·옵티마이저는 REST 제출(202) → Celery → pine_v2 → Postgres. API 핸들러는 실행하지 않는다",
         "라이브는 beat 가 60초마다 live_signal.evaluate_all 을 깨우고 같은 pine_v2 가 신호를 낸다 — 체결 권한은 주문 원장(ADR-025)",
-        "큐 3종 = celery(기본) · ws_stream · optimizer_heavy. 워커 4 = worker · ws-stream · optimizer-heavy · beat"
+        "큐 3종 = celery(기본) · ws_stream · optimizer_heavy. 워커 3 = backend-worker · backend-ws-stream · backend-optimizer-heavy. backend-beat 는 스케줄러"
       ]
     },
     {
