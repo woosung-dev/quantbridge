@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "QuantBridge — 런타임 아키텍처",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1340,
+      540
+    ],
+    "legend": {
+      "entries": {
+        "frontend": {
+          "label": "프런트엔드 (Next.js)"
+        },
+        "backend": {
+          "label": "백엔드 · 워커 (Python)"
+        },
+        "database": {
+          "label": "데이터베이스"
+        },
+        "messagebus": {
+          "label": "브로커 · pub/sub"
+        },
+        "external": {
+          "label": "외부 시스템 · 클라이언트"
+        }
+      }
+    },
+    "views": [
+      {
+        "id": "backtest-path",
+        "label": "백테스트 경로",
+        "focus": [
+          "browser",
+          "api",
+          "redis",
+          "celery",
+          "pine",
+          "pg"
+        ],
+        "note": "REST 제출 → Celery 큐 → pine_v2 실행 → Postgres 결과 저장. API 는 실행하지 않는다."
+      },
+      {
+        "id": "live-path",
+        "label": "라이브 신호 경로",
+        "focus": [
+          "celery",
+          "pine",
+          "bybit",
+          "redis",
+          "api",
+          "browser"
+        ],
+        "note": "beat 60초 → live_signal.evaluate_all → 같은 pine_v2 → Order → Bybit Demo → pub/sub → 브라우저."
+      },
+      {
+        "id": "auth-boundary",
+        "label": "인증 경계",
+        "focus": [
+          "browser",
+          "web",
+          "api"
+        ],
+        "note": "Next.js 가 인증 서버 본체다. FastAPI 는 JWKS 공개키로 EdDSA JWT 를 검증만 한다."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Next.js 16 · apps/web",
+      "sublabel": "인증 서버 겸 · proxy.ts",
+      "tag": "인증 서버 본체",
+      "pos": [
+        40,
+        56
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "브라우저",
+      "sublabel": "대시보드 · Monaco · 차트",
+      "pos": [
+        40,
+        196
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI · apps/api",
+      "sublabel": "REST /api/v1 · WebSocket",
+      "tag": "JWKS 로 JWT 검증",
+      "pos": [
+        315,
+        196
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "LLM provider",
+      "sublabel": "anthropic · openai · gemini",
+      "tag": "LLM_PROVIDER_ORDER",
+      "pos": [
+        315,
+        336
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "tradingview",
+      "type": "external",
+      "label": "TradingView",
+      "sublabel": "알림 웹훅 (HMAC 서명)",
+      "pos": [
+        590,
+        56
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "messagebus",
+      "label": "Redis 7",
+      "sublabel": "브로커 · 락 · pub/sub",
+      "tag": "noeviction · AOF",
+      "pos": [
+        590,
+        196
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "pg",
+      "type": "database",
+      "label": "PostgreSQL 15 + Timescale",
+      "sublabel": "public · trading · ts.ohlcv",
+      "tag": "24 테이블 · alembic 45",
+      "pos": [
+        590,
+        336
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "celery",
+      "type": "backend",
+      "label": "Celery 워커 3 + beat 1",
+      "sublabel": "큐 3종 · prefork 워커",
+      "tag": "compose 4 서비스",
+      "pos": [
+        865,
+        196
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "bybit",
+      "type": "external",
+      "label": "Bybit Demo",
+      "sublabel": "REST · private/public WS",
+      "tag": "실자금 없음",
+      "pos": [
+        1140,
+        196
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "pine",
+      "type": "backend",
+      "label": "pine_v2 인터프리터",
+      "sublabel": "백테스트·라이브 같은 엔진",
+      "tag": "exec/eval 금지",
+      "pos": [
+        1140,
+        336
+      ],
+      "size": [
+        172,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "docker compose — db · redis · 워커 3 + beat 1",
+      "wraps": [
+        "redis",
+        "pg",
+        "celery"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browser-web",
+      "from": "browser",
+      "to": "web",
+      "label": "HTTPS · 세션 쿠키",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "browser-api",
+      "from": "browser",
+      "to": "api",
+      "label": "Bearer JWT",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-jwks",
+      "from": "api",
+      "to": "web",
+      "label": "JWKS 공개키",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "tv-webhook",
+      "from": "tradingview",
+      "to": "api",
+      "label": "webhook HMAC",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "api-enqueue",
+      "from": "api",
+      "to": "redis",
+      "label": "enqueue"
+    },
+    {
+      "id": "redis-fanout",
+      "from": "redis",
+      "to": "api",
+      "label": "pub/sub",
+      "variant": "dashed",
+      "labelDy": 26
+    },
+    {
+      "id": "api-pg",
+      "from": "api",
+      "to": "pg",
+      "label": "asyncpg",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "api-llm",
+      "from": "api",
+      "to": "llm",
+      "label": "JSON 스키마 강제",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24,
+      "labelDx": -36
+    },
+    {
+      "id": "redis-consume",
+      "from": "redis",
+      "to": "celery",
+      "label": "큐 3종",
+      "labelDy": 26
+    },
+    {
+      "id": "celery-publish",
+      "from": "celery",
+      "to": "redis",
+      "label": "pub/sub 발행",
+      "variant": "dashed"
+    },
+    {
+      "id": "celery-bybit",
+      "from": "celery",
+      "to": "bybit",
+      "label": "CCXT · WS"
+    },
+    {
+      "id": "celery-pine",
+      "from": "celery",
+      "to": "pine",
+      "label": "run_backtest_v2 · run_live",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "celery-pg",
+      "from": "celery",
+      "to": "pg",
+      "label": "결과 저장 · asyncpg",
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "두 실행 경로, 엔진 하나",
+      "items": [
+        "백테스트·스트레스·옵티마이저는 REST 제출(202) → Celery → pine_v2 → Postgres. API 핸들러는 실행하지 않는다",
+        "라이브는 beat 가 60초마다 live_signal.evaluate_all 을 깨우고 같은 pine_v2 가 신호를 낸다 — 체결 권한은 주문 원장(ADR-025)",
+        "큐 3종 = celery(기본) · ws_stream · optimizer_heavy. 워커 3 = backend-worker · backend-ws-stream · backend-optimizer-heavy. backend-beat 는 스케줄러"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "인증 경계 (ADR-034)",
+      "items": [
+        "브라우저↔Next 는 세션 쿠키, Next↔FastAPI 와 브라우저↔FastAPI 는 Bearer JWT — 두 구간의 자격증명이 다르다",
+        "FastAPI 는 시크릿을 하나도 쥐지 않는다. /api/auth/jwks 공개키(EdDSA)로 서명·exp·iss·aud 를 검증한다",
+        "proxy.ts 가 공개 라우트를 가르고 나머지는 세션을 DB 까지 검증한다 (쿠키 존재 확인이 아니다)"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "실시간 · 외부 입력",
+      "items": [
+        "ws_stream 워커가 Bybit private/public WS 를 상주 구독 → Redis DB3 pub/sub → API ConnectionManager → 브라우저 WS (사용자당 3연결)",
+        "TradingView 알림은 /api/v1/webhooks/{strategy_id} 로 들어오고 HMAC 서명이 1차 보안층이라 rate limit 을 면제한다",
+        "LLM 은 브리핑 해설·전략 생성만 담당한다. 판정어(실행 가능·degraded)는 결정론 층이 독점한다 (ADR-040)"
+      ]
+    }
+  ]
+}

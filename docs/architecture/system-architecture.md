@@ -3,6 +3,7 @@
 > **목적:** C4 Level 1~2 (System Context + Container) 다이어그램 + 인증/인가 경계.
 > **SSOT:** 컴포넌트 코드는 `apps/web/`, `apps/api/`. 인프라는 `docker-compose.yml`, `.github/workflows/ci.yml`.
 > 데이터 흐름 시퀀스는 [`data-flow.md`](./data-flow.md), 도메인 경계는 [`domain-overview.md`](../domain/domain-overview.md).
+> **인터랙티브 다이어그램(Archify, 2026-09-04):** [`diagrams/system-runtime.html`](./diagrams/system-runtime.html) · [`diagrams/data-model.html`](./diagrams/data-model.html) · [`diagrams/repo-structure.html`](./diagrams/repo-structure.html) — 스펙은 같은 이름의 `.archify.json`, 재생성은 `archify deliver`. GitHub 은 HTML 을 렌더하지 않으므로 클론 후 브라우저로 연다.
 
 ---
 
@@ -78,11 +79,11 @@ flowchart TB
 | 컨테이너 | 책임                                                                                                                      | 이미지/런타임                       | 포트 |
 | -------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ---- |
 | Frontend | Next.js 16 SSR/CSR, Better Auth 서버, React Query, Zustand                                                                | `node:22`                           | 3000 |
-| API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch                                                                  | `python:3.11-slim` + `uv`           | 8000 |
+| API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch                                                                  | `python:3.12-slim` + `uv`           | 8000 |
 | Worker   | Celery prefork, pine_v2 AST 인터프리터 백테스트 실행, OHLCV 수집 (지표도 pine_v2 직접 계산 — vectorbt 는 2026-08-06 제거) | API와 동일 이미지                   | —    |
 | Beat     | Celery beat scheduler (stale reclaim, market_data sync)                                                                   | API와 동일 이미지                   | —    |
-| DB       | PostgreSQL 15 + TimescaleDB 확장                                                                                          | `timescale/timescaledb:latest-pg15` | 5432 |
-| Redis    | Celery 브로커 + 결과 백엔드 + 캐시                                                                                        | `redis:7-alpine`                    | 6379 |
+| DB       | PostgreSQL 15 + TimescaleDB 확장                                                                                          | `timescale/timescaledb:2.14.2-pg15` | 5432 |
+| Redis    | Celery 브로커(DB1) + 결과 백엔드(DB2) + 분산 락·rate limit·pub/sub(DB3). 캐시 DB0 은 소비자 0건이라 뺐다(2026-08-15)      | `redis:7-alpine` (noeviction · AOF) | 6379 |
 
 > Frontend 개발 서버는 `pnpm dev`로 직접 실행한다. Worker와 Beat는 compose 서비스로 실행한다.
 
@@ -428,10 +429,11 @@ sequenceDiagram
 
 > 프로덕션 토폴로지 선택과 배포 trigger는 [`PRD.md`](../PRD.md) §0 **결정 3건**이 정본이다.
 
-현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.
+~~현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.~~ → **2026-09-04 정정.** 실제 토폴로지는 오라클 A1(aarch64) 한 대다 — Cloudflare Tunnel(`cloudflared`, host 네트워크) + Access OTP 뒤에 FE 컨테이너(standalone, 루프백 3200)와 **호스트 systemd `quantbridge-api.service` 의 uvicorn**(루프백 8100)이 있고, Celery 워커 3 + beat 스케줄러 1 + db + redis 는 소크 compose 3층(`docker-compose.yml` + `.isolated.yml` + `.soak.yml`, Celery 서비스는 `.soak/src` 고정 스냅샷 mount)이다. 절차 정본 = [`../operations/frontend-deploy.md`](../operations/frontend-deploy.md) · [`../operations/backend-deploy.md`](../operations/backend-deploy.md). 실자금·외부 공개는 제품 범위 밖이다([`PRD.md`](../PRD.md) §0).
 
 ---
 
 ## 변경 이력
 
 - **2026-04-16** — 초안 작성 (Sprint 5 Stage A)
+- **2026-09-04** — 컨테이너 표 3셀 정정(python 3.12 · timescaledb 2.14.2 · Redis DB 분할) · §9 배포 토폴로지를 실측으로 교체 · Archify 인터랙티브 다이어그램 3장(`diagrams/`) 연결

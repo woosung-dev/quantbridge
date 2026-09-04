@@ -27,7 +27,7 @@
 
 ## 1. 이 배포가 무엇인가 (그리고 무엇이 아닌가)
 
-**맞다** — main 체크아웃의 특정 커밋을 `.soak/src`에 고정하고, DB 스키마와 네 Celery 워커,
+**맞다** — main 체크아웃의 특정 커밋을 `.soak/src`에 고정하고, DB 스키마와 Celery 서비스 4개(워커 3 + beat 1),
 호스트 API를 명시 순서로 전환하는 운영 절차다. 소크 compose는 `db`, `redis`,
 `backend-worker`, `backend-ws-stream`, `backend-optimizer-heavy`, `backend-beat`의 **6서비스**다.
 `soak-gate.sh:43-47`은 optimizer-heavy를 빠뜨려 5종이라고 적지만, compose 코드가 정본이다
@@ -212,7 +212,7 @@ SHA="$(git rev-parse HEAD)"
 #   호스트 API 의 ExecStart 는 `apps/api/.venv/bin/uvicorn` 이라 새 런타임 의존성이 붙으면
 #   재시작이 곧 장애다 — 2026-08-28 실측: `openai>=1.60` 이 추가됐고 `src.main` 이
 #   `strategy.router → service → narrative.service → narrative.providers` 로 그 체인을 문다.
-#   Celery 워커 4대는 이미지에 굽힌 것을 쓰고 task 18개 중 이 체인을 무는 것은 0개다.
+#   Celery 서비스 4개(워커 3 + beat 1)는 이미지에 굽힌 것을 쓰고 task 18개 중 이 체인을 무는 것은 0개다.
 #   ★★**2026-08-30 정정 — 이 문장이 조사를 멈추게 했다.** 「워커는 안 문다」는 참이지만
 #     그 다음 질문(「그럼 워커 이미지는 언제 갱신되나」)을 막았다. 답은 **아무도 안 한다** 였고
 #     서버 이미지는 3주간 낡아 `openai` 가 없고 제거된 Clerk 패키지를 갖고 있었다. ⇒ 아래 ①-b.

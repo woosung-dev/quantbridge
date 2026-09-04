@@ -2,7 +2,7 @@
 
 FastAPI + SQLModel + Celery. 100% 비동기. 도메인별 3-Layer(Router / Service / Repository) 구조다.
 
-- Python 219파일 · 53.7k LOC · 도메인 7 · 테이블 20 · 마이그레이션 45 · pytest 4,026 케이스
+- Python 234파일 · 56.0k LOC · 3-Layer 도메인 7 · 테이블 24 (앱 19 + Better Auth 5) · 마이그레이션 45 · pytest 4,616 케이스 (2026-09-04 실측)
 - 전체 제품 소개와 최초 셋업은 [루트 README](../../README.md) 참조
 
 ---
@@ -11,24 +11,24 @@ FastAPI + SQLModel + Celery. 100% 비동기. 도메인별 3-Layer(Router / Servi
 
 | 디렉터리 (`src/`) | 역할                                                                              | 3-Layer | LOC   |
 | ----------------- | --------------------------------------------------------------------------------- | ------- | ----- |
-| `strategy/`       | Pine 전략 CRUD·파싱·버전 + `pine_v2/` 인터프리터 + `convert/`(indicator→strategy) | ✅      | 10.2k |
+| `strategy/`       | Pine 전략 CRUD·파싱·버전 + `pine_v2/` 인터프리터 + `convert/`(indicator→strategy) + `narrative/`(브리핑·생성 LLM) | ✅      | 12.1k |
 | `backtest/`       | 백테스트 제출·조회·공유 + `engine/`(pine_v2 결과 → 성과 지표 변환)                | ✅      | 5.4k  |
 | `stress_test/`    | 몬테카를로 · 워크포워드 · 비용가정 민감도 · 파라미터 안정성                       | ✅      | 2.7k  |
-| `optimizer/`      | 파라미터 최적화 — grid / bayesian / genetic                                       | ✅      | 3.1k  |
-| `trading/`        | 거래소 계정 · 주문 · 포지션 · 킬스위치 · 라이브 세션 · 웹훅 · 청산                | ✅      | 15.9k |
+| `optimizer/`      | 파라미터 최적화 — grid / bayesian / genetic                                       | ✅      | 3.2k  |
+| `trading/`        | 거래소 계정 · 주문 · 포지션 · 킬스위치 · 라이브 세션 · 웹훅 · 청산                | ✅      | 16.0k |
 | `waitlist/`       | 베타 대기열 신청 + admin 승인 → 초대 발송                                         | ✅      | 0.9k  |
 | `auth/`           | 사용자 원장 + 탈퇴 (JWT **검증기는 여기가 아니다** — 아래 참조)                   | ✅      | 0.6k  |
 | `market_data/`    | OHLCV provider(CCXT · Timescale · fixture) 공급. **공개 REST 없는 내부 전용**     | repo만  | 0.7k  |
 | `realtime/`       | 인증 WebSocket + Redis pubsub fanout + **JWKS 검증기**(`auth.py`)                 | WS only | 0.5k  |
 | `health/`         | `/healthz`(Postgres·Redis·Celery 3-dep ping) · `/livez`                           | —       | 0.2k  |
-| `tasks/`          | Celery 앱 + 태스크 27개                                                           | —       | 9.6k  |
+| `tasks/`          | Celery 앱 + 태스크 28개                                                           | —       | 9.8k  |
 | `common/`         | 도메인 무지 기반 — DB 세션 · 예외 · Redis · redlock · metrics · rate limit · 알림 | —       | 2.8k  |
-| `core/`           | `config.py` 하나 — 전 도메인 `Settings` (pydantic-settings)                       | —       | 0.5k  |
+| `core/`           | `config.py` 하나 — 전 도메인 `Settings` 46필드 (pydantic-settings)                | —       | 0.6k  |
 | `scripts/`        | 운영 entrypoint helper (`python -m src.scripts.*` — alembic 락 래퍼 등)           | —       | 0.2k  |
 
 읽을 때 헷갈리기 쉬운 세 가지:
 
-- **`trading/` 만 구조가 다르다** — `service.py`/`repository.py` 가 파일이 아니라 `services/`(13개) · `repositories/`(10개) 디렉터리로 분해돼 있고, `websocket/` 서브패키지를 따로 갖는다
+- **`trading/` 만 구조가 다르다** — `service.py`/`repository.py` 가 파일이 아니라 `services/`(16개) · `repositories/`(10개) 디렉터리로 분해돼 있고, `websocket/`(6개) 서브패키지를 따로 갖는다
 - **JWT 검증기는 `realtime/auth.py`** 한 곳이다. `auth/` 는 사용자 원장만 갖는다 (횡단 관심사라 도메인 밖 — [ADR-034](../../docs/adr/034-auth-self-host-better-auth.md))
 - **Service 는 `src.tasks` 를 직접 import 하지 않는다** — 순환 의존을 피하려고 `dispatcher.py` Protocol 로 추상화했다 (`backtest/dispatcher.py` 참조)
 - `exchange/` 는 없다 — [ADR-018](../../docs/adr/018-sprint12-ws-supervisor-and-exchange-stub-removal.md) 로 `trading/` 에 통합됐다
@@ -61,7 +61,7 @@ OpenAPI 계약(`contracts/openapi/openapi.json`)이 레포에 커밋돼 있고, 
 
 ## `pine_v2` 인터프리터
 
-이 레포의 심장. `src/strategy/pine_v2/` 에 22모듈 8.3k LOC. **백테스트와 라이브 신호가 같은 코드로 돈다** ([ADR-011](../../docs/adr/011-pine-execution-strategy-v4.md)).
+이 레포의 심장. `src/strategy/pine_v2/` 에 24모듈(`runtime/` 2개 포함) 8.8k LOC. **백테스트와 라이브 신호가 같은 코드로 돈다** ([ADR-011](../../docs/adr/011-pine-execution-strategy-v4.md)).
 
 | 파일                  | 역할                                                                     |
 | --------------------- | ------------------------------------------------------------------------ |
@@ -74,7 +74,7 @@ OpenAPI 계약(`contracts/openapi/openapi.json`)이 레포에 커밋돼 있고, 
 | `virtual_strategy.py` | Track A 가상 strategy 래퍼 — indicator + alertcondition 을 자동매매로    |
 | `parser_adapter.py`   | ★pynescript 호출의 **유일한 지점**                                       |
 
-**지원 범위** — `ta.*` 23종(sma·ema·rma·atr·rsi·crossover·bb·sar·hma·obv 등) · `array.*` 16종 · utility 3종(`na`/`nz`/`fixnan`) · plot 19 · input 12 · math 14 · string 6. 허용 집합의 SSOT 는 `_names.py` + `coverage.py` 다.
+**지원 범위** — `ta.*` 23종(sma·ema·rma·atr·rsi·crossover·bb·sar·hma·obv 등) · `array.*` 15종 · utility 3종(`na`/`nz`/`fixnan`) · plot 19 · input 12 · math 14 · string 6. 허용 집합의 SSOT 는 `_names.py` + `coverage.py` 다.
 
 ★**라이선스 경계가 설계 제약이다.** 파서인 pynescript 는 LGPL-3.0 이라 **PyPI 의존성으로만** 쓰고 소스를 복사하지 않는다. `import pynescript` 는 `parser_adapter.py` 한 파일에서만 허용된다 — 다른 파일에 쓰지 마라.
 
@@ -124,7 +124,7 @@ uv run pytest              # 테스트 (아래 환경 주의 참조)
 
 ## 비동기 작업 (Celery)
 
-태스크 27개 · beat 스케줄 15건 · 큐 3종(`default` / `ws_stream` / `optimizer_heavy`).
+태스크 28개 · beat 스케줄 16건 · 큐 3종(`celery`(기본 — `task_default_queue` 미설정이라 Celery 기본 이름) / `ws_stream` / `optimizer_heavy`). 라우팅은 `celery_app.py` 의 `task_routes` 3줄이 전부다.
 
 | 군             | 태스크                                                                                                                                |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -140,7 +140,7 @@ uv run pytest              # 테스트 (아래 환경 주의 참조)
 
 ## 데이터베이스 & 마이그레이션
 
-- 테이블 20개 (`users` · `strategies` · `backtests` · `orders` · `live_signal_sessions` · `kill_switch_events` 등) + Better Auth 5테이블
+- 테이블 24개 = 앱 19 (public 8 · `trading` 스키마 10 · `ts` 스키마 1) + Better Auth 5(`auth_*`, 우리 코드는 읽지도 쓰지도 않고 alembic 이 DDL 만 쥔다). 관계·삭제 정책은 [루트 README](../../README.md#데이터-모델) 와 [`docs/domain/erd.md`](../../docs/domain/erd.md)
 - OHLCV 는 **TimescaleDB hypertable** `ts.ohlcv` (7일 chunk). 일반 테이블에 시계열을 넣지 않는다
 
 ```bash
@@ -160,16 +160,16 @@ uv run alembic -x allow_destructive=1 downgrade -1
 
 ## 테스트
 
-`test_*.py` 488파일 / `def test_*` 4,026개.
+`test_*.py` 555파일 / `def test_*` 4,616개 (2026-09-04 실측).
 
-| 디렉터리                  | 파일 수                                                                                            |
-| ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `tests/trading/`          | 116 (+ websocket 8)                                                                                |
-| `tests/strategy/pine_v2/` | 87                                                                                                 |
-| `tests/tasks/`            | 52                                                                                                 |
-| `tests/backtest/`         | 47 (+ engine 13)                                                                                   |
-| `tests/stress_test/`      | 23 (+ engine 16)                                                                                   |
-| 그 외                     | common 21 · strategy 16 · optimizer 14 · scripts 12 · api 11 · auth 7 · market_data 7 · waitlist 6 |
+| 디렉터리 (하위 포함)  | 파일 수                                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `tests/trading/`      | 132                                                                                                         |
+| `tests/strategy/`     | 125 (pine_v2 포함)                                                                                          |
+| `tests/backtest/`     | 61                                                                                                          |
+| `tests/tasks/`        | 57                                                                                                          |
+| `tests/stress_test/`  | 39                                                                                                          |
+| 그 외                 | scripts 30 · common 28 · optimizer 16 · 루트 15 · api 11 · waitlist 9 · market_data 7 · auth 7 · health 5 · harness 5 · integration 3 · realtime 2 · real_broker 2 · fixtures 1 |
 
 마커 3종 — `mutation`(nightly) · `real_broker`(`--run-real-broker`, Bybit Demo 자격증명 필요) · `integration`(`--run-integration`, 실제 DB/Redis).
 

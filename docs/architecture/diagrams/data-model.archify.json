@@ -1,0 +1,415 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "QuantBridge — 데이터 모델 (24 테이블 · FK 삭제 정책)",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1380,
+      540
+    ],
+    "legend": {
+      "entries": {
+        "database": {
+          "label": "테이블 (SQLModel · alembic 45)"
+        },
+        "security": {
+          "label": "인증 전용 (Better Auth 소유)"
+        }
+      }
+    },
+    "views": [
+      {
+        "id": "verification-chain",
+        "label": "검증 사슬",
+        "focus": [
+          "users",
+          "strategies",
+          "backtests",
+          "stress_tests",
+          "optimization_runs"
+        ],
+        "note": "전략 → 백테스트 → 스트레스·최적화. 결과 영속을 위해 아래로 갈수록 RESTRICT 다."
+      },
+      {
+        "id": "trading-ledger",
+        "label": "트레이딩 원장",
+        "focus": [
+          "exchange_accounts",
+          "orders",
+          "live_signal_sessions",
+          "live_signal_events",
+          "kill_switch_events"
+        ],
+        "note": "세션이 신호를 outbox(events)로 내고 Order 로 dispatch 한다. 킬 스위치는 발주 전 게이트."
+      },
+      {
+        "id": "isolated-tables",
+        "label": "FK 없는 테이블",
+        "focus": [
+          "ohlcv",
+          "auth"
+        ],
+        "note": "시계열 캐시(ts.ohlcv)와 Better Auth 5테이블은 앱 테이블과 FK 로 이어지지 않는다."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "database",
+      "label": "users",
+      "sublabel": "auth_subject UK · is_active",
+      "tag": "소유권 뿌리 · CASCADE",
+      "pos": [
+        40,
+        76
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "strategies",
+      "type": "database",
+      "label": "strategies",
+      "sublabel": "pine_source · parse_status",
+      "tag": "+ strategy_versions 1:N",
+      "pos": [
+        315,
+        76
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "backtests",
+      "type": "database",
+      "label": "backtests",
+      "sublabel": "metrics JSONB · share_token",
+      "tag": "+ backtest_trades 1:N",
+      "pos": [
+        590,
+        76
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "stress_tests",
+      "type": "database",
+      "label": "stress_tests",
+      "sublabel": "MC · WFO · 비용 · 안정성",
+      "pos": [
+        865,
+        76
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "optimization_runs",
+      "type": "database",
+      "label": "optimization_runs",
+      "sublabel": "grid · bayesian · genetic",
+      "pos": [
+        1140,
+        76
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "exchange_accounts",
+      "type": "database",
+      "label": "exchange_accounts",
+      "sublabel": "API Key Fernet 암호화",
+      "tag": "+ exchange_exits 1:N",
+      "pos": [
+        40,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "orders",
+      "type": "database",
+      "label": "orders",
+      "sublabel": "33 컬럼 · idempotency_key",
+      "tag": "TP/SL · trailing · OCO",
+      "pos": [
+        315,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "live_signal_events",
+      "type": "database",
+      "label": "live_signal_events",
+      "sublabel": "outbox pending → dispatched",
+      "tag": "멱등 UK 5컬럼",
+      "pos": [
+        590,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "live_signal_sessions",
+      "type": "database",
+      "label": "live_signal_sessions",
+      "sublabel": "is_active · 사용자당 ≤ 5",
+      "tag": "+ states 1:1 · alert_rules",
+      "pos": [
+        865,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "auth_* 5 테이블",
+      "sublabel": "5 테이블 · Better Auth 규약",
+      "tag": "전용 DB 롤 · FK 없음",
+      "pos": [
+        1140,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "kill_switch_events",
+      "type": "database",
+      "label": "kill_switch_events",
+      "sublabel": "strategy_id XOR account_id",
+      "tag": "active = resolved_at NULL",
+      "pos": [
+        40,
+        396
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "ohlcv",
+      "type": "database",
+      "label": "ts.ohlcv",
+      "sublabel": "PK (time, symbol, tf)",
+      "tag": "hypertable · 7일 chunk",
+      "pos": [
+        1140,
+        396
+      ],
+      "size": [
+        172,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "trading 스키마 · 10 테이블",
+      "wraps": [
+        "exchange_accounts",
+        "orders",
+        "live_signal_events",
+        "live_signal_sessions",
+        "kill_switch_events"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "auth_* — Better Auth 소유",
+      "wraps": [
+        "auth"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "ts 스키마 — TimescaleDB",
+      "wraps": [
+        "ohlcv"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "users-strategies",
+      "from": "users",
+      "to": "strategies",
+      "label": "CASCADE",
+      "variant": "emphasis"
+    },
+    {
+      "id": "strategies-backtests",
+      "from": "strategies",
+      "to": "backtests",
+      "label": "RESTRICT",
+      "variant": "emphasis"
+    },
+    {
+      "id": "backtests-stress",
+      "from": "backtests",
+      "to": "stress_tests",
+      "label": "RESTRICT"
+    },
+    {
+      "id": "backtests-optimizer",
+      "from": "backtests",
+      "to": "optimization_runs",
+      "label": "RESTRICT",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [
+        [
+          676,
+          40
+        ],
+        [
+          1226,
+          40
+        ]
+      ]
+    },
+    {
+      "id": "users-accounts",
+      "from": "users",
+      "to": "exchange_accounts",
+      "label": "CASCADE",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        126,
+        191
+      ]
+    },
+    {
+      "id": "accounts-killswitch",
+      "from": "exchange_accounts",
+      "to": "kill_switch_events",
+      "label": "CASCADE",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        126,
+        351
+      ]
+    },
+    {
+      "id": "strategies-orders",
+      "from": "strategies",
+      "to": "orders",
+      "label": "RESTRICT",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        401,
+        225
+      ]
+    },
+    {
+      "id": "strategies-sessions",
+      "from": "strategies",
+      "to": "live_signal_sessions",
+      "label": "RESTRICT",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "accounts-orders",
+      "from": "exchange_accounts",
+      "to": "orders",
+      "label": "RESTRICT"
+    },
+    {
+      "id": "accounts-sessions",
+      "from": "exchange_accounts",
+      "to": "live_signal_sessions",
+      "label": "RESTRICT",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          126,
+          336
+        ],
+        [
+          951,
+          336
+        ]
+      ]
+    },
+    {
+      "id": "orders-events",
+      "from": "orders",
+      "to": "live_signal_events",
+      "label": "SET NULL",
+      "variant": "dashed"
+    },
+    {
+      "id": "sessions-events",
+      "from": "live_signal_sessions",
+      "to": "live_signal_events",
+      "label": "CASCADE",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "삭제 정책 = 돈의 방향",
+      "items": [
+        "사용자 탈퇴는 CASCADE — 전략·계정·세션이 함께 사라진다. 단 waitlist_applications 만 SET NULL 로 신청 이력을 남긴다",
+        "이력은 RESTRICT — 백테스트가 참조하는 전략, 주문·세션이 참조하는 계정은 지울 수 없다 (409)",
+        "감사 로그는 SET NULL — live_signal_events.order_id · exchange_exits.matched_order_id 는 주문이 사라져도 남는다"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "24 테이블 = 앱 19 + 인증 5",
+      "items": [
+        "public 8 (users · strategies · strategy_versions · backtests · backtest_trades · stress_tests · optimization_runs · waitlist_applications)",
+        "trading 10 (exchange_accounts · exchange_exits · orders · webhook_secrets · kill_switch_events · live_signal_sessions/states/events · alert_rules · funding_rates) · ts 1 (ohlcv)",
+        "auth_* 5 는 Better Auth 가 소유한다 — 우리 코드는 읽지도 쓰지도 않고 alembic 이 DDL 정본만 쥔다"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "멱등 · 배타 제약",
+      "items": [
+        "orders.idempotency_key UK · live_signal_events (session, bar_time, sequence_no, action, trade_id) UK — outbox 재전송이 중복 주문을 못 만든다",
+        "live_signal_sessions 는 (user, strategy, account, symbol) 활성 UK — 같은 조합의 세션은 하나",
+        "kill_switch_events 는 CHECK 로 strategy_id XOR exchange_account_id — cumulative_loss 는 전략, daily_loss/api_error 는 계정 단위"
+      ]
+    }
+  ]
+}
