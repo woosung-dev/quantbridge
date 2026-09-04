@@ -1,0 +1,451 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "QuantBridge — 레포 구조와 경계",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1380,
+      540
+    ],
+    "legend": {
+      "entries": {
+        "frontend": {
+          "label": "apps/web 층"
+        },
+        "backend": {
+          "label": "apps/api 층"
+        },
+        "database": {
+          "label": "영속 계층 (모델 · 마이그레이션)"
+        },
+        "security": {
+          "label": "게이트 (CI · 계약)"
+        },
+        "cloud": {
+          "label": "인프라 · 운영"
+        },
+        "external": {
+          "label": "문서"
+        }
+      }
+    },
+    "views": [
+      {
+        "id": "be-three-layer",
+        "label": "BE 3-Layer",
+        "focus": [
+          "api-router",
+          "api-service",
+          "api-repo",
+          "alembic"
+        ],
+        "note": "Router → Service → Repository. AsyncSession 은 Repository 만 쥔다. models 가 바뀌면 마이그레이션이 의무다."
+      },
+      {
+        "id": "fe-fsd-lite",
+        "label": "FE FSD Lite",
+        "focus": [
+          "web-app",
+          "web-features",
+          "web-shared",
+          "api-router"
+        ],
+        "note": "app/ 은 라우트만, 화면 컴포넌트는 features/ 가 소유한다 (ADR-035). BE 와는 REST 로만 만난다."
+      },
+      {
+        "id": "gates",
+        "label": "기계가 지키는 경계",
+        "focus": [
+          "ci",
+          "contracts",
+          "api-router",
+          "web-app"
+        ],
+        "note": "green = CI 단일 게이트 (ADR-037). OpenAPI 계약 drift 는 CI 가 red 로 만든다."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "web-features",
+      "type": "frontend",
+      "label": "features/ — 12 도메인",
+      "sublabel": "화면 컴포넌트의 기본 자리",
+      "tag": "ADR-035",
+      "pos": [
+        40,
+        76
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "web-app",
+      "type": "frontend",
+      "label": "app/ — 라우트 26",
+      "sublabel": "proxy.ts · error.tsx 10",
+      "pos": [
+        40,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "web-shared",
+      "type": "frontend",
+      "label": "components/ · lib/ · store/",
+      "sublabel": "shadcn/ui 15 · api-client",
+      "pos": [
+        40,
+        396
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "ci",
+      "type": "security",
+      "label": ".github/workflows/ci.yml",
+      "sublabel": "green = CI 단일 게이트",
+      "tag": "ADR-037",
+      "pos": [
+        315,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "contracts",
+      "type": "security",
+      "label": "contracts/openapi",
+      "sublabel": "openapi.json · 57 paths",
+      "tag": "drift = red",
+      "pos": [
+        315,
+        396
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "api-router",
+      "type": "backend",
+      "label": "router.py ×11",
+      "sublabel": "REST /api/v1 · WS 진입점",
+      "pos": [
+        590,
+        76
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "api-service",
+      "type": "backend",
+      "label": "service.py",
+      "sublabel": "트랜잭션 경계 · 소유권 검증",
+      "pos": [
+        865,
+        76
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "api-repo",
+      "type": "database",
+      "label": "repository.py + models.py",
+      "sublabel": "AsyncSession 은 여기만",
+      "pos": [
+        1140,
+        76
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "pine",
+      "type": "backend",
+      "label": "strategy/pine_v2 — 24 모듈",
+      "sublabel": "AST 해석 · exec/eval 금지",
+      "pos": [
+        590,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "api-tasks",
+      "type": "backend",
+      "label": "tasks/ — Celery 28",
+      "sublabel": "run_in_worker_loop · beat",
+      "pos": [
+        865,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "alembic",
+      "type": "database",
+      "label": "alembic/versions — 45",
+      "sublabel": "downgrade 는 가드가 막는다",
+      "pos": [
+        1140,
+        246
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "docs",
+      "type": "external",
+      "label": "docs/ — 115 파일",
+      "sublabel": "status · backlog · ADR 42",
+      "pos": [
+        590,
+        396
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "infra",
+      "type": "cloud",
+      "label": "infra/compose — 4 compose",
+      "sublabel": "db · redis · 워커 4 · FE",
+      "pos": [
+        865,
+        396
+      ],
+      "size": [
+        172,
+        60
+      ]
+    },
+    {
+      "id": "tools",
+      "type": "cloud",
+      "label": "tools/scripts — 22",
+      "sublabel": "soak · backup · vitals",
+      "pos": [
+        1140,
+        396
+      ],
+      "size": [
+        172,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "apps/web — Next.js 16 · FSD Lite",
+      "wraps": [
+        "web-features",
+        "web-app",
+        "web-shared"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "apps/api — FastAPI · Celery · 도메인별 3-Layer",
+      "wraps": [
+        "api-router",
+        "api-service",
+        "api-repo",
+        "pine",
+        "api-tasks",
+        "alembic"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "app-features",
+      "from": "web-app",
+      "to": "web-features",
+      "label": "import",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "app-shared",
+      "from": "web-app",
+      "to": "web-shared",
+      "label": "ui · lib · store",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        126,
+        351
+      ]
+    },
+    {
+      "id": "features-api",
+      "from": "web-features",
+      "to": "api-router",
+      "label": "REST · Bearer JWT",
+      "variant": "emphasis"
+    },
+    {
+      "id": "router-service",
+      "from": "api-router",
+      "to": "api-service",
+      "label": "Depends()"
+    },
+    {
+      "id": "service-repo",
+      "from": "api-service",
+      "to": "api-repo",
+      "label": "AsyncSession"
+    },
+    {
+      "id": "repo-alembic",
+      "from": "api-repo",
+      "to": "alembic",
+      "label": "autogenerate",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1226,
+        191
+      ]
+    },
+    {
+      "id": "service-tasks",
+      "from": "api-service",
+      "to": "api-tasks",
+      "label": "dispatcher Protocol",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        951,
+        191
+      ]
+    },
+    {
+      "id": "tasks-pine",
+      "from": "api-tasks",
+      "to": "pine",
+      "label": "v2_adapter",
+      "variant": "emphasis"
+    },
+    {
+      "id": "router-pine",
+      "from": "api-router",
+      "to": "pine",
+      "label": "parse · coverage",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        676,
+        191
+      ]
+    },
+    {
+      "id": "ci-backend",
+      "from": "ci",
+      "to": "api-router",
+      "label": "ruff · mypy · pytest",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "ci-frontend",
+      "from": "ci",
+      "to": "web-app",
+      "label": "biome · tsc",
+      "variant": "security"
+    },
+    {
+      "id": "ci-contracts",
+      "from": "ci",
+      "to": "contracts",
+      "label": "openapi drift",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        401,
+        351
+      ]
+    },
+    {
+      "id": "infra-tasks",
+      "from": "infra",
+      "to": "api-tasks",
+      "label": "compose 4 워커",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "tools-infra",
+      "from": "tools",
+      "to": "infra",
+      "label": "soak-stack"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "기계가 지키는 경계",
+      "items": [
+        ".husky/pre-push — main/master 직접 push 영구 거부 (bypass 불가). pre-commit — lint-staged(ruff·biome) + ledger-vitals 4축",
+        "CI — be: ruff → export_openapi --check → mypy → pytest 전량 / fe: biome → tsc → vitest → build. 경로 스코프는 fail-safe 전량 실행",
+        "alembic/env.py 가 downgrade 를 막고, tests/_db_guard.py 가 DATABASE_URL 폴백을 거부한다 — 개발 DB 를 겨냥한 drop_all 사고의 재발 방지"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "소유권 규칙",
+      "items": [
+        "화면 컴포넌트 = features/<domain>/components/ (app/**/_components 가 아니다, ADR-035)",
+        "DB 세션 = repository.py 만. service 는 repo 를 주입받아 트랜잭션 경계만 — mutation 마다 repo.commit() spy 테스트가 의무",
+        "도구 버전 = mise.toml 하나 (ADR-036). pynescript import = pine_v2/parser_adapter.py 한 파일 (LGPL 경계)"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "apps 는 둘이다",
+      "items": [
+        "apps/api (Python 234 파일) · apps/web (TS 260 파일 + 테스트 292). 별도 admin 앱은 없다",
+        "관리자 표면 = web 의 /admin/waitlist 라우트 + api 의 /api/v1/admin/waitlist (require_admin 이메일 화이트리스트) + 운영 CLI scripts/live_session_admin.py",
+        "trading/ 만 3-Layer 파일이 디렉터리다 — services/ 16 · repositories/ 10 · websocket/ 6 모듈"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 # QuantBridge — ERD (Entity Relationship Diagram)
 
-> **기준:** Sprint 62 shipped 스키마 — 16 테이블 전수 (2026-05-29 reconcile).
+> **기준:** 2026-09-04 `SQLModel.metadata` 실측 — **24 테이블** = 앱 19(public 8 · `trading` 10 · `ts` 1) + Better Auth 5(`auth_*`). 2026-05-29 reconcile(16 테이블) 이후 `strategy_versions` · `trading.alert_rules` · `trading.exchange_exits` 가 늘었고 인증 5테이블이 alembic 정본에 들어왔다([ADR-034](../adr/034-auth-self-host-better-auth.md)).
+> ★재측정 레시피: `apps/api` 에서 `.env.local` 을 통째 소싱한 뒤 `PYTHONPATH=. uv run python` 으로 모델 모듈 8개 + `auth/better_auth_tables.py` 를 import 하고 `SQLModel.metadata.tables` 를 순회한다(DB 접속 없음).
 > **SSOT:** 각 도메인 `apps/api/src/<domain>/models.py` + `apps/api/alembic/versions/`. 본 문서와 코드 충돌 시 코드 우선.
 > **DB:** PostgreSQL 15+ (메인, `public` 스키마) + `trading` 스키마 (거래) + `ts` 스키마 (TimescaleDB hypertable) + Redis (캐시/Celery)
 >
@@ -37,6 +38,15 @@ erDiagram
     live_signal_sessions ||--o{ live_signal_events : "emits outbox (CASCADE)"
     orders |o--o{ live_signal_events : "fulfills (SET NULL)"
 
+    %% ── 2026-09-04 추가 — 버전 이력 · 알림 규칙 · 거래소 청산 원장 ──
+    strategies ||--o{ strategy_versions : "history (CASCADE)"
+    strategy_versions |o--o{ strategies : "current version (RESTRICT)"
+    strategy_versions |o--o{ backtests : "pinned version (RESTRICT)"
+    live_signal_sessions ||--o{ alert_rules : "loss_limit · watchdog (CASCADE)"
+    exchange_accounts ||--o{ exchange_exits : "closed-pnl rows (RESTRICT)"
+    orders |o--o{ exchange_exits : "matched (SET NULL)"
+    strategies |o--o{ exchange_exits : "attributed (SET NULL)"
+
     %% ohlcv (ts schema) · funding_rates (trading schema) = 독립 시계열, FK 없음
 
     users {
@@ -53,6 +63,7 @@ erDiagram
     strategies {
         uuid id PK "uuid4"
         uuid user_id FK "→ users.id CASCADE, indexed"
+        uuid strategy_version_id FK "→ strategy_versions.id RESTRICT, nullable, indexed (2026-09-04)"
         varchar name "max 120, NOT NULL"
         varchar description "nullable (max 2000)"
         text pine_source "NOT NULL"
@@ -73,6 +84,7 @@ erDiagram
         uuid id PK "uuid4"
         uuid user_id FK "→ users.id CASCADE, indexed"
         uuid strategy_id FK "→ strategies.id RESTRICT, indexed"
+        uuid strategy_version_id FK "→ strategy_versions.id RESTRICT, nullable, indexed (2026-09-04)"
         varchar symbol "max 32, NOT NULL"
         varchar timeframe "max 8, NOT NULL"
         datetime period_start "NOT NULL"
@@ -284,6 +296,51 @@ erDiagram
         decimal close "NUMERIC(18,8)"
         decimal volume "NUMERIC(18,8)"
     }
+
+    strategy_versions {
+        uuid id PK "uuid4 — 전략 소스의 불변 스냅샷 (2026-09-04 등재)"
+        uuid strategy_id FK "→ strategies.id CASCADE, indexed + (strategy_id, created_at)"
+        text pine_source "NOT NULL"
+        varchar source_hash "max 64, NOT NULL"
+        varchar parser_version "max 32, NOT NULL"
+        datetime created_at "NOT NULL"
+    }
+
+    alert_rules {
+        uuid id PK "uuid4 — trading schema (2026-09-04 등재)"
+        uuid session_id FK "→ trading.live_signal_sessions.id CASCADE, (session_id, is_active) indexed"
+        varchar rule_type "max 32 — loss_limit | watchdog, (session_id, rule_type) UNIQUE"
+        decimal threshold_percent "NUMERIC(18,8) nullable — CHECK: loss_limit 이면 NOT NULL, watchdog 이면 NULL"
+        varchar channel "max 16, NOT NULL"
+        boolean is_active "NOT NULL"
+        datetime created_at "NOT NULL"
+        datetime updated_at "NOT NULL"
+    }
+
+    exchange_exits {
+        uuid id PK "uuid4 — trading schema, 거래소 closed-pnl 행의 원장 사본 (2026-09-04 등재)"
+        uuid exchange_account_id FK "→ trading.exchange_accounts.id RESTRICT, (account, exchange_created_at) · (account, exchange_order_id) indexed"
+        varchar exchange_order_id "max 120, NOT NULL"
+        varchar row_hash "max 64 — (exchange_account_id, row_hash) UNIQUE (멱등 수집)"
+        varchar symbol "max 32"
+        varchar side "max 8"
+        decimal closed_pnl "NUMERIC(18,8) NOT NULL"
+        decimal closed_size "NUMERIC(18,8) nullable"
+        decimal avg_entry_price "NUMERIC(18,8) nullable"
+        decimal avg_exit_price "NUMERIC(18,8) nullable"
+        datetime exchange_created_at "NOT NULL"
+        datetime exchange_updated_at "nullable"
+        varchar classification "max 24, indexed — 원장 매칭 · external_manual 등"
+        varchar create_type "max 32 nullable"
+        varchar stop_order_type "max 32 nullable"
+        varchar order_link_id "max 120 nullable"
+        uuid matched_order_id FK "→ trading.orders.id SET NULL"
+        uuid attributed_strategy_id FK "→ strategies.id SET NULL"
+        varchar attribution_confidence "max 16, NOT NULL"
+        jsonb raw "NOT NULL — 거래소 응답 원문"
+        datetime created_at "NOT NULL"
+        datetime updated_at "NOT NULL"
+    }
 ```
 
 ---
@@ -325,6 +382,12 @@ erDiagram
 | `live_signal_sessions` → `live_signal_states` | CASCADE      | 세션 삭제 시 상태 캐시 삭제 (1:1)                                 |
 | `live_signal_sessions` → `live_signal_events` | CASCADE      | 세션 삭제 시 outbox 이벤트 삭제                                   |
 | `orders` → `live_signal_events`               | **SET NULL** | 주문 삭제돼도 이벤트 감사 로그 보존                               |
+| `strategies` → `strategy_versions`            | CASCADE      | 전략 삭제 시 소스 스냅샷 이력 삭제 (2026-09-04)                    |
+| `strategy_versions` → `strategies`·`backtests` | **RESTRICT** | 전략·백테스트가 가리키는 버전은 지울 수 없다 (`strategy_version_id`) |
+| `live_signal_sessions` → `alert_rules`        | CASCADE      | 세션 삭제 시 알림 규칙 삭제                                        |
+| `exchange_accounts` → `exchange_exits`        | **RESTRICT** | 청산 원장이 참조 중인 계정 삭제 금지                              |
+| `orders`·`strategies` → `exchange_exits`      | **SET NULL** | 매칭 주문·귀속 전략이 사라져도 청산 행은 보존                      |
+| `auth_user` → `auth_session`·`auth_account`   | CASCADE      | Better Auth 소유 — 우리 코드는 이 FK 를 만들지도 읽지도 않는다     |
 
 - `trading` 스키마 테이블(`orders`/`kill_switch_events`/`live_signal_*` 등)은 `public` 스키마(`strategies`/`users`)를 **cross-schema FK** 로 참조 (예: `orders.strategy_id → strategies.id`).
 - `ts.ohlcv` · `trading.funding_rates` 는 FK 없는 **독립 시계열** 테이블.
@@ -366,6 +429,10 @@ erDiagram
 | `waitlist_applications`              | UNIQUE            | `email` · index `status` · index `created_at`                                   |
 | `funding_rates`                      | UNIQUE            | `(exchange, symbol, funding_timestamp)` · index `(exchange, symbol)`            |
 | `ts.ohlcv`                           | PK                | `(time, symbol, timeframe)` · index `(symbol, timeframe, time)` (hypertable)    |
+| `strategy_versions`                  | composite         | `(strategy_id, created_at)` — `ix_strategy_versions_strategy_created` (2026-09-04) |
+| `alert_rules`                        | UNIQUE + composite | `(session_id, rule_type)` — `uq_alert_rules_active_type` · `(session_id, is_active)`  |
+| `exchange_exits`                     | UNIQUE + composite | `(exchange_account_id, row_hash)` · `(account, exchange_created_at)` · `(account, exchange_order_id)` · `classification` |
+| `auth_session` / `auth_account`      | index             | `userId` — Better Auth 규약(camelCase 식별자)                                    |
 
 ---
 
@@ -386,9 +453,13 @@ erDiagram
 | `live_signal_sessions` / `live_signal_states` / `live_signal_events` | ✅ `trading/models.py`          | ✅                | 26                                                    |
 | `funding_rates` (hypertable)                                         | ✅ `trading/models.py`          | ✅                | 6+                                                    |
 | `ts.ohlcv` (hypertable)                                              | ✅ `market_data/models.py`      | ✅ M2             | 5                                                     |
+| `strategy_versions`                                                  | ✅ `strategy/models.py`         | ✅                | 2026-08-16 (`20260816_0001`, 전략 소스 스냅샷)        |
+| `trading.alert_rules`                                                | ✅ `trading/models.py`          | ✅                | 2026-07-24 (`20260724_0001`, 세션 알림 규칙)          |
+| `trading.exchange_exits`                                             | ✅ `trading/models.py`          | ✅                | 2026-07-25 (`20260725_0002`, 거래소 청산 원장 BL-593) |
+| `auth_user` · `auth_session` · `auth_account` · `auth_verification` · `auth_jwks` | ✅ `auth/better_auth_tables.py` (Table 선언, ORM 엔티티 아님) | ✅ | ADR-034 (2026-08-17) |
 | `trading_sessions` / `live_trades`                                   | ❌ **phantom (구현된 적 없음)** | ❌                | 구 설계 문서 잔재 — 실제는 `orders` + `live_signal_*` |
 
-> shipped 테이블의 정확한 컬럼/FK 는 코드 `models.py` + alembic SSOT. 위 다이어그램은 2026-05-29 reconcile 에서 16 shipped 테이블로 **재작성 완료** — phantom `trading_sessions`/`live_trades` 는 제거되고 `orders`/`live_signal_*`/`kill_switch_events`/`optimization_runs` 로 교체됨.
+> shipped 테이블의 정확한 컬럼/FK 는 코드 `models.py` + alembic SSOT. 위 다이어그램은 2026-05-29 reconcile 에서 16 shipped 테이블로 재작성됐고, **2026-09-04 에 `SQLModel.metadata` 실측으로 24 테이블(앱 19 + 인증 5)로 맞췄다** — `strategy_versions` · `alert_rules` · `exchange_exits` 3개 엔티티와 관계 7건을 추가했다. 기존 엔티티 블록의 컬럼은 2026-05-29 판을 유지한다(변경분은 `models.py` 가 정본).
 
 ---
 
@@ -507,4 +578,5 @@ CREATE INDEX ix_funding_rates_exchange_symbol ON trading.funding_rates (exchange
   - backtest_trades 테이블 추가
   - Enum/FK/Index 상세 추가
   - PRD 대비 변경사항 표 갱신
+- **2026-09-04** — `SQLModel.metadata` 실측 대조: 16 → **24 테이블**(앱 19 + Better Auth 5). `strategy_versions` · `trading.alert_rules` · `trading.exchange_exits` 엔티티 + 관계 7건 + FK 정책 6행 + 인덱스 4행 + 구현 상태 4행 추가. `strategies`/`backtests` 에 `strategy_version_id` 컬럼 등재. 헤더의 재측정 레시피 추가.
 - **2026-05-29** — Phase B reconcile (감사 후속): ERD 다이어그램 전면 재작성 — 16 shipped 테이블 전수 (Sprint 4 스냅샷 → Sprint 62 코드 기준). phantom `trading_sessions`/`live_trades` 제거, `orders`/`kill_switch_events`/`live_signal_*`/`optimization_runs`/`waitlist_applications`/`funding_rates` 추가. FK 정책(21건)·인덱스·구현 상태·funding_rates·Datetime 정책 `models.py` 기준 갱신

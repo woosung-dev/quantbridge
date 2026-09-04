@@ -2,7 +2,7 @@
 
 Next.js 16 App Router 로 만든 대시보드이자, **이 레포의 인증 서버 본체**다 ([ADR-034](../../docs/adr/034-auth-self-host-better-auth.md)). 로그인·세션·JWKS 발급을 이 앱이 담당하고, FastAPI 는 그 JWKS 로 토큰을 검증만 한다.
 
-- 라우트 26 · feature 도메인 12 · Vitest 227파일 · Playwright 31 spec
+- 라우트 26 · feature 도메인 12 · TS 260파일(테스트 제외) · Vitest 292파일 · Playwright 31 spec (2026-09-04 실측)
 - 전체 제품 소개와 최초 셋업은 [루트 README](../../README.md) 참조
 
 ---
@@ -48,7 +48,7 @@ Next.js 16 App Router 로 만든 대시보드이자, **이 레포의 인증 서�
 | `/onboarding`            | 4-step 온보딩 위저드                                                   |
 | `/admin/waitlist`        | 웨이트리스트 어드민                                                    |
 
-라우트별 `error.tsx` 8개 · `loading.tsx` 9개. 유일한 route handler 는 `app/api/auth/[...all]/route.ts` (Better Auth).
+라우트별 `error.tsx` 10개 · `loading.tsx` 9개. 유일한 route handler 는 `app/api/auth/[...all]/route.ts` (Better Auth).
 
 ---
 
@@ -65,7 +65,7 @@ Next.js 16 App Router 로 만든 대시보드이자, **이 레포의 인증 서�
 | 에디터          | `@monaco-editor/react` `^4.7` — Pine 전용 Monarch 문법·테마 자체 정의         |
 | 차트            | `lightweight-charts` `^4.2` (에쿼티·드로다운) · `recharts` `^3.8` (분포·이력) |
 | 테스트          | Vitest `^2.1` · Testing Library · Playwright `^1.59`                          |
-| 품질            | ESLint 9 (react-compiler · react-hooks · tanstack-query 플러그인) · Prettier  |
+| 품질            | Biome `2.5.9` — 린트·포맷 **단독** ([ADR-039](../../docs/adr/039-frontend-biome.md), ESLint·Prettier 제거) |
 | Node            | `>=22`                                                                        |
 
 ---
@@ -101,9 +101,9 @@ pnpm dev                         # http://localhost:3000
 pnpm dev                  # 개발 서버
 pnpm build                # 프로덕션 빌드
 pnpm start                # 프로덕션 실행
-pnpm lint                 # ESLint
+pnpm lint                 # Biome check
 pnpm typecheck            # tsc --noEmit
-pnpm format               # Prettier
+pnpm format               # Biome format --write
 pnpm test                 # Vitest 1회 실행
 pnpm test:watch           # Vitest watch
 
@@ -136,7 +136,7 @@ src/
 │   └── providers/          # AppProviders + QueryProvider
 ├── features/               # ★화면 컴포넌트의 기본 자리 (ADR-035) — 12 도메인
 ├── hooks/                  # 도메인 무관 공통 훅
-├── lib/                    # api-client · auth · geo · 디자인 토큰 · ws-client
+├── lib/                    # api-client · auth(Better Auth 인스턴스) · auth-server · geo · 디자인 토큰 · query-poll
 ├── store/                  # 전역 Zustand (ui-store)
 └── styles/                 # globals.css — DESIGN.md 토큰
 ```
@@ -164,7 +164,7 @@ src/
 
 | 종류       | 규모                   | 실행                      |
 | ---------- | ---------------------- | ------------------------- |
-| Vitest     | 227 파일 (jsdom)       | `pnpm test`               |
+| Vitest     | 292 파일 (jsdom)       | `pnpm test`               |
 | Playwright | 31 spec · 프로젝트 7종 | `pnpm e2e` / `e2e:authed` |
 
 Playwright 프로젝트: `chromium` · `chromium-authed` · `chromium-live-smoke` · `chromium-design-canon` · `chromium-screen-evidence(-authed)` + setup 3종(`global.setup.ts` · `identity.setup.ts` · `authed-reachability.setup.ts`).
