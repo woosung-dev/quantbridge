@@ -1,0 +1,381 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "레포 구조 — 코드 계층과 의존 방향",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1380,
+      500
+    ],
+    "views": [
+      {
+        "id": "fe-layers",
+        "label": "FE 계층 (FSD Lite)",
+        "focus": [
+          "approutes",
+          "features",
+          "shared"
+        ],
+        "note": "아래 층은 @/app/* 를 import 하지 않는다 — biome noRestrictedImports 가 error 로 집행한다 (ADR-035)."
+      },
+      {
+        "id": "be-3layer",
+        "label": "BE 3-Layer",
+        "focus": [
+          "mainpy",
+          "router",
+          "service",
+          "repository",
+          "models"
+        ],
+        "note": "AsyncSession 은 Repository 만 쥔다 — 등재 예외 1건, 가드 = test_repository_boundary_guard 3축."
+      },
+      {
+        "id": "worker-path",
+        "label": "워커 경로",
+        "focus": [
+          "tasks",
+          "service",
+          "pine",
+          "common"
+        ],
+        "note": "Celery 는 HTTP 를 거치지 않는다 — run_in_worker_loop 로 service·engine 을 직접 부른다."
+      },
+      {
+        "id": "contract-seam",
+        "label": "계약 seam",
+        "focus": [
+          "features",
+          "contract",
+          "mainpy",
+          "router"
+        ],
+        "note": "OpenAPI 계약은 커밋된 파일이다 — export_openapi.py --check 가 CI 에서 drift 를 차단한다."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "approutes",
+      "type": "frontend",
+      "label": "app/",
+      "sublabel": "라우트 · 레이아웃 · error · loading",
+      "tag": "조립층 — 로직 · 화면 소유 금지",
+      "pos": [
+        40,
+        48
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "features",
+      "type": "frontend",
+      "label": "features/<domain>/",
+      "sublabel": "api · hooks · schemas · components",
+      "tag": "12 도메인 · 화면의 기본 자리",
+      "pos": [
+        40,
+        208
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "shared",
+      "type": "frontend",
+      "label": "components/ · lib/",
+      "sublabel": "shadcn ui · charts · apiFetch",
+      "tag": "hooks/ · store/ · 도메인을 모른다",
+      "pos": [
+        40,
+        368
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "contract",
+      "type": "security",
+      "label": "contracts/openapi",
+      "sublabel": "openapi.json — 커밋된 계약",
+      "tag": "CI drift 게이트 (--check)",
+      "pos": [
+        300,
+        48
+      ],
+      "size": [
+        180,
+        74
+      ]
+    },
+    {
+      "id": "mainpy",
+      "type": "backend",
+      "label": "main.py — create_app()",
+      "sublabel": "rate limit · CORS · 보안 헤더",
+      "tag": "라우터 11 · /api/v1",
+      "pos": [
+        560,
+        48
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "tasks",
+      "type": "backend",
+      "label": "tasks/",
+      "sublabel": "Celery 태스크 28 · beat 16",
+      "tag": "HTTP 표면 아님 · prefork-safe",
+      "pos": [
+        860,
+        48
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "common",
+      "type": "backend",
+      "label": "common/ · core/",
+      "sublabel": "database · redis · redlock",
+      "tag": "Settings · 도메인이 아니다",
+      "pos": [
+        1140,
+        48
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "router",
+      "type": "backend",
+      "label": "router.py",
+      "sublabel": "HTTP 수신 · 스키마 검증만",
+      "tag": "HTTP 전용 · 10줄 이하",
+      "pos": [
+        560,
+        208
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "service",
+      "type": "backend",
+      "label": "service.py",
+      "sublabel": "비즈니스 로직 · 트랜잭션 경계",
+      "tag": "AsyncSession import 금지",
+      "pos": [
+        860,
+        208
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "repository",
+      "type": "backend",
+      "label": "repository.py",
+      "sublabel": "AsyncSession 유일 보유자",
+      "tag": "commit 은 service 요청으로만",
+      "pos": [
+        1140,
+        208
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "pine",
+      "type": "backend",
+      "label": "strategy/pine_v2/",
+      "sublabel": "인터프리터 SSOT · 24모듈",
+      "tag": "8.8k LOC · 백테스트 · 라이브 공용",
+      "pos": [
+        860,
+        368
+      ],
+      "size": [
+        200,
+        74
+      ]
+    },
+    {
+      "id": "models",
+      "type": "database",
+      "label": "models.py → alembic/",
+      "sublabel": "테이블 24 · 마이그레이션 45",
+      "tag": "Decimal-first · ondelete 는 의미로",
+      "pos": [
+        1140,
+        368
+      ],
+      "size": [
+        200,
+        74
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "apps/web — FSD Lite (Next.js 16)",
+      "wraps": [
+        "approutes",
+        "features",
+        "shared"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "apps/api — 3-Layer (FastAPI + Celery)",
+      "wraps": [
+        "mainpy",
+        "tasks",
+        "common",
+        "router",
+        "service",
+        "repository",
+        "pine",
+        "models"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "app-features",
+      "from": "approutes",
+      "to": "features",
+      "label": "단일 feature 위임 (thin route)",
+      "labelDy": 24
+    },
+    {
+      "id": "features-shared",
+      "from": "features",
+      "to": "shared",
+      "label": "공용 UI · apiFetch · useAuthCtx",
+      "labelDy": 24
+    },
+    {
+      "id": "features-router",
+      "from": "features",
+      "to": "router",
+      "label": "REST /api/v1 · Bearer JWT",
+      "variant": "emphasis"
+    },
+    {
+      "id": "main-router",
+      "from": "mainpy",
+      "to": "router",
+      "label": "include_router ×11",
+      "labelDy": 24
+    },
+    {
+      "id": "main-contract",
+      "from": "mainpy",
+      "to": "contract",
+      "label": "export_openapi.py 덤프",
+      "variant": "dashed",
+      "labelDy": 61
+    },
+    {
+      "id": "contract-features",
+      "from": "contract",
+      "to": "features",
+      "label": "소비자 계약 테스트 (vitest)",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "tasks-service",
+      "from": "tasks",
+      "to": "service",
+      "label": "run_in_worker_loop → service · engine",
+      "labelDy": 24
+    },
+    {
+      "id": "common-repo",
+      "from": "common",
+      "to": "repository",
+      "label": "AsyncSession · redlock 공급",
+      "variant": "dashed",
+      "labelDy": 24
+    },
+    {
+      "id": "router-service",
+      "from": "router",
+      "to": "service",
+      "label": "Depends() 조립"
+    },
+    {
+      "id": "service-repo",
+      "from": "service",
+      "to": "repository",
+      "label": "Repository 만 주입",
+      "labelDy": -31
+    },
+    {
+      "id": "service-pine",
+      "from": "service",
+      "to": "pine",
+      "label": "봉 단위 실행 (engine/)",
+      "variant": "emphasis",
+      "labelDy": 24
+    },
+    {
+      "id": "repo-models",
+      "from": "repository",
+      "to": "models",
+      "label": "SQLModel · Decimal",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "FE 경계 — FSD Lite",
+      "items": [
+        "화면 컴포넌트의 기본 자리는 features/<domain>/components/ — app/ 은 조립만 한다 (ADR-035 · app/**/_components 0건)",
+        "features·components·lib 는 @/app/* 를, components·lib 는 features/ 를 import 하지 않는다 — biome 이 error 로 막는다"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "BE 경계 — 3-Layer",
+      "items": [
+        "AsyncSession 은 Repository 만 쥔다 — 등재 예외 1건(order_service SAVEPOINT) · 가드 3축(select · reach-through · raw SQL)",
+        "7파일 표준을 벗어나는 디렉터리는 apps/api/AGENTS.md §3 예외 표에 등재된 것만 — market_data · realtime · health · tasks · scripts"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "계약 · 레포 루트",
+      "items": [
+        "contracts/openapi/openapi.json — export_openapi.py --check 가 CI 차단 게이트, FE 는 vitest 소비자 계약 테스트로 대조한다",
+        "루트 나머지 — infra/compose 4 · infra/db/init · tools/scripts · docs/(6축 + adr 42) · mise.toml = 도구 버전 SSOT"
+      ]
+    }
+  ]
+}

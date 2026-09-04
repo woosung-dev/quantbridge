@@ -163,7 +163,7 @@ Next 를 BFF 로 두지 않았기 때문에 백엔드가 인증을 **스스로**
 
 ### 인터랙티브 다이어그램
 
-Archify 로 만든 자립형 HTML 두 장. 클론 후 브라우저로 열면 되고(외부 의존 없음),
+Archify 로 만든 자립형 HTML 세 장. 클론 후 브라우저로 열면 되고(외부 의존 없음),
 검색 · 관계 추적 · 가이드 뷰 · PNG/SVG 내보내기가 안에 들어 있다. 스펙(JSON)이 옆에 함께
 커밋돼 있어서 구조가 바뀌면 그 JSON 만 고쳐 다시 렌더한다.
 
@@ -171,6 +171,7 @@ Archify 로 만든 자립형 HTML 두 장. 클론 후 브라우저로 열면 되
 | --- | --- |
 | [`system-architecture.html`](./docs/architecture/diagrams/system-architecture.html) | 컨테이너 경계 · 인증 경계 · 비동기 실행 · 실시간 경로 (가이드 뷰 3종) |
 | [`strategy-to-trading-dataflow.html`](./docs/architecture/diagrams/strategy-to-trading-dataflow.html) | 입력 → 파스 → 실행 → 테이블 → 소비. 어느 단계가 **어느 테이블**을 쓰는지 |
+| [`repo-structure-layers.html`](./docs/architecture/diagrams/repo-structure-layers.html) | 코드 계층과 **의존 방향** — `apps/web` FSD Lite · `apps/api` 3-Layer · OpenAPI 계약 seam (가이드 뷰 4종). [레포 구조](#레포-구조) 절의 그림판 |
 
 정본: [`docs/architecture/system-architecture.md`](./docs/architecture/system-architecture.md) · [`data-flow.md`](./docs/architecture/data-flow.md)
 
@@ -431,6 +432,9 @@ key 를 포함하도록 요구한다. 보조 인덱스를 ASC 로만 둔 이유�
 (`apps/api/src/waitlist/dependencies.py`). 관리자 역할 테이블도, 관리자 전용 배포도, 관리자
 전용 도메인도 없다. 실사용자가 0명이고 관리 대상이 waitlist 승인 하나뿐이라 그 이상을 만들지 않았다.
 
+아래 트리 세 개가 **무엇이 어디 있나**를, [`repo-structure-layers.html`](./docs/architecture/diagrams/repo-structure-layers.html) 이
+**층 사이의 의존 방향**(누가 누구를 import 하고, 어느 경계를 기계가 지키나)을 보여준다.
+
 ```
 quant-bridge/
 ├── apps/
@@ -509,6 +513,19 @@ feature 도메인 12 — `strategy` · `backtest` · `optimizer` · `trading` ·
 ★**`app/**/_components/` 는 기본 자리가 아니다.** 화면 컴포넌트는 `features/<domain>/components/`
 에 두고 `app/` 은 조립만 한다([ADR-035](./docs/adr/035-fe-component-ownership.md)). 라우트를
 옮길 때 컴포넌트가 딸려가지 않게 하려는 것이다.
+
+### 층 경계 중 기계가 지키는 것
+
+두 앱의 계층 규칙은 대부분 문서가 아니라 **테스트와 린터**가 집행한다. 아래가 그 전부고, 여기 없는 배치 규칙은 사람이 본다.
+
+| 경계 | 무엇을 막나 | 집행 위치 |
+| --- | --- | --- |
+| BE — Repository 밖 DB 접근 | 경계 밖 `select(` · `repo.session` 리치스루 · 경계 밖 raw SQL 실행. 등재 예외는 `trading/services/order_service.py`(SAVEPOINT) 하나 | `apps/api/tests/common/test_repository_boundary_guard.py` (3축) |
+| BE — service 의 commit 누락 | mutation 메서드마다 `repo.commit()` 을 spy 로 강제 — 통합 테스트는 read-your-writes 로 통과시켜 버리기 때문 | `apps/api/tests/*/test_*commits*.py` |
+| FE — 아래 층이 `app/` 을 참조 | `features/` · `components/` · `lib/` · `hooks/` · `store/` 에서 `@/app/*` import 는 error | `apps/web/biome.jsonc` `noRestrictedImports` |
+| FE — 공유층이 도메인을 참조 | `components/**` · `lib/**` 에서 `features/**` import 는 error (테스트 제외) | `apps/web/biome.jsonc` override |
+| FE — 라우트가 로직을 품음 | dashboard 7 라우트 + pricing · invite · share 가 「metadata + 단일 feature 위임」인지 | `app/(dashboard)/__tests__/thin-routes.test.tsx` · `app/__tests__/public-thin-routes.test.ts` |
+| 두 앱 사이 — API 계약 drift | 커밋된 `contracts/openapi/openapi.json` 과 실제 앱 스키마가 다르면 CI red. FE 는 vitest 소비자 계약 테스트로 같은 파일을 대조 | `apps/api/scripts/export_openapi.py --check` (CI) |
 
 
 ---
