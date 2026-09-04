@@ -2,7 +2,7 @@
 
 FastAPI + SQLModel + Celery. 100% 비동기. 도메인별 3-Layer(Router / Service / Repository) 구조다.
 
-- Python 219파일 · 53.7k LOC · 도메인 7 · 테이블 20 · 마이그레이션 45 · pytest 4,026 케이스
+- Python 234파일 · 56.0k LOC · 도메인 7 · 테이블 24 · 마이그레이션 45 · pytest 555파일 (케이스 4,616)
 - 전체 제품 소개와 최초 셋업은 [루트 README](../../README.md) 참조
 
 ---
@@ -21,7 +21,7 @@ FastAPI + SQLModel + Celery. 100% 비동기. 도메인별 3-Layer(Router / Servi
 | `market_data/`    | OHLCV provider(CCXT · Timescale · fixture) 공급. **공개 REST 없는 내부 전용**     | repo만  | 0.7k  |
 | `realtime/`       | 인증 WebSocket + Redis pubsub fanout + **JWKS 검증기**(`auth.py`)                 | WS only | 0.5k  |
 | `health/`         | `/healthz`(Postgres·Redis·Celery 3-dep ping) · `/livez`                           | —       | 0.2k  |
-| `tasks/`          | Celery 앱 + 태스크 27개                                                           | —       | 9.6k  |
+| `tasks/`          | Celery 앱 + 태스크 28개                                                           | —       | 9.6k  |
 | `common/`         | 도메인 무지 기반 — DB 세션 · 예외 · Redis · redlock · metrics · rate limit · 알림 | —       | 2.8k  |
 | `core/`           | `config.py` 하나 — 전 도메인 `Settings` (pydantic-settings)                       | —       | 0.5k  |
 | `scripts/`        | 운영 entrypoint helper (`python -m src.scripts.*` — alembic 락 래퍼 등)           | —       | 0.2k  |
@@ -124,7 +124,7 @@ uv run pytest              # 테스트 (아래 환경 주의 참조)
 
 ## 비동기 작업 (Celery)
 
-태스크 27개 · beat 스케줄 15건 · 큐 3종(`default` / `ws_stream` / `optimizer_heavy`).
+태스크 28개 · beat 스케줄 16건 · 큐 3종(`celery`(기본 — `-Q` 없는 워커가 받는다) / `ws_stream` / `optimizer_heavy`).
 
 | 군             | 태스크                                                                                                                                |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -140,7 +140,7 @@ uv run pytest              # 테스트 (아래 환경 주의 참조)
 
 ## 데이터베이스 & 마이그레이션
 
-- 테이블 20개 (`users` · `strategies` · `backtests` · `orders` · `live_signal_sessions` · `kill_switch_events` 등) + Better Auth 5테이블
+- 테이블 19개 (`users` · `strategies` · `backtests` · `orders` · `live_signal_sessions` · `kill_switch_events` 등) + Better Auth 5테이블 = 24
 - OHLCV 는 **TimescaleDB hypertable** `ts.ohlcv` (7일 chunk). 일반 테이블에 시계열을 넣지 않는다
 
 ```bash
@@ -160,7 +160,7 @@ uv run alembic -x allow_destructive=1 downgrade -1
 
 ## 테스트
 
-`test_*.py` 488파일 / `def test_*` 4,026개.
+`test_*.py` 555파일 / `def test_*` 4,616개.
 
 | 디렉터리                  | 파일 수                                                                                            |
 | ------------------------- | -------------------------------------------------------------------------------------------------- |

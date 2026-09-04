@@ -9,14 +9,14 @@ Pine Script 를 파이썬으로 **트랜스파일하지 않는다.** AST 를 봉
 | 항목       | 값                                                                     |
 | ---------- | ---------------------------------------------------------------------- |
 | 개발       | 2026-04 ~ 현재 · 1인 개발 · 커밋 1,384                                 |
-| 백엔드     | Python 234파일 · 56.0k LOC · 도메인 패키지 13 · 마이그레이션 45        |
+| 백엔드     | Python 234파일 · 56.0k LOC · src 패키지 14 (3-Layer 도메인 7) · 마이그레이션 45 |
 | API        | REST 오퍼레이션 67 (path 57) + WebSocket 1 — 계약은 `contracts/openapi` |
 | DB         | PostgreSQL 15 · 스키마 3벌(`public`·`trading`·`ts`) · 테이블 24        |
 | Pine 엔진  | 24모듈 8.8k LOC · `ta.*` 23종 · `array.*` 15종                         |
 | 비동기     | Celery 태스크 28 · beat 스케줄 16 · 큐 3                               |
 | 프론트엔드 | 라우트 26 · feature 도메인 12 · 앱은 2개 (별도 admin 앱 없음)          |
 | 테스트     | pytest 555파일 · vitest 292파일 · Playwright 31 spec                   |
-| 설계 기록  | ADR 43건 (`docs/adr/`)                                                 |
+| 설계 기록  | ADR 42건 (`docs/adr/`)                                                 |
 
 ---
 
@@ -80,14 +80,14 @@ Pine Script 를 파이썬으로 **트랜스파일하지 않는다.** AST 를 봉
 
 ## 시스템 아키텍처
 
-돌아가는 프로세스는 **7종**이고, 그 중 **5종이 `apps/api` 코드를 공유**한다.
+돌아가는 프로세스는 **8종**(표 7행 — `db`·`redis` 는 한 행)이고, 그 중 **5종이 `apps/api` 코드를 공유**한다.
 ★그런데 그 5종 중 **compose 가 띄우는 것은 4종뿐이다** — API 프로세스는 compose 밖에 있다.
 
 | 프로세스 | 무엇 | 어떻게 뜨나 |
 | --- | --- | --- |
 | `frontend` | Next.js 16 — 화면 + **인증 서버 본체**(Better Auth) | `docker-compose.frontend.yml` (+ `cloudflared` 터널) |
 | `apps/api` (uvicorn) | FastAPI — REST 67 오퍼레이션 + WebSocket 1 | ★**compose 아님** — systemd user 유닛 `quantbridge-api.service`(`127.0.0.1:8100`, 앞단은 리버스 프록시). 로컬은 `mise run be` |
-| `backend-worker` | Celery `default` 큐 — 백테스트 · 스트레스 · 라이브 신호 · 주문 집행 | compose · prefork ×2 |
+| `backend-worker` | Celery 기본 큐(이름은 `celery` — `-Q` 없이 뜬다) — 백테스트 · 스트레스 · 라이브 신호 · 주문 집행 | compose · prefork ×2 |
 | `backend-optimizer-heavy` | Celery `optimizer_heavy` 큐 — 최적화 전용 | compose · prefork ×1 |
 | `backend-ws-stream` | Celery `ws_stream` 큐 — Bybit private/public WS 상주 구독 | compose · prefork ×3 |
 | `backend-beat` | Celery beat — 주기 작업 16 | compose · 단일 인스턴스 |
@@ -97,6 +97,13 @@ Pine Script 를 파이썬으로 **트랜스파일하지 않는다.** AST 를 봉
 같은 워커 풀에 둘 수 없다. `ws_stream` 은 상주 구독이라 태스크가 아예 끝나지 않으므로 더 그렇다.
 API 프로세스를 compose 밖에 둔 것은 남아 있는 비대칭이다 — 배포·재시작 절차가 워커와 갈린다
 (유닛 인스톨러는 [`tools/scripts/api-service.sh`](tools/scripts/api-service.sh)).
+
+배포 호스트는 **Oracle Cloud VM 1대**(2 OCPU, 다른 프로젝트와 공유)다. 인터넷에서 들어오는 길은
+**Cloudflare 터널 하나**뿐이고 호스트 방화벽은 22 외 전부 REJECT 다 —
+브라우저 → Cloudflare(Access OTP) → `cloudflared`(host 네트워크) → `127.0.0.1:3200`(FE 컨테이너) 또는
+`127.0.0.1:8100`(호스트 uvicorn). 서버에 Node 가 없어 **FE 이미지는 맥에서 빌드해 `docker save | ssh … docker load`** 로
+옮기고, API 가 JWKS 를 받는 경로는 같은 호스트 안 `127.0.0.1:3200/api/auth/jwks` 헤어핀이다.
+정본: [`docs/operations/frontend-deploy.md`](./docs/operations/frontend-deploy.md) · [`backend-deploy.md`](./docs/operations/backend-deploy.md).
 
 ```mermaid
 flowchart LR
@@ -298,7 +305,7 @@ erDiagram
         text type
         numeric quantity
         text state "★status 가 아니라 state"
-        text idempotency_key UK
+        text idempotency_key UK "부분 UK — NULL 은 제외"
         text exchange_order_id
         numeric filled_price
         numeric realized_pnl
@@ -354,7 +361,7 @@ erDiagram
         uuid id PK
         uuid exchange_account_id FK
         text exchange_order_id
-        text row_hash UK "거래소 행 중복 적재 차단"
+        text row_hash UK "계정 + row_hash 복합 UK — 거래소 행 중복 적재 차단"
         numeric closed_pnl
         text classification
         uuid matched_order_id FK
@@ -433,7 +440,7 @@ quant-bridge/
 ├── docs/
 │   ├── status.md               #   지금 실행할 일 — 살아 있는 `다음 행동 =` 1개
 │   ├── PRD.md · backlog*.md    #   범위 / 열린 결함
-│   ├── adr/                    #   왜 그렇게 정했나 (43건)
+│   ├── adr/                    #   왜 그렇게 정했나 (42건)
 │   ├── lessons.md              #   무엇이 반증됐나
 │   └── architecture/ api/ domain/ development/ operations/ design/   # 구현 계약 6축
 ├── infra/
@@ -451,7 +458,7 @@ quant-bridge/
 ```
 apps/api/
 ├── src/
-│   ├── main.py                 # FastAPI 조립 — 미들웨어 + 라우터 10개 등록
+│   ├── main.py                 # FastAPI 조립 — 미들웨어 + 라우터 11개 등록 (health + `/api/v1` 10)
 │   ├── core/config.py          # pydantic-settings 단일 Settings (SecretStr)
 │   ├── common/                 # 횡단 — database · redis_client · redlock · rate_limit · metrics · alert · security_headers
 │   │
@@ -546,7 +553,7 @@ feature 도메인 12 — `strategy` · `backtest` · `optimizer` · `trading` ·
 
 **이유** — 두 가지다. (1) 사용자가 붙여넣은 문자열이 서버에서 임의 코드로 실행되는 경로를 원천 차단한다. (2) 백테스트와 라이브 자동매매가 **문자 그대로 같은 엔진**을 쓴다. 변환기를 두면 "백테스트에서는 되는데 실거래에서는 다르게 도는" 격차가 반드시 생기고, 그 격차는 돈으로 계산된다.
 
-**대가** — Pine 표준 라이브러리를 직접 구현해야 한다. 현재 `ta.*` 23종 · `array.*` 16종 · math/string/input 계열을 `stdlib.py` 가 pandas/NumPy 로 계산한다. 라이선스 경계도 설계 제약이 됐다 — 파서(pynescript)는 LGPL 이라 PyPI 의존성으로만 쓰고, `import` 지점을 파일 하나(`parser_adapter.py`)로 격리했다.
+**대가** — Pine 표준 라이브러리를 직접 구현해야 한다. 현재 `ta.*` 23종 · `array.*` 15종 · math/string/input 계열을 `stdlib.py` 가 pandas/NumPy 로 계산한다. 라이선스 경계도 설계 제약이 됐다 — 파서(pynescript)는 LGPL 이라 PyPI 의존성으로만 쓰고, `import` 지점을 파일 하나(`parser_adapter.py`)로 격리했다.
 
 ### 2. 미지원 함수가 하나라도 있으면 전체를 차단한다
 
@@ -687,7 +694,7 @@ mise run test                        # 백엔드 pytest + 프론트엔드 vitest
 | [`DESIGN.md`](DESIGN.md)                                                                | 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                     |
 | [`docs/README.md`](./docs/README.md)                                                    | 문서 지도 — 어느 질문을 어느 문서가 답하는가                   |
 | [`docs/status.md`](./docs/status.md)                                                    | 지금 진행 중인 작업 (현행 sprint 상태의 SSOT)                  |
-| [`docs/adr/`](./docs/adr/)                                                              | ADR 43건 — 왜 그렇게 결정했는가                                |
+| [`docs/adr/`](./docs/adr/)                                                              | ADR 42건 — 왜 그렇게 결정했는가                                |
 | [`docs/architecture/diagrams/`](./docs/architecture/diagrams/)                          | 인터랙티브 아키텍처 · 데이터 흐름 HTML (+ 재생성용 Archify JSON) |
 | [`apps/api/AGENTS.md`](apps/api/AGENTS.md) · [`apps/web/AGENTS.md`](apps/web/AGENTS.md) | 스택별 강제 규칙 (FastAPI 3-Layer · React Hooks 안전 등)       |
 

@@ -2,7 +2,7 @@
 
 Next.js 16 App Router 로 만든 대시보드이자, **이 레포의 인증 서버 본체**다 ([ADR-034](../../docs/adr/034-auth-self-host-better-auth.md)). 로그인·세션·JWKS 발급을 이 앱이 담당하고, FastAPI 는 그 JWKS 로 토큰을 검증만 한다.
 
-- 라우트 26 · feature 도메인 12 · Vitest 227파일 · Playwright 31 spec
+- 라우트 26 · feature 도메인 12 · Vitest 292파일 · Playwright 31 spec
 - 전체 제품 소개와 최초 셋업은 [루트 README](../../README.md) 참조
 
 ---
@@ -48,7 +48,7 @@ Next.js 16 App Router 로 만든 대시보드이자, **이 레포의 인증 서�
 | `/onboarding`            | 4-step 온보딩 위저드                                                   |
 | `/admin/waitlist`        | 웨이트리스트 어드민                                                    |
 
-라우트별 `error.tsx` 8개 · `loading.tsx` 9개. 유일한 route handler 는 `app/api/auth/[...all]/route.ts` (Better Auth).
+라우트별 `error.tsx` 10개 · `loading.tsx` 9개. 유일한 route handler 는 `app/api/auth/[...all]/route.ts` (Better Auth).
 
 ---
 
