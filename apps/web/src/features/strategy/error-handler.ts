@@ -9,20 +9,16 @@ import type { ApiError } from "@/lib/api-client";
 
 /**
  * Strategy 공통 mutation 에러 핸들러.
- * 401 → Clerk session 만료로 간주하여 sign-in으로 redirect.
+ * 401 → `lib/api-client.ts` 가 이미 재발급 1회 재시도와 세션 없음 → /sign-in 리다이렉트를 끝낸 뒤다.
+ *        여기까지 왔다면 리다이렉트 중이거나 새 토큰으로도 401 인 설정 문제라 안내만 한다.
  * 429 → rate limit 안내.
  * 5xx → 일반 서버 오류 안내.
  * 4xx (422/409 등) → 호출부에서 개별 field mapping 또는 분기 처리 (본 함수는 generic toast).
  */
-export function handleMutationError(
-  err: unknown,
-  ctx: { redirectOn401?: boolean } = { redirectOn401: true },
-): void {
+export function handleMutationError(err: unknown): void {
   const e = err as Partial<ApiError>;
-  if (e?.status === 401 && ctx.redirectOn401) {
-    if (typeof window !== "undefined") {
-      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
-    }
+  if (e?.status === 401) {
+    toast.error("인증에 실패했습니다. 다시 로그인해 주세요.");
     return;
   }
   if (e?.status === 429) {

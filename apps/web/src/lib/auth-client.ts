@@ -5,6 +5,8 @@
 
 import { createAuthClient } from "better-auth/react";
 
+import { setUnauthorizedHandler } from "./api-client";
+
 export const authClient = createAuthClient({
   // 브라우저↔Next 는 동일 오리진이므로 baseURL 을 지정하지 않는다(상대 경로 `/api/auth`).
 });
@@ -97,6 +99,24 @@ export function clearAuthTokenCache(): void {
   cached = null;
   inFlight = null;
 }
+
+// ★401 재발급기 등록 — `apiFetch` 가 401 을 만나면 캐시를 비우고 새 토큰으로 한 번 재시도한다.
+//   방향이 이쪽인 이유: api-client 는 서버(RSC prefetch)에서도 import 되므로 그쪽에서 이 파일을
+//   정적으로 끌면 better-auth/react 가 서버 번들에 섞인다. 브라우저 모듈이 자기를 등록한다.
+// ★★재발급은 반드시 **한 번에 하나**여야 한다. 401 이 N 건 동시에 오는데 매번 clear 를 부르면
+//   세대 카운터가 N 번 올라 앞선 in-flight 응답이 전부 null 로 버려지고, 그 요청들이 「세션 없음」
+//   으로 오판해 로그인 화면으로 튕긴다 — 정상 사용자가 임의로 로그아웃되는 결함이다.
+let refreshing: Promise<string | null> | null = null;
+
+setUnauthorizedHandler(() => {
+  if (!refreshing) {
+    clearAuthTokenCache();
+    refreshing = getAuthToken().finally(() => {
+      refreshing = null;
+    });
+  }
+  return refreshing;
+});
 
 /**
  * 계정 삭제 — 인증 사용자를 지우고, 그 **전에** 서버가 라이브 세션·웹훅 시크릿을 닫는다.

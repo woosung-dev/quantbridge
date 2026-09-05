@@ -92,3 +92,44 @@ describe("getAuthToken", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("apiFetch 401 재발급기 (모듈 로드 시 등록)", () => {
+  it("동시 401 3건은 /api/auth/token 을 한 번만 부르고 전부 새 토큰으로 성공한다", async () => {
+    const stale = token(Math.floor(Date.now() / 1000) + 3600);
+    const fresh = token(Math.floor(Date.now() / 1000) + 7200);
+    let mints = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/api/auth/token")) {
+        mints += 1;
+        return new Response(JSON.stringify({ token: mints === 1 ? stale : fresh }), {
+          status: 200,
+        });
+      }
+      const auth = new Headers(init?.headers).get("authorization");
+      return new Response("{}", { status: auth === `Bearer ${fresh}` ? 200 : 401 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.test");
+    const { getAuthToken } = await loadClient();
+    const { apiFetch } = await import("../api-client");
+
+    // 캐시에 stale 을 심는다 — 서버 기준으로는 이미 만료된 토큰이다.
+    const cachedStale = await getAuthToken();
+    expect(cachedStale).toBe(stale);
+    expect(mints).toBe(1);
+
+    await expect(
+      Promise.all([
+        apiFetch("/api/v1/a", { token: cachedStale }),
+        apiFetch("/api/v1/b", { token: cachedStale }),
+        apiFetch("/api/v1/c", { token: cachedStale }),
+      ]),
+    ).resolves.toEqual([{}, {}, {}]);
+
+    // 재발급은 정확히 1회. N 회였다면 세대 카운터가 N 번 올라 앞선 응답이 null 로 버려지고
+    // 그 요청들은 「세션 없음」으로 오판돼 로그인 화면으로 튕겼을 것이다.
+    expect(mints).toBe(2);
+    await expect(getAuthToken()).resolves.toBe(fresh);
+    expect(mints).toBe(2);
+  });
+});

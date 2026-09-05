@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { liveSessionKeys } from "@/features/live-sessions/query-keys";
 import { tradingKeys } from "@/features/trading/query-keys";
+import { clearAuthTokenCache } from "@/lib/auth-client";
 import type { RealtimeClient, RealtimeWsClientOptions } from "./ws-client";
 
 import { RealtimeBridge, realtimeWsUrl } from "./realtime-bridge";
@@ -42,6 +43,28 @@ describe("RealtimeBridge", () => {
     expect(client.ensureConnected).toHaveBeenCalledOnce();
     view.unmount();
     expect(client.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("4401 의 onAuthFailure 를 토큰 캐시 무효화에 배선한다 (BL-844)", () => {
+    vi.stubEnv("NEXT_PUBLIC_WS_URL", "ws://test");
+    const client: RealtimeClient = {
+      ensureConnected: vi.fn(),
+      getReconnectCount: () => 0,
+      destroy: vi.fn(),
+    };
+    const optionsRef: { current: RealtimeWsClientOptions | null } = { current: null };
+    const clientFactory = vi.fn((nextOptions: RealtimeWsClientOptions) => {
+      optionsRef.current = nextOptions;
+      return client;
+    });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RealtimeBridge clientFactory={clientFactory} />
+      </QueryClientProvider>,
+    );
+
+    optionsRef.current?.onAuthFailure?.();
+    expect(clearAuthTokenCache).toHaveBeenCalledOnce();
   });
 
   it("authed 재진입 시 트레이딩·세션 전체 키를 무효화한다", () => {
