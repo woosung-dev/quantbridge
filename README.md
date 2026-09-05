@@ -147,6 +147,9 @@ GitHub 은 HTML 을 렌더하지 않는다 — 클론한 뒤 브라우저로 열
 | 런타임 아키텍처   | [`docs/architecture/diagrams/system-runtime.html`](./docs/architecture/diagrams/system-runtime.html) | 두 실행 경로 · 인증 경계 · 실시간 fan-out (가이드 뷰 3개)         |
 | 데이터 모델       | [`docs/architecture/diagrams/data-model.html`](./docs/architecture/diagrams/data-model.html)         | 24 테이블 · FK 삭제 정책 · 멱등/배타 제약 (가이드 뷰 3개)         |
 | 레포 구조와 경계  | [`docs/architecture/diagrams/repo-structure.html`](./docs/architecture/diagrams/repo-structure.html) | FE FSD Lite · BE 3-Layer · CI/계약 게이트가 지키는 것 (가이드 뷰 3개) |
+| 백테스트 왕복 시퀀스 | [`docs/architecture/diagrams/backtest-roundtrip.html`](./docs/architecture/diagrams/backtest-roundtrip.html) | POST 202 → 워커 실행 → 폴링 관찰 — API 는 실행하지 않는다 (가이드 뷰 3개) |
+| OHLCV 데이터 파이프라인 | [`docs/architecture/diagrams/ohlcv-pipeline.html`](./docs/architecture/diagrams/ohlcv-pipeline.html) | cache-first 봉 경로 · 비저장 틱 경로 · 네 소비자 같은 perp 축 (가이드 뷰 3개) |
+| 백테스트 상태 머신 | [`docs/architecture/diagrams/backtest-lifecycle.html`](./docs/architecture/diagrams/backtest-lifecycle.html) | queued→running→completed · cancelling transient · beat 좀비 회수 (가이드 뷰 3개) |
 
 ### 구성 요소 — 어디서 무엇이 도나
 
@@ -471,7 +474,7 @@ quant-bridge/
 | [`DESIGN.md`](DESIGN.md)                                                                | 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                     |
 | [`docs/README.md`](./docs/README.md)                                                    | 문서 지도 — 어느 질문을 어느 문서가 답하는가                   |
 | [`docs/status.md`](./docs/status.md)                                                    | 지금 진행 중인 작업 (현행 sprint 상태의 SSOT)                  |
-| [`docs/architecture/`](./docs/architecture/)                                            | 시스템·데이터 흐름·Pine 실행 정본 + `diagrams/` 인터랙티브 3장 |
+| [`docs/architecture/`](./docs/architecture/)                                            | 시스템·데이터 흐름·Pine 실행 정본 + `diagrams/` 인터랙티브 6장 |
 | [`docs/domain/erd.md`](./docs/domain/erd.md)                                            | 24 테이블 컬럼·FK·인덱스 정본                                  |
 | [`docs/adr/`](./docs/adr/)                                                              | ADR 42건 — 왜 그렇게 결정했는가                                |
 | [`apps/api/AGENTS.md`](apps/api/AGENTS.md) · [`apps/web/AGENTS.md`](apps/web/AGENTS.md) | 스택별 강제 규칙 (FastAPI 3-Layer · React Hooks 안전 등)       |

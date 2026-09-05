@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "QuantBridge — OHLCV 데이터 파이프라인",
+    "quality_profile": "showcase",
+    "viewBox": [1340, 530],
+    "legend": {
+      "entries": {
+        "emphasis": { "label": "주 데이터 흐름" },
+        "dashed": { "label": "캐시 미스에만" },
+        "database": { "label": "저장소" }
+      }
+    },
+    "views": [
+      {
+        "id": "bar-path",
+        "label": "봉 경로 (저장)",
+        "focus": ["bybitrest", "provider", "ohlcv", "bt", "stress", "opt"],
+        "note": "cache-first — gap 만 CCXT fetch 후 하이퍼테이블에 저장, 소비자는 DataFrame."
+      },
+      {
+        "id": "tick-path",
+        "label": "틱 경로 (비저장)",
+        "focus": ["bybitws", "wsworker", "redis", "apiws", "browser"],
+        "note": "ticker 는 저장하지 않는다 — lease 단일 구독 → pub/sub → 브라우저 WS."
+      },
+      {
+        "id": "consumers",
+        "label": "네 소비자, 같은 축",
+        "focus": ["ohlcv", "bt", "stress", "opt", "live"],
+        "note": "백테스트·스트레스·옵티마이저·라이브 신호가 같은 perp 봉을 읽는다 (BL-535)."
+      }
+    ]
+  },
+  "stages": [
+    { "label": "소스" },
+    { "label": "수급 계층" },
+    { "label": "저장 · 버스" },
+    { "label": "소비자" },
+    { "label": "소비자 · 표면" }
+  ],
+  "nodes": [
+    { "id": "bybitrest", "type": "external", "label": "Bybit REST", "stage": 0, "row": 0, "width": 150 },
+    { "id": "provider", "type": "backend", "label": "TimescaleProvider", "stage": 1, "row": 0, "width": 172 },
+    { "id": "ohlcv", "type": "database", "label": "ts.ohlcv 하이퍼테이블", "stage": 2, "row": 0, "width": 172 },
+    { "id": "bt", "type": "backend", "label": "백테스트 엔진", "stage": 3, "row": 0, "width": 172 },
+    { "id": "stress", "type": "backend", "label": "스트레스 테스트", "stage": 3, "row": 1, "width": 172 },
+    { "id": "opt", "type": "backend", "label": "옵티마이저", "stage": 4, "row": 0, "width": 172 },
+    { "id": "live", "type": "backend", "label": "라이브 신호", "stage": 4, "row": 1, "width": 172 },
+    { "id": "bybitws", "type": "external", "label": "Bybit 공개 WS", "stage": 0, "row": 2, "width": 150 },
+    { "id": "wsworker", "type": "backend", "label": "ws_stream 워커", "stage": 1, "row": 2, "width": 172 },
+    { "id": "redis", "type": "messagebus", "label": "Redis DB3", "stage": 2, "row": 2, "width": 172 },
+    { "id": "apiws", "type": "backend", "label": "API WebSocket", "stage": 3, "row": 2, "width": 172 },
+    { "id": "browser", "type": "frontend", "label": "브라우저", "stage": 4, "row": 2, "width": 172 }
+  ],
+  "flows": [
+    { "from": "bybitrest", "to": "provider", "label": "gap 구간 봉", "classification": "캐시 미스에만", "variant": "dashed", "route": "straight", "labelAt": [202, 200] },
+    { "from": "provider", "to": "ohlcv", "label": "insert_bulk", "classification": "Decimal 변환", "variant": "emphasis", "route": "straight", "labelAt": [423, 200] },
+    { "from": "ohlcv", "to": "bt", "label": "DataFrame", "classification": "전 구간", "variant": "emphasis", "route": "straight", "labelAt": [638, 200] },
+    { "from": "ohlcv", "to": "stress", "label": "DataFrame", "variant": "default", "fromSide": "bottom", "toSide": "left", "via": [[530, 271]], "labelAt": [575, 271] },
+    { "from": "ohlcv", "to": "opt", "label": "DataFrame", "variant": "default", "fromSide": "top", "toSide": "top", "via": [[530, 96], [960, 96]], "labelAt": [745, 96] },
+    { "from": "ohlcv", "to": "live", "label": "최신 봉", "variant": "default", "fromSide": "bottom", "toSide": "bottom", "via": [[530, 328], [960, 328]], "labelAt": [745, 328] },
+    { "from": "bybitws", "to": "wsworker", "label": "실시간 ticker", "variant": "emphasis", "route": "straight", "labelDy": -23 },
+    { "from": "wsworker", "to": "redis", "label": "publish", "variant": "emphasis", "route": "straight", "labelDy": -23 },
+    { "from": "redis", "to": "apiws", "label": "구독 팬아웃", "variant": "emphasis", "route": "straight", "labelAt": [638, 440] },
+    { "from": "apiws", "to": "browser", "label": "WS · 사용자당 3연결", "variant": "emphasis", "route": "straight", "labelAt": [852, 440] }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "cache-first 수급",
+      "items": [
+        "advisory lock → gap 재조회 → 빈 구간만 CCXT fetch → Decimal insert_bulk",
+        "캐시가 비면 첫 조회가 곧 시딩 — 별도 백필 배치가 없다"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "상품 경계 (BL-535)",
+      "items": [
+        "인자는 canonical(BTC/USDT), 저장·fetch 는 perp(BTC/USDT:USDT) — 스팟과 25~42 USDT 괴리",
+        "백테스트·스트레스·옵티마이저·라이브 신호 네 소비자가 같은 perp 축"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "틱은 저장하지 않는다",
+      "items": [
+        "ws_stream 워커의 단일 lease 상주 구독 → Redis DB3 pub/sub — 하이퍼테이블에 안 쓴다",
+        "API ConnectionManager 가 브라우저 WS 로 팬아웃 (사용자당 3연결)"
+      ]
+    }
+  ]
+}

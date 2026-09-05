@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "QuantBridge — 백테스트 왕복 시퀀스",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1340, 560],
+    "legend": {
+      "entries": {
+        "emphasis": { "label": "주 경로" },
+        "return": { "label": "응답" },
+        "dashed": { "label": "조건부 · 폴링" }
+      }
+    },
+    "views": [
+      {
+        "id": "accept",
+        "label": "제출 · 202",
+        "focus": ["browser", "api", "pg", "redis"],
+        "note": "API 는 실행하지 않는다 — queued 행 + 디스패치 후 202 로 끝."
+      },
+      {
+        "id": "worker-run",
+        "label": "워커 실행",
+        "focus": ["redis", "worker", "bybit", "pine", "pg"],
+        "note": "3-guard 선점 → cache-first OHLCV → pine_v2 → 결과 저장."
+      },
+      {
+        "id": "observe",
+        "label": "관찰 (폴링)",
+        "focus": ["browser", "api"],
+        "note": "GET /:id/progress 가 상태·stale 여부를 준다. 푸시 채널이 없다."
+      }
+    ]
+  },
+  "participants": [
+    { "id": "browser", "type": "external", "label": "브라우저" },
+    { "id": "api", "type": "backend", "label": "FastAPI" },
+    { "id": "pg", "type": "database", "label": "PostgreSQL" },
+    { "id": "redis", "type": "messagebus", "label": "Redis 큐" },
+    { "id": "worker", "type": "backend", "label": "Celery 워커" },
+    { "id": "pine", "type": "backend", "label": "pine_v2" },
+    { "id": "bybit", "type": "external", "label": "Bybit Demo" }
+  ],
+  "segments": [
+    { "from": 148, "to": 256, "label": "제출 · 202" },
+    { "from": 266, "to": 404, "label": "워커 실행" },
+    { "from": 414, "to": 464, "label": "관찰 (폴링)" }
+  ],
+  "messages": [
+    { "from": "browser", "to": "api", "y": 160, "label": "POST /api/v1/backtests · Bearer JWT", "variant": "emphasis" },
+    { "from": "api", "to": "pg", "y": 188, "label": "INSERT queued · 전략 버전 고정" },
+    { "from": "api", "to": "redis", "y": 216, "label": "backtest.run 디스패치", "variant": "emphasis" },
+    { "from": "api", "to": "browser", "y": 244, "label": "202 + backtest_id", "variant": "return" },
+    { "from": "worker", "to": "pg", "y": 278, "label": "3-guard 선점 queued→running", "variant": "emphasis" },
+    { "from": "worker", "to": "bybit", "y": 306, "label": "OHLCV gap 만 CCXT fetch ⇄ perp 봉", "variant": "dashed" },
+    { "from": "worker", "to": "pine", "y": 334, "label": "전략 실행 (봉 단위)", "variant": "emphasis" },
+    { "from": "pine", "to": "worker", "y": 362, "label": "trades · equity", "variant": "return" },
+    { "from": "worker", "to": "pg", "y": 390, "label": "결과 저장 → completed", "variant": "emphasis" },
+    { "from": "browser", "to": "api", "y": 424, "label": "GET /:id/progress 폴링", "variant": "dashed" },
+    { "from": "api", "to": "browser", "y": 452, "label": "200 completed · stale 여부", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "api", "from": 154, "to": 252, "type": "backend" },
+    { "participant": "worker", "from": 272, "to": 398, "type": "backend" },
+    { "participant": "bybit", "from": 300, "to": 314, "type": "external" },
+    { "participant": "pine", "from": 328, "to": 368, "type": "backend" },
+    { "participant": "api", "from": 418, "to": 458, "type": "backend" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "API 는 접수만 한다",
+      "items": [
+        "queued 행 + 디스패치 후 202 — 실행은 전부 워커 몫, 디스패치 실패는 롤백",
+        "전략 버전을 제출 시점에 고정해 실행 중 코드 변경이 결과에 안 스민다"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "cache-first OHLCV",
+      "items": [
+        "ts.ohlcv 를 먼저 보고 빈 gap 만 CCXT fetch 후 insert_bulk 로 저장",
+        "fetch·저장 키는 perp 상품 — 라이브 주문과 같은 가격 축 (BL-535)"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "관찰은 폴링",
+      "items": [
+        "GET /:id/progress 가 status·error 에 더해 stale 여부까지 계산해 준다",
+        "선점은 WHERE status='queued' 3-guard — 중복 소비가 두 번 실행 못 한다"
+      ]
+    }
+  ]
+}
