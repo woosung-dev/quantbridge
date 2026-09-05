@@ -1,5 +1,5 @@
-// Sprint 11 Phase C: Waitlist API — apiFetch + Clerk JWT + Zod 런타임 검증.
-// POST /waitlist 는 public (token = null 허용). admin 은 Clerk token 필수.
+// Sprint 11 Phase C: Waitlist API — apiFetch + Better Auth JWT + Zod 런타임 검증.
+// POST /waitlist 는 public (token = null 허용). admin 은 Better Auth JWT 필수.
 
 import { getApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api-client";

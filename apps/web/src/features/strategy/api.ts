@@ -1,5 +1,5 @@
-// Sprint 7c: Strategy CRUD API — apiFetch + Clerk JWT + Zod 런타임 검증.
-// Clerk getToken()은 hooks.ts에서 주입하여 이 모듈을 pure function 유지.
+// Sprint 7c: Strategy CRUD API — apiFetch + Better Auth JWT + Zod 런타임 검증.
+// Better Auth getToken()은 hooks.ts에서 주입하여 이 모듈을 pure function 유지.
 
 import { apiFetch } from "@/lib/api-client";
 
