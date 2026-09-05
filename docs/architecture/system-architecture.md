@@ -119,6 +119,7 @@ sequenceDiagram
 - 모든 보호된 엔드포인트: `Depends(get_current_user)` → JWT 검증 → user 컨텍스트 주입
 - TradingView webhook: HMAC 서명 + timestamp 검증 (replay 방지)
 - 인가: Service 레이어가 `user_id` 인자로 행 소유자 일치 검증
+- CORS(`main.py`, 2026-09-06): 허용 origin 은 **`FRONTEND_URL` 하나** · 메서드 6종·요청 헤더 3종(`Authorization`·`Content-Type`·`Idempotency-Key`) **명시** · `expose_headers` 로 `X-RateLimit-*`·`Retry-After`·`X-Idempotency-Replayed` 를 브라우저에 노출 · preflight 캐시 600s. 같은 `FRONTEND_URL` 이 WS `Origin` 검사(`realtime/router.py`)에도 쓰인다. 회귀 = `tests/test_main_cors.py`
 
 ### 인가 경계
 
