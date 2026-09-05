@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
+import { clearAuthTokenCache } from "@/lib/auth-client";
 import {
   createRealtimeWsClient,
   type RealtimeClient,
@@ -57,6 +58,7 @@ export function RealtimeBridge({
     const client = clientFactoryRef.current({
       url: realtimeWsUrl(origin),
       getToken: () => getTokenRef.current(),
+      onAuthFailure: clearAuthTokenCache,
       onEvent: (envelope) => {
         handleRealtimeEvent(queryClientRef.current, userId, envelope);
         useRealtimeStore.getState().recordEvent(envelope.ts);
