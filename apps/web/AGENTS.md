@@ -41,7 +41,7 @@
 - **상태 3단계** — Server State = React Query · Client Global = Zustand(`store/ui-store.ts`) · Client Local =
   `useState`. ★사이드바 접힘은 상태가 아니라 **순수 CSS** 다(§10) — 토글 store 를 새로 만들지 마라
 - **React Query** — Query Key 하드코딩 금지 → 도메인별 `query-keys.ts` 팩토리(첫 인자 = `userId`). API 호출은
-  `features/[domain]/api.ts` 에 모은다(★예외 **4곳** — `app/share/backtests/[token]/*` 2 · `test-order-webhook.ts` · `lib/auth.ts` 가 자체 `apiBase` 보유. 2026-08-30 실측으로 3→4 정정). 재는 것 없음
+  `features/[domain]/api.ts` 에 모은다(★`apiFetch` 밖에서 직접 `fetch` 하는 예외 **5곳** — `app/share/backtests/[token]/*` 2 · `test-order-webhook.ts` · `lib/auth.ts`(beforeDelete) · `features/waitlist/api.ts`(invite 검증 — 400/404 를 throw 가 아니라 분기로 받으려 우회). 2026-08-30 3→4 · 2026-09-06 실측으로 4→5 정정). 재는 것 없음
 - **에러 핸들링** — 라우트 경계는 `error.tsx`(§6)가 이미 ErrorBoundary 다. 이 규칙이 말하는 것은 **컴포넌트
   내부의 `if (isLoading)`/`if (error)` 워터폴을 `Suspense` 로 걷으라**는 것이다. ★규칙이지 현황이 아니다
   (조기 반환 15건 · `<Suspense>` 1곳). 기존 위반을 선례로 읽지 마라
