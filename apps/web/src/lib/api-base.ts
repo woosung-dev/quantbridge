@@ -10,21 +10,26 @@
 
 let _hasWarnedApiBaseMissing = false;
 
+// 2026-09-06 데이터 경로 조사 3-B — 서버(SSR/RSC) 분기.
+//   서버는 `API_URL`(NEXT_PUBLIC_ 아님 → 번들에 인라인되지 않는다)을 먼저 보고 없으면
+//   `NEXT_PUBLIC_API_URL` 로 간다. 브라우저는 `NEXT_PUBLIC_API_URL` 만 본다.
+//   ★현 배포는 FE 컨테이너→호스트 uvicorn 내부 경로가 없어(`frontend-deploy.md` §2) `API_URL` 을
+//   비우고 공개 호스트로 헤어핀한다 — 이 분기가 지금 주는 값은 「서버에서도 경고가 찍힌다」다.
+//   종전엔 경고가 `typeof window` 게이트 뒤라 SSR/RSC(prefetch·share·OG·invite) 의 미설정이
+//   **무진단**으로 localhost:8000 을 때렸다.
 export function getApiBase(): string {
-  const raw = process.env.NEXT_PUBLIC_API_URL;
+  const isServer = typeof window === "undefined";
+  const raw = (isServer ? process.env.API_URL : undefined) || process.env.NEXT_PUBLIC_API_URL;
   if (!raw) {
-    // production browser 첫 호출 1회만 console.error.
-    // SSR / build / dev 에선 silent fallback (build 깨지지 않도록).
-    if (
-      !_hasWarnedApiBaseMissing &&
-      typeof window !== "undefined" &&
-      process.env.NODE_ENV === "production"
-    ) {
+    // production 첫 호출 1회만 console.error — 서버·브라우저 모두. build / dev 는 조용하다
+    // (`NEXT_PUBLIC_*` 빌드타임 인라인 정책상 throw 는 prod build 를 깨뜨리므로 fallback 유지).
+    if (!_hasWarnedApiBaseMissing && process.env.NODE_ENV === "production") {
       _hasWarnedApiBaseMissing = true;
       console.error(
-        "[api-base] NEXT_PUBLIC_API_URL is not set in production. " +
-          "Falling back to http://localhost:8000 — requests will likely fail. " +
-          "Set the variable in your build environment (Vercel/Docker/CI).",
+        `[api-base] NEXT_PUBLIC_API_URL is not set in production${
+          isServer ? " (server: API_URL is also unset)" : ""
+        }. Falling back to http://localhost:8000 — requests will likely fail. ` +
+          "Set the variable in your build environment (Docker/CI).",
       );
     }
     return "http://localhost:8000";
