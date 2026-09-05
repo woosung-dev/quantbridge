@@ -3,7 +3,7 @@
 > **목적:** C4 Level 1~2 (System Context + Container) 다이어그램 + 인증/인가 경계.
 > **SSOT:** 컴포넌트 코드는 `apps/web/`, `apps/api/`. 인프라는 `docker-compose.yml`, `.github/workflows/ci.yml`.
 > 데이터 흐름 시퀀스는 [`data-flow.md`](./data-flow.md), 도메인 경계는 [`domain-overview.md`](../domain/domain-overview.md).
-> **인터랙티브 다이어그램(Archify, 2026-09-04):** [`diagrams/system-runtime.html`](./diagrams/system-runtime.html) · [`diagrams/data-model.html`](./diagrams/data-model.html) · [`diagrams/repo-structure.html`](./diagrams/repo-structure.html) — 스펙은 같은 이름의 `.archify.json`, 재생성은 `archify deliver`. GitHub 은 HTML 을 렌더하지 않으므로 클론 후 브라우저로 연다.
+> **인터랙티브 다이어그램(Archify, 2026-09-04 · 흐름 3장 2026-09-05):** 구조 — [`diagrams/system-runtime.html`](./diagrams/system-runtime.html) · [`diagrams/data-model.html`](./diagrams/data-model.html) · [`diagrams/repo-structure.html`](./diagrams/repo-structure.html) / 흐름 — [`diagrams/backtest-roundtrip.html`](./diagrams/backtest-roundtrip.html)(시퀀스) · [`diagrams/ohlcv-pipeline.html`](./diagrams/ohlcv-pipeline.html)(데이터플로) · [`diagrams/backtest-lifecycle.html`](./diagrams/backtest-lifecycle.html)(상태 머신) — 스펙은 같은 이름의 `.archify.json`, 재생성은 `archify deliver`. GitHub 은 HTML 을 렌더하지 않으므로 클론 후 브라우저로 연다.
 
 ---
 
