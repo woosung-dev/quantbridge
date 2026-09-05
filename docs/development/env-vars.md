@@ -106,6 +106,7 @@ Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy 
 | --------------------- | ----------- | ------------------------------------------------- |
 | `FRONTEND_URL`        | [기본값 OK] | 백엔드 CORS allowlist                             |
 | `NEXT_PUBLIC_API_URL` | [기본값 OK] | Frontend → Backend HTTP base URL                  |
+| `API_URL`             | [optional]  | 서버(SSR/RSC) 전용 base URL. 비우면 `NEXT_PUBLIC_API_URL`. 현 배포는 내부 경로가 없어 비운다(2026-09-06) |
 | `NEXT_PUBLIC_WS_URL`  | [기본값 OK] | Frontend → Backend WebSocket base URL (Sprint 7+) |
 
 ---
