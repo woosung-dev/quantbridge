@@ -324,12 +324,26 @@ def create_app() -> FastAPI:
 
     install_rate_limit(app)
 
+    # 2026-09-06 데이터 경로 조사 3-C — 와일드카드 2종을 명시 목록으로.
+    #   요청 헤더: FE 는 `Authorization`·`Content-Type` 만 보내고 `Idempotency-Key` 는 BE 계약이다
+    #   (`backtest/router.py`). 노출 헤더: 종전엔 `expose_headers` 가 없어 브라우저가
+    #   `X-RateLimit-*`·`Retry-After`·`X-Idempotency-Replayed` 를 **읽을 수 없었다**(서버는 내고 있었다).
+    #   `max_age` 600 은 Starlette 기본값과 같지만 계약으로 적어 둔다 — preflight 를 요청마다 안 돈다.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.frontend_url],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
+        expose_headers=[
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset",
+            "Retry-After",
+            "X-Idempotency-Replayed",
+            "Idempotency-Replayed",
+        ],
+        max_age=600,
     )
 
     # Sprint 61 T-5 (BL-311) — baseline 보안 헤더 + server 헤더 info-leak strip.
