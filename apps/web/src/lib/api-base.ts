@@ -21,8 +21,11 @@ export function getApiBase(): string {
   const isServer = typeof window === "undefined";
   const raw = (isServer ? process.env.API_URL : undefined) || process.env.NEXT_PUBLIC_API_URL;
   if (!raw) {
-    // production 첫 호출 1회만 console.error — 서버·브라우저 모두. build / dev 는 조용하다
-    // (`NEXT_PUBLIC_*` 빌드타임 인라인 정책상 throw 는 prod build 를 깨뜨리므로 fallback 유지).
+    // production 첫 호출 1회만 console.error — 서버·브라우저 모두. ★`typeof window` 게이트를
+    // 뺐으므로 **`next build` 로그에도 찍힌다**(`api-client.ts`·`test-order-webhook.ts` 가
+    // 모듈 스코프에서 `getApiBase()` 를 부르고 build 는 NODE_ENV=production 이다). 그것이 의도다 —
+    // 빌드 환경에 변수가 없다는 사실이 종전에는 어디에도 안 남았다. build 는 여전히 **안 깨진다**:
+    // `NEXT_PUBLIC_*` 빌드타임 인라인 정책상 throw 가 prod build 를 깨뜨리므로 fallback 을 유지한다.
     if (!_hasWarnedApiBaseMissing && process.env.NODE_ENV === "production") {
       _hasWarnedApiBaseMissing = true;
       console.error(
