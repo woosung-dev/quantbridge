@@ -7,12 +7,8 @@ import { nextCookies } from "better-auth/next-js";
 import { jwt } from "better-auth/plugins/jwt";
 import { Pool } from "pg";
 
+import { getApiBase } from "@/lib/api-base";
 import { isRestrictedCountry } from "@/lib/geo";
-
-/** FastAPI 의 오리진. `NEXT_PUBLIC_API_URL` 은 빌드타임 인라인이라 서버에서도 읽힌다. */
-function apiBase(): string {
-  return (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/+$/, "");
-}
 
 // ★테이블은 `public` 스키마에 `auth_` 접두로 둔다(ADR-034 §D3). 스키마 한정 이름(`auth.user`)은
 //   Better Auth 문서에 없어 검증할 수 없고, 접두 방식은 alembic 이 DDL 정본을 유지하는 것과 맞는다.
@@ -92,7 +88,7 @@ export const auth = betterAuth({
         const issued = await auth.api.getToken({ headers: request.headers });
         const token = issued?.token;
         if (!token) throw new Error("계정 삭제에 필요한 토큰을 발급하지 못했습니다.");
-        const res = await fetch(`${apiBase()}/api/v1/auth/me`, {
+        const res = await fetch(`${getApiBase()}/api/v1/auth/me`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });

@@ -93,3 +93,63 @@ describe("readErrorBody", () => {
     expect(body === "" || body === null).toBe(true);
   });
 });
+
+// 2026-09-06 데이터 경로 조사 3-B — 서버(SSR/RSC) 분기 + 서버에서도 찍히는 경고.
+describe("getApiBase — 서버(SSR/RSC) 분기", () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.stubGlobal("window", undefined);
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("API_URL 이 있으면 NEXT_PUBLIC_API_URL 보다 우선한다 (끝 슬래시 제거)", async () => {
+    vi.stubEnv("API_URL", "http://127.0.0.1:8100/");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://qb-api.example");
+    const { getApiBase } = await import("../api-base");
+    expect(typeof window).toBe("undefined");
+    expect(getApiBase()).toBe("http://127.0.0.1:8100");
+  });
+
+  it("API_URL 이 비면 NEXT_PUBLIC_API_URL 로 간다", async () => {
+    vi.stubEnv("API_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://qb-api.example/");
+    const { getApiBase } = await import("../api-base");
+    expect(getApiBase()).toBe("https://qb-api.example");
+  });
+
+  it("둘 다 없으면 production 에서 **서버에서도** 1회 console.error 를 찍는다", async () => {
+    vi.stubEnv("API_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+    vi.stubEnv("NODE_ENV", "production");
+    const { getApiBase } = await import("../api-base");
+    expect(getApiBase()).toBe("http://localhost:8000");
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(/API_URL is also unset/);
+    getApiBase();
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getApiBase — 브라우저는 API_URL 을 무시한다", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("API_URL 이 있어도 NEXT_PUBLIC_API_URL 을 쓴다", async () => {
+    vi.resetModules();
+    vi.stubEnv("API_URL", "http://internal.only");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://qb-api.example");
+    const { getApiBase } = await import("../api-base");
+    expect(typeof window).toBe("object");
+    expect(getApiBase()).toBe("https://qb-api.example");
+  });
+});
