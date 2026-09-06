@@ -165,7 +165,7 @@ src/
 | 종류       | 규모                   | 실행                      |
 | ---------- | ---------------------- | ------------------------- |
 | Vitest     | 292 파일 (jsdom)       | `pnpm test`               |
-| Playwright | 31 spec · 프로젝트 7종 | `pnpm e2e` / `e2e:authed` |
+| Playwright | 31 spec · 프로젝트 9종 | `pnpm e2e` / `e2e:authed` |
 
 Playwright 프로젝트: `chromium` · `chromium-authed` · `chromium-live-smoke` · `chromium-design-canon` · `chromium-screen-evidence(-authed)` + setup 3종(`global.setup.ts` · `identity.setup.ts` · `authed-reachability.setup.ts`).
 

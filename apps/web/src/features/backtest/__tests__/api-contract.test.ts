@@ -550,3 +550,73 @@ describe("backtest API contract", () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("backtest API 요청·응답 스키마 경계", () => {
+  // ★여기 4건은 **호출 전 거부**와 **응답 거부**를 잰다 — 나머지 계약 테스트는 전부 유효값을
+  //   넣으므로 `.parse()` 를 지워도 초록이다. 2026-08-22 night6 lane 이 저작해 놓고 통합에서
+  //   빠졌던 것을 2026-09-06 스태시 정리에서 되살렸다(원문 = refs/stash-archive/04).
+  afterEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it("createBacktest는 음수 leverage를 요청 전에 거부한다", async () => {
+    await expect(
+      createBacktest(
+        {
+          strategy_id: STRATEGY_ID,
+          symbol: "BTC/USDT",
+          timeframe: "1h",
+          period_start: PERIOD_START,
+          period_end: PERIOD_END,
+          initial_capital: 1,
+          leverage: -1,
+          fees_pct: 0,
+          slippage_pct: 0,
+        } as unknown as CreateBacktestRequest,
+        "negative-leverage-token",
+      ),
+    ).rejects.toThrow();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("postMonteCarlo는 음수 seed를 요청 전에 거부한다", async () => {
+    await expect(
+      postMonteCarlo(
+        {
+          backtest_id: BACKTEST_ID,
+          params: { n_samples: 10, seed: -1 },
+        } as unknown as CreateMonteCarloRequest,
+        "negative-seed-token",
+      ),
+    ).rejects.toThrow();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("postWalkForward는 train_bars=0을 요청 전에 거부한다", async () => {
+    await expect(
+      postWalkForward(
+        {
+          backtest_id: BACKTEST_ID,
+          params: { train_bars: 0, test_bars: 1, step_bars: 1, max_folds: 1 },
+        } as unknown as CreateWalkForwardRequest,
+        "zero-train-token",
+      ),
+    ).rejects.toThrow();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("getStressTest는 알려지지 않은 stress test kind를 런타임 Zod 오류로 거부한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: STRESS_TEST_ID,
+      backtest_id: BACKTEST_ID,
+      kind: "unknown_kind",
+      status: "completed",
+      params: {},
+      created_at: CREATED_AT,
+      completed_at: CREATED_AT,
+    });
+
+    await expect(getStressTest(STRESS_TEST_ID, "invalid-stress-token")).rejects.toThrow();
+    expect(apiFetchMock).toHaveBeenCalledOnce();
+  });
+});

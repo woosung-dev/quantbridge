@@ -67,3 +67,22 @@ describe("alert rules API contract", () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("alert rules 응답 스키마 경계", () => {
+  // ★목록 응답 검증은 api.test.ts:102 가 덮지만 **생성 응답**은 어디도 안 덮는다 —
+  //   api.ts 의 `return AlertRuleSchema.parse(raw)` 를 `return raw as AlertRule` 로 바꿔도
+  //   전건 초록이었다(2026-09-06 실측). 원문 = refs/stash-archive/03.
+  it("생성 응답이 계약을 어기면 createAlertRule이 파싱 오류를 호출자에게 전파한다", async () => {
+    // channel 은 z.enum(["slack","telegram","both"]) 이라 "email" 은 계약 밖이다.
+    apiFetchMock.mockResolvedValueOnce({ ...ALERT_RULE, channel: "email" });
+
+    await expect(
+      createAlertRule(
+        SESSION_ID,
+        { rule_type: "loss_limit" as const, threshold_percent: "5", channel: "slack" as const },
+        "token-invalid-response",
+      ),
+    ).rejects.toThrow();
+    expect(apiFetchMock).toHaveBeenCalledOnce();
+  });
+});

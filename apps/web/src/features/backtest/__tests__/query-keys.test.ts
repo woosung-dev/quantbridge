@@ -3,7 +3,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { backtestKeys, type BacktestListQuery, type BacktestTradesQuery } from "../query-keys";
+import {
+  backtestKeys,
+  type BacktestListQuery,
+  type BacktestTradesQuery,
+  stressTestKeys,
+} from "../query-keys";
 
 describe("backtestKeys", () => {
   const listQ: BacktestListQuery = { limit: 20, offset: 0 };
@@ -45,5 +50,30 @@ describe("backtestKeys", () => {
     const anon = backtestKeys.lists("anon");
     const real = backtestKeys.lists("user_real");
     expect(anon).not.toEqual(real);
+  });
+});
+
+describe("stressTestKeys", () => {
+  // ★리터럴 모양을 고정한다 — 다른 테스트는 이 팩토리를 **쿼리 키로 실행**만 하므로
+  //   세그먼트 순서·이름이 바뀌어도(예: "by_backtest" → "byBacktest") 자기들끼리는 일관돼 초록이다.
+  //   경계가 어긋나면 캐시가 사용자·실행·백테스트를 섞는다.
+  it("사용자·실행·백테스트 경계를 정확히 구분한다", () => {
+    const USER_ID = "user_keys";
+    const STRESS_TEST_ID = "22222222-2222-4222-8222-222222222222";
+    const BACKTEST_ID = "11111111-1111-4111-8111-111111111111";
+
+    expect(stressTestKeys.all(USER_ID)).toEqual(["stress_test", USER_ID]);
+    expect(stressTestKeys.detail(USER_ID, STRESS_TEST_ID)).toEqual([
+      "stress_test",
+      USER_ID,
+      "detail",
+      STRESS_TEST_ID,
+    ]);
+    expect(stressTestKeys.byBacktest(USER_ID, BACKTEST_ID)).toEqual([
+      "stress_test",
+      USER_ID,
+      "by_backtest",
+      BACKTEST_ID,
+    ]);
   });
 });

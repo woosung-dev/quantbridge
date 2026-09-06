@@ -684,6 +684,20 @@ describe("backtest core hooks", () => {
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
+  // ★`enabled: Boolean(id) && (options.enabled ?? true)`(hooks.ts) 는 **두 항의 AND** 인데
+  //   위 케이스는 `options.enabled === false` 쪽만 덮는다. `Boolean(id) &&` 를 지우는 변이가
+  //   그것만으로는 초록이다 — id 부재 분기와 키 폴백(`backtestKeys.all(uid)`)은 여기서만 밟힌다.
+  it("useBacktestTrades는 id가 없으면 음수 페이지 인자여도 조회하지 않는다", async () => {
+    const queryClient = makeQueryClient();
+
+    const { result } = renderHook(() => useBacktestTrades(undefined, { limit: 0, offset: -1 }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
   it("useBacktestTrades는 0·음수 페이지 경계를 그대로 전달한다", async () => {
     const queryClient = makeQueryClient();
     const response = { items: [], total: 0, limit: 0, offset: -1 };
