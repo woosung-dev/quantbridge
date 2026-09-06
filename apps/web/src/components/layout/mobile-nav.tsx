@@ -9,6 +9,7 @@ import { X as CloseIcon } from "lucide-react";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useUiStore } from "@/store/ui-store";
 
+import { AccountButton } from "./account-button";
 import { DashboardNavList } from "./dashboard-nav-list";
 
 type MobileNavProps = {
@@ -57,6 +58,14 @@ export function MobileNav({ pathname }: MobileNavProps) {
         </SheetHeader>
         {/* 배지(nav-count) 없음 — 캐논상 ≤1024px 에서 숨김이라 모바일 drawer 도 라벨만. */}
         <DashboardNavList pathname={pathname} />
+        {/* 계정 dock — ≤768px 의 계정 경로 주인(2026-09-06). 상단바에서 옮겨 왔다:
+            320px 상단바는 아바타+로그아웃+「계정 지우기」 149px 를 못 담아 문서를 넘겼다
+            (근거·구간 표 = dashboard-header.tsx). drawer 는 280px 라 신원까지 함께 선다. */}
+        <div className="sidebar-foot mt-auto px-2 pb-3">
+          <div className="account">
+            <AccountButton size="lg" showIdentity />
+          </div>
+        </div>
       </SheetContent>
     </Sheet>
   );

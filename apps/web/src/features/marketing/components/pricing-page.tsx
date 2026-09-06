@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { ExchangeSupportTable } from "@/components/exchange-support-table";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 import {
   EMPTY_CELL,
   ROADMAP_DISCLAIMER as EXCHANGE_SUPPORT_DISCLAIMER,
@@ -443,7 +444,8 @@ export function PricingPage() {
                 </div>
               </div>
 
-              <div className="table-wrap">
+              {/* tabIndex/role — 가로 스크롤 영역의 키보드 도달성(WCAG 2.1.1, axe serious). */}
+              <TableScrollRegion label="구성별 기능 대조표">
                 <table className="trades cmp" aria-label="구성별 기능 대조표">
                   <thead>
                     <tr>
@@ -470,7 +472,7 @@ export function PricingPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableScrollRegion>
 
               <p className="chart-note">
                 <svg

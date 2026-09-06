@@ -6,6 +6,7 @@ import { useIsMutating } from "@tanstack/react-query";
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 import {
   isAccepted,
   outcomeFromError,
@@ -367,7 +368,8 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
             <p className="card-sub">조회 시각 {latestFetchedAt ?? "확인 불가"}</p>
           </div>
         </div>
-        <div className="table-wrap">
+        {/* tabIndex/role — 가로 스크롤 영역의 키보드 도달성(WCAG 2.1.1, axe serious). */}
+        <TableScrollRegion label="계정별 잔여 포지션">
           <table className="trades" aria-label="계정별 잔여 포지션">
             <TableHeaders />
             <tbody>
@@ -405,7 +407,7 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
         <ScopeFootnote settleCoins={settleCoins} truncated={truncated} />
       </div>
       <Dialog

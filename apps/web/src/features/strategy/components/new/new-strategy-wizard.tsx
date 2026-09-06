@@ -440,7 +440,20 @@ export function NewStrategyWizard() {
               </div>
             </div>
             <div className="card-body">
-              <ul className="lexicon-list" data-testid="lexicon-list">
+              {/* ★tabIndex/role — 이 목록은 `max-height: 236px` 안에서 1,102px 를 스크롤한다.
+                  포커스 가능한 자식이 하나도 없어서 **키보드 사용자는 866px 를 읽을 방법이
+                  없었다**(2026-09-06 실측, axe `scrollable-region-focusable` serious).
+                  ★`role="region"` 을 붙이지 않는다 — `ul` 의 list 롤을 덮어써 「N개 항목」
+                  안내가 사라진다. 포커스 가능성만 주고 이름은 `aria-label` 로 단다.
+                  ★`TableScrollRegion` 을 못 쓴다 — 그것은 `div` 래퍼이고 여기는 `ul` 자신이
+                  스크롤 컨테이너다(래퍼를 끼우면 list 롤과 항목 수 안내가 갈라진다). */}
+              <ul
+                className="lexicon-list"
+                data-testid="lexicon-list"
+                // biome-ignore lint/a11y/noNoninteractiveTabindex: 스크롤 컨테이너는 tabindex=0 이 있어야 키보드로 스크롤된다(WCAG 2.1.1). 위젯화가 아니다.
+                tabIndex={0}
+                aria-label={`지원 함수 사전 ${LEXICON_ENTRIES.length}종`}
+              >
                 {LEXICON_ENTRIES.map(([fnName, desc]) => (
                   <li key={fnName}>
                     <code className="mono">{fnName}</code>

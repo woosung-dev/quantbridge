@@ -11,6 +11,7 @@ import { ArrowUpDown } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS } from "@/lib/labels";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 import { LIVE_SESSION_STATUS_LABEL } from "../labels";
 import type { LiveSession } from "../schemas";
@@ -81,7 +82,7 @@ export function LiveSessionTable({
           </button>
         </div>
       </div>
-      <div className="table-wrap">
+      <TableScrollRegion label={`라이브 세션 ${sessions.length}건`}>
         <table className="trades" aria-label={`라이브 세션 ${sessions.length}건`}>
           <thead>
             <tr>
@@ -114,7 +115,7 @@ export function LiveSessionTable({
             })}
           </tbody>
         </table>
-      </div>
+      </TableScrollRegion>
     </div>
   );
 }

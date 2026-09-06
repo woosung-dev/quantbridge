@@ -42,13 +42,18 @@ export function DashboardHeader({ pageTitle }: DashboardHeaderProps) {
 
       <ThemeToggle />
 
-      {/* 풀 사이드바(≥1025px)는 footer 의 계정 버튼을 쓴다. 그 아래(모바일 + 아이콘 레일
-          769~1024px)는 사이드바 계정이 숨거나 아바타만 남으므로 상단바가 로그아웃/삭제 경로를 맡는다.
-          터치 타깃 ≥44pt 는 AccountButton 이 size="lg" 로 보장한다 (BL-305/339 후속).
-          ★min-[1025px]:hidden — KITPORT 의 max-width:768/1024 는 경계 **포함**이라 md:/lg: 를
-          쓰면 정확히 그 폭에서 양쪽이 동시에 숨는 데드심이 난다(2026-08-18 실발화). 레일 구간의
-          사이드바 액션 숨김은 globals 의 `.sidebar .qb-acct-action` 스코프 규칙이 담당한다. */}
-      <div className="inline-flex min-h-11 min-w-11 items-center justify-center min-[1025px]:hidden">
+      {/* 계정 경로는 폭 구간마다 주인이 다르다.
+            ≥1025px  풀 사이드바 footer 의 계정 버튼
+            769~1024 아이콘 레일이라 사이드바 액션이 숨는다 → **이 상단바 인스턴스**
+            ≤768px   사이드바 자체가 없다 → 모바일 drawer 의 계정 dock(mobile-nav.tsx)
+          ★≤768 을 여기서 뺀 이유(2026-09-06 실측) — 아바타+로그아웃+「계정 지우기」가 149px 라
+          320px 상단바에서 햄버거·페이지명·테마토글과 함께 서지 못하고 **문서를 1~7px 넘긴다**
+          (`DESIGN.md` §4.3.2 「320px 무횡스크롤」 위반, authed 6라우트 × 2테마 전건 재현).
+          drawer 로 옮기면 폭이 풀리고 파괴적 액션이 상단바에서도 빠진다.
+          ★경계 표기는 min-[769px]/min-[1025px] 로 잡는다 — KITPORT 의 max-width:768/1024 는 경계
+          **포함**이라 md:/lg: 나 max-[N]: 를 쓰면 정확히 그 폭에서 데드심이 난다(2026-08-18 실발화).
+          터치 타깃 ≥44pt 는 AccountButton 이 size="lg" 로 보장한다 (BL-305/339 후속). */}
+      <div className="hidden min-h-11 min-w-11 items-center justify-center min-[769px]:inline-flex min-[1025px]:hidden">
         <AccountButton size="lg" />
       </div>
     </header>

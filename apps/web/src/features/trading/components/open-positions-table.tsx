@@ -6,6 +6,7 @@ import { useIsMutating } from "@tanstack/react-query";
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -317,7 +318,8 @@ export function OpenPositionsTable({
             <p className="card-sub">대조 시각 {positions.latestFetchedAt ?? "확인 불가"}</p>
           </div>
         </div>
-        <div className="table-wrap">
+        {/* tabIndex/role — 가로 스크롤 영역의 키보드 도달성(WCAG 2.1.1, axe serious). */}
+        <TableScrollRegion label="세션별 열린 포지션 대조">
           <table className="trades" aria-label="세션별 열린 포지션 대조">
             <TableHeaders />
             <tbody>
@@ -373,7 +375,7 @@ export function OpenPositionsTable({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
         <PositionFootnote hasTrailingStop={hasTrailingStop} />
       </div>
       <Dialog

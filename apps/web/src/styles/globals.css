@@ -4086,3 +4086,30 @@ a.chip:focus-visible {
   border-color: var(--line);
   background: transparent;
 }
+
+/* ==========================================================================
+ * 앱 셸 ↔ 오버레이 계층 정정 (2026-09-06 · UI/UX 실측 회차)
+ *   ★KITPORT 밖 · 언레이어드. 센티넬 안의 `.topbar`/`.sidebar` 는 한 글자도 건드리지 않는다
+ *   (`design-canon-kit-port.test.ts` 가 `_kit.html` 과 주석까지 대조한다).
+ * ========================================================================== */
+
+/* 실측 결함 — 모달 오버레이가 앱 셸 **아래**에 깔린다.
+   `.topbar` z-index 110 · `.sidebar` 120 인데 Base UI 포털(Sheet·Dialog)은 z-50 이라,
+   드로어를 연 채 상단바 좌표에서 `elementFromPoint` 를 찍으면 `button.hamburger` 가 나온다
+   — 즉 **모달이 떠 있는데도 헤더·사이드바가 보이고 클릭된다.** 320px 에서는 상단바가
+   드로어의 첫 nav 항목 두 개를 실제로 덮는다.
+   ⇒ 포털 레이어를 셸 위로 올린다. 포털 래퍼 하나만 올리면 Sheet·Dialog·Popover 가 함께 따라온다.
+   ★수치는 셸(120) 기준 상대값이다 — `DESIGN.md` §4.4 의 `--z-modal: 60` 은 셸이 110/120 을
+   쓰는 현실과 어긋나 있고, 그 표를 고치는 것은 이 회차의 범위가 아니다(별도 등재). */
+[data-base-ui-portal] {
+  position: relative;
+  z-index: 200;
+}
+
+/* 모바일 드로어(≤768px)의 계정 신원 — KITPORT 는 `max-width: 1024` 에서 `.account-name`/
+   `.account-sub` 를 숨긴다. 그것은 **64px 아이콘 레일**을 위한 규칙이고, 280px 드로어에는
+   해당하지 않는다. 드로어 안에서만 되살린다(레일은 그대로 숨은 채로 둔다). */
+.qb-mobile-nav .account-name,
+.qb-mobile-nav .account-sub {
+  display: block;
+}

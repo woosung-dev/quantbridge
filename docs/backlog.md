@@ -422,6 +422,108 @@
 
 ---
 
+### BL-851
+
+**Title:** `/pricing` 라이트 캐논 래칫이 **main 에서 이미 빨갛다** — 아무도 안 본다
+**Category:** FE / 디자인 캐논 게이트
+**Priority:** P2
+**출처:** 2026-09-06 UI/UX 실측 회차 — A/B 로 선행성 확인
+
+**증상 (실측):** `pnpm e2e:design-canon` 44 passed / **1 failed**. 실패는
+`design-canon-public-light.spec.ts` 의 `/pricing — 라이트 하드 실패 ≤ 0 · canon ≤ 14` 이고
+실측 **canon=16**(예산 14). 하드 실패 축(overflow·contrast·focus·motion·console)은 **전부 0** 이고
+넘친 것은 소프트 캐논 축뿐이다 — 라이트 `--text-muted`(`rgb(88,95,104)`) 텍스트 **4종**이
+**5.60:1** 로 캐논 임계 **5.82** 에 미달하고, 그것이 4개 뷰포트에서 세어져 16 이 된다.
+해당 4종 = 거래소 지원표 면책 문구 · 가격표 주석 · 푸터 소개문 · `계획 중인 구성` 아이브로.
+★**이 회차가 만든 것이 아니다.** 변경 파일 2개(`pricing-page.tsx`·`exchange-support-table.tsx`)를
+HEAD 판으로 되돌려 같은 spec 을 돌린 결과가 **동일한 canon=16 / 동일 실패**였다.
+★**왜 안 잡혔나** = [BL-845] 다. CI 는 Playwright spec 31개 중 1개만 돌고 이 spec 은 그 1개가 아니다.
+**권장 접근:** 두 갈래를 먼저 가른다 — ⑴ 이 4종의 배경이 `--card` 가 아니라 `--bg`/`--bg-alt` 라서
+문서값(card 6.35)과 실측(5.60)이 갈리는 것인지 ⑵ 임계 자체가 이 배경 조합을 안 보고 정해진 것인지.
+★**토큰을 먼저 만지지 마라** — `--text-muted` 는 `light-canon-contrast.test.ts` ·
+`brand-palette-css-sync.test.ts` · `design-canon-tokens.test.ts`(variant-c.html 22쌍) 셋이 동시에 문다.
+**Risk:** 🟡 (게이트가 빨간 채로 방치되면 그 다음 회귀도 이 빨강에 묻힌다)
+
+**상태:** 🔵 ACTIVE — 2026-09-06 등재, 미수리
+**트리거 판정:** 도래 (단독 착수 가능)
+
+---
+
+### BL-852
+
+**Title:** 스크롤 표 래퍼 **28곳**이 아직 키보드로 도달할 수 없다 — 6곳만 옮겼다
+**Category:** FE / 접근성
+**Priority:** P2
+**출처:** 2026-09-06 UI/UX 실측 회차 (axe 최초 도입)
+
+**증상 (실측):** `.table-wrap` 은 `overflow-x` 만 갖고 내부에 포커스 가능한 요소가 없어
+**키보드 사용자가 넘친 열에 도달할 수 없다**(WCAG 2.1.1 · axe `scrollable-region-focusable`, serious).
+2026-09-06 스윕(25 라우트 × 5폭 × 2테마)이 실제로 걸린 **6곳**을 잡았고 그 6곳은
+`components/table-scroll-region.tsx` 로 수리했다. 그러나 `.table-wrap` 사용처는 **총 34곳**이고
+나머지 **28곳**은 그 라우트/폭이 스윕에 안 걸렸을 뿐 같은 결함을 갖는다(데이터가 늘면 발화한다).
+**권장 접근:** 남은 28곳을 `TableScrollRegion` 으로 옮긴다. **기계적이지만 라벨은 사람이 정한다** —
+탭이 멈췄을 때 읽히는 이름이라 「표」 같은 총칭을 넣으면 고친 값이 없다.
+★**axe 를 레포에 상주시킬지는 별도 결정**이다. 지금 axe 는 회차용 CDN 주입이었고 의존성 0건이다.
+**Risk:** 🟢 (추가만 한다. 되돌리기 쉽다)
+
+**상태:** 🔵 ACTIVE — 2026-09-06 등재, 부분 수리(6/34)
+**트리거 판정:** 도래 (단독 착수 가능)
+
+---
+
+### BL-853
+
+**Title:** 컴포넌트 어휘가 **둘로 갈려 있다** — 버튼 높이 48/38 · 반경 6·10/12 · 그림자는 라이트에서 다크값
+**Category:** FE / 디자인 시스템
+**Priority:** P2
+**출처:** 2026-09-06 UI/UX 실측 회차 (브라우저 `getComputedStyle` 실측)
+
+**증상 (실측):** 같은 화면 안에 두 컴포넌트 시스템이 산다.
+
+| 축 | shadcn/Tailwind | KITPORT 시맨틱 클래스 |
+| --- | --- | --- |
+| 버튼 높이 | `h-12` = **48px** | `.btn min-height` = **38px** |
+| 반경 | `--radius-md 6px` · `--radius-lg 10px` | `--r` = **12px** |
+| 그림자 | `--card-shadow` (라이트 `#171a1e0f`) | `--shadow` (**양 테마 동일**) |
+
+★**가장 눈에 보이는 것은 그림자다.** `--shadow` 는 `:root` 에만 정의되고 `.dark` 에서
+재정의되지 않아 **라이트 테마에서 `rgba(0,0,0,.55)` + `rgba(0,0,0,.8)` 를 그대로 쓴다** —
+같은 페이지의 shadcn 카드(`0.06` 알파)와 **약 10배** 차이다. 라이트에서 카드마다 탁한 후광이 진다.
+같은 이원화가 위층에도 있다 — 스켈레톤 2벌(`.sk-*` vs `components/skeleton.tsx`) ·
+페이지 셸 2벌(`.page/.card/.section` vs `container mx-auto`) · 에러 UI 2벌(`StateBox` vs 원시 Tailwind).
+`/admin/waitlist` 는 캐논 클래스를 아예 안 쓴다.
+**권장 접근:** ★**KITPORT 를 직접 못 고친다** — `globals.css:966~1876` 은 `_kit.html` 과
+주석까지 대조된다(`design-canon-kit-port.test.ts`). 길은 둘뿐이다: ⑴ 1879줄 아래 언레이어드 오버라이드
+⑵ `_kit.html` + allowlist 를 함께 바꾸기. **그림자 라이트값 하나부터** 시작하는 것이 가장 싸다.
+**Risk:** 🟡 (시각 변화가 전 화면에 걸린다 — 화면 증거 베이스라인 갱신이 따라온다)
+
+**상태:** 🔵 ACTIVE — 2026-09-06 등재, 미수리
+**트리거 판정:** 도래 (단독 착수 가능)
+
+---
+
+### BL-854
+
+**Title:** `DESIGN.md` §4.4 z-index 스케일이 **실제 셸과 어긋나 있다** — 모달이 셸 아래 깔렸다
+**Category:** FE / 디자인 시스템
+**Priority:** P3
+**출처:** 2026-09-06 UI/UX 실측 회차
+
+**증상 (실측):** `DESIGN.md` §4.4 는 `--z-overlay: 50` · `--z-modal: 60` · `--z-nav: 100` 을 규정하지만
+KITPORT 의 `.topbar` 는 **110**, `.sidebar` 는 **120** 이다 — **문서의 nav 층(100)을 셸이 넘는다.**
+그 결과 Base UI 포털(Sheet·Dialog, z-50)이 셸 **아래**로 깔렸고, 모바일 드로어를 연 채
+상단바 좌표에서 `elementFromPoint` 를 찍으면 `button.hamburger` 가 나왔다 — **모달이 떠 있는데
+헤더·사이드바가 보이고 클릭됐다.** 320px 에서는 상단바가 드로어의 첫 nav 항목 두 개를 덮었다.
+이 회차는 **증상만** 껐다(`[data-base-ui-portal] { z-index: 200 }`, `globals.css` 언레이어드).
+**권장 접근:** §4.4 표를 실제 셸 값과 맞춘다. 200 이라는 숫자가 지금 문서 어디에도 없다는 것이 남은 빚이다.
+★KITPORT 안의 110/120 은 못 고치므로 **문서를 코드에 맞추는 방향**이 맞다.
+**Risk:** 🟢 (문서 정합. 코드는 이미 동작한다)
+
+**상태:** 🔵 ACTIVE — 2026-09-06 등재, 증상만 수리
+**트리거 판정:** 도래 (단독 착수 가능)
+
+---
+
 ### BL-847
 
 **Title:** `time` 빌트인이 **달력을 조작**하는데 degraded 플래그가 없다 — `timeframe.period` 는 플래그가 있다

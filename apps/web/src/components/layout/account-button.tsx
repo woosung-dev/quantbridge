@@ -25,10 +25,23 @@ function initialOf(name: string | null | undefined, email: string | null | undef
   return source ? source.charAt(0).toUpperCase() : "?";
 }
 
-export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
+/**
+ * @param showIdentity 아바타 옆에 계정 이름·이메일을 함께 그린다(캐논 `.account-name`/`.account-sub`).
+ *   ★사이드바 전용이다 — 상단바 인스턴스는 320px 에서 폭이 없다(아래 §폭 주석).
+ */
+export function AccountButton({
+  size = "sm",
+  showIdentity = false,
+}: {
+  size?: "sm" | "lg";
+  showIdentity?: boolean;
+}) {
   const router = useRouter();
   const { user } = useAuthCtx();
   const box = size === "lg" ? "size-11 min-h-11 min-w-11" : "size-9 min-h-9 min-w-9";
+  // 표시용 신원 — 이름 → 이메일 순. 둘 다 없으면 신원 블록 자체를 그리지 않는다
+  // (「계정」 같은 고정 문자열은 어느 계정인지 답하지 못하면서 답한 것처럼 보인다).
+  const displayName = (user?.name ?? "").trim() || (user?.email ?? "").trim();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -59,7 +72,12 @@ export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
   };
 
   return (
-    <span className="inline-flex items-center gap-2">
+    // 신원을 그릴 때만 컨테이너 폭을 채우고 줄바꿈을 허용한다 — 상단바 인스턴스는 콘텐츠 폭 그대로.
+    // 232px 사이드바에서 아바타+신원+로그아웃+「계정 지우기」를 한 줄에 넣으면 신원이 55px 로
+    // 눌려 이메일이 `e2...` 가 된다. 좁으면 액션이 둘째 줄로 내려가게 두는 편이 읽힌다.
+    <span
+      className={`inline-flex items-center gap-2 ${showIdentity ? "w-full min-w-0 flex-wrap" : ""}`}
+    >
       <span
         aria-hidden="true"
         className={`inline-flex shrink-0 items-center justify-center rounded-full border border-[color:var(--line)] bg-[color:var(--surface-2)] text-sm font-semibold ${box}`}
@@ -67,6 +85,23 @@ export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
       >
         {initialOf(user?.name, user?.email)}
       </span>
+      {/* 신원 블록 — 캐논 `_kit.html` 의 `.account-name` + `.account-sub` 자리(2026-09-06).
+          종전에는 사이드바가 `"계정"` 문자열을 하드코딩해 **어느 계정으로 들어와 있는지 화면이
+          답하지 못했다**. `min-w-0` + truncate 로 232px 사이드바 안에서 줄바꿈 없이 줄인다. */}
+      {showIdentity && displayName ? (
+        // flex-1 + min-w-0 — 아바타·로그아웃·「계정 지우기」는 고정 폭이라 줄어들 수 없다.
+        // 신원 블록이 남는 폭을 흡수해야 280px 드로어에서 마지막 버튼이 잘리지 않는다(2026-09-06 실측).
+        <span className="flex min-w-0 flex-1 basis-28 flex-col">
+          <span className="account-name truncate" title={displayName}>
+            {displayName}
+          </span>
+          {user?.name && user?.email ? (
+            <span className="account-sub truncate" title={user.email}>
+              {user.email}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
       {/* ★레일 구간(769~1024px, --sidebar-w 64px) 숨김 — **사이드바 인스턴스에만** 적용한다.
           이 컴포넌트는 상단바에도 렌더되므로 버튼 자체에 미디어 숨김을 걸면 레일 구간에서
           로그아웃/삭제 경로가 화면 전체에서 사라진다(codex P2, 2026-08-18). 스코프는 globals 의

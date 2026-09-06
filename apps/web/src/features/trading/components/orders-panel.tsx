@@ -9,6 +9,7 @@ import Link from "next/link";
 import { AlertTriangleIcon, CheckIcon, InboxIcon, RefreshCwIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 
 import { useIsOrderDisabledByKs, useOrders } from "../hooks";
@@ -110,7 +111,7 @@ export function OrdersPanel() {
           </StateBox>
         </div>
       ) : (
-        <div className="table-wrap">
+        <TableScrollRegion label={`주문 원장 ${data.items.length}건`}>
           <table className="trades" aria-label={`주문 원장 ${data.items.length}건`}>
             <thead>
               <tr>
@@ -173,7 +174,7 @@ export function OrdersPanel() {
               })}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
       )}
     </div>
   );
