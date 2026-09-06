@@ -45,6 +45,10 @@ async def test_first_connect_timeout_calls_record_network_failure() -> None:
             fake_session.execute = AsyncMock(
                 return_value=SimpleNamespace(scalar_one_or_none=lambda: None)
             )
+            # ★`ExchangeAccountRepository.get_by_id` 는 PK 조회라 `session.get` 을 쓴다
+            #   (2026-09-06). 이것을 명시하지 않으면 AsyncMock 이 **계정 객체처럼 생긴 Mock** 을
+            #   돌려주어 「account 부재」분기가 아니라 product policy 검사까지 흘러간다.
+            fake_session.get = AsyncMock(return_value=None)
             yield fake_session
 
         class _FakeSM:

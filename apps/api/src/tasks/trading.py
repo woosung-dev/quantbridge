@@ -370,7 +370,7 @@ async def _execute_with_session(
         # 2. Product policy before any submitted transition, credential decrypt, or egress.
         # Legacy pending rows must become terminally rejected without ever authenticating to
         # their historical exchange account.
-        account = await session.get(ExchangeAccount, order.exchange_account_id)
+        account = await ExchangeAccountRepository(session).get_by_id(order.exchange_account_id)
         if account is None:
             error_msg = "exchange_account_missing"
             rows = await repo.transition_to_rejected(
@@ -803,7 +803,7 @@ async def _fetch_order_status_with_session(
 
         try:
             crypto = EncryptionService(settings.trading_encryption_keys)
-            account = await session.get(ExchangeAccount, order.exchange_account_id)
+            account = await ExchangeAccountRepository(session).get_by_id(order.exchange_account_id)
             if account is None:
                 return {"order_id": str(order_id), "skipped": "account_missing"}
 
@@ -1090,7 +1090,7 @@ async def _cancel_order_with_session(order_id: UUID, sm: Any) -> dict[str, Any]:
 
         try:
             crypto = EncryptionService(settings.trading_encryption_keys)
-            account = await session.get(ExchangeAccount, order.exchange_account_id)
+            account = await ExchangeAccountRepository(session).get_by_id(order.exchange_account_id)
             if account is None:
                 return {"order_id": str(order_id), "skipped": "account_missing"}
             creds = _credentials_for_account(account, crypto)
@@ -1370,7 +1370,7 @@ async def _place_trailing_stop_with_session(
             _count_safely(qb_trailing_placement_total, outcome="skipped_no_intent")
             return {"skipped": "no_trailing_intent"}
         crypto = EncryptionService(settings.trading_encryption_keys)
-        account = await session.get(ExchangeAccount, order.exchange_account_id)
+        account = await ExchangeAccountRepository(session).get_by_id(order.exchange_account_id)
         if account is None:
             return {"skipped": "account_missing"}
         # P2(codex) — 트레일링은 Bybit linear(futures) 전용. 비-Bybit/spot 주문에 trailing_stop
@@ -1536,7 +1536,7 @@ async def _refresh_closed_pnl_with_session(
         if order.exchange_order_id is None:
             _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_incomplete")
             return {"skipped": "no_exchange_order_id", "order_id": str(order_id)}
-        account = await session.get(ExchangeAccount, order.exchange_account_id)
+        account = await ExchangeAccountRepository(session).get_by_id(order.exchange_account_id)
         if account is None:
             _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_incomplete")
             return {"skipped": "account_missing", "order_id": str(order_id)}
@@ -1716,7 +1716,7 @@ async def _measure_conditional_reversal_with_session(
             return {"skipped": "not_filled", "order_id": str(order_id)}
         if order.reduce_only:
             return {"skipped": "reduce_only", "order_id": str(order_id)}
-        account = await session.get(ExchangeAccount, order.exchange_account_id)
+        account = await ExchangeAccountRepository(session).get_by_id(order.exchange_account_id)
         if account is None:
             _count_reversal_at_fill("unmeasured_error")
             return {
