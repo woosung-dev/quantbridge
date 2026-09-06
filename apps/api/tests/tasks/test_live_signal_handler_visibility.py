@@ -74,7 +74,7 @@ _NESTED_TRY_DEPTH: dict[str, int] = {
 
 # ── `try` 본문 raw 줄 수 천장 — 실측 최대(`_async_dispatch_event`). 범위 밖이다. ──────
 #   해체 전 이 값은 **845**(`_reconcile_conditional_entries`)였다.
-_MAX_TRY_BODY_LINES = 225
+_MAX_TRY_BODY_LINES = 223
 
 
 def _tree() -> ast.Module:
@@ -165,11 +165,16 @@ def test_remaining_nested_try_functions_are_exactly_the_frozen_list() -> None:
     )
 
 
-def test_no_try_body_exceeds_the_frozen_maximum() -> None:
-    """`try` 본문 raw 줄 수 천장. 해체 전 845 → 지금 225.
+def test_try_body_maximum_is_frozen_in_both_directions() -> None:
+    """`try` 본문 raw 줄 수 천장. 해체 전 845 → 지금 223.
 
     긴 `try` 본문이 바로 2026-08-04 오독의 조건이었다 — 845줄을 다 읽어야만
     「이 계상이 어느 핸들러에 잡히나」를 답할 수 있었다.
+
+    ★**2026-09-06 양방향화.** 종전에는 `value > _MAX_TRY_BODY_LINES` 만 봐서 **늘어날 때만**
+    red 였다. 그러면 개선이 천장에 반영되지 않아 천장이 조용히 stale 해지고, 그 여유만큼
+    다음 사람이 본문을 도로 늘려도 초록이다. 실제로 그렇게 벌어져 있었다 — 천장 225 vs
+    실측 223. 같은 파일의 `_NESTED_TRY_DEPTH`(`actual == 동결`)가 이미 쓰는 형태를 복제한다.
     """
     _, body, seen = _try_shape()
     assert seen >= 20, f"`try` 를 {seen}개만 찾았다 — 이 테스트가 stale 이다"
@@ -177,4 +182,10 @@ def test_no_try_body_exceeds_the_frozen_maximum() -> None:
     assert not too_long, (
         f"`try` 본문이 동결 천장 {_MAX_TRY_BODY_LINES} 줄을 넘었다: {too_long}. "
         "본문을 늘리지 말고 그 조각을 자기 핸들러와 함께 함수로 빼라."
+    )
+    actual_max = max(body.values())
+    assert actual_max == _MAX_TRY_BODY_LINES, (
+        f"최장 `try` 본문이 {actual_max} 줄인데 동결 천장은 {_MAX_TRY_BODY_LINES} 줄이다. "
+        "**줄어든 것은 좋은 일이다** — `_MAX_TRY_BODY_LINES` 를 실측값으로 낮춰서 그 개선을 "
+        "래칫에 반영해라. 여유를 남겨 두면 다음 사람이 그만큼 도로 늘려도 초록이다."
     )
