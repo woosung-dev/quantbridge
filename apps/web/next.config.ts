@@ -5,6 +5,8 @@ import type { NextConfig } from "next";
 // Multi-Agent QA 2026-05-13 발견 — landing/dashboard 모든 페이지 보안 헤더 0개.
 // Beta 외부 노출 시 즉시 audit fail. P1-13 채택: 최소 gate (CSP report-only / X-Frame / Referrer-Policy / HSTS)
 // 적용 후 Sprint 61 polish 시 CSP strict 로 단계적 강화.
+// ★2026-09-06 실측 — CSP 는 report-only 로도 **적용된 적이 없다**(아래 5종에 `Content-Security-Policy*` 없음).
+//   위 두 줄은 계획이지 현황이 아니다. 넣으려면 인라인 스크립트·Monaco·차트 CDN 표면을 먼저 재라.
 const securityHeaders = [
   {
     // Clickjacking 차단 — dashboard 페이지 iframe embed 금지

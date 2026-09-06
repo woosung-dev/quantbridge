@@ -10,7 +10,8 @@ import { ShareNotFoundState } from "@/features/backtest/components/share/share-n
 import { SharePublicBanner } from "@/features/backtest/components/share/share-public-banner";
 import { ShareRevokedState } from "@/features/backtest/components/share/share-revoked-state";
 
-export const dynamic = "force-dynamic"; // 토큰 lookup → revoke 즉시 반영
+// ★`export const dynamic` 은 여기 두면 **무효**다 — 라우트 세그먼트 설정은 `app/**/page.tsx` 에서만
+//   읽힌다. 유효본 = `app/share/backtests/[token]/page.tsx` 의 `force-dynamic`(토큰 lookup → revoke 즉시 반영).
 
 type FetchResult =
   | { kind: "ok"; data: BacktestDetail }

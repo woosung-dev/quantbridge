@@ -1,4 +1,4 @@
-// Sprint 26 — Live Sessions API client (apiFetch + Clerk JWT).
+// Sprint 26 — Live Sessions API client (apiFetch + Better Auth JWT).
 // 토큰 주입은 hooks.ts 가 `useAuth().getToken()` 호출 — 본 모듈은 pure.
 
 import { apiFetch } from "@/lib/api-client";

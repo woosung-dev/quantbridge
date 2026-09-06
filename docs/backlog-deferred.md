@@ -68,6 +68,35 @@
 
 ## P3 — Nice-to-have / 컨벤션 정합
 
+### BL-850
+
+**Title:** Flutter/네이티브 클라이언트가 붙으려면 **B-1 위에서** 고칠 곳이 3곳 있다 — WS Origin · Access 우회 · `bearer()`
+**Category:** FE·BE / 인증 경계
+**Priority:** P3
+**Trigger:** Flutter(또는 어떤 네이티브 앱) 착수 결정
+**Est:** S~M (코드 3곳 + ADR 1건 + 운영 1건)
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-09-06 등재
+**출처:** 2026-09-06 Next.js+FastAPI 데이터 경로 조사(Phase 1) — 사용자가 Flutter 고려를 물었고 조사로 답했다
+
+**원인 / 영향:** 현 인증 경로는 B-1(브라우저→FastAPI 직접 `Authorization: Bearer`, 15분 JWT 메모리 캐시,
+장수 자격증명은 httpOnly 세션 쿠키)이고 이것이 업계 관행(SPA = BFF 쿠키 · 네이티브 = Bearer + Keychain ·
+API = JWKS)과 같다. **B-2(쿠키형)로 옮기지 않는 이유가 바로 이 항목이다** — 네이티브는 쿠키를 안 쓰므로
+B-2 는 FastAPI 에 쿠키+헤더 이중 경로를 영구히 남긴다. 네이티브가 붙을 때 B-1 위에서 고칠 곳:
+1. `apps/api/src/realtime/router.py:36` — WS 가 `Origin` **정확 일치**를 요구하는데 네이티브 클라이언트는
+   Origin 을 안 보내 **403**. 정책 = 「Origin 없음 = 비브라우저 → 토큰만으로 판정」(브라우저는 WS 에
+   Origin 을 항상 보내므로 안전). **ADR 1건** — 검증기 단일 규약(`apps/api/AGENTS.md` §2)과 맞춰라.
+2. `qb.woosung.dev` 의 Cloudflare Access(OTP) — 앱은 리다이렉트를 못 따라간다. `/api/auth/*` 경로만
+   Access 우회(대시보드 정책) 또는 별도 호스트. 운영 작업, `frontend-deploy.md` §3.1 갱신.
+3. `apps/web/src/lib/auth.ts` 플러그인에 `bearer()` 추가 + `trustedOrigins: ["quantbridge://"]`. 앱은
+   `set-auth-token` 응답 헤더의 세션 토큰을 Keychain 에 두고 같은 헤더로 `/api/auth/token` 을 불러 JWT 를 받는다.
+   `[확인 필요]` Better Auth 가 Origin 헤더 없는 요청의 CSRF 검사를 건너뛰는지(Expo 가 되는 것을 보면 그럴 것).
+4. Dart 측 `lib/auth-client.ts` 쌍둥이 — 세션 토큰 Keychain · JWT 메모리 · single-flight · 401 시 재발급 1회.
+   클라이언트 후보(전부 커뮤니티) = `flutter_better_auth` · `better_auth_client` · `better_auth_flutter` · `super_better_auth`.
+★**여기 적힌 3곳 밖으로 인증 경계를 옮기지 마라** — 조사가 기각한 축 = B-2 전환(★) · Next 전면 프록시(WS 가
+rewrites 를 안 넘김, 2026-08-07 실측 · ★★) · FastAPI/OIDC 로 인증 이전(ADR-034 기각 축 · ★★, 트리거 = Flutter+소셜+MFA 동시).
+
+---
+
 ### BL-849
 
 **Title:** ★서버 디스크 회수가 **FE 배포에 얹혀 있다** — FE 를 안 올리면 build cache 상한이 사라진다

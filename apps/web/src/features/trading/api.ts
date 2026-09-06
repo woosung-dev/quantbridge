@@ -1,4 +1,4 @@
-// Trading 도메인 API — apiFetch + Clerk JWT 주입 일원화 (Strategy 모듈과 동일).
+// Trading 도메인 API — apiFetch + Better Auth JWT 주입 일원화 (Strategy 모듈과 동일).
 // 토큰 주입은 hooks.ts에서 `useAuth().getToken()`으로 담당하여 이 모듈은 pure.
 
 import { apiFetch } from "@/lib/api-client";
