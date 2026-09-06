@@ -24,10 +24,14 @@ class ExchangeAccountRepository:
         return account
 
     async def get_by_id(self, account_id: UUID) -> ExchangeAccount | None:
-        result = await self.session.execute(
-            select(ExchangeAccount).where(ExchangeAccount.id == account_id)  # type: ignore[arg-type]
-        )
-        return result.scalar_one_or_none()
+        """PK 조회 — identity map 을 타는 `session.get` 을 쓴다.
+
+        ★종전에는 `select(...).where(id == ...)` 였다. 같은 트랜잭션에서 이미 로드된 계정도
+        매번 DB 를 다시 쳤고, `tasks/trading.py` 는 그 비용을 피하려 세션을 직접 조회해
+        Repository 를 우회하고 있었다(2026-09-06 아키텍처 감사, 6곳). PK 조회는
+        `session.get` 이 정석이고 선례도 있다 — `kill_switch_event_repository.py:34`.
+        """
+        return await self.session.get(ExchangeAccount, account_id)
 
     async def list_by_user(self, user_id: UUID) -> Sequence[ExchangeAccount]:
         result = await self.session.execute(
