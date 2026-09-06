@@ -18,7 +18,21 @@ logger = logging.getLogger(__name__)
 from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 
 
-@celery_app.task(bind=True, name="stress_test.run", max_retries=0)  # type: ignore[untyped-decorator]
+@celery_app.task(  # type: ignore[untyped-decorator]
+    bind=True,
+    name="stress_test.run",
+    max_retries=0,
+    # ★상한의 근거는 임의 값이 아니라 **이미 레포가 선언한 계약**이다 —
+    #   `settings.stress_test_stale_threshold_seconds` 가 1800(30분)이고 그 뜻은
+    #   「RUNNING stress test 가 30분을 넘으면 stale → FAILED」다. 그런데 그 watchdog 은
+    #   **DB 행만 FAILED 로 바꾸고 돌고 있는 태스크는 멈추지 않는다.** 상한이 없으면
+    #   원장은 FAILED 인데 워커는 계속 도는 상태가 남는다.
+    #   형제 = `optimizer_tasks.py` 의 600/660(+60초) — 같은 간격을 쓴다.
+    #   ★stress_test 는 `task_routes` 에 없어 **백테스트와 같은 기본 큐**(backend-worker,
+    #   concurrency 2)로 간다. 상한이 없으면 첫 스트레스 테스트가 자기 백테스트 큐를 막는다.
+    soft_time_limit=1800,
+    time_limit=1860,
+)
 def run_stress_test_task(self: object, stress_test_id: str) -> None:
     """Sync Celery task — Sprint 18 BL-080 Option C run_in_worker_loop.
 
