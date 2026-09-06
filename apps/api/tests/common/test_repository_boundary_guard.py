@@ -192,9 +192,14 @@ def test_dependencies_do_not_contain_scoped_select_calls() -> None:
 
 def test_repository_select_calls_are_excluded_from_the_census() -> None:
     repository_path = _SOURCE_ROOT / "trading/repositories/order_repository.py"
+    paths = _scoped_source_paths()
 
     assert _select_calls(repository_path)
-    assert repository_path not in _scoped_source_paths()
+    # ★공허화 대조 — 경로 수집기가 죽어 빈 리스트를 내면 아래 `not in` 은 자명하게 참이라
+    #   「repository 가 census 밖이다」를 증명하지 않는다. 위 `_select_calls` 는 select 수집기만
+    #   지키고 경로 수집기는 아무도 안 봤다.
+    assert len(paths) >= 60
+    assert repository_path not in paths
 
 
 def test_repository_boundary_violations_do_not_expand_beyond_the_frozen_census() -> None:
