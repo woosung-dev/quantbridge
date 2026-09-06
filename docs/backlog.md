@@ -405,21 +405,6 @@
 
 ---
 
-### BL-844
-
-**Title:** FE 실시간이 4401 재시도에서 **같은 캐시 토큰**을 다시 보내 영구 정지된다
-**Category:** FE / realtime
-**Priority:** P2
-**출처:** 2026-08-30 아키텍처 감사 gap sweep — `fe-shared` 축
-
-**증상:** `lib/ws-client.ts:156` 의 4401(인증 실패) 1회 재시도가 **토큰 캐시를 비우지 않고** 재연결하므로 같은 만료 토큰을 다시 보낸다. 두 번째 4401 이후 재시도가 끝나 실시간이 영구 정지한다. 동승 결함 — `lib/auth-client.ts:70` 의 `clearAuthTokenCache()` 가 **in-flight fetch 를 못 막아** 로그아웃 직후 JWT 가 다시 캐시된다.
-**권장 접근:** 4401 재시도 전에 캐시 무효화 + 새 토큰 강제 취득. `clearAuthTokenCache` 는 세대 카운터(generation)를 올려 in-flight 응답을 버리게 한다.
-
-**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
-**트리거 판정:** 도래
-
----
-
 ### BL-845
 
 **Title:** CI 가 Playwright spec **31개 중 1개**만 돈다 — 문서는 이 격차를 「1개」로 적어 두었다

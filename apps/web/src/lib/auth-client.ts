@@ -5,6 +5,8 @@
 
 import { createAuthClient } from "better-auth/react";
 
+import { setUnauthorizedHandler } from "./api-client";
+
 export const authClient = createAuthClient({
   // 브라우저↔Next 는 동일 오리진이므로 baseURL 을 지정하지 않는다(상대 경로 `/api/auth`).
 });
@@ -97,6 +99,39 @@ export function clearAuthTokenCache(): void {
   cached = null;
   inFlight = null;
 }
+
+let refreshing: Promise<string | null> | null = null;
+
+/**
+ * 「이 토큰은 서버가 거절했다」에 대한 **유일한** 응답 — 캐시를 비우고 새 토큰을 받는다.
+ *
+ * ★★재발급은 반드시 **한 번에 하나**여야 한다. `clearAuthTokenCache()` 는 세대 카운터를 올리고
+ *   `fetchToken` 은 자기 세대가 밀리면 **성공한 응답도 null 로 버린다**(위 `generation !== cacheGeneration`).
+ *   그래서 거절을 만난 쪽이 각자 clear 를 부르면, 앞선 in-flight 발급이 멀쩡한 토큰을 받아 놓고도
+ *   null 을 돌려주고 그 요청들은 「세션 없음」으로 오판해 로그인 화면으로 튕긴다 —
+ *   **정상 사용자가 임의로 로그아웃되는 결함**이다.
+ * ★★★그러므로 거절 경로는 **둘 다** 이 함수를 지나야 한다. 축이 둘이기 때문이다:
+ *   ⑴ REST 401 — `api-client.ts` 의 `setUnauthorizedHandler` (아래 등록)
+ *   ⑵ WS 4401 — `realtime/realtime-bridge.tsx` 의 `onAuthFailure`
+ *   둘은 **같은 만료 토큰에서 같은 순간에** 난다(탭 복귀 = React Query refetch + WS 재연결).
+ *   한쪽만 접어 두면 나머지 한쪽이 그 창 안에서 세대를 밀어 방금 접은 재발급을 무효로 만든다.
+ *   ★`clearAuthTokenCache` 를 직접 부르는 것은 **로그아웃·계정 전환**뿐이다 — 거기서는
+ *   in-flight 결과를 버리는 것이 목적이다.
+ */
+export function reissueAuthToken(): Promise<string | null> {
+  if (!refreshing) {
+    clearAuthTokenCache();
+    refreshing = getAuthToken().finally(() => {
+      refreshing = null;
+    });
+  }
+  return refreshing;
+}
+
+// ★401 재발급기 등록 — `apiFetch` 가 401 을 만나면 위 재발급기로 새 토큰을 받아 한 번 재시도한다.
+//   방향이 이쪽인 이유: api-client 는 서버(RSC prefetch)에서도 import 되므로 그쪽에서 이 파일을
+//   정적으로 끌면 better-auth/react 가 서버 번들에 섞인다. 브라우저 모듈이 자기를 등록한다.
+setUnauthorizedHandler(reissueAuthToken);
 
 /**
  * 계정 삭제 — 인증 사용자를 지우고, 그 **전에** 서버가 라이브 세션·웹훅 시크릿을 닫는다.

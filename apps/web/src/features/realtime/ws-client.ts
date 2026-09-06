@@ -18,6 +18,8 @@ export type WebSocketFactory = (url: string) => WebSocketLike;
 export interface RealtimeWsClientOptions {
   url: string;
   getToken: () => Promise<string | null>;
+  /** 4401 뒤 재연결 **전에** 호출 — 토큰 캐시를 비워 다음 getToken 이 새 토큰을 받게 한다(BL-844). */
+  onAuthFailure?: () => void;
   onEvent: (envelope: RealtimeEnvelope) => void;
   onStatusChange: (status: WsStatus) => void;
   webSocketFactory?: WebSocketFactory;
@@ -160,6 +162,9 @@ export class RealtimeWsClient implements RealtimeClient {
         this.setStatus("closed");
         return;
       }
+      // BL-844 — 이 줄이 없으면 재연결의 getToken() 이 **같은 만료 토큰**을 돌려줘 두 번째 4401 로
+      //   영구 정지한다. 재시도 1회의 값은 캐시를 비웠을 때만 있다.
+      this.options.onAuthFailure?.();
     }
 
     this.reconnectCount += 1;

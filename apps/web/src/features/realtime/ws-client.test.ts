@@ -1,7 +1,12 @@
 // 실시간 WebSocket 클라이언트의 인증·재연결 수명 계약을 검증한다.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { RealtimeWsClient, reconnectDelayMs, type WebSocketLike } from "./ws-client";
+import {
+  RealtimeWsClient,
+  type RealtimeWsClientOptions,
+  reconnectDelayMs,
+  type WebSocketLike,
+} from "./ws-client";
 
 class FakeSocket implements WebSocketLike {
   readyState = 0;
@@ -30,13 +35,14 @@ class FakeSocket implements WebSocketLike {
   }
 }
 
-function makeClient() {
+function makeClient(overrides: Partial<RealtimeWsClientOptions> = {}) {
   const sockets: FakeSocket[] = [];
   const statuses: string[] = [];
   const getToken = vi.fn().mockResolvedValue("fresh-token");
   const client = new RealtimeWsClient({
     url: "ws://test/realtime/ws",
     getToken,
+    ...overrides,
     onEvent: vi.fn(),
     onStatusChange: (status) => statuses.push(status),
     webSocketFactory: () => {
@@ -112,6 +118,28 @@ describe("RealtimeWsClient", () => {
     sockets[1]?.close(4401);
     vi.advanceTimersByTime(30_000);
     expect(sockets).toHaveLength(2);
+    client.destroy();
+  });
+
+  it("4401 재시도 전에 onAuthFailure 로 토큰 캐시를 비운다 (BL-844)", async () => {
+    vi.useFakeTimers();
+    const onAuthFailure = vi.fn();
+    const { client, sockets } = makeClient({ onAuthFailure });
+    client.ensureConnected();
+    sockets[0]?.open();
+    await Promise.resolve();
+
+    sockets[0]?.close(4401);
+    // 재연결 타이머가 예약되기 **전에** 캐시를 비운다 — 다음 getToken 이 새 토큰을 받는 유일한 길이다.
+    expect(onAuthFailure).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(1_000);
+    expect(sockets).toHaveLength(2);
+
+    sockets[1]?.open();
+    await Promise.resolve();
+    sockets[1]?.close(4401);
+    // 두 번째 4401 은 중단이다 — 캐시를 또 비우지 않는다.
+    expect(onAuthFailure).toHaveBeenCalledOnce();
     client.destroy();
   });
 
