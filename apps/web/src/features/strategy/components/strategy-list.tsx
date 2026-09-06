@@ -388,14 +388,23 @@ export function StrategyList() {
                 title={items.length === 0 ? "첫 전략을 등록하세요" : "조건에 맞는 전략이 없습니다"}
                 body={
                   items.length === 0
-                    ? "TradingView Pine Script 를 붙여넣으면 파싱 검사 후 전략으로 저장됩니다."
+                    ? "TradingView Pine Script 를 붙여넣으면 파싱 검사 후 전략으로 저장됩니다. 처음이라면 샘플 전략으로 5분 코스를 돌아볼 수 있습니다."
                     : "검색어나 필터를 바꾸거나 새 전략을 등록하세요."
                 }
               >
                 {items.length === 0 ? (
-                  <Link className="btn btn-primary btn-xs" href="/strategies/new">
-                    새 전략 등록
-                  </Link>
+                  <>
+                    <Link className="btn btn-primary btn-xs" href="/strategies/new">
+                      새 전략 등록
+                    </Link>
+                    {/* 2026-09-06 d1 실사용 루프 — 온보딩 위저드에 도달할 링크가 앱 전체에
+                        0건이었다(계측 실측). 이 자리에 두는 이유는 게이트가 items.length === 0
+                        이라 전략을 가진 사용자에게는 구조적으로 안 보이기 때문이다 —
+                        가입 리다이렉트만 두면 이탈 시 재방문 경로가 사라진다. */}
+                    <Link className="btn btn-ghost btn-xs" href="/onboarding">
+                      온보딩 5분 코스
+                    </Link>
+                  </>
                 ) : (
                   <button className="btn btn-ghost btn-xs" type="button" onClick={resetFilters}>
                     필터 초기화

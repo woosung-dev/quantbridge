@@ -632,19 +632,28 @@ def test_known_harmful_mutation_sites_are_gone_with_try_scan_control() -> None:
     )
 
 
-def test_harmful_scan_covers_every_in_scope_census_entry() -> None:
-    assert _harmful_scan_candidates() >= _in_scope_census_entries()
-
-
-def test_harmful_candidate_lower_bound_is_still_covered() -> None:
-    assert _harmful_scan_candidates() >= _HARMFUL_MUTATION_CANDIDATES
-
-
-def test_harmful_sites_are_empty_with_a_positive_control() -> None:
-    actual = _harmful_mutation_sites()
-
-    assert not actual, actual
-    assert _result_reporting_try_count() >= 1
+# ── 2026-09-06 삭제: red 가 될 수 없던 단언 2건 + 지배당한 중복 1건 ────────────────
+#
+# ⑴ `test_harmful_scan_covers_every_in_scope_census_entry`
+#      = `_harmful_scan_candidates() >= _in_scope_census_entries()`
+# ⑵ `test_harmful_candidate_lower_bound_is_still_covered`
+#      = `_harmful_scan_candidates() >= _HARMFUL_MUTATION_CANDIDATES`
+#
+#   `_harmful_scan_candidates()` 의 정의가 `in_scope | MANUAL` 이므로(위 참조) 둘은 각각
+#   `(A|B) >= A` 와 `(A|B) >= B` 다 — **집합대수로 참이라 src 를 어떻게 바꿔도 red 가 안 난다.**
+#   실측(2026-09-06): in_scope 0건 · MANUAL 4건 · candidates 4건, 두 단언 모두 True.
+#   ★`status.md` 는 ⑴ 을 「in-scope 가 0인 지금 항진명제」로 정확히 적어 두고 ⑵ 를
+#   「판별력을 지탱하는 것」이라 지목했는데, **⑵ 도 같은 항진명제**다. 그 줄을 같이 정정했다.
+#
+# ⑶ `test_harmful_sites_are_empty_with_a_positive_control`
+#   위 `test_known_harmful_mutation_sites_are_gone_with_try_scan_control` 이 같은
+#   `assert not _harmful_mutation_sites()` 를 하면서 공허화 하한만 `>=1` 이 아니라 `>=100` 이라
+#   **엄격히 포섭**한다. 약한 쪽을 남기면 통과 수만 늘고 판별력은 안 는다.
+#
+# ★**이 축을 다시 세우려면**: in-scope census 가 0이 아니게 된 뒤에, `_harmful_scan_candidates()`
+#   의 *정의*가 아니라 **실제 스캔이 그 후보에 도달했는지**를 재라(도달 건수 하한 대조).
+#   정의를 재는 포함관계는 몇 번을 다시 써도 항진명제다.
+# ────────────────────────────────────────────────────────────────────────────────
 
 
 def test_guard_outcome_literals_are_all_allowed() -> None:

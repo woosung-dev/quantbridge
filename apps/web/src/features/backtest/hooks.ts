@@ -66,7 +66,13 @@ import type {
 
 export { backtestKeys, stressTestKeys };
 
-const POLL_INTERVAL_MS = 30_000;
+// 백테스트 진행 폴링 — 2026-09-06 d1 실사용 루프가 30초를 반증했다.
+// 온보딩 3회 완주 실측: 서버는 0.82~1.19초에 끝냈는데 화면은 30.07~30.54초 뒤에 알았고,
+// `progress` 요청은 주행당 2회(제출 직후 · 30초 뒤)뿐이었다 ⇒ 대기가 계산의 25배였다.
+// 같은 파일의 스트레스 테스트(`STRESS_TEST_POLL_MS`)가 이미 2초이고 그쪽이 옳은 자릿수다.
+// terminal 상태에서 `makeStatusPoll` 이 폴링을 멈추므로(아래 `progressRefetchInterval`)
+// 짧은 간격이 무한 요청이 되지 않는다.
+const POLL_INTERVAL_MS = 2_000;
 
 // --- queryFn factories (module-level, CallExpression at call site) ---------
 
@@ -148,7 +154,7 @@ export function makeAllTradesFetcher(id: string, getToken: TokenGetter) {
 
 // --- polling interval — LESSON-004 guard ---------------------------------
 
-const progressRefetchInterval = makeStatusPoll<BacktestProgressResponse>(
+export const progressRefetchInterval = makeStatusPoll<BacktestProgressResponse>(
   (d) => d.status,
   new Set(["completed", "failed", "cancelled"]),
   POLL_INTERVAL_MS,

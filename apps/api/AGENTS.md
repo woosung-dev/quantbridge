@@ -68,7 +68,13 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 `begin_nested()` SAVEPOINT 와 outer `commit()` 을 위해 세션을 생성자로 받는다(`:64`). 그 두 용도 밖으로
 세션을 쓰지 마라. 회귀 = `tests/trading/test_order_service_dispatch_snapshot.py` 가 `session.commit` 을 spy 한다.
 **새 예외를 만들려면 코드가 아니라 이 줄을 먼저 늘려라.** 게이트 = `tests/common/test_repository_boundary_guard.py`
-(경계 밖 `select(` · `repo.session` 리치스루 · 경계 밖 raw SQL 실행 **3축**).
+(경계 밖 `select(` · `repo.session` 리치스루 · 경계 밖 raw SQL 실행 · 경계 밖 `session.get(Model, …)` **4축**).
+★**2026-09-06 — `tasks/` 가 이 게이트의 스코프에 들어왔다.** 종전에는 9,775줄이 통째로 census 밖이라
+「경계 밖 DB 접근 0건」이라는 초록이 **`tasks/` 를 안 본 결과**였다. 편입 시점 실측 = 축①②③ 전부 0건,
+새 축④가 `tasks/trading.py` 6곳(`ExchangeAccountRepository` 가 있는데도 `session.get` 으로 우회)을 잡았다.
+★**`tasks/` 는 여전히 §3 「7파일 표준」의 예외다**(아래 예외 표) — 예외인 것은 **파일 구성**이지
+**DB 경계**가 아니다. 세션 자체를 task 가 쥐는 것(트랜잭션 경계 = UoW)은 그대로 허용되고,
+금지되는 것은 **Repository 를 우회한 조회**다.
 
 ★**코드 예제는 문서가 아니라 실물을 봐라** — 조립 표준 = `src/<도메인>/dependencies.py`, commit-spy
 표준 = `tests/*/test_*commits*.py`. **이유:** 문서 안의 예제는 낡지만 실물은 CI 가 지킨다.

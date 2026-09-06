@@ -106,7 +106,13 @@ class TimescaleProvider:
         """
         cols = ["open", "high", "low", "close", "volume"]
         if not rows:
-            return pd.DataFrame(columns=cols).astype(float)
+            # [BL-842] ⑶ — 빈 결과도 DatetimeIndex 로 낸다. 종전 `pd.DataFrame(columns=...)` 는
+            # RangeIndex 를 내서, 같은 무-데이터 입력이 FixtureProvider 에서는 깨끗이 실패하는데
+            # 이쪽에서는 다르게 흘렀다. 소비자(engine·optimizer·stress_test)가 index 타입으로
+            # 분기하면 그 차이가 침묵 실패가 된다.
+            empty = pd.DataFrame(columns=cols).astype(float)
+            empty.index = pd.DatetimeIndex([], name="time", tz=UTC)
+            return empty
         df = pd.DataFrame(
             [
                 {

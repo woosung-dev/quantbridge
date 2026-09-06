@@ -40,6 +40,18 @@ describe("(auth) 로그인/가입 화면", () => {
     expect(screen.getByRole("button", { name: "계정 만들기" })).toBeInTheDocument();
   });
 
+  // 2026-09-06 d1 실사용 1차 루프 — 신규 가입자의 첫 화면이 빈 전략 목록이었고,
+  // 온보딩 위저드(「5분 안에 첫 Pine Script 백테스트」)에 도달할 링크가 앱 전체에 0건이었다.
+  // 이 값은 그때까지 **어디서도 재고 있지 않았다** — 바꿔도 아무 테스트가 빨개지지 않았다.
+  // ★sign-in 은 그대로 `/strategies` 다(재방문자는 목록이 맞고, 그 기본값은 위의
+  //   열린 리다이렉트 차단 테스트가 이미 계약으로 쥐고 있다).
+  it("회원가입 — 가입 직후에는 온보딩으로 보낸다", () => {
+    const el = SignUpPage();
+    const props = (el as unknown as { props: { children: { props: { redirectTo: string } } } })
+      .props.children.props;
+    expect(props.redirectTo).toBe("/onboarding");
+  });
+
   it("로그인 — redirect_url 은 앱 내부 경로만 통과한다(열린 리다이렉트 차단)", async () => {
     // 외부 절대 URL 과 프로토콜 상대 URL 둘 다 기본값으로 떨어져야 한다.
     for (const evil of ["https://evil.example/x", "//evil.example/x"]) {

@@ -15,7 +15,11 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _REPOSITORY_ROOT = _BACKEND_ROOT.parent.parent
 _SOURCE_ROOT = _BACKEND_ROOT / "src"
 _EXCLUDED_DIRECTORIES = frozenset(
-    {"market_data", "realtime", "health", "tasks", "scripts", "common", "core"}
+    # ★`tasks` 는 2026-09-06 에 이 목록에서 빠졌다. 종전에는 9,775줄이 통째로 census 밖이라
+    #   「경계 밖 DB 접근 0건」이라는 초록이 **tasks/ 를 안 본 결과**였다. 편입 시점 실측:
+    #   축①(select) 0건 · 축②(리치스루) 0건 · 축③(raw SQL) 0건 — 기존 세 축은 아무것도
+    #   새로 잡지 않았고, 아래 네 번째 축만 6건을 잡았다.
+    {"market_data", "realtime", "health", "scripts", "common", "core"}
 )
 _SQL_MODULE_PREFIXES = ("sqlalchemy", "sqlmodel")
 
@@ -188,9 +192,14 @@ def test_dependencies_do_not_contain_scoped_select_calls() -> None:
 
 def test_repository_select_calls_are_excluded_from_the_census() -> None:
     repository_path = _SOURCE_ROOT / "trading/repositories/order_repository.py"
+    paths = _scoped_source_paths()
 
     assert _select_calls(repository_path)
-    assert repository_path not in _scoped_source_paths()
+    # ★공허화 대조 — 경로 수집기가 죽어 빈 리스트를 내면 아래 `not in` 은 자명하게 참이라
+    #   「repository 가 census 밖이다」를 증명하지 않는다. 위 `_select_calls` 는 select 수집기만
+    #   지키고 경로 수집기는 아무도 안 봤다.
+    assert len(paths) >= 60
+    assert repository_path not in paths
 
 
 def test_repository_boundary_violations_do_not_expand_beyond_the_frozen_census() -> None:
@@ -263,12 +272,14 @@ self.session.get(y)
 
 
 def test_no_service_reaches_through_a_repository_to_its_session() -> None:
+    paths = _scoped_source_paths()
     violations = {
         (reach.path, reach.lineno, reach.expression)
-        for path in _scoped_source_paths()
+        for path in paths
         for reach in _session_reach_throughs(path)
     }
 
+    assert len(paths) >= 60  # 공허화 대조 — 축① 과 같은 하한
     assert violations == set(), (
         "Repository 를 뚫고 AsyncSession 을 직접 쓴다 (apps/api/AGENTS.md §3): "
         f"{sorted(violations)}"
@@ -332,8 +343,97 @@ session.execute()
 
 
 def test_no_raw_sql_is_executed_outside_the_repository_layer() -> None:
-    violations = {hit for path in _scoped_source_paths() for hit in _executed_raw_sql(path)}
+    paths = _scoped_source_paths()
+    violations = {hit for path in paths for hit in _executed_raw_sql(path)}
 
+    assert len(paths) >= 60  # 공허화 대조 — 축① 과 같은 하한
     assert violations == set(), (
         f"raw SQL 실행은 Repository 층만 한다 (apps/api/AGENTS.md §3): {sorted(violations)}"
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 네 번째 축 — Repository 밖에서 **세션으로 직접 ORM 엔티티를 조회**하는 경로
+#
+# ★앞의 세 축은 `select(` · `repo.session` 리치스루 · `session.execute(text(...))` 만 센다.
+#   `session.get(ExchangeAccount, id)` 는 셋 다에 안 걸린다 — 쿼리를 만들지도, repository 를
+#   뚫지도, raw SQL 을 쓰지도 않기 때문이다. 그래서 `tasks/trading.py` 가 이미
+#   `ExchangeAccountRepository.get_by_id` 를 가진 채로 6곳에서 세션을 직접 조회하고 있었다
+#   (2026-09-06 아키텍처 감사).
+#
+# ★**수신자 이름에 `session` 이 들어가고 첫 인자가 대문자로 시작하는 Name** 일 때만 센다.
+#   `dict.get("k")` · `mapping.get(key)` · `response.get(Model)` 같은 동명이인을 피하는 최소 조건이다.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _session_entity_gets(path: Path) -> list[tuple[str, int, str]]:
+    """`<...session...>.get(Model, ...)` 형태만 센다."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
+    found: list[tuple[str, int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "get" or not node.args:
+            continue
+        receiver = node.func.value
+        if isinstance(receiver, ast.Name):
+            receiver_name = receiver.id
+        elif isinstance(receiver, ast.Attribute):
+            receiver_name = receiver.attr
+        else:
+            continue
+        if "session" not in receiver_name.lower():
+            continue
+        first = node.args[0]
+        if isinstance(first, ast.Name) and first.id[:1].isupper():
+            found.append((relative_path, node.lineno, first.id))
+    return found
+
+
+def test_session_entity_get_detector_separates_lookalikes() -> None:
+    """양성/음성 대조 — 세션의 ORM 조회만 세고 dict.get·소문자 인자는 안 센다."""
+    tree = ast.parse(
+        """
+await session.get(ExchangeAccount, account_id)
+await self._session.get(Order, order_id)
+payload.get("exchange_account_id")
+mapping.get(key)
+session.get(some_lowercase_var)
+cache.get(ExchangeAccount, account_id)
+"""
+    )
+    hits = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "get" or not node.args:
+            continue
+        receiver = node.func.value
+        if isinstance(receiver, ast.Name):
+            receiver_name = receiver.id
+        elif isinstance(receiver, ast.Attribute):
+            receiver_name = receiver.attr
+        else:
+            continue
+        if "session" not in receiver_name.lower():
+            continue
+        first = node.args[0]
+        if isinstance(first, ast.Name) and first.id[:1].isupper():
+            hits.append(node.lineno)
+
+    # 2·3 만 잡는다 — 4(dict 문자열 키) · 5(dict 변수 키) · 6(소문자 인자) · 7(session 아님)은 뺀다.
+    assert hits == [2, 3]
+
+
+def test_no_entity_is_loaded_through_a_session_outside_the_repository_layer() -> None:
+    paths = _scoped_source_paths()
+    violations = {hit for path in paths for hit in _session_entity_gets(path)}
+
+    # ★공허화 대조 — 수집기가 죽어 스코프가 비면 이 단언은 **아무것도 안 재고 초록**이다.
+    #   축① `test_repository_boundary_census_is_clean` 이 쓰는 것과 같은 하한이다.
+    assert len(paths) >= 60
+    assert violations == set(), (
+        "ORM 엔티티 조회는 Repository 층만 한다 (apps/api/AGENTS.md §3) — "
+        f"해당 Repository 의 `get_by_id` 를 써라: {sorted(violations)}"
     )

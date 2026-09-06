@@ -382,7 +382,14 @@ def test_worker_tasks_keep_celery_registration_and_time_limit_contract() -> None
     assert optimizer_module.reclaim_stale_running_task.max_retries == 0
     assert stress_test_module.run_stress_test_task.name == "stress_test.run"
     assert stress_test_module.run_stress_test_task.max_retries == 0
-    assert stress_test_module.run_stress_test_task.soft_time_limit is None
-    assert stress_test_module.run_stress_test_task.time_limit is None
+    # ★2026-09-06 — 종전 계약은 `is None` 이었다. 그것은 **설계 결정이 아니라 당시 현상의 동결**
+    #   이었다: 그 두 줄은 [BL-818] 미커버 채우기 회차(`381c423d`, "판정 로직 9건")가 넣었고
+    #   커밋·테스트 어디에도 「왜 상한이 없어야 하는가」가 없다. 이 레포가 여러 번 밟은
+    #   「동결 테스트가 결함을 계약화한다」와 같은 형태다.
+    #   상한값의 근거 = `settings.stress_test_stale_threshold_seconds`(1800). 원장은 이미
+    #   「30분 넘으면 stale → FAILED」라고 선언하는데 그 watchdog 은 **행만 바꾸고 태스크는
+    #   안 멈춘다**. 상한을 걸어야 선언과 실행이 같아진다. +60초 간격은 optimizer 600/660 과 동일.
+    assert stress_test_module.run_stress_test_task.soft_time_limit == 1800
+    assert stress_test_module.run_stress_test_task.time_limit == 1860
     assert stress_test_module.reclaim_stale_running_task.name == "stress_test.reclaim_stale"
     assert stress_test_module.reclaim_stale_running_task.max_retries == 0

@@ -41,24 +41,19 @@ export interface BacktestFormValues {
   trading_sessions: TradingSession[];
 }
 
-// Sprint 31 BL-167 — date default helper. 6개월 default (180일) UX 마찰 제거.
-function toYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+// 기본 기간은 preset 과 **같은 소스**에서 나온다.
+// 2026-09-06 d1 실사용 루프 실측: 종전에는 기본값이 일 단위(`setDate(-181)`)이고 preset 은
+// 월 단위(`setMonth(-months)`)라 "6M" pill 이 눌린 채 필드가 4일 다른 값을 담고 있었다
+// (2026-03-09 vs 2026-03-05). 두 곳에서 따로 계산하는 한 그 어긋남은 다시 생긴다.
+// 창을 1M 로 좁힌 것도 같은 실측 때문이다 — perp 캐시 상한이 최근이라 181일 창은
+// 매 제출마다 없는 구간을 거래소에서 새로 받게 만든다.
+const DEFAULT_DATE_PRESET: DatePreset = "1m";
 
-function defaultPeriodEnd(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return toYmd(d);
-}
-
-function defaultPeriodStart(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 181);
-  return toYmd(d);
+function defaultDateRange(): { startDate: string; endDate: string } {
+  const range = calcDateRange(DEFAULT_DATE_PRESET);
+  // calcDateRange 는 "custom" 에서만 null 이고 DEFAULT_DATE_PRESET 은 그것이 아니다.
+  if (range === null) throw new Error("기본 preset 이 날짜 범위를 못 냈다");
+  return range;
 }
 
 function detectSizingSource(
@@ -88,8 +83,11 @@ export function useBacktestForm() {
       strategy_id: initialStrategyId,
       symbol: "BTC/USDT",
       timeframe: "1h",
-      period_start: defaultPeriodStart(),
-      period_end: defaultPeriodEnd(),
+      // ★YMD 그대로다 — `<input type="date">` 가 읽는 형식이고, ISO 변환은 제출 시점의
+      //   `toIsoUtc` 가 맡는다. 2026-09-06 에 여기를 ISO 로 바꿨더니 날짜 필드가 비어
+      //   계산 요약이 「—」가 되고 제출 자체가 막혔다(vitest 3건이 잡았다).
+      period_start: defaultDateRange().startDate,
+      period_end: defaultDateRange().endDate,
       initial_capital: 10000,
       leverage: 1,
       // ★BL-603 — 백엔드 `backtest/schemas.py` 기본값의 거울(라이브 원장 실측).
@@ -115,7 +113,7 @@ export function useBacktestForm() {
   //   참조를 넣지 말고 비교로 처리해라). 전략이 바뀌면 동의는 자동으로 무효가 된다.
   const [degradedConsentFor, setDegradedConsentFor] = useState<string | null>(null);
   const [convertResult, setConvertResult] = useState<ConvertIndicatorResponse | null>(null);
-  const [datePreset, setDatePreset] = useState<DatePreset>("6m");
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_DATE_PRESET);
 
   const create = useCreateBacktest({
     onSuccess: (data) => {
