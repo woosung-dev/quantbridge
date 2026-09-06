@@ -194,6 +194,36 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
     expect(screen.getByText("새 전략 등록")).toBeTruthy();
   });
 
+  // 2026-09-06 d1 실사용 1차 루프 — 계측기가 `/strategies`·`/dashboard`·`/backtests`
+  // 세 화면 전부에서 `a[href="/onboarding"]` **0건**을 실측했다. 온보딩 위저드(1,828줄)는
+  // 완비돼 있고 「5분 안에 첫 Pine Script 백테스트」를 목표로 적어 뒀는데 도달할 링크가 없었다.
+  // ★게이트가 `items.length === 0` 이라 **전략을 가진 사용자에게는 구조적으로 안 보인다** —
+  //   「기존 사용자가 갇히지 않는다」가 조건문이 아니라 성질이다. 아래 음성 단언이 그것을 고정한다.
+  it("빈 상태는 온보딩 5분 코스 진입점을 함께 준다", () => {
+    mockUseStrategies.mockReturnValue({
+      data: { items: [], total: 0, page: 1, limit: 20, total_pages: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderList();
+    const link = screen.getByRole("link", { name: /온보딩|5분/ });
+    expect(link.getAttribute("href")).toBe("/onboarding");
+  });
+
+  it("전략이 있으면 온보딩 진입점을 그리지 않는다 (음성 대조)", () => {
+    mockUseStrategies.mockReturnValue({
+      data: { items: [makeItem({})], total: 1, page: 1, limit: 20, total_pages: 1 },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderList();
+    expect(screen.queryByRole("link", { name: /온보딩|5분/ })).toBeNull();
+  });
+
   it("심볼·주기가 없으면 무데이터 셀(EMPTY_CELL + title)로 표기한다", () => {
     mockUseStrategies.mockReturnValue({
       data: {

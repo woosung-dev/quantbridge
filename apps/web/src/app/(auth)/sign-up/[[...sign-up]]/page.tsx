@@ -14,7 +14,10 @@ export const metadata: Metadata = {
 export default function SignUpPage() {
   return (
     <SplitScreenShell mode="sign-up">
-      <AuthForm mode="sign-up" redirectTo="/strategies" />
+      {/* 가입 직후에는 온보딩(5분 코스)으로 보낸다 — 2026-09-06 d1 실사용 루프 실측:
+          종전 착지점인 빈 `/strategies` 에서 온보딩으로 가는 링크가 앱 전체에 0건이었다.
+          재방문 경로는 빈 목록의 진입 카드(`strategy-list.tsx`)가 맡는다. */}
+      <AuthForm mode="sign-up" redirectTo="/onboarding" />
     </SplitScreenShell>
   );
 }
