@@ -150,6 +150,50 @@ def _collect_functions(source: str) -> list[str]:
     return sorted(found.keys())
 
 
+def _status_with_coverage(
+    status: ParseStatus,
+    source: str,
+    parse_errors: list[dict[str, object]] | None,
+) -> tuple[ParseStatus, list[dict[str, object]] | None]:
+    """파싱에 성공한 소스가 **실행 가능한지**까지 판정해 저장 값에 싣는다.
+
+    왜 저장을 막지 않고 값으로 남기나 — [ADR-003] all-or-nothing 은 **실행** 게이트이고
+    백테스트 제출이 이미 422 로 막는다(`backtest/service.py`). 저장 게이트를 새로 만들면
+    판정자가 둘이 되고, 둘이 갈리는 날 어느 쪽이 정본인지 아무도 모른다. 반쯤 된 Pine 을
+    넣고 편집기에서 고치는 것은 `/strategies/{id}/edit` 의 존재 이유이기도 하다.
+
+    ★파싱 실패를 덮지 않는다. `error` 는 「문법을 못 읽었다」이고 `unsupported` 는
+    「읽었는데 못 돌린다」다 — 앞의 것이 뒤의 것보다 강한 사실이다.
+
+    ★호출부가 둘(`create` · `update`)인데 헬퍼로 묶는 이유는 인라인하면 같은 판정이 두 곳에
+    살면서 언젠가 한쪽만 고쳐지기 때문이다. 변이 앵커도 하나로 모인다.
+
+    비용: `analyze_coverage` 는 정규식 정적 분석이고(`pine_v2/coverage.py`) corpus 9벌
+    합계 8.6ms · 최악 단건 5.71ms 다(2026-09-06 실측). 이 경로는 이미 `parse_to_ast` 를
+    부르므로 한계비용이 그 아래다.
+    """
+    if status is not ParseStatus.ok:
+        return status, parse_errors
+
+    coverage = analyze_coverage(source)
+    if coverage.is_runnable:
+        return status, parse_errors
+
+    # 근거 없이 판정만 바꾸면 화면이 「왜 미지원인지」를 말할 수 없다.
+    # 줄 번호를 아는 것은 `unsupported_calls` 뿐이고, 속성 접근형(`ta.supertrend` 등)은
+    # 거기 안 잡히므로 `all_unsupported` 로 한 번 더 훑어 빠뜨리지 않는다.
+    lines_by_name = {call["name"]: call["line"] for call in coverage.unsupported_calls}
+    reasons = [
+        ParseError(
+            code="unsupported_builtin",
+            message=f"{name} 은 지원 범위 밖입니다 — 백테스트 실행이 차단됩니다.",
+            line=lines_by_name.get(name),
+        ).model_dump()
+        for name in coverage.all_unsupported
+    ]
+    return ParseStatus.unsupported, [*(parse_errors or []), *reasons]
+
+
 async def _parse(
     source: str,
 ) -> tuple[
@@ -362,6 +406,7 @@ class StrategyService:
         """
         status, version, _warnings, errors, _e, _x, _fu = await _parse(data.pine_source)
         parse_errors = [e.model_dump() for e in errors] if errors else None
+        status, parse_errors = _status_with_coverage(status, data.pine_source, parse_errors)
         strategy = Strategy(
             user_id=owner_id,
             name=data.name,
@@ -574,10 +619,12 @@ class StrategyService:
             strategy.is_archived = data.is_archived
         if data.pine_source is not None:
             status, version, _w, errors, _e, _x, _fu = await _parse(data.pine_source)
+            parse_errors = [e.model_dump() for e in errors] if errors else None
+            status, parse_errors = _status_with_coverage(status, data.pine_source, parse_errors)
             strategy.pine_source = data.pine_source
             strategy.pine_version = version
             strategy.parse_status = status
-            strategy.parse_errors = [e.model_dump() for e in errors] if errors else None
+            strategy.parse_errors = parse_errors
             version_snapshot = await self.repo.create_version(
                 strategy_id=strategy.id,
                 pine_source=data.pine_source,

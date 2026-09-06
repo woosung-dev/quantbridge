@@ -30,7 +30,14 @@ pine_v2 가 스크립트 선언을 분류해 실행 경로를 정하는 라우�
 _Avoid_: parser(별개 — 파서는 문법만, 지원범위 판정은 안 함)
 
 **parse_status**:
-create/update 시 파서가 즉시 set 하는 터미널 값으로 `ok` 또는 `error` 만 사용(`unsupported` 는 enum 예약·미사용).
+create/update 시 **저장 경로가 즉시 set 하는 터미널 값** — `ok` / `unsupported` / `error` 셋 다 쓴다.
+`error` 는 「문법을 못 읽었다」(`parse_to_ast` 실패), `unsupported` 는 「읽었는데 못 돌린다」
+(`analyze_coverage().is_runnable == False`)이고 **앞의 것이 이긴다**(둘이 겹치면 `error`).
+★~~`unsupported` 는 enum 예약·미사용~~ → **2026-09-06 발효**([BL-855]). 종전에는 그 값을
+`apps/api/src` 어디서도 **대입하지 않았는데**(실측: enum 정의 1건뿐) FE 는 라벨·목록 필터 탭·집계 등
+**6곳**에서 이미 그리고 있었다 — 그 탭은 영원히 빈 결과였다.
+★**저장을 막는 값이 아니다.** 실행 차단은 여전히 백테스트 제출의 몫이고([ADR-003] all-or-nothing),
+이 값은 **저장된 행이 스스로 자기 상태를 말하게** 한다. 판정자를 둘로 만들지 않는다.
 
 **Degraded Pine**:
 `heikinashi` / `request.security` / `timeframe.period` 처럼 supported 지만 TradingView 와 결과가 달라질 수 있는 호출 — backtest submit 시 `coverage.has_degraded` 이면 `allow_degraded_pine=true` 명시 동의 없이는 차단(Trust Layer, `backtest/service.py` 의 `has_degraded` 분기).
@@ -164,7 +171,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 - **"engine" / "backtest engine"** 이 vectorbt 를 지칭 → 해소: 실행 엔진 SSOT 는 **pine_v2**. ★2026-08-06 에 한 겹 더 벗겼다 — 「vectorbt 는 지표계산 전용」이라는 강등 서술**조차** 드리프트였고(코드 import 0건), 의존성 자체를 제거했다. _잔여 드리프트_: `system-architecture.md` L82/L143 → Phase 2 정정 완료.
 - **"exchange"** 가 별도 도메인으로 쓰임 → 해소: **Trading** 으로 통합(ADR-018), `apps/api/src/exchange/` 부재. _잔여 드리프트_: `entities.md` ENT-009 가 `domain: exchange` / `apps/api/src/exchange/models.py` 표기 → Phase 2 정정 완료(본 브랜치).
 - **"testnet"** vs **"demo"** → 해소: testnet 모드 제거됨. 저장 `ExchangeMode` = `demo | live` 이지만 사용자 egress는 **Bybit Demo만** 허용한다.
-- **"unsupported"**(parse_status) → 해소: 파서는 `ok`/`error` 만 set. 미지원 함수 판정은 백테스트 제출 시 **Coverage Analyzer**(ADR-003 all-or-nothing).
+- **"unsupported"**(parse_status) → ~~해소: 파서는 `ok`/`error` 만 set~~ → **2026-09-06 재해소**([BL-855]): 저장 경로가 셋 다 set 한다. **실행 차단**은 종전대로 백테스트 제출의 **Coverage Analyzer**(ADR-003 all-or-nothing)가 하고, `parse_status` 는 그 판정을 **미리 보여줄 뿐 게이트가 아니다** — 같은 `analyze_coverage` 를 읽으므로 두 층이 갈리지 않는다.
 - **"transpile"** → 해소: pine_v2 는 AST 를 해석(interpret)하며 Python 으로 트랜스파일하지 않음(`exec`/`eval` 금지, ADR-003).
 
 ---
@@ -178,6 +185,11 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
   (numba · matplotlib · plotly · boto3 계열 포함). **numpy/pandas/scipy/scikit-learn 버전은 불변**이라
   pine_v2 수치에 영향이 없다. ★교훈: 「지표 계산 전용으로 강등」이라는 **헌법의 서술 자체가 드리프트**
   였다 — 강등 후 실제로는 import 0 건이었는데 아무도 다시 재지 않았다. **강등도 측정 대상이다.**
+- **2026-09-06** — **`parse_status` 정의 개정**([BL-855]). 「`unsupported` 는 enum 예약·미사용」이
+  **4개월간 참이었고 그동안 FE 6곳이 그 값을 그리고 있었다** — 헌법이 미사용을 규정하는 사이 화면은
+  그것을 전제로 만들어졌고, 아무도 두 문장을 나란히 놓지 않았다. ★교훈은 vectorbt 항목과 같은 형태다:
+  **「안 쓴다」도 측정 대상이다.** 소비자가 이미 있는 값을 「미사용」으로 적어 두면 그 문장이 배선 부재를
+  정상으로 만든다.
 - **2026-08-27** — **Strategy Context 에 용어 3종 신설** — **Strategy Brief** · **Python View** ·
   **Generated Strategy**([ADR-040]·[ADR-041]·[ADR-042]). 셋 다 **실행 경계를 안 옮긴다** — 실행기는
   `pine_v2` 하나 그대로이고, 새로 생긴 것은 *보여주는 층*(브리핑·Python 뷰)과 *만드는 입구*(생성)다.
