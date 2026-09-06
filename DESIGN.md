@@ -68,7 +68,7 @@
 | `--border` / `--border-dark`     | `#e2e5e9` / `#cbd1d7`  | `#22262b` / `#31363d` (solid hex) |
 | `--text-primary`                 | `#171a1e` (card 17.15) | `#e8eaed`                         |
 | `--text-secondary`               | `#4b535c` (card 7.67)  | `#a6adb5`                         |
-| `--text-muted`                   | `#585f68` (card 6.35)  | `#8b939c` (캐논 `--ink-3` 정의값) |
+| `--text-muted`                   | `#555c65` (card 6.64 · bg-alt 5.87) | `#8b939c` (캐논 `--ink-3` 정의값) |
 
 ★순백·순흑을 쓰지 않는다 — `--card` 는 `#ffffff` 가 아니라 `#fdfdfc`, `--bg` 는 `#f6f7f8` 가
 아니라 `#f4f5f6` 다(근거 주석 = 파일 상단 `:root`의 `--bg`·`--card` 선언). 다크 `--text-muted` 는 캐논 5.82 의

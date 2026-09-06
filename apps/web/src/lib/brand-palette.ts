@@ -19,7 +19,7 @@ export const BRAND_PALETTE = {
     borderDark: "#cbd1d7",
     textPrimary: "#171a1e",
     textSecondary: "#4b535c",
-    textMuted: "#585f68",
+    textMuted: "#555c65", // [BL-851] 구 #585f68 은 --bg-alt(#edeff1) 위 5.60 으로 캐논 5.82 미달
     primary: "#883e07",
     primaryHover: "#743405",
     bullish: "#074b34",

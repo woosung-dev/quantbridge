@@ -62,15 +62,17 @@ const LIGHT_BODY_BG = "rgb(244, 245, 246)";
  *   그래서 라이트에서는 canon 을 래칫(현 실측값 고정)으로 건다.
  *   숫자를 올리려면 화면이 나빠졌다는 뜻이므로 근거를 남기고 올려라.
  *
- * 하드 실패는 **5라우트 전부 0** 이라 다크 짝과 같은 상한을 쓴다. canon 잔량은 전부
- * `--text-muted`(#585f68) 가 `--card`/`--bg` 가 **아닌** 표면 위에서 5.60~5.64 로 앉은 것이다.
+ * 하드 실패는 **5라우트 전부 0** 이다. canon 도 **2026-09-06 부터 5라우트 전부 0** 이다([BL-851]).
  *   ★**실측 출처는 아래 `LIGHT_BASELINE` 주석 한 곳뿐이다** — 여기 있던 「dev 3110 ·
  *     1440·375 표본」은 초안 시절 값이라 **거짓**이었다(2026-08-08 `/code-review` 지적).
  *     이 파일의 본 검사는 `auditUrl` 에 `widths` 를 안 주므로 언제나 `CANON_WIDTHS`
  *     **4폭**(1440/1024/768/375)이다. 2폭짜리 래칫 숫자는 이 파일에 없다.
- *   ★이 조합은 `light-canon-contrast.test.ts` 의 PAIRS 에 없다 — 그 파일은
- *     `--text-muted × [--card, --bg]`(6.35/5.92) 만 세므로 **계산으로는 안 보인다.**
- *     실화면 합성이 무엇을 더 잡는지의 실례이고, 토큰을 옮길 일이라 별건([BL-628] 계열)이다.
+ *   ★~~이 조합은 `light-canon-contrast.test.ts` 의 PAIRS 에 없다~~ → **2026-09-06 추가됨.**
+ *     종전 잔량은 전부 `--text-muted`(#585f68) 가 `--bg-alt`(#edeff1) 위에 앉은 **한 조합**이었고,
+ *     그 짝이 PAIRS 에서 누락돼 순수 계산 게이트가 **원리상 못 봤다**. 이 파일만 개수로 세다가
+ *     콘텐츠가 늘어 `/pricing` 이 14→16 으로 넘쳐 red 가 됐다. 처방은 둘을 함께 한 것이다 —
+ *     PAIRS 에 `--bg-alt` 를 넣어 계산 층이 보게 하고, 토큰을 `#555c65` 로 옮겨 통과시켰다.
+ *     ⇒ **이제 두 층이 같은 것을 본다.** 실화면 층이 여전히 더 넓다(알파 합성·중첩 레이어).
  */
 interface LightLimits {
   /** 하드 실패 상한. */
@@ -122,15 +124,36 @@ interface LightLimits {
  * ★두 하한이 서로를 보강한다 — 라우트가 통째로 not-found 로 바뀌면 `status` 가 먼저 잡고,
  *   설령 200 을 유지해도 `/pricing` 하한 110 vs 404 화면 29 라 `minElements` 가 또 잡는다.
  */
+/**
+ * ★**2026-09-06 [BL-851] — canon 이 5라우트 전부 0 이 됐다.**
+ *
+ * 종전 잔량(`/` 2 · `/waitlist` 6 · `/pricing` 14 · `/maintenance` 4 · 404 프로브 2)은 위
+ * 주석이 적어 둔 대로 **전부 같은 한 조합**이었다 — 라이트 `--text-muted`(#585f68) 가
+ * `--bg-alt`(#edeff1) 위에서 **5.60**. 그 토큰을 `#555c65`(bg-alt 5.87 · bg 6.20 · card 6.64)로
+ * 옮기자 조합 자체가 사라졌다. shadcn 축의 `--muted-foreground` 도 같은 값이라 함께 옮겼다
+ * (라이트 표면은 이름이 다섯이지만 값은 셋뿐이고 `--muted`=`--secondary`=`--accent`=`--bg-alt`).
+ *
+ * ★**왜 이 파일이 먼저 빨개졌나** — 순수 계산 게이트(`light-canon-contrast.test.ts`)의 PAIRS 가
+ * `--text-muted × [--card, --bg]` 만 갖고 **`--bg-alt` 를 빠뜨렸다**(다른 텍스트 토큰 셋은 전부
+ * 갖고 있었다). 그래서 계산으로는 영원히 안 보였고, 실화면 래칫만 개수로 세다가 콘텐츠가 늘어
+ * `/pricing` 이 14→16 으로 넘쳤다. 같은 커밋에서 그 짝을 PAIRS 에 추가했다 — 이제 두 층이
+ * 같은 것을 본다.
+ *
+ * ★`minContrast` 는 **전부 `null`** 이다. canon 이 비면 `worstCanonRatio` 가 null 을 돌려주고,
+ * 위 인터페이스 주석대로 그때는 이 필드를 null 로 둬야 한다. 값을 남겨 두면
+ * `expect(worst).not.toBeNull()` 이 빨개진다(실측으로 확인 — 5라우트 전건이 그 단언에서 죽었다).
+ *
+ * ★**0 은 래칫으로서 가장 센 값이다.** 이제 이 조합이 하나라도 돌아오면 즉시 red 다.
+ */
 const LIGHT_BASELINE: Readonly<Record<string, LightLimits>> = {
-  "/": { hardFail: 0, canon: 2, minContrast: 5.6, status: 200, minElements: 100 },
-  "/waitlist": { hardFail: 0, canon: 6, minContrast: 5.6, status: 200, minElements: 70 },
-  "/pricing": { hardFail: 0, canon: 14, minContrast: 5.6, status: 200, minElements: 110 },
-  "/maintenance": { hardFail: 0, canon: 4, minContrast: 5.6, status: 200, minElements: 20 },
+  "/": { hardFail: 0, canon: 0, minContrast: null, status: 200, minElements: 100 },
+  "/waitlist": { hardFail: 0, canon: 0, minContrast: null, status: 200, minElements: 70 },
+  "/pricing": { hardFail: 0, canon: 0, minContrast: null, status: 200, minElements: 110 },
+  "/maintenance": { hardFail: 0, canon: 0, minContrast: null, status: 200, minElements: 20 },
   "/qb-canon-404-probe": {
     hardFail: 0,
-    canon: 2,
-    minContrast: 5.6,
+    canon: 0,
+    minContrast: null,
     status: 404,
     minElements: 20,
   },

@@ -422,33 +422,6 @@
 
 ---
 
-### BL-851
-
-**Title:** `/pricing` 라이트 캐논 래칫이 **main 에서 이미 빨갛다** — 아무도 안 본다
-**Category:** FE / 디자인 캐논 게이트
-**Priority:** P2
-**출처:** 2026-09-06 UI/UX 실측 회차 — A/B 로 선행성 확인
-
-**증상 (실측):** `pnpm e2e:design-canon` 44 passed / **1 failed**. 실패는
-`design-canon-public-light.spec.ts` 의 `/pricing — 라이트 하드 실패 ≤ 0 · canon ≤ 14` 이고
-실측 **canon=16**(예산 14). 하드 실패 축(overflow·contrast·focus·motion·console)은 **전부 0** 이고
-넘친 것은 소프트 캐논 축뿐이다 — 라이트 `--text-muted`(`rgb(88,95,104)`) 텍스트 **4종**이
-**5.60:1** 로 캐논 임계 **5.82** 에 미달하고, 그것이 4개 뷰포트에서 세어져 16 이 된다.
-해당 4종 = 거래소 지원표 면책 문구 · 가격표 주석 · 푸터 소개문 · `계획 중인 구성` 아이브로.
-★**이 회차가 만든 것이 아니다.** 변경 파일 2개(`pricing-page.tsx`·`exchange-support-table.tsx`)를
-HEAD 판으로 되돌려 같은 spec 을 돌린 결과가 **동일한 canon=16 / 동일 실패**였다.
-★**왜 안 잡혔나** = [BL-845] 다. CI 는 Playwright spec 31개 중 1개만 돌고 이 spec 은 그 1개가 아니다.
-**권장 접근:** 두 갈래를 먼저 가른다 — ⑴ 이 4종의 배경이 `--card` 가 아니라 `--bg`/`--bg-alt` 라서
-문서값(card 6.35)과 실측(5.60)이 갈리는 것인지 ⑵ 임계 자체가 이 배경 조합을 안 보고 정해진 것인지.
-★**토큰을 먼저 만지지 마라** — `--text-muted` 는 `light-canon-contrast.test.ts` ·
-`brand-palette-css-sync.test.ts` · `design-canon-tokens.test.ts`(variant-c.html 22쌍) 셋이 동시에 문다.
-**Risk:** 🟡 (게이트가 빨간 채로 방치되면 그 다음 회귀도 이 빨강에 묻힌다)
-
-**상태:** 🔵 ACTIVE — 2026-09-06 등재, 미수리
-**트리거 판정:** 도래 (단독 착수 가능)
-
----
-
 ### BL-852
 
 **Title:** 스크롤 표 래퍼 **28곳**이 아직 키보드로 도달할 수 없다 — 6곳만 옮겼다
