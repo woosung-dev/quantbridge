@@ -68,7 +68,7 @@
 | `--border` / `--border-dark`     | `#e2e5e9` / `#cbd1d7`  | `#22262b` / `#31363d` (solid hex) |
 | `--text-primary`                 | `#171a1e` (card 17.15) | `#e8eaed`                         |
 | `--text-secondary`               | `#4b535c` (card 7.67)  | `#a6adb5`                         |
-| `--text-muted`                   | `#585f68` (card 6.35)  | `#8b939c` (캐논 `--ink-3` 정의값) |
+| `--text-muted`                   | `#555c65` (card 6.64 · bg-alt 5.87) | `#8b939c` (캐논 `--ink-3` 정의값) |
 
 ★순백·순흑을 쓰지 않는다 — `--card` 는 `#ffffff` 가 아니라 `#fdfdfc`, `--bg` 는 `#f6f7f8` 가
 아니라 `#f4f5f6` 다(근거 주석 = 파일 상단 `:root`의 `--bg`·`--card` 선언). 다크 `--text-muted` 는 캐논 5.82 의
@@ -167,8 +167,11 @@ CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는
 
 - 제목 letter-spacing: `-0.01em` (v3 — Archivo 는 -0.02em 이 과함)
 - 본문 letter-spacing: `0` (기본)
-- 금융 숫자는 **반드시** JetBrains Mono — 탭룰러 피겨로 열 정렬 유지
-- 코드 스니펫 (Pine Script 등): JetBrains Mono, `0.75rem`, line-height `1.7`
+- 금융 숫자는 **반드시 모노 + 탭룰러 피겨**(`.qb-tnum` · `[data-type="number"]`) — 열 정렬 유지
+- 코드 스니펫 (Pine Script 등): 모노, `0.75rem`, line-height `1.7`
+- ★**폰트 이름은 §3.1 이 정본이다** — 실제 모노는 **IBM Plex Mono**(`lib/fonts.ts`)다.
+  이 줄들은 2026-09-06 까지 `JetBrains Mono` 라고 적혀 있었고 **낡음 표시가 없었다**(v2 잔재).
+  아래 §14·§15 의 `JetBrains Mono` 표기도 같은 잔재이며 그 두 절은 자기 낡음을 이미 밝힌다.
 - 최소 본문 크기: `16px` (모바일 iOS 자동 줌 방지)
 - 줄 길이: 모바일 35~60자, 데스크톱 60~75자 (`max-width: 520px` 설명 텍스트)
 
@@ -300,8 +303,11 @@ UI 컴포넌트를 쓴 뒤 자가 검증한다. **기계 집행 0/5** — 320px 
 --radius-md: 6px; /* 버튼, 탭 세그먼트 */
 --radius-lg: 10px; /* 카드 */
 --radius-xl: 14px; /* 시트 상단, 다이얼로그 */
---radius-full: 50%; /* 아바타, 아이콘 원형 */
 ```
+
+★**`--radius-full` 은 문서에만 있었다**(2026-09-06 실측 — `globals.css` grep **0건**).
+원형이 필요한 자리는 Tailwind `rounded-full` 을 직접 쓰고 있어 토큰이 필요 없었다.
+없는 토큰을 헌법이 규정하면 그것을 `var(--radius-full)` 로 쓰는 코드가 조용히 `0` 이 된다.
 
 ---
 
@@ -375,7 +381,10 @@ gap: 8px;
     box-shadow 200ms ease;
 }
 .card:hover {
-  transform: translateY(-3px);
+  /* ★v3 정정(2026-09-06) — 3px lift 는 §0·§6 이 폐지했다. 실제 구현은 1px 이고
+     그나마 `data-hoverable` opt-in 이다(`components/ui/card.tsx`). 이 예제는 v2 잔재였다. */
+  transform: translateY(-1px);
+  border-color: var(--border-dark);
   box-shadow: var(--card-shadow-hover);
 }
 
@@ -490,7 +499,10 @@ transition: all 200ms ease;
 
 /* 카드 호버 */
 .card:hover {
-  transform: translateY(-3px);
+  /* ★v3 정정(2026-09-06) — 3px lift 는 §0·§6 이 폐지했다. 실제 구현은 1px 이고
+     그나마 `data-hoverable` opt-in 이다(`components/ui/card.tsx`). 이 예제는 v2 잔재였다. */
+  transform: translateY(-1px);
+  border-color: var(--border-dark);
   box-shadow: var(--card-shadow-hover);
 }
 
@@ -767,57 +779,18 @@ transition: all 200ms ease;
 
 ---
 
-## 12. 다크↔라이트 전환부
+## 12~13. ~~다크↔라이트 전환부~~ · ~~앰비언트 이펙트~~ — **2026-09-06 삭제**
 
-두 테마가 한 페이지에 공존할 때 부드러운 그라데이션 전환을 사용:
-
-```css
-/* Light → Dark */
-.transition-to-dark {
-  height: 120px;
-  background: linear-gradient(to bottom, #f8fafc, #0b1120);
-}
-
-/* Dark → Light */
-.transition-to-light {
-  height: 120px;
-  background: linear-gradient(to bottom, #0b1120, #fafbfc);
-}
-```
-
----
-
-## 13. 앰비언트 이펙트 (다크 섹션 전용)
-
-대시보드와 다크 섹션에서 깊이감을 위한 배경 글로우:
-
-```css
-/* 인디고 글로우 블롭 */
-.ambient-indigo {
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(
-    circle,
-    rgba(99, 102, 241, 0.06),
-    transparent 70%
-  );
-  pointer-events: none;
-}
-
-/* 블루 글로우 블롭 */
-.ambient-blue {
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.04), transparent 70%);
-  pointer-events: none;
-}
-```
-
-- 최대 2~3개만 사용 (과다 사용 금지)
-- `pointer-events: none` 필수
-- `overflow: hidden` 컨테이너 안에 배치
+> **tombstone.** 두 절이 규정한 CSS 는 **코드에 0건**이다(2026-09-06 실측):
+> `.transition-to-dark` · `.transition-to-light` · `.ambient-indigo` · `.ambient-blue` ·
+> 하드코딩 hex `#0b1120` / `#f8fafc` / `#fafbfc` 전부 `apps/web/src` 전역 grep **0 히트**.
+>
+> 둘 다 v2 "Terminal Tape" 잔재이며 **현행 방향과 정면 충돌**한다 — §0 이 「코퍼 글로우 ·
+> 그라디언트 · 3px lift 폐기」를, §6 이 「1px 보더가 주인공이고 글로우는 전면 폐기」를 못박는다.
+> §11 은 자기 낡음을 표시해 두었지만 이 둘은 **그 표시조차 없어서** 읽는 사람이 「지금 쓰는
+> 규정」으로 오해할 수 있었다. 48KB 헌법 안에서 코드가 반증하는 절을 남겨 두지 않는다.
+>
+> 원문 = 삭제 직전 커밋(`569aaa32`)의 이 파일 §12 · §13.
 
 ---
 

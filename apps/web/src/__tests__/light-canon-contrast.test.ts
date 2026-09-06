@@ -42,7 +42,12 @@ const PAIRS: ReadonlyArray<readonly [fg: string, surfaces: readonly string[]]> =
   ["--warning", ["--warning-subtle", "--card", "--bg", "--bg-alt"]],
   ["--text-primary", ["--card", "--bg", "--bg-alt"]],
   ["--text-secondary", ["--card", "--bg", "--bg-alt"]],
-  ["--text-muted", ["--card", "--bg"]],
+  // ★`--bg-alt` 는 2026-09-06 에 추가됐다([BL-851]). 위 세 텍스트 토큰은 전부 `--bg-alt` 를
+  //   갖고 있었는데 `--text-muted` 만 빠져 있었다 — 마크업이 안 만드는 조합이라서가 아니라
+  //   **누락**이었다. 실화면 실측에서 `/pricing` 74개 · `/waitlist` 3개가 그 조합으로 앉아 있다.
+  //   그 사이 이 순수 계산 게이트는 그것을 **원리상 못 봤고**, 실화면 래칫
+  //   (`e2e/design-canon-public-light.spec.ts`)만 개수로 세다가 14→16 으로 넘쳐 빨개졌다.
+  ["--text-muted", ["--card", "--bg", "--bg-alt"]],
   ["--primary", ["--card", "--bg"]],
   ["--bullish", ["--card", "--bg"]],
   ["--bearish", ["--card", "--bg"]],

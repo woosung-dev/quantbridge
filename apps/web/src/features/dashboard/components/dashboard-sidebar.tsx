@@ -55,12 +55,14 @@ export function DashboardSidebar({ pathname }: DashboardSidebarProps) {
       <p className="nav-group-label">워크스페이스</p>
       <DashboardNavList pathname={pathname} counts={counts} />
 
-      {/* footer dock — 계정 표시 + 로그아웃. 프로토타입의 하드코딩 이름/부제는
-          실 사용자 신원이 아니므로 재현하지 않는다(정직성). 레일에서는 아바타만 남는다. */}
+      {/* footer dock — 계정 표시 + 로그아웃. 레일(≤1024px)에서는 CSS 가 신원을 숨겨 아바타만 남는다.
+          ★프로토타입의 하드코딩 이름/부제(`woosung`·`로컬 워크스페이스`)를 재현하지 않는다는 종전
+          판단은 옳았다. 다만 그 자리에 `"계정"` 이라는 **고정 문자열**을 넣은 것이 문제였다
+          (2026-09-06) — 신원 자리를 차지하면서 「어느 계정으로 들어와 있나」에 답하지 못한다.
+          `useAuthCtx().user` 가 실제 이름·이메일을 이미 준다(`apps/web/AGENTS.md` §2). */}
       <div className="sidebar-foot">
         <div className="account">
-          <AccountButton size="sm" />
-          <span className="account-name">계정</span>
+          <AccountButton size="sm" showIdentity />
         </div>
       </div>
     </aside>

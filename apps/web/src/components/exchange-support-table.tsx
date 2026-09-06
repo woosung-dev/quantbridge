@@ -9,10 +9,16 @@ import {
   EXCHANGE_TABLE_CAPTION,
 } from "@/lib/marketing-canon";
 
+import { TableScrollRegion } from "./table-scroll-region";
+
 /** aria-label 은 페이지 문맥에 맞게 넘긴다(랜딩 vs 웨이트리스트). */
+// ★가로 스크롤 영역은 키보드로 도달할 수 있어야 한다(WCAG 2.1.1) — axe
+// `scrollable-region-focusable`(serious). `.table-wrap` 은 `overflow-x` 만 갖고 내부에 포커스
+// 가능한 요소가 없어서, 375px 에서 키보드 사용자는 넘친 열을 볼 방법이 없었다(2026-09-06 실측).
+// `role="region"` + 이름을 함께 줘야 탭 정지가 무엇인지 읽힌다.
 export function ExchangeSupportTable({ ariaLabel }: { ariaLabel?: string }) {
   return (
-    <div className="table-wrap">
+    <TableScrollRegion label={ariaLabel ?? "거래소 지원 현황"}>
       <table className="trades" aria-label={ariaLabel}>
         <caption className="dim sup-cap">{EXCHANGE_TABLE_CAPTION}</caption>
         <thead>
@@ -63,6 +69,6 @@ export function ExchangeSupportTable({ ariaLabel }: { ariaLabel?: string }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScrollRegion>
   );
 }

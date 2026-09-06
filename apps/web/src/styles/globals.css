@@ -28,7 +28,13 @@
   /* 텍스트 — 카본 잉크 (쿨 뉴트럴) */
   --text-primary: #171a1e; /* card 17.15 / bg 15.99 */
   --text-secondary: #4b535c; /* card 7.67 / bg 7.15 */
-  --text-muted: #585f68; /* B2: card 6.35 / bg 5.92 — 구 #656e78 은 캐논 5.82 미달 */
+  /* [BL-851] 2026-09-06 — #585f68 → #555c65. 종전 주석이 `card 6.35 / bg 5.92` 두 표면만
+     적었는데 **세 번째 표면이 있었다**: `--bg-alt`(#edeff1) 위에서 5.60 으로 캐논 5.82 미달.
+     라이트 표면은 이름이 다섯이지만 값은 셋뿐이고(#fdfdfc · #f4f5f6 · #edeff1), 그 셋째가
+     `--bg-alt`=`--muted`=`--secondary`=`--accent`=`--card-3` 다. 실화면에서 /pricing 74개 ·
+     /waitlist 3개가 그 위에 앉아 있었다. 순수 계산 게이트가 못 본 이유는 그 짝이
+     `light-canon-contrast.test.ts` PAIRS 에 **누락**돼 있었기 때문이다(같은 커밋에서 추가). */
+  --text-muted: #555c65; /* card 6.64 / bg 6.20 / bg-alt 5.87 — 셋 다 캐논 5.82 이상 */
 
   /* 브랜드 — 시그널 코퍼 (B2 라이트 팔레트, HANDOFF-react-port.md §8.5) */
   --primary: #883e07; /* card 7.53 / bg 7.02 — 구 #b45309 은 4.60 */
@@ -109,7 +115,12 @@
   --secondary: #edeff1;
   --secondary-foreground: #171a1e;
   --muted: #edeff1;
-  --muted-foreground: #585f68;
+  /* [BL-851] ★리터럴이 아니라 **참조**다. 종전에는 `--text-muted` 와 같은 hex 를 손으로 복사해
+     두고 「같게 유지한다」를 주석으로만 말했는데, **그것을 지키는 게이트가 하나도 없었다**
+     (`brand-palette-css-sync` KEY_TO_VAR 에 없고 `light-canon-contrast` PAIRS 에도 없다 —
+     되돌려도 204건이 전부 초록이라는 것을 변이로 확인했다). 참조로 바꾸면 드리프트가
+     **구조적으로 불가능**해진다. 같은 종류의 결함(손으로 복사한 짝)이 이 항목의 원인이었다. */
+  --muted-foreground: var(--text-muted);
   --accent: #edeff1;
   --accent-foreground: #171a1e;
   --destructive-foreground: #ffffff;
@@ -469,8 +480,9 @@ h6 {
   --secondary-foreground: #e8eaed;
   --muted: #1b1e22;
   /* W2: 구 #7a828c 는 카드 위 4.3:1 로 WCAG AA(4.5) 미달 — 이미 교정된 --text-muted 와 동일하게
-     캐논 --ink-3 #8b939c(카드 위 5.83:1) 로 올린다. shadcn text-muted-foreground 전역 a11y 정합. */
-  --muted-foreground: #8b939c;
+     캐논 --ink-3 #8b939c(카드 위 5.83:1) 로 올린다. shadcn text-muted-foreground 전역 a11y 정합.
+     [BL-851] 그 「--text-muted 와 동일하게」를 hex 복사가 아니라 **참조**로 집행한다(라이트 짝과 동일). */
+  --muted-foreground: var(--text-muted);
   --accent: #1e2226;
   --accent-foreground: #e8eaed;
   --destructive-foreground: #1a1006;
@@ -4085,4 +4097,31 @@ a.chip:focus-visible {
   border-style: dashed;
   border-color: var(--line);
   background: transparent;
+}
+
+/* ==========================================================================
+ * 앱 셸 ↔ 오버레이 계층 정정 (2026-09-06 · UI/UX 실측 회차)
+ *   ★KITPORT 밖 · 언레이어드. 센티넬 안의 `.topbar`/`.sidebar` 는 한 글자도 건드리지 않는다
+ *   (`design-canon-kit-port.test.ts` 가 `_kit.html` 과 주석까지 대조한다).
+ * ========================================================================== */
+
+/* 실측 결함 — 모달 오버레이가 앱 셸 **아래**에 깔린다.
+   `.topbar` z-index 110 · `.sidebar` 120 인데 Base UI 포털(Sheet·Dialog)은 z-50 이라,
+   드로어를 연 채 상단바 좌표에서 `elementFromPoint` 를 찍으면 `button.hamburger` 가 나온다
+   — 즉 **모달이 떠 있는데도 헤더·사이드바가 보이고 클릭된다.** 320px 에서는 상단바가
+   드로어의 첫 nav 항목 두 개를 실제로 덮는다.
+   ⇒ 포털 레이어를 셸 위로 올린다. 포털 래퍼 하나만 올리면 Sheet·Dialog·Popover 가 함께 따라온다.
+   ★수치는 셸(120) 기준 상대값이다 — `DESIGN.md` §4.4 의 `--z-modal: 60` 은 셸이 110/120 을
+   쓰는 현실과 어긋나 있고, 그 표를 고치는 것은 이 회차의 범위가 아니다(별도 등재). */
+[data-base-ui-portal] {
+  position: relative;
+  z-index: 200;
+}
+
+/* 모바일 드로어(≤768px)의 계정 신원 — KITPORT 는 `max-width: 1024` 에서 `.account-name`/
+   `.account-sub` 를 숨긴다. 그것은 **64px 아이콘 레일**을 위한 규칙이고, 280px 드로어에는
+   해당하지 않는다. 드로어 안에서만 되살린다(레일은 그대로 숨은 채로 둔다). */
+.qb-mobile-nav .account-name,
+.qb-mobile-nav .account-sub {
+  display: block;
 }

@@ -4,6 +4,7 @@
 그래서 픽스처도 상품 키로 심는다. 그 경계 자체의 회귀는
 `test_backtest_instrument_parity.py` 가 잠근다.
 """
+
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
@@ -57,9 +58,7 @@ async def test_get_ohlcv_full_cache_hit_no_ccxt_call(db_session) -> None:
 
     mock_ccxt = AsyncMock(spec=CCXTProvider)
     provider = TimescaleProvider(repo, mock_ccxt, exchange_name="bybit")
-    df = await provider.get_ohlcv(
-        "BTC/USDT", "1h", base, base + timedelta(hours=4)
-    )
+    df = await provider.get_ohlcv("BTC/USDT", "1h", base, base + timedelta(hours=4))
 
     assert len(df) == 5
     assert list(df.columns) == ["open", "high", "low", "close", "volume"]
@@ -82,9 +81,7 @@ async def test_get_ohlcv_partial_cache_fetches_gaps(db_session) -> None:
     ]
     provider = TimescaleProvider(repo, mock_ccxt, exchange_name="bybit")
 
-    df = await provider.get_ohlcv(
-        "BTC/USDT", "1h", base, base + timedelta(hours=4)
-    )
+    df = await provider.get_ohlcv("BTC/USDT", "1h", base, base + timedelta(hours=4))
     assert len(df) == 5  # cache 3 + fetched 2
     mock_ccxt.fetch_ohlcv.assert_called_once()
 
@@ -98,9 +95,7 @@ async def test_get_ohlcv_empty_when_no_cache_no_ccxt_response(db_session) -> Non
     mock_ccxt.fetch_ohlcv.return_value = []
     provider = TimescaleProvider(repo, mock_ccxt, exchange_name="bybit")
 
-    df = await provider.get_ohlcv(
-        "BTC/USDT", "1h", base, base + timedelta(hours=4)
-    )
+    df = await provider.get_ohlcv("BTC/USDT", "1h", base, base + timedelta(hours=4))
     assert len(df) == 0
     assert list(df.columns) == ["open", "high", "low", "close", "volume"]
 
@@ -118,9 +113,7 @@ async def test_get_ohlcv_normalizes_symbol(db_session) -> None:
     mock_ccxt.fetch_ohlcv.return_value = []
     provider = TimescaleProvider(repo, mock_ccxt, exchange_name="bybit")
 
-    df = await provider.get_ohlcv(
-        "BTCUSDT", "1h", base, base + timedelta(hours=0)
-    )
+    df = await provider.get_ohlcv("BTCUSDT", "1h", base, base + timedelta(hours=0))
     assert len(df) == 1
 
 
