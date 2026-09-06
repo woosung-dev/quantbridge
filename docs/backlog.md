@@ -310,6 +310,30 @@
 ---
 
 
+### BL-855
+
+**Title:** 임포트가 미지원 Pine 을 저장하고도 `parse_status="unsupported"` 를 **한 번도 안 만든다** — FE 6곳이 그리는 값을 BE 가 안 낸다
+**Category:** Backend / strategy (임포트 계약)
+**Priority:** P2
+**출처:** 2026-09-06 d1 실사용 1차 루프 — 여정 설계 중 코드 대조에서 나왔다(루프가 막힌 마찰은 아니다)
+
+**증상 (실측):** `grep -rn "ParseStatus.unsupported" apps/api/src` = **enum 정의 1건뿐**(`models.py:20`) — **대입 0건**이다. `_parse()` 는 `ok`/`error` 만 돌려주고(`strategy/service.py:181`·`:197`), `create()` 는 `analyze_coverage` 를 아예 안 부른다(`:363`). 그런데 FE 는 그 값을 **이미 전부 그린다** — `ParseStatusSchema = z.enum(["ok","unsupported","error"])`(`strategy/schemas.ts:8`) · 라벨 「일부 미지원」(`labels.ts:18`·`:31`) · 목록 필터 탭(`strategy-list.tsx:64`) · 집계 · 편집 화면 칩 · 백테스트 폼의 「파싱 상태」. ⇒ **그 필터 탭은 영원히 빈 결과이고 그 열은 영원히 0 이다.** 사용자는 임포트에서 아무 신호를 못 받고 백테스트 제출에서 처음 422 를 만난다(`backtest/service.py:169-179`).
+
+★**저장을 막자는 것이 아니다.** [ADR-003] all-or-nothing 은 **실행** 게이트이고 제출이 이미 막는다 — 저장 게이트를 새로 만들면 판정자가 둘이 된다. `test_strategies_crud.py:38` 이 「깨진 소스도 201」을 명시 계약으로 쥐고 있고, 위저드는 이미 클라이언트에서 막는다(`new-strategy-wizard.tsx:106-110`). **저장된 행이 스스로 말하게** 하는 것이 이 항목이다.
+
+**권장 접근:** `_status_with_coverage()` 헬퍼 **1개**를 만들어 `create()`(`service.py:363`)와 `update()`(`:576`) 두 곳에서 쓴다(인라인하면 변이 앵커가 3건이 되어 판별이 안 선다). `status == ok` ∧ `not analyze_coverage(src).is_runnable` 이면 `unsupported` + 근거를 기존 `parse_errors` JSONB 에 싣는다. **FE 변경 0줄** — 화면 6곳이 자동으로 살아난다. 계약 영향 0(enum·필드 불변). 백필은 하지 않는다(다음 `update()` 에서 갱신되고, 지금도 제출은 422 로 막힌다).
+★**비용은 반대 근거가 아니다** — `analyze_coverage` 는 **정규식**이고(`pine_v2/coverage.py:623`) corpus 9벌 **8.6ms**, 최악 단건 5.71ms 다(2026-09-06 실측). 임포트는 이미 `parse_to_ast` 를 부른다(`service.py:178`). 회귀는 시간이 아니라 **호출 횟수**로 재라(`create()` 1회당 정확히 1회).
+★★**착수 전 red 가 이 항목의 하중 지점이다** — 기존 `_BAD` 픽스처는 `status=error` 라 새 분기를 **안 지난다**. 「파싱 성공 ∧ 미지원」 소스가 없으면 초록이 무증거다. 확인된 재료: `request.security_lower_tf` 를 쓰는 5줄짜리 전략.
+★★**도메인 헌법을 같이 고쳐야 한다** — `CONTEXT.md:33` 과 `:167` 이 「`unsupported` 는 enum 예약·**미사용**」이라 적었다. 이 수리는 그 문장을 뒤집는다.
+
+**Risk:** 🟡 (저장된 데이터의 의미가 바뀐다 · 마이그레이션은 없다)
+
+**상태:** 🔵 ACTIVE — 2026-09-06 등재, 미수리
+**트리거 판정:** 도래 (단독 착수 가능)
+
+---
+
+
 ### BL-848
 
 **Title:** heartbeat/receive task 의 예외를 `asyncio.wait` 의 **done 집합에서 아무도 안 꺼낸다** — 재연결 원인이 안 남는다
