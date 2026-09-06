@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
-import { clearAuthTokenCache } from "@/lib/auth-client";
+import { reissueAuthToken } from "@/lib/auth-client";
 import {
   createRealtimeWsClient,
   type RealtimeClient,
@@ -58,7 +58,14 @@ export function RealtimeBridge({
     const client = clientFactoryRef.current({
       url: realtimeWsUrl(origin),
       getToken: () => getTokenRef.current(),
-      onAuthFailure: clearAuthTokenCache,
+      // ★4401 은 REST 401 과 **같은 만료 토큰에서 같은 순간에** 난다(탭 복귀). 여기서
+      //   `clearAuthTokenCache` 를 직접 부르면 in-flight REST 재발급의 세대를 밀어
+      //   멀쩡한 토큰이 null 로 버려지고 사용자가 /sign-in 으로 튕긴다 — 단일 재발급기를 지난다.
+      onAuthFailure: () => {
+        void reissueAuthToken().catch(() => {
+          // 재발급 실패는 ws-client 의 재연결 backoff 가 이미 다룬다.
+        });
+      },
       onEvent: (envelope) => {
         handleRealtimeEvent(queryClientRef.current, userId, envelope);
         useRealtimeStore.getState().recordEvent(envelope.ts);

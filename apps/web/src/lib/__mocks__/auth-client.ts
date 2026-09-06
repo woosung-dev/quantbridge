@@ -30,6 +30,7 @@ export function resetAuthMock(): void {
   Object.assign(authMockState, DEFAULTS);
   getAuthToken.mockClear();
   clearAuthTokenCache.mockClear();
+  reissueAuthToken.mockClear();
   signOut.mockClear();
   deleteUser.mockClear();
   deleteAccount.mockClear();
@@ -39,6 +40,7 @@ export function resetAuthMock(): void {
 
 export const getAuthToken = vi.fn(async (): Promise<string | null> => authMockState.token);
 export const clearAuthTokenCache = vi.fn();
+export const reissueAuthToken = vi.fn(async (): Promise<string | null> => authMockState.token);
 export const signOut = vi.fn(async () => ({ data: null, error: null }));
 export const deleteUser = vi.fn(async () => ({ data: null, error: null }));
 export const deleteAccount = vi.fn(
