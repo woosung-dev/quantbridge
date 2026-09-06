@@ -89,9 +89,15 @@ class SignalExtractor:
 
     def _extract_ast(self, source: str) -> ExtractionResult:
         try:
-            import pynescript.ast as pyne_ast
+            # ★캐시를 타는 `parse_to_ast` 를 쓴다 — 종전의 raw `pyne_ast.parse(source)` 는
+            #   `src/` 에 남은 **유일한 무캐시 ANTLR 파스**였다(2026-09-06 실측). Strategy Brief 는
+            #   백테스트 제출 **전에** 여는 화면인데, 같은 요청의 옆 줄들(`strategy/service.py` 의
+            #   parse_preview · py_renderer)은 이미 캐시를 타고 있어 **한 요청이 같은 소스를 두 번
+            #   파싱하고 그중 하나만 공짜**였다. 시그니처·반환은 동일하고, 파스 실패는 캐시되지
+            #   않으므로(`parser_adapter.py:127`) 아래 C-text 폴백 경로도 그대로다.
+            from src.strategy.pine_v2.parser_adapter import parse_to_ast
 
-            tree = pyne_ast.parse(source)
+            tree = parse_to_ast(source)
         except Exception:
             return self._extract_text(source)  # 파싱 실패 → C-text 폴백
 
