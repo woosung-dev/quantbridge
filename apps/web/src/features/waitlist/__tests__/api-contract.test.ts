@@ -24,6 +24,34 @@ afterEach(() => {
 });
 
 describe("waitlist API contract", () => {
+  // ★위 케이스는 이미 트림된 fixture 를 넣고 **그것과 같은 객체**를 단언하므로 api.ts 가
+  //   `body: parsed` 를 보내든 `body` 를 보내든 초록이다. 폼은 pain_point 를 트림하지 않으므로
+  //   (waitlist-form-card.tsx 는 existing_tool 만 트림) 와이어의 정규화는 오직 `body: parsed`
+  //   덕분이다 — 그 사실을 재는 곳이 여기뿐이다(원문 = refs/stash-archive/02).
+  it("공개 신청은 정규화한 payload를 보낸다 — 원본이 아니라 스키마 통과본이다", async () => {
+    const untrimmed = {
+      ...APPLICATION,
+      existing_tool: null,
+      pain_point: "  백테스트와 데모 거래의 결과를 함께 확인하고 싶습니다.  ",
+    };
+    apiFetchMock.mockResolvedValueOnce({
+      id: "00000000-0000-4000-a000-000000000021",
+      status: "pending",
+    });
+
+    await expect(submitWaitlist(untrimmed)).resolves.toEqual({
+      id: "00000000-0000-4000-a000-000000000021",
+      status: "pending",
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/waitlist", {
+      method: "POST",
+      token: null,
+      body: { ...untrimmed, pain_point: APPLICATION.pain_point },
+    });
+  });
+
   it("공개 신청은 token 없이 검증된 payload를 POST하고 접수 응답을 파싱한다", async () => {
     apiFetchMock.mockResolvedValueOnce({
       id: "00000000-0000-4000-a000-000000000021",

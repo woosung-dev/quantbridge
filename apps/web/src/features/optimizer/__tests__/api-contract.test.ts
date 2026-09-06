@@ -134,3 +134,18 @@ describe("optimizer API contract", () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("optimizer 요청 스키마 경계", () => {
+  // ★사전 거부가 grid 한 축에서만 증명돼 있었다 — bayesian/genetic 은 유효값만 넣는다.
+  //   세 submit 함수는 각자 `.parse(body)` 를 부르므로 축마다 따로 재야 한다.
+  //   원문 = refs/stash-archive/03.
+  it("잘못된 backtest_id 제출은 Bayesian endpoint에 닿기 전에 요청 스키마 오류로 막는다", async () => {
+    await expect(
+      postBayesianSearch(
+        { ...BAYESIAN_REQUEST, backtest_id: "not-a-uuid" } as CreateOptimizationRunRequest,
+        "token-invalid",
+      ),
+    ).rejects.toThrow();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+});
