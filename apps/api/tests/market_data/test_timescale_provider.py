@@ -8,11 +8,28 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
+import pandas as pd
 import pytest
 
+from src.market_data.models import OHLCV
 from src.market_data.providers.ccxt import CCXTProvider
 from src.market_data.providers.timescale import TimescaleProvider
 from src.market_data.repository import OHLCVRepository
+
+
+def _orm_row(ts: datetime) -> OHLCV:
+    """`_to_dataframe` 입력용 OHLCV 인스턴스 — DB 에 넣지 않는다(순수 변환 테스트)."""
+    return OHLCV(
+        time=ts,
+        symbol="BTC/USDT:USDT",
+        timeframe="1h",
+        exchange="bybit",
+        open=Decimal("100"),
+        high=Decimal("101"),
+        low=Decimal("99"),
+        close=Decimal("100.5"),
+        volume=Decimal("10"),
+    )
 
 
 def _db_row(base: datetime, offset_h: int) -> dict[str, object]:
@@ -105,3 +122,34 @@ async def test_get_ohlcv_normalizes_symbol(db_session) -> None:
         "BTCUSDT", "1h", base, base + timedelta(hours=0)
     )
     assert len(df) == 1
+
+
+# ── [BL-842] ⑶ 빈 결과의 index 타입 ──────────────────────────────────────────
+# ★위의 `test_get_ohlcv_empty_when_no_cache_no_ccxt_response` 는 `len(df) == 0` 과
+#   columns 만 잰다 — **index 타입은 아무도 안 재고 있었다.** 종전 구현은 빈 경우에만
+#   RangeIndex 를 내서, 같은 무-데이터 입력이 채워진 경우(DatetimeIndex)와 다른 모양이
+#   됐다. 아래 둘은 DB 를 타지 않는다(`_to_dataframe` 는 staticmethod).
+
+
+def test_empty_dataframe_has_datetime_index() -> None:
+    """빈 결과도 DatetimeIndex 다 — RangeIndex 면 red."""
+    df = TimescaleProvider._to_dataframe([])
+
+    assert len(df) == 0
+    assert isinstance(df.index, pd.DatetimeIndex), (
+        f"빈 결과의 index 가 {type(df.index).__name__} 다 — 채워진 경우와 모양이 다르면 "
+        "소비자가 index 타입으로 분기할 때 침묵 실패한다 ([BL-842] ⑶)"
+    )
+    assert df.index.name == "time"
+    assert list(df.columns) == ["open", "high", "low", "close", "volume"]
+
+
+def test_empty_and_filled_dataframes_share_index_type() -> None:
+    """빈 경우와 채워진 경우의 index 타입·tz·이름이 같다."""
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    filled = TimescaleProvider._to_dataframe([_orm_row(base)])
+    empty = TimescaleProvider._to_dataframe([])
+
+    assert type(empty.index) is type(filled.index)
+    assert empty.index.name == filled.index.name
+    assert empty.index.tz == filled.index.tz
