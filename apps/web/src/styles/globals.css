@@ -115,10 +115,12 @@
   --secondary: #edeff1;
   --secondary-foreground: #171a1e;
   --muted: #edeff1;
-  /* [BL-851] --text-muted 와 **같은 값을 유지한다.** 다크 짝(.dark 의 --muted-foreground)이
-     이미 그 규약이고("shadcn text-muted-foreground 전역 a11y 정합"), 여기 `--muted` 표면이
-     곧 `--bg-alt`(#edeff1) 라 이 토큰만 두고 가면 shadcn 축으로 5.60 이 그대로 남는다. */
-  --muted-foreground: #555c65;
+  /* [BL-851] ★리터럴이 아니라 **참조**다. 종전에는 `--text-muted` 와 같은 hex 를 손으로 복사해
+     두고 「같게 유지한다」를 주석으로만 말했는데, **그것을 지키는 게이트가 하나도 없었다**
+     (`brand-palette-css-sync` KEY_TO_VAR 에 없고 `light-canon-contrast` PAIRS 에도 없다 —
+     되돌려도 204건이 전부 초록이라는 것을 변이로 확인했다). 참조로 바꾸면 드리프트가
+     **구조적으로 불가능**해진다. 같은 종류의 결함(손으로 복사한 짝)이 이 항목의 원인이었다. */
+  --muted-foreground: var(--text-muted);
   --accent: #edeff1;
   --accent-foreground: #171a1e;
   --destructive-foreground: #ffffff;
@@ -478,8 +480,9 @@ h6 {
   --secondary-foreground: #e8eaed;
   --muted: #1b1e22;
   /* W2: 구 #7a828c 는 카드 위 4.3:1 로 WCAG AA(4.5) 미달 — 이미 교정된 --text-muted 와 동일하게
-     캐논 --ink-3 #8b939c(카드 위 5.83:1) 로 올린다. shadcn text-muted-foreground 전역 a11y 정합. */
-  --muted-foreground: #8b939c;
+     캐논 --ink-3 #8b939c(카드 위 5.83:1) 로 올린다. shadcn text-muted-foreground 전역 a11y 정합.
+     [BL-851] 그 「--text-muted 와 동일하게」를 hex 복사가 아니라 **참조**로 집행한다(라이트 짝과 동일). */
+  --muted-foreground: var(--text-muted);
   --accent: #1e2226;
   --accent-foreground: #e8eaed;
   --destructive-foreground: #1a1006;
