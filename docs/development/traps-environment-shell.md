@@ -24,7 +24,10 @@
   그래서 pnpm 8 셸에서는 **lockfile diff 가 0 인 브랜치도 `CI frozen-lockfile` 이 red** 였다.
   증상이 「내 PR 이 lockfile 을 깼다」로 오인된다. ⇒ 로컬 스크립트 5종이 이제
   `tools/scripts/lib/mise-shim-path.sh` 를 소싱해 shim 을 PATH 앞에 세우고,
-  `tools/scripts/tool-pin-audit.sh` 가 재유입을 막는다(`final-gates` 의 「도구 핀 감사」).
+  ~~`tools/scripts/tool-pin-audit.sh` 가 재유입을 막는다(`final-gates` 의 「도구 핀 감사」).~~
+  → **2026-09-06 정정 — 막는 것이 지금은 없다.** `tool-pin-audit.sh` 와 `final-gates.sh` 둘 다
+  [ADR-037] 로 철거됐다. shim 소싱은 스크립트에 남아 있지만 **재유입을 기계로 잡는 축은 0** 이고,
+  다음에 shim 없는 스크립트가 들어와도 아무도 안 잡는다.
   ★**서버에서 도는 `soak-*.sh` 6종은 면제다** — 그 환경에 mise 가 있는지 확인된 바 없다.
   ★**워크스페이스가 아니다** — 루트 `package.json` 은 husky 전용이고 `pnpm-workspace.yaml` 이 없다.
   FE 설치는 반드시 `cd apps/web` 에서 한다.

@@ -137,8 +137,12 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 **어디서 도는가** — 세 환경이 전부 다르다:
 
 - **로컬** — Docker entrypoint 의 `api` 롤이 `alembic upgrade head` 를 자동 실행
-- **CI** — [ADR-037] 이후 alembic 을 **어디서도 돌지 않는다**(pytest 스키마 = 세션 픽스처의
-  `drop_all`+`create_all`). `alembic check` 게이트 복귀는 재입힘 규칙 경유
+- **CI** — [ADR-037] 이후 **`ci.yml` 에서는** alembic 을 돌지 않는다(pytest 스키마 = 세션 픽스처의
+  `drop_all`+`create_all`). `alembic check` 게이트 복귀는 재입힘 규칙 경유.
+  ★**2026-09-06 정정 — 「어디서도」가 아니다.** nightly 2종이 실제로 돌린다:
+  `trust-layer-nightly.yml:63` · `nightly-real-broker.yml:120` 이 `alembic upgrade head` 다.
+  「PR CI 에 없다」와 「레포 어디에도 없다」는 다른 문장이고, 후자로 읽으면 nightly 가 깨졌을 때
+  원인 후보에서 마이그레이션을 지운 채 찾게 된다
 - **서버 소크 스택** — compose 에 **api 롤이 없고** 실제 API 는 호스트 uvicorn systemd 유닛이라
   entrypoint 를 지나지 않는다. **DDL 은 `soak-stack.sh migrate --confirm` 으로 사람이 승인해
   적용한다** — 빼먹으면 새 코드가 옛 스키마 위에서 돈다([BL-743]).

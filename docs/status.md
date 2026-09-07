@@ -7,8 +7,13 @@
 > 원문 = `git show 762e1297:docs/status.md`. 간 곳 = `dev-log/2026-08-{08-soak-death-and-restart,
 09-fe-perf-quartet,09-bl003-mainnet-runbook,09-status-triage-mass,10-review-and-merge,
 10-close-ownership-axis}.md`. **삭제가 아니라 이동이다** — 색인은 `dev-log/INDEX.md`.
-> ★**이 파일은 `docs-audit.sh` 의 `file_line_caps` 가 지킨다.** 넘치면 크기를 늘리지 말고
-> **끝난 회차를 강등해라** — 넘쳤다는 것은 승격이 밀렸다는 신호다(ADR-026 §3).
+> ~~★**이 파일은 `docs-audit.sh` 의 `file_line_caps` 가 지킨다.**~~ → **2026-09-06 정정 — 지금
+> 이 파일의 크기를 재는 기계는 없다.** `docs-audit.sh` 는 [ADR-037] 로 철거됐고 `file_line_caps`
+> (status 700 · lessons 400)도 함께 사라졌다. `ledger-vitals.sh` 4축은 전부 **커서**(다음행동 ≤1 ·
+> ⓪ 표 ≥1행 · RESOLVED 역류 0 · §5 겨냥)만 재고 **부피는 0축**이다.
+> ★**그 상한이 강등 12회를 전부 촉발한 유일한 장치였고, 사라진 뒤 강등은 0건이다** — 그래서
+> 손 다이어트를 네 번 했는데 네 번 다 되돌아왔다(479줄 → 14일 만에 1,050줄).
+> 넘치면 크기를 늘리지 말고 **끝난 회차를 강등해라** — 넘쳤다는 것은 승격이 밀렸다는 신호다(ADR-026 §3).
 >
 > ★**2026-08-13 docs-diet — 이 파일이 걸던 dev-log 링크 13개가 코드 스팬이 됐다.** `dev-log/` 본문
 > **25건은 전부 git 으로 내려갔다**(`docs/dev-log/INDEX.md` 헤더 참조). 아래 본문에 `dev-log/*.md` 가
@@ -998,7 +1003,7 @@ d1 루프가 실측한 대로 캐시 상한(2026-08-25)을 넘는 창이 흔하�
 | **I**  | [BL-848] heartbeat/receive task 예외를 `asyncio.wait` done 집합에서 **아무도 안 꺼낸다** | P3 | ★ | 하 | S | **건드림** | **2026-08-31 등재** — [BL-837] 수리 중 인접 코드 대조에서 나왔다. `bybit_private_stream.py:281` 이 done 집합을 `_` 로 버려 소켓발 `OSError` 가 평범한 연결 끊김으로 읽힌다. ★**자가 치유된다**(재연결은 돈다) — 잃는 것은 침묵이 아니라 **원인**이라 P3 다. ★새 metric 전에 **그 경로가 실제로 발화하는지** 소크 로그에서 먼저 재라 |
 | **K**  | [BL-841] `codex-block-dangerous.sh` 가 `jq` 실패 시 **fail-open** | P2 | ★★★ | 하 | S | 0줄 | **2026-08-30 등재** — `hooks/codex-block-dangerous.sh:16` 이 파싱 실패를 통과로 떨어뜨린다. **차단기가 fail-open 이면 차단기가 아니다.** ★음성 대조(깨진 입력이 실제로 막히는가)를 먼저 재라 |
 | **L**  | [BL-740] stress_test 의 sharpe degenerate 판정이 convention 축을 안 읽어 **파산 셀이 「그냥 0」** | P2 | ★★ | 중 | M | **건드림** | **2026-08-30 승격** — 옵티마이저 절반은 PR #857 로 수리됐고 stress_test 3곳이 남았다(`grid_result.py:73` · `walk_forward.py:190` · `serializers.py:238`). ★**영속 스키마(`result_jsonb`) 변경 동반** — 구 행은 `None` = 소급 판정 안 함 |
-| **M**  | [BL-842] `TimescaleProvider` 가 갭을 못 메우면 **짧은 시리즈**를 요청 기간으로 라벨한다 | P2 | ★★ | 중 | M | **건드림** | **2026-08-30 등재** — `providers/timescale.py` 3증상: ⑴ 조용히 좁힌 창 ⑵ `pg_advisory_xact_lock` 이 **엔진 실행 전체**를 잡고 `lock_timeout` 없음 ⑶ 빈 결과가 `RangeIndex`. ⑴ 은 「채운 실제 구간」을 결과에 싣는 것이 먼저다 |
+| **M**  | [BL-842] `TimescaleProvider` 가 갭을 못 메우면 **짧은 시리즈**를 요청 기간으로 라벨한다 | P2 | ★★ | 중 | M | **건드림** | **2026-08-30 등재 · 2026-09-06 PARTIAL** — `providers/timescale.py` 3증상 중 **⑶(빈 결과가 `RangeIndex`)은 수리**(PR #873). 남은 것: ⑴ 조용히 좁힌 창 ⑵ `pg_advisory_xact_lock` 이 **엔진 실행 전체**를 잡고 `lock_timeout` 없음. ⑴ 은 「채운 실제 구간」을 결과에 싣는 것이 먼저다 |
 | **N**  | [BL-839] 느린 WS 클라이언트 1개가 **전 사용자** realtime listener 를 정지시킨다 | P2 | ★★ | 하 | S | **건드림** | **2026-08-30 등재** — `realtime/manager.py:72` 의 `send_to_user` 가 timeout 없이 `await` 하고 단일 listener 가 순차 배분한다. ★큐를 새로 만들지 말고 **timeout 부터** 재라 |
 | **P**  | ~~[BL-844] FE 실시간이 4401 재시도에서 **같은 캐시 토큰**을 다시 보내 영구 정지~~ → **2026-09-06 종결**(`fix/global-401-policy`) | P2 | ★★ | 하 | S | 0줄 | 4401 재시도 **전에** `onAuthFailure`→`clearAuthTokenCache`(ws-client.ts) · 동승분(세대 카운터)은 이미 코드에 있었다 · 같은 PR 이 `apiFetch` 전역 401 정책(재발급 1회 재시도 · 세션 없음 → /sign-in 1회 · single-flight)을 넣었다. ★**리뷰가 잡은 2차 결함** — 거절 축이 REST 401·WS 4401 **둘**인데 single-flight 를 REST 쪽에만 걸어 WS 가 `clearAuthTokenCache` 를 직접 부르면 in-flight 재발급의 세대를 밀어 **정상 사용자를 /sign-in 으로 튕겼다**(PR 자신의 주석이 경고한 바로 그 결함). `reissueAuthToken()` 단일 입구로 접었다 — 변이 5/5 red |
 | **Q**  | [BL-845] CI 가 Playwright spec **31개 중 1개**만 돈다 — 문서는 격차를 「1개」로 적었다 | P2 | ★★ | 하 | S | 0줄 | **2026-08-30 등재** — `ci.yml` 은 Playwright 를 아예 안 돌리고 `live-smoke.yml` 의 `testMatch` 가 **정확히 1파일**이다. ★수치를 고치는 것이 이 항목의 절반 — 지금 문서는 커버리지를 **30배 과대**로 읽게 한다 |

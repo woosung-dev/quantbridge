@@ -3,7 +3,13 @@
 # 남긴 것: backend(ruff + pytest 전량) · frontend(biome + tsc + vitest + next build).
 #   ★frontend 의 `pnpm lint` 는 2026-08-22 부터 **Biome 단독**이다([ADR-039]) — prettier·ESLint 제거.
 # 지운 것: paths-filter/changes · documentation · secret_scan · e2e/e2e_authed ·
-#   pytest 샤딩 · coverage 래칫 · alembic 스텝 · OpenAPI drift · mypy · 집계(summary) 잡 ·
+#   pytest 샤딩 · coverage 래칫 · alembic 스텝 · 집계(summary) 잡 ·
+#   ★**2026-09-06 정정 — 「OpenAPI drift · mypy」를 이 목록에서 뺐다.** 둘은 **backend 잡에
+#     살아 있다**(`:118` `export_openapi.py --check` · `:127` `mypy src`). ADR-037 당시 지운
+#     것은 *별도 잡*이고 그 뒤 backend 잡 안의 스텝으로 되돌아왔는데 이 주석만 안 따라왔다.
+#     ★이 한 줄이 실제 피해를 냈다 — 2026-09-06 아키텍처 감사에서 조사 에이전트가 이 주석을
+#     믿고 「CI 의 OpenAPI drift 게이트가 삭제됐다」고 **잘못 결론냈다**. 주석은 어떤 게이트의
+#     대상도 아니라서 코드가 돌아와도 아무도 안 고친다.
 #   rules-of-hooks eslint-disable 차단 grep(LESSON-004 보조 방어선 — 2026-08-22 [ADR-039] 로
 #   ESLint 자체가 없어졌다. 그 축의 잔여 방어선은 Biome 의 `useHookAtTopLevel` ·
 #   `useExhaustiveDependencies` 와 /review-code conventions 차원이다. `set-state-in-effect` 는

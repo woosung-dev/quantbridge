@@ -55,7 +55,7 @@
 
 - 본 sprint 의 plan: `docs/archive/superpowers/specs/...` 또는 `~/.claude/plans/...`
 - 관련 ADR: `docs/dev-log/...`
-- 관련 BL: `docs/backlog.md` 신규 등록 · **RESOLVED 본문은 `docs/backlog-resolved.md`** ([BL-779] — 표 행은 원본에 남는다)
+- 관련 BL: `docs/backlog.md` 신규 등록 · ~~**RESOLVED 본문은 `docs/backlog-resolved.md`**~~ → **2026-09-06 정정 — 그 파일은 2026-08-23 에 삭제됐다. RESOLVED 는 파일이 아니라 「본문 삭제」다**(`AGENTS.md` §6 — 끝난 것은 git 이 갖는다) ([BL-779])
 
 ### §4 — BL 신규 등록
 
