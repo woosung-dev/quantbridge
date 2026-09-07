@@ -194,10 +194,13 @@ design-canon → authed`). 회차마다 `PW_ARTIFACT_RUN` 을 달리 주므로 *
   **세션 없이** 도는 공개 라우트 계약 시험이고, `testMatch` 가 잔여를 전부 가져가서 authed 몫이
   됐을 뿐이다. ⇒ 그 파일은 **인증 secret 없이도 오늘 공개 project 로 옮길 수 있다**(아래 2단계
   「사용자 결정」에 묶이지 않는다).
-- **실행처** — CI 가 안 돈다는 것이 「실행처가 하나」라는 뜻은 아니다. 로컬에 최소 넷이다:
-  `tools/scripts/final-gates.sh` 의 `e2e authed` 레그 · `mise run fe-e2e-authed` ·
-  `pnpm e2e:authed` 직접 호출 · `tools/scripts/e2e-authed-repro.sh`(위 [BL-784] 축 재현 처방).
-  **게이트 판정의 증인은 `final-gates.sh` 레그 하나**지만, 재현 경로를 그 하나로 좁히지 마라.
+- **실행처** — CI 가 안 돈다는 것이 「실행처가 하나」라는 뜻은 아니다. 로컬에 **셋**이다:
+  `mise run fe-e2e-authed` · `pnpm e2e:authed` 직접 호출 ·
+  `tools/scripts/e2e-authed-repro.sh`(위 [BL-784] 축 재현 처방).
+  ~~`tools/scripts/final-gates.sh` 의 `e2e authed` 레그 · **게이트 판정의 증인은 `final-gates.sh`
+  레그 하나**~~ → **2026-09-06 정정 — `final-gates.sh` 는 [ADR-037] 로 철거됐다.**
+  ★그래서 **게이트 판정의 증인이 지금은 없다** — 셋 다 사람이 손으로 돌리는 재현 경로이고,
+  authed e2e 를 강제하는 축은 어디에도 없다([BL-845] 가 그 격차를 등재하고 있다).
 - ⇒ **PR 이 CI 전건 초록이면서 authed 게이트가 red 인 채로 머지될 수 있다.** 반대로 「CI 가
   초록이었다」를 **로컬 authed red 의 음성 대조 근거로 쓰면 그 근거는 무효다** — 그 잡은
   authed 를 애초에 돌리지 않았다. 원장에 그렇게 적힌 항목이 실재한다([BL-668] 의 음성 대조 ②).

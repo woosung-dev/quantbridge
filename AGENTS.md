@@ -66,7 +66,7 @@ Trading(CCXT 주문) / Market Data(TimescaleDB).
 - **ALWAYS** — 코드 작성 전 「어떤 설계 문서 + 어떤 방향」 짧게 브리핑. 코드 수정 시 관련 문서 **같은 세션** 갱신
 - **ALWAYS** — 확인된 사실 / 추론(`[가정]`) / 확인 필요(`[확인 필요]`) 구분 표기
 - **ALWAYS** — 승인이 필요한 것은 **배포 · 실주문 · 남의 데이터 삭제** 셋뿐. 커밋·작업 브랜치 push·PR 생성은 **승인 불요** — 거기서 멈추지 말고 **PR 까지 올려라**
-- **ALWAYS** — **green = CI 단일 게이트**([ADR-037](./docs/adr/037-harness-zero-base.md)). 로컬 pre-flight 의식 없음 — PR 을 올리면 CI(be: `ruff`+`pytest` / fe: `biome`+`tsc`+`vitest`+`build`)가 판정한다. 미리 보려면 §5 의 러너를 직접 돌려라
+- **ALWAYS** — **green = CI 단일 게이트**([ADR-037](./docs/adr/037-harness-zero-base.md)). 로컬 pre-flight 의식 없음 — PR 을 올리면 CI(be: `ruff` → `export_openapi --check` → `mypy src` → `pytest` / fe: `biome`+`tsc`+`vitest`+`build`)가 판정한다. 미리 보려면 §5 의 러너를 직접 돌려라. ★**2026-09-06 정정** — 종전에 이 줄은 be 를 `ruff`+`pytest` **2단**으로 적어 §7 표(4단)·실제 `ci.yml` 과 어긋났다. 여기서 멈춘 세션은 **OpenAPI drift·mypy 를 차단 게이트로 인식하지 못한다**
 - **ALWAYS** — `gh pr create` 전 `docs/status.md` 에 **살아 있는 `다음 행동 =` 이 둘 이상이면 안 된다**. 끝난 것은 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다. 기계 집행 = pre-commit 의 `ledger-vitals.sh` **4축**
 - **ALWAYS** — Sprint kickoff 첫 step = **baseline 재측정 preflight**. 본인 인상·plan 가정·사용자 prompt 가정 **모두 실측 전 신뢰 금지**
 - **ALWAYS** — codex finding 은 **코드 대조 후에만** 채택 (phantom finding 차단)

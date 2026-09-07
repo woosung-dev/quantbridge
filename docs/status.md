@@ -7,8 +7,13 @@
 > 원문 = `git show 762e1297:docs/status.md`. 간 곳 = `dev-log/2026-08-{08-soak-death-and-restart,
 09-fe-perf-quartet,09-bl003-mainnet-runbook,09-status-triage-mass,10-review-and-merge,
 10-close-ownership-axis}.md`. **삭제가 아니라 이동이다** — 색인은 `dev-log/INDEX.md`.
-> ★**이 파일은 `docs-audit.sh` 의 `file_line_caps` 가 지킨다.** 넘치면 크기를 늘리지 말고
-> **끝난 회차를 강등해라** — 넘쳤다는 것은 승격이 밀렸다는 신호다(ADR-026 §3).
+> ~~★**이 파일은 `docs-audit.sh` 의 `file_line_caps` 가 지킨다.**~~ → **2026-09-06 정정 — 지금
+> 이 파일의 크기를 재는 기계는 없다.** `docs-audit.sh` 는 [ADR-037] 로 철거됐고 `file_line_caps`
+> (status 700 · lessons 400)도 함께 사라졌다. `ledger-vitals.sh` 4축은 전부 **커서**(다음행동 ≤1 ·
+> ⓪ 표 ≥1행 · RESOLVED 역류 0 · §5 겨냥)만 재고 **부피는 0축**이다.
+> ★**그 상한이 강등 12회를 전부 촉발한 유일한 장치였고, 사라진 뒤 강등은 0건이다** — 그래서
+> 손 다이어트를 네 번 했는데 네 번 다 되돌아왔다(479줄 → 14일 만에 1,050줄).
+> 넘치면 크기를 늘리지 말고 **끝난 회차를 강등해라** — 넘쳤다는 것은 승격이 밀렸다는 신호다(ADR-026 §3).
 >
 > ★**2026-08-13 docs-diet — 이 파일이 걸던 dev-log 링크 13개가 코드 스팬이 됐다.** `dev-log/` 본문
 > **25건은 전부 git 으로 내려갔다**(`docs/dev-log/INDEX.md` 헤더 참조). 아래 본문에 `dev-log/*.md` 가
