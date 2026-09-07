@@ -406,10 +406,10 @@
 **증상 3종 (같은 파일):**
 ⑴ `providers/timescale.py:70` — 거래소가 갭을 못 채우면 짧은 시리즈를 그대로 반환한다. 결과 행에는 **요청 기간**이 적히므로 사용자는 좁은 창에서 돈 백테스트를 넓은 창의 결과로 읽는다.
 ⑵ `:75` — `pg_advisory_xact_lock` 이 fetch 구간이 아니라 **엔진 실행 전체** 동안 잡혀 있고 `lock_timeout` 이 없다. 옵티마이저/스트레스 테스트가 그 락을 길게 물면 다른 실행이 무한 대기한다.
-⑶ `:109` — 빈 결과가 `DatetimeIndex` 가 아니라 `RangeIndex` 를 갖는다. 같은 무-데이터 입력이 `FixtureProvider` 에서는 깨끗이 실패하는데 이쪽에서는 다르게 흐른다.
-**권장 접근:** ⑴ 은 「채운 실제 구간」을 결과에 싣는 것이 먼저다(조용히 좁히지 말고 보이게 한다). ⑵ 는 락 범위를 fetch 로 좁히고 `lock_timeout` 을 건다. ⑶ 은 빈 시리즈도 `DatetimeIndex` 로 통일.
+~~⑶ `:109` — 빈 결과가 `DatetimeIndex` 가 아니라 `RangeIndex` 를 갖는다.~~ → **2026-09-06 수리**(PR #873 `5349d996`). `_to_dataframe` 가 빈 경우에도 `pd.DatetimeIndex([], name="time", tz=UTC)` 를 붙인다. ★**기존 테스트가 그 축을 안 재고 있었다** — `test_get_ohlcv_empty_when_no_cache_no_ccxt_response` 는 `len==0` 과 컬럼만 봤다. 회귀 2건 신설(`test_empty_dataframe_has_datetime_index` · `test_empty_and_filled_dataframes_share_index_type`), 착수 전 red 확인.
+**권장 접근:** ⑴ 은 「채운 실제 구간」을 결과에 싣는 것이 먼저다(조용히 좁히지 말고 보이게 한다). ⑵ 는 락 범위를 fetch 로 좁히고 `lock_timeout` 을 건다. ~~⑶ 은 빈 시리즈도 `DatetimeIndex` 로 통일.~~ → 완료.
 
-**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**상태:** 🟡 PARTIAL — 2026-08-30 등재. **⑶ 2026-09-06 수리**(PR #873) · **⑴⑵ 미수리**
 **트리거 판정:** 도래
 
 ---
