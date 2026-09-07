@@ -525,8 +525,8 @@
 **Priority:** P2
 **출처:** 2026-09-06 전 화면 스윕(PR #872)의 자기 실측 — 덮은 범위를 세어 보니 절반이었다
 
-**증상 (실측):** 2026-09-06 스윕은 **21 라우트**를 25 라우트로 셌다. 실제 `page.tsx` 는 **27개**이고
-**6개가 빠졌다** — 전부 **id/토큰이 URL 에 필요해서** 정적 목록으로는 못 만든 것들이다.
+**증상 (실측):** 2026-09-06 스윕은 **20 라우트**를 25 라우트로 셌다. 실제 `page.tsx` 는 **26개**이고
+**6개가 빠졌다**(즉 덮은 것은 21이 아니라 **20**) — 전부 **id/토큰이 URL 에 필요해서** 정적 목록으로는 못 만든 것들이다.
 
 | 안 본 라우트 | 무엇 | 왜 중요한가 |
 | --- | --- | --- |
@@ -543,24 +543,32 @@
 기계 축(가로스크롤·axe·대비·포커스링·콘솔)만 돌았다. **기계가 못 재는 축**(정보 위계 · 첫 진입에서
 다음 행동이 보이나 · 빈/에러가 회복 경로를 주나 · 캐논과 코드가 다른가)은 6종 포함 **대부분 미실행**이다.
 
-**재개 재료 (2026-09-06 로컬 DB 실측 — 이게 없으면 다음 세션이 id 찾는 데만 시간을 쓴다):**
+**재개 재료 — ★2026-09-06 제로컨텍스트 재개 검증에서 이 블록이 통째로 틀린 것이 드러나 교체했다.**
+종전 블록은 백테스트 `9ceffa0f…` 를 넘겼는데 그 행은 **다른 사용자(`d1-…@dogfood.local`) 소유**라
+로그인 가능한 계정으로는 **404** 이고, 「스트레스 3건 존재」도 **그 id 기준 0건**이었다(3건은 다른
+백테스트 소유). 「id 찾는 데 시간 쓰지 마라」고 적은 블록이 정확히 그 시간을 태우게 돼 있었다.
 
 ```
-백테스트  9ceffa0f-4f1a-4265-8eee-ca0d874a2011   COMPLETED · metrics 있음 · 거래 14건
-전략      90b5febe-24fa-4fea-9083-8cb41c819c1e   "d1 run t1-B2" · parse ok
-옵티마이저 fd6a751c-3b3a-4213-b8d9-735ad899aa8f   COMPLETED · GRID_SEARCH
-스트레스   3건 존재 (backtest 상세의 「가정을 흔들어 보기」 패널이 빈 상태가 아니다)
-공유 토큰  1건 존재 — 값은 여기 안 적는다(공유 링크다). 조회:
+★한 줄이면 6종 중 4종이 열린다 — 아래 백테스트는 로그인 계정 소유다.
+백테스트  a4971a38-000b-4f13-b05c-3a8ba09b1f04
+          소유 e2e@dogfood.local · COMPLETED · 거래 77건
+          · 스트레스 2건(「가정을 흔들어 보기」 패널이 실제로 찬다)
+          · share_token 살아 있음(revoke 안 됨)
+          ⇒ /backtests/[id] · /backtests/[id]/trades · /share/backtests/[token] 셋을 덮는다
+전략      0d94167b-8c24-444b-a124-870a2a9f0243  소유 e2e@… · parse ok · 위 백테스트의 전략
+          ⇒ /strategies/[id]/edit
+옵티마이저 fd6a751c-3b3a-4213-b8d9-735ad899aa8f  소유 e2e@… · COMPLETED · GRID_SEARCH
+          ⇒ /optimizer/[id]
+공유 토큰  값은 여기 안 적는다(공유 링크다). 위 백테스트 행에서 조회:
   docker exec quantbridge-db psql -U quantbridge -d quantbridge -At \
-    -c "select share_token from backtests where share_token is not null and share_revoked_at is null limit 1;"
-초대 토큰  waitlist_applications 에서 같은 방식으로 조회
+    -c "select share_token from backtests where id='a4971a38-000b-4f13-b05c-3a8ba09b1f04';"
+★/invite/[token] 은 **픽스처가 없다** — `waitlist_applications` = 0행(실측). 그 화면을 실데이터로
+  보려면 행을 먼저 심어야 하고, 그것은 이 항목의 범위 밖이다. **6종 중 5종만 실데이터로 열린다.**
 ```
 
-★**어느 DB 인가 (2026-09-06 제로컨텍스트 검증에서 나온 구멍).** 위 id 는 **공유 앱 DB** 에 있다 —
-컨테이너 `quantbridge-db`(호스트 5433 → 컨테이너 5432), DB 이름 `quantbridge`. 위 명령은
-**컨테이너 이름으로 붙으므로 호스트 포트를 몰라도 된다.** 슬롯 pytest DB(`quantbridge_w1_test`)가
-**아니다** — 거기엔 이 행들이 없다. 컨테이너가 안 떠 있으면 **메인 체크아웃에서** 띄워라
-(`mise run up-isolated`) — 워크트리에서는 가드가 거부한다(`AGENTS.md` §3).
+★**소유자를 반드시 맞춰라** — 이 레포의 백테스트는 두 사용자에 걸쳐 있고, 로그인 가능한 계정은
+`e2e@dogfood.local` 하나다. 남의 행을 열면 **404 가 UI 결함처럼 보인다**(빈 화면·없는 리포트).
+검증 에이전트가 「제품에 BL 을 걸 뻔했다」고 적은 것이 그 지점이다.
 
 ★**로그인은 어떻게 하나 (같은 검증에서 나온 구멍).** 6종 중 **4종이 authed** 다.
 계정은 `apps/web/.env.local` 의 `E2E_AUTH_EMAIL` / `E2E_AUTH_PASSWORD` 다(값은 여기 안 적는다).
@@ -598,8 +606,14 @@
 **증상 (실측):** `.table-wrap` 은 `overflow-x` 만 갖고 내부에 포커스 가능한 요소가 없어
 **키보드 사용자가 넘친 열에 도달할 수 없다**(WCAG 2.1.1 · axe `scrollable-region-focusable`, serious).
 2026-09-06 스윕(25 라우트 × 5폭 × 2테마)이 실제로 걸린 **6곳**을 잡았고 그 6곳은
-`components/table-scroll-region.tsx` 로 수리했다. 그러나 `.table-wrap` 사용처는 **총 34곳**이고
+`components/table-scroll-region.tsx` 로 수리했다. 그러나 `.table-wrap` 사용처는 **총 34곳**(2026-09-06 최초 계수)이고
 나머지 **28곳**은 그 라우트/폭이 스윕에 안 걸렸을 뿐 같은 결함을 갖는다(데이터가 늘면 발화한다).
+★**재현 명령**(2026-09-06 검증이 「34 를 재현할 방법이 없다」고 지적해 추가) —
+```
+grep -rn 'className="table-wrap"' apps/web/src --include='*.tsx' | grep -v table-scroll-region | wc -l
+```
+= **28**(잔여). 여기에 이미 옮긴 6곳을 더하면 최초 34다. 파일 수는 **21**.
+
 **권장 접근:** 남은 28곳을 `TableScrollRegion` 으로 옮긴다. **기계적이지만 라벨은 사람이 정한다** —
 탭이 멈췄을 때 읽히는 이름이라 「표」 같은 총칭을 넣으면 고친 값이 없다.
 ★**axe 를 레포에 상주시킬지는 별도 결정**이다. 지금 axe 는 회차용 CDN 주입이었고 의존성 0건이다.
@@ -631,9 +645,17 @@
 같은 이원화가 위층에도 있다 — 스켈레톤 2벌(`.sk-*` vs `components/skeleton.tsx`) ·
 페이지 셸 2벌(`.page/.card/.section` vs `container mx-auto`) · 에러 UI 2벌(`StateBox` vs 원시 Tailwind).
 `/admin/waitlist` 는 캐논 클래스를 아예 안 쓴다.
-**권장 접근:** ★**KITPORT 를 직접 못 고친다** — `globals.css:966~1876` 은 `_kit.html` 과
-주석까지 대조된다(`design-canon-kit-port.test.ts`). 길은 둘뿐이다: ⑴ 1879줄 아래 언레이어드 오버라이드
-⑵ `_kit.html` + allowlist 를 함께 바꾸기. **그림자 라이트값 하나부터** 시작하는 것이 가장 싸다.
+**권장 접근:** ★**KITPORT 를 직접 못 고친다** — 센티넬은 `globals.css` **978~1888**(2026-09-06 실측 —
+종전 표기 `966~1876` 은 낡았다)이고 `_kit.html` 과 주석까지 대조된다(`design-canon-kit-port.test.ts`).
+길은 둘뿐이다: ⑴ **1888줄 아래** 언레이어드 오버라이드(종전 표기 「1879줄 아래」는 **가드 안쪽**이라
+그대로 따르면 빨개진다) ⑵ `_kit.html` + allowlist 를 함께 바꾸기.
+
+★★**「그림자 라이트값부터가 가장 싸다」는 함정이다(2026-09-06 검증에서 반증).** `--shadow` 는
+`globals.css:176` 로 **KITPORT 밖**이지만, **다른 테스트가 그것을 핀으로 잡는다** —
+`design-canon-tokens.test.ts` 의 `NON_COLOR_TOKENS`(`:69`)가 캐논 `:root` 와 앱 `:root` 의
+**값 동일**을 단언한다(`globals.css:172-175` 주석도 「variant-c.html :root 와 byte 동일」이라 적는다).
+⇒ 라이트값을 바꾸려면 **프로토타입 쪽도 함께** 움직이거나, `.dark` 재정의를 추가하는 방향
+(라이트 `:root` 값은 그대로 두고 다크에서 덮기)으로 가야 한다. **어느 쪽인지 먼저 정해라.**
 **Risk:** 🟡 (시각 변화가 전 화면에 걸린다 — 화면 증거 베이스라인 갱신이 따라온다)
 
 **상태:** 🔵 ACTIVE — 2026-09-06 등재, 미수리
