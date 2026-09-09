@@ -110,6 +110,11 @@ function expectMarkerProps(
 
 afterEach(() => vi.clearAllMocks());
 
+// [BL-859] 결과 화면 헤더가 전략명을 그리려 useStrategy 를 부른다 — 이 테스트는 QueryClient 가 없다.
+vi.mock("@/features/strategy/hooks", () => ({
+  useStrategy: () => ({ data: undefined, isLoading: false }),
+}));
+
 describe("[BL-817] 대시보드 동적 라우트 params", () => {
   it.each(ROUTE_CASES)("$name — 해석한 id를 실제 뷰 prop으로 그대로 전달한다", async (route) => {
     const html = await renderPage(route.page, LOWERCASE_UUID);

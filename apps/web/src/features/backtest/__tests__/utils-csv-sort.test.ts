@@ -25,7 +25,7 @@ describe("tradesToCsv (Sprint 30-δ)", () => {
     const lines = csv.slice(1).split("\n");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toBe(
-      "trade_index,direction,status,entry_time,exit_time,entry_price,exit_price,size,pnl,return_pct,fees,cumulative_pnl," +
+      "no,trade_index,direction,status,entry_time,exit_time,entry_price,exit_price,size,pnl,return_pct,fees,cumulative_pnl," +
         "runup_abs,drawdown_abs,bars_in_trade,fee_paid,slippage_paid,exit_kind,comment",
     );
   });
@@ -35,10 +35,10 @@ describe("tradesToCsv (Sprint 30-δ)", () => {
     const lines = csv.slice(1).split("\n");
     expect(lines).toHaveLength(3); // header + 2 rows
     const cols1 = lines[1]?.split(",") ?? [];
-    expect(cols1).toHaveLength(19); // 기존 12 + TV 확장 7 (null = 빈 값)
-    expect(cols1[11]).toBe("10.00000000");
+    expect(cols1).toHaveLength(20); // no + 기존 12 + TV 확장 7 (null = 빈 값)
+    expect(cols1[12]).toBe("10.00000000");
     const cols2 = lines[2]?.split(",") ?? [];
-    expect(cols2[11]).toBe("7.00000000"); // cumulative: 10 + (-3)
+    expect(cols2[12]).toBe("7.00000000"); // cumulative: 10 + (-3)
   });
 
   it("BOM 으로 시작 + LF 줄바꿈 (CRLF 아님)", () => {
@@ -51,8 +51,8 @@ describe("tradesToCsv (Sprint 30-δ)", () => {
   it("non-finite pnl 은 0 처리 (cumulative 안전)", () => {
     const csv = tradesToCsv([T({ pnl: Number.NaN })]);
     const cols = csv.slice(1).split("\n")[1]?.split(",") ?? [];
-    expect(cols[8]).toBe("0"); // pnl
-    expect(cols[11]).toBe("0.00000000"); // cumulative
+    expect(cols[9]).toBe("0"); // pnl
+    expect(cols[12]).toBe("0.00000000"); // cumulative
   });
 });
 

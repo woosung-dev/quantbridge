@@ -76,11 +76,34 @@ export const MOCK_CLOSED_TRADE = {
  * `trades` 를 주면 거래 목록이 그 배열로 응답한다(기본 빈 배열). `/backtests/[id]` 는
  * 클라이언트 페치라 `page.route` mock 이 서버 prefetch 를 이긴다.
  */
+// [BL-859] 결과 화면 헤더가 전략명 칩을 그리려 `GET /strategies/:id` 를 한 번 부른다.
+//   mock 전략 id 는 DB 에 없으므로 이 fixture 가 응답을 대신 준다 — 안 주면 404 가 콘솔에 남아
+//   「콘솔 에러 0건」 단언이 깨진다(2026-09-10 실측).
+export const MOCK_STRATEGY_DETAIL = {
+  id: MOCK_STRATEGY_ID,
+  name: "Mock EMA Crossover",
+  description: null,
+  pine_source: '//@version=5\nstrategy("Mock EMA Crossover")',
+  pine_version: "v5",
+  parse_status: "ok",
+  parse_errors: null,
+  timeframe: "1h",
+  symbol: "BTC/USDT",
+  tags: [],
+  trading_sessions: [],
+  settings: null,
+  pine_declared_qty: null,
+  is_archived: false,
+  created_at: "2026-05-01T00:00:00+00:00",
+  updated_at: "2026-05-01T00:00:00+00:00",
+} as const;
+
 export function routeBacktestDetail(
   page: Page,
   detail: typeof MOCK_BACKTEST_DETAIL,
   trades: Array<typeof MOCK_CLOSED_TRADE> = [],
 ) {
+  void page.route(`**/api/v1/strategies/${MOCK_STRATEGY_ID}`, fulfillJson(MOCK_STRATEGY_DETAIL));
   return page.route(API_ROUTES.backtests, (route, request) => {
     const url = request.url();
     if (url.includes(`${MOCK_BACKTEST_ID}/trades`)) {

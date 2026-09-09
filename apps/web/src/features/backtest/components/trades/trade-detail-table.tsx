@@ -112,7 +112,8 @@ export function TradeDetailTable({
     return base.filter((t) => {
       if (debouncedSearch.trim() !== "") {
         const q = debouncedSearch.trim().toLowerCase();
-        const idxStr = t.trade_index.toString();
+        // [BL-860] 화면 번호는 1-based(리포트 원장과 같은 기준). 검색어도 그 번호로 받는다.
+        const idxStr = (t.trade_index + 1).toString();
         // 번호 / 원시 enum(long·short) / 한국어 방향 라벨(롱·숏) 모두 검색 대상.
         const dirLabel = TRADE_DIRECTION_LABEL[t.direction];
         if (
@@ -317,7 +318,7 @@ export function TradeDetailTable({
                     onClick={() => handleToggleExpand(t.trade_index)}
                     data-direction={t.direction}
                   >
-                    <td className="num">{t.trade_index}</td>
+                    <td className="num">{t.trade_index + 1}</td>
                     <td>
                       <span className={sideClass}>{TRADE_DIRECTION_LABEL[t.direction]}</span>
                     </td>

@@ -5,6 +5,7 @@ import { getApiBase } from "@/lib/api-base";
 import { BacktestDetailSchema, type BacktestDetail } from "@/features/backtest/schemas";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import { deriveTradeCounts } from "@/features/backtest/trade-counts";
+import { AssumptionsCard } from "@/features/backtest/components/assumptions-card";
 
 import { ShareNotFoundState } from "@/features/backtest/components/share/share-not-found-state";
 import { SharePublicBanner } from "@/features/backtest/components/share/share-public-banner";
@@ -61,6 +62,10 @@ export async function SharedBacktestPage({ token }: { token: string }) {
 
   const bt = result.data;
   const m = bt.metrics ?? null;
+  // [BL-862] 색 규칙은 리포트와 같다 — 부호가 의미를 갖는 값(수익률·샤프)에만 부호색, 낙폭은 중립.
+  const totalReturn = m ? toNum(m.total_return) : null;
+  const sharpe = m ? describeSharpe(m.sharpe_convention, toNum(m.sharpe_ratio)) : null;
+  const sharpeValue = m ? toNum(m.sharpe_ratio) : null;
   return (
     <>
       <SharePublicBanner />
@@ -77,12 +82,17 @@ export async function SharedBacktestPage({ token }: { token: string }) {
         {m ? (
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "총 수익률", value: `${pct(toNum(m.total_return))}%` },
+              {
+                label: "총 수익률",
+                value: signedPct(totalReturn),
+                tone: toneOf(totalReturn),
+              },
               {
                 label: "Sharpe",
                 // 공개 표면이라 더 중요하다 — degenerate 실행을 `0.00` 으로 내보내면
                 // 링크를 받은 사람은 검증할 방법이 없다.
-                value: describeSharpe(m.sharpe_convention, toNum(m.sharpe_ratio)).display,
+                value: sharpe?.display ?? "—",
+                tone: sharpe?.isUnavailable ? "neutral" : toneOf(sharpeValue),
               },
               { label: "MDD", value: `${pct(toNum(m.max_drawdown))}%` },
               {
@@ -97,6 +107,7 @@ export async function SharedBacktestPage({ token }: { token: string }) {
                 key={stat.label}
                 label={stat.label}
                 value={stat.value}
+                tone={stat.tone}
                 animationDelay={idx * 70}
               />
             ))}
@@ -116,6 +127,31 @@ export async function SharedBacktestPage({ token }: { token: string }) {
             <EquitySparkline points={bt.equity_curve} />
           </section>
         ) : null}
+
+        {/* [BL-861] 랜딩 원칙 04 — 「가정을 모르면 수익률도 읽을 수 없다」. 로그인 리포트의 §09 를 그대로 싣는다.
+            맥락이 0인 외부인에게 가장 필요한 블록인데 이 화면만 빼고 있었다. */}
+        <section
+          className="mt-6 rounded-lg border bg-card p-4 motion-safe:animate-[sharePopIn_320ms_ease-out_300ms_both]"
+          aria-label="가정과 데이터 출처"
+          data-testid="share-assumptions"
+        >
+          <h2 className="mb-1 text-sm font-medium">가정과 데이터 출처</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            숫자를 믿으려면 조건을 먼저 봐야 합니다. 이 실행에 적용된 가정을 그대로 적습니다.
+          </p>
+          <AssumptionsCard
+            initialCapital={bt.initial_capital}
+            config={bt.config}
+            totalFees={m?.total_fees ?? null}
+            totalSlippage={m?.total_slippage ?? null}
+            totalFunding={m?.total_funding ?? null}
+            fundingDataIncomplete={m?.funding_data_incomplete ?? null}
+            periodStart={bt.period_start}
+            periodEnd={bt.period_end}
+            ranAt={bt.completed_at}
+            warnings={bt.warnings}
+          />
+        </section>
 
         <footer className="mt-10 flex flex-col items-center gap-3 rounded-lg border bg-muted/40 p-6 text-center motion-safe:animate-[sharePopIn_320ms_ease-out_360ms_both]">
           <p className="text-sm text-muted-foreground">
@@ -145,13 +181,28 @@ function CenteredCard({ title, body }: { title: string; body: string }) {
   );
 }
 
+type Tone = "pos" | "neg" | "neutral";
+
+function toneOf(v: number | null): Tone {
+  if (v == null) return "neutral";
+  return v > 0 ? "pos" : v < 0 ? "neg" : "neutral";
+}
+
+function signedPct(v: number | null): string {
+  if (v == null) return "—";
+  const p = (v * 100).toFixed(2);
+  return v > 0 ? `+${p}%` : `${p}%`;
+}
+
 function Stat({
   label,
   value,
+  tone = "neutral",
   animationDelay = 0,
 }: {
   label: string;
   value: string;
+  tone?: Tone;
   animationDelay?: number;
 }) {
   return (
@@ -162,7 +213,12 @@ function Stat({
       <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 font-mono text-base font-semibold">{value}</p>
+      <p
+        className={`mt-1 font-mono text-base font-semibold${tone === "pos" ? " text-bullish" : tone === "neg" ? " text-bearish" : ""}`}
+        data-tone={tone}
+      >
+        {value}
+      </p>
     </div>
   );
 }

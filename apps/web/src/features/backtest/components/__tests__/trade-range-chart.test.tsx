@@ -127,7 +127,7 @@ describe("TradeRangeChart", () => {
       { time: "2026-01-01T01:00:00Z", value: 103 },
     ]);
     expect(props.markers).toHaveLength(2);
-    expect(screen.getByLabelText(/12번 거래 구간의 1h 봉 가격 차트/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/13번 거래 구간의 1h 봉 가격 차트/)).toBeInTheDocument();
   });
 
   it("stride가 1보다 크면 표본 간격 안내를 표시한다", () => {
