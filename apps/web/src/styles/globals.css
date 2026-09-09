@@ -4125,3 +4125,16 @@ a.chip:focus-visible {
 .qb-mobile-nav .account-sub {
   display: block;
 }
+
+/* ==========================================================================
+ * [BL-853] 라이트 테마 그림자 — 캐논 `--shadow`/`--shadow-hi` 는 다크 프로토타입(variant-c)
+ *   값이고 `:root` 는 `design-canon-tokens.test.ts` NON_COLOR_TOKENS 가 캐논과 byte 동일을
+ *   핀으로 잡는다. 그래서 `:root` 는 건드리지 않고 **라이트에서만** 덮는다(KITPORT 밖 · 언레이어드).
+ *   착수 전 실측: 라이트 카드가 rgba(0,0,0,.55)+.8 을 써 같은 페이지 shadcn 카드(`--card-shadow`
+ *   알파 .06)와 약 10배 차이 — 잉크 색(23,26,30)과 알파 계열을 `--card-shadow` 와 맞춘다.
+ *   테마 클래스는 `<html class="dark">`(next-themes attribute="class") 하나다.
+ * ========================================================================== */
+html:not(.dark) {
+  --shadow: 0 1px 2px rgba(23, 26, 30, 0.06), 0 10px 26px -14px rgba(23, 26, 30, 0.18);
+  --shadow-hi: 0 1px 2px rgba(23, 26, 30, 0.08), 0 16px 34px -16px rgba(23, 26, 30, 0.24);
+}

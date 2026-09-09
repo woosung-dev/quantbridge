@@ -25,6 +25,7 @@ import { formatObjectiveValue } from "@/features/optimizer/format";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 import type { OptimizationRunResponse, OptimizationStatus } from "@/features/optimizer/schemas";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/optimizer/runs";
@@ -182,7 +183,7 @@ export function OptimizerRunList({
           />
         </div>
       ) : (
-        <div className="table-wrap">
+        <TableScrollRegion label="최적화 실행 목록 표">
           <table className="trades opt-table" aria-label={`최적화 실행 목록 ${items.length}건`}>
             <thead>
               <tr>
@@ -253,7 +254,7 @@ export function OptimizerRunList({
               })}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
       )}
 
       {/* 표 아래 ETA 미표시 안내 — 이 화면의 가장 중요한 문장 (§4.9 인쇄 금지 근거). */}

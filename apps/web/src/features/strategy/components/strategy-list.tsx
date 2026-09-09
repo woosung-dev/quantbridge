@@ -39,6 +39,7 @@ import type { BacktestMetricsSummary } from "@/features/backtest/schemas";
 import { StateBox } from "@/components/state-box";
 import { StatValue } from "@/components/stat-value";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 const PAGE_SIZE = 20;
 const SKELETON_ROW_KEYS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
@@ -413,7 +414,7 @@ export function StrategyList() {
               </StateBox>
             </div>
           ) : (
-            <div className="table-wrap">
+            <TableScrollRegion label="전략 목록 표">
               <table className="trades runs-table" aria-label={`전략 목록 ${filtered.length}개`}>
                 <thead>
                   <tr>
@@ -512,7 +513,7 @@ export function StrategyList() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableScrollRegion>
           )}
         </div>
       </section>

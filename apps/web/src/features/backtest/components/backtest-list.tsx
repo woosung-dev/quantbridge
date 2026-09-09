@@ -38,6 +38,7 @@ import { useStrategies } from "@/features/strategy/hooks";
 import { StateBox } from "@/components/state-box";
 import { StatValue } from "@/components/stat-value";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/backtests";
@@ -303,7 +304,7 @@ export function BacktestList() {
             </div>
           ) : (
             <>
-              <div className="table-wrap">
+              <TableScrollRegion label="백테스트 실행 목록 표">
                 <table
                   className="trades runs-table"
                   aria-label={`백테스트 실행 목록 ${filtered.length}건`}
@@ -428,7 +429,7 @@ export function BacktestList() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </TableScrollRegion>
               {hasMixedSharpeConventions ? (
                 <p className="runs-summary" data-testid="backtest-sharpe-sort-notice">
                   구 기준 샤프는 현재 기준과 비교할 수 없어 정렬 시 비교 가능한 결과 뒤로

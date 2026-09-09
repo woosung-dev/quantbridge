@@ -16,6 +16,7 @@ import { StateBox } from "@/components/state-box";
 import { useGenerateStrategy } from "@/features/strategy/hooks";
 import { hasDrift } from "@/features/strategy/schemas";
 import { CHIP_TONE_CLASS } from "@/lib/labels";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 // 서버 계약(`GenerateStrategyRequest`)과 **같은 수**여야 한다. 어긋나면 화면이 통과시킨 입력이 422 가 된다.
 const PROMPT_MIN = 10;
@@ -154,11 +155,11 @@ export function GenerateWithAI({
             </div>
           ) : null}
 
-          <div className="table-wrap">
+          <TableScrollRegion label="생성된 Pine 소스">
             <pre className="python-view">
               <code>{result.pine_source}</code>
             </pre>
-          </div>
+          </TableScrollRegion>
 
           <button
             type="button"
