@@ -84,8 +84,8 @@ export function TradeRangeChart({ backtestId, tradeIndex, trade }: TradeRangeCha
   const entryPrice = formatCurrency(trade.entry_price);
   const ariaLabel =
     data.exit_time && trade.exit_price !== null
-      ? `${trade.trade_index}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입해 ${formatDateTime(data.exit_time)}에 ${formatCurrency(trade.exit_price)}에 청산했습니다.`
-      : `${trade.trade_index}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입한 뒤 아직 청산하지 않았습니다.`;
+      ? `${trade.trade_index + 1}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입해 ${formatDateTime(data.exit_time)}에 ${formatCurrency(trade.exit_price)}에 청산했습니다.`
+      : `${trade.trade_index + 1}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입한 뒤 아직 청산하지 않았습니다.`;
   // 청산된 거래는 보유 봉 수, 미청산(open) 거래는 bars_in_trade 가 null 이므로 "보유 중" 으로 표기.
   const holdLabel =
     trade.bars_in_trade != null ? `보유 ${trade.bars_in_trade}봉` : "미청산(보유 중)";

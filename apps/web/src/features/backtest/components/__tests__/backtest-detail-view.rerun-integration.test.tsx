@@ -76,6 +76,11 @@ beforeEach(() => {
   detailData = { ...BASE_DETAIL };
 });
 
+// [BL-859] 결과 화면 헤더가 전략명을 그리려 useStrategy 를 부른다 — 이 테스트는 QueryClient 가 없다.
+vi.mock("@/features/strategy/hooks", () => ({
+  useStrategy: () => ({ data: undefined, isLoading: false }),
+}));
+
 describe("BacktestDetailView — RerunButton 연결", () => {
   it.each(["queued", "running", "cancelling"] as const)(
     "effectiveStatus=%s 이면 재실행 버튼이 비활성화",

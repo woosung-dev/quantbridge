@@ -98,6 +98,11 @@ beforeEach(() => {
   detailData = { ...COMPLETED_DETAIL };
 });
 
+// [BL-859] 결과 화면 헤더가 전략명을 그리려 useStrategy 를 부른다 — 이 테스트는 QueryClient 가 없다.
+vi.mock("@/features/strategy/hooks", () => ({
+  useStrategy: () => ({ data: undefined, isLoading: false }),
+}));
+
 describe("BacktestDetailView — AssumptionsCard 공통 lift-up (Sprint 50, codex P1#3)", () => {
   it("status=completed + metrics 시 AssumptionsCard 가 정확히 1회만 렌더 (Tabs 외부)", () => {
     render(<BacktestDetailView id="abc12345-1111-1111-1111-111111111111" />);

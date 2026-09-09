@@ -18,6 +18,11 @@ vi.mock("@/features/backtest/components/trades/trade-detail-shell", () => ({
 
 import BacktestTradesPage from "../trades/page";
 
+// [BL-859] 결과 화면 헤더가 전략명을 그리려 useStrategy 를 부른다 — 이 테스트는 QueryClient 가 없다.
+vi.mock("@/features/strategy/hooks", () => ({
+  useStrategy: () => ({ data: undefined, isLoading: false }),
+}));
+
 describe("BacktestTradesPage — UUID 검증", () => {
   it("정상 UUID → 정상 렌더 (notFound 호출되지 않음)", async () => {
     const validUuid = "550e8400-e29b-41d4-a716-446655440000";

@@ -124,6 +124,11 @@ beforeEach(() => {
   runResult = { data: undefined, isLoading: false, error: null, refetch: vi.fn() };
 });
 
+// [BL-859] 결과 화면 헤더가 전략명을 그리려 useStrategy 를 부른다 — 이 테스트는 QueryClient 가 없다.
+vi.mock("@/features/strategy/hooks", () => ({
+  useStrategy: () => ({ data: undefined, isLoading: false }),
+}));
+
 describe("OptimizerRunList — C 시맨틱 구조 (screen-09 02 목록)", () => {
   it("스켈레톤 상태 — .sk 셀 렌더", () => {
     runsResult = { data: undefined, isLoading: true, error: null, refetch: vi.fn() };
