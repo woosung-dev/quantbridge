@@ -17,6 +17,7 @@ import { useDebouncedValue } from "@/features/strategy/utils";
 import { StrategyBriefPanel } from "@/features/strategy/components/brief/strategy-brief";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 type DiagTab = "brief" | "parse" | "param" | "indicator";
 const PARSE_ENDPOINT_TEMPLATE = "POST /api/v1/strategies/parse";
@@ -310,7 +311,7 @@ function ParameterTable({ inputs }: { inputs: readonly InputDecl[] }) {
 
   return (
     <>
-      <div className="table-wrap">
+      <TableScrollRegion label="전략 파라미터 표">
         <table className="trades" aria-label={`파라미터 ${inputs.length}개`}>
           <thead>
             <tr>
@@ -349,7 +350,7 @@ function ParameterTable({ inputs }: { inputs: readonly InputDecl[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableScrollRegion>
       <p className="strip-note">
         {`${inputs.length}개 중 ${sweepable}개를 최적화·파라미터 안정성 분석에서 스윕할 수 있습니다. `}
         나머지는 백테스트에서 기본값으로 실행됩니다.

@@ -7,6 +7,7 @@ import { OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
 import { formatObjectiveValue } from "@/features/optimizer/format";
 import type { GeneticSearchResult } from "@/features/optimizer/schemas";
 import { EMPTY_CELL } from "@/lib/labels";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 interface Props {
   result: GeneticSearchResult;
@@ -63,7 +64,7 @@ export function GeneticBestParamsTable({ result }: Props) {
               </span>
             </span>
           </p>
-          <div className="table-wrap">
+          <TableScrollRegion label="유전 알고리즘 최적 파라미터 표">
             <table className="trades" aria-label="최적 파라미터">
               <thead>
                 <tr>
@@ -82,7 +83,7 @@ export function GeneticBestParamsTable({ result }: Props) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScrollRegion>
         </>
       )}
     </div>

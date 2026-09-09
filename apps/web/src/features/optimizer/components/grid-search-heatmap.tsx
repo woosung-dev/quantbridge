@@ -10,6 +10,7 @@ import { OPTIMIZER_EMPTY_REASON } from "@/features/optimizer/labels";
 import { InfoIcon } from "@/components/info-icon";
 import { EMPTY_CELL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 interface Props {
   result: GridSearchResult;
@@ -75,7 +76,7 @@ export function GridSearchHeatmap({ result, pair }: Props) {
     result.best_cell_index !== null ? result.cells[result.best_cell_index]?.param_values : null;
 
   return (
-    <div className="table-wrap">
+    <TableScrollRegion label="그리드 탐색 히트맵">
       <table className="hm" aria-label={`그리드 히트맵 (${rowName} × ${colName})`}>
         <caption className="card-sub" style={{ textAlign: "left", padding: "4px 0 8px" }}>
           가로축 {colName}, 세로축 {rowName}. 칸 안 숫자는{" "}
@@ -162,6 +163,6 @@ export function GridSearchHeatmap({ result, pair }: Props) {
             .join(", ")}
         </p>
       ) : null}
-    </div>
+    </TableScrollRegion>
   );
 }

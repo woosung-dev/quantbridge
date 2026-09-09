@@ -41,6 +41,7 @@ import {
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 import { WorkspaceEquityCard } from "./workspace-equity-card";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 const RECENT_RUNS_LIMIT = 8;
 const STRATEGY_FETCH_LIMIT = 100;
@@ -362,7 +363,7 @@ export function DashboardCockpit() {
               </StateBox>
             </div>
           ) : (
-            <div className="table-wrap">
+            <TableScrollRegion label="최근 실행 표">
               <table className="trades runs-table" aria-label={`최근 실행 ${recentRuns.length}건`}>
                 <thead>
                   <tr>
@@ -392,7 +393,7 @@ export function DashboardCockpit() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScrollRegion>
           )}
 
           <div className="pager">

@@ -21,6 +21,7 @@ import {
   tradesToCsv,
 } from "@/features/backtest/utils";
 import { EMPTY_CELL } from "@/lib/labels";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 // 리포트 미리보기 상한. 전체 원장은 /backtests/[id]/trades 가 담당한다.
 const PREVIEW_LIMIT = 25;
@@ -105,7 +106,7 @@ export function TradeLedgerTable({ trades, filenamePrefix = "trades" }: TradeLed
         </div>
       </div>
 
-      <div className="table-wrap">
+      <TableScrollRegion label="거래 목록 미리보기 표">
         <table className="trades" aria-label={`거래 목록 ${shown.length}건`}>
           <thead>
             <tr>
@@ -145,7 +146,7 @@ export function TradeLedgerTable({ trades, filenamePrefix = "trades" }: TradeLed
             )}
           </tbody>
         </table>
-      </div>
+      </TableScrollRegion>
 
       <div className="pager">
         <span>

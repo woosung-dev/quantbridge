@@ -13,6 +13,7 @@ import { StateBox } from "@/components/state-box";
 import { isBybitDemoAccount } from "../account-policy";
 import { useDeleteExchangeAccount, useExchangeAccounts } from "../hooks";
 import { RegisterExchangeAccountDialog } from "./register-exchange-account-dialog";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 // Demo/Live 배지 — data-tone 은 globals.css [data-tone] 규칙이 색을 결정(리터럴 팔레트 금지).
 // 톤은 리스크 서사를 따른다(2026-08-18 감사): 데모 = 안전 기본이라 중립 상시 배지,
@@ -103,7 +104,7 @@ export function ExchangeAccountsPanel() {
           />
         </div>
       ) : (
-        <div className="table-wrap">
+        <TableScrollRegion label="거래소 계정 목록 표">
           <table className="trades" aria-label={`거래소 계정 ${data.length}개`}>
             <thead>
               <tr>
@@ -160,7 +161,7 @@ export function ExchangeAccountsPanel() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
       )}
     </div>
   );

@@ -50,6 +50,7 @@ import type { Order } from "@/features/trading/schemas";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 import { OrderDetailDrawer } from "./order-detail-drawer";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 const FETCH_LIMIT = 200;
 const PAGE_SIZE = 10;
@@ -473,7 +474,7 @@ export function OrdersBlotter() {
             </div>
           ) : (
             <>
-              <div className="table-wrap">
+              <TableScrollRegion label="주문 원장 표">
                 <table
                   className="trades orders-table"
                   aria-label={`주문 원장 ${filtered.length}건, 시각 내림차순`}
@@ -520,7 +521,7 @@ export function OrdersBlotter() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableScrollRegion>
 
               <p className="chart-note table-foot-note">
                 <InfoIcon aria-hidden="true" />

@@ -44,6 +44,7 @@ import { GeneticGenerationChart } from "./genetic-generation-chart";
 import { GridSearchPairSelector } from "./grid-search-pair-selector";
 import { OptimizerOosEvaluation } from "./optimizer-oos-evaluation";
 import { ParameterStabilitySection } from "./parameter-stability-section";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 const DETAIL_ENDPOINT = "GET /api/v1/optimizer/runs";
 
@@ -349,7 +350,7 @@ function GridResult({ result }: { result: GridSearchResult }) {
             </p>
           </div>
         </div>
-        <div className="table-wrap">
+        <TableScrollRegion label="조합 순위표">
           <table className="trades" aria-label={`조합 순위표 ${result.cells.length}행`}>
             <thead>
               <tr>
@@ -430,7 +431,7 @@ function GridResult({ result }: { result: GridSearchResult }) {
               })}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
       </div>
 
       {/* 04 히트맵 — 같은 값을 히트맵 배치로 다시 본다 (이중 렌더). */}
@@ -481,7 +482,7 @@ function BayesianResult({ result }: { result: BayesianSearchResult }) {
         </div>
       </div>
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="table-wrap">
+        <TableScrollRegion label="베이지안 반복 이력 표">
           <table className="trades" aria-label={`베이지안 반복 ${result.iterations.length}행`}>
             <thead>
               <tr>
@@ -530,7 +531,7 @@ function BayesianResult({ result }: { result: BayesianSearchResult }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
       </div>
     </section>
   );
@@ -557,7 +558,7 @@ function GeneticResult({ result }: { result: GeneticSearchResult }) {
         </div>
       </div>
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="table-wrap">
+        <TableScrollRegion label="유전 알고리즘 세대 이력 표">
           <table className="trades" aria-label={`유전 알고리즘 반복 ${result.iterations.length}행`}>
             <thead>
               <tr>
@@ -608,7 +609,7 @@ function GeneticResult({ result }: { result: GeneticSearchResult }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
       </div>
     </section>
   );

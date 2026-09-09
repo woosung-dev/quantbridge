@@ -33,6 +33,7 @@ import {
   countActiveFilters,
 } from "@/features/backtest/components/trades/trade-filter-row";
 import { TradeRangeChart } from "@/features/backtest/components/trades/trade-range-chart";
+import { TableScrollRegion } from "@/components/table-scroll-region";
 
 const PAGE_SIZE = 50;
 // BL-665 — 검색 디바운스. 선례는 diagnostics-strip(500ms)·new-strategy-wizard(300ms) 인데
@@ -271,7 +272,7 @@ export function TradeDetailTable({
           </StateBox>
         </div>
       ) : (
-        <div className="table-wrap">
+        <TableScrollRegion label="거래 내역 표">
           <table className="trades" aria-label={`거래 내역 ${filtered.length}건`}>
             <thead>
               <tr>
@@ -376,7 +377,7 @@ export function TradeDetailTable({
               })}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
       )}
 
       {!isLoading && !isError && filtered.length > 0 ? (
