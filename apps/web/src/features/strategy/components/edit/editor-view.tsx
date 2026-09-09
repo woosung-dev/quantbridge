@@ -192,6 +192,14 @@ export function EditorView({ id }: { id: string }) {
               <RotateCcwIcon aria-hidden="true" />
               되돌리기
             </button>
+            {/* [BL-859] 부모→자식 — 이 전략으로 이미 돌린 실행 목록. 종전엔 새 실행 폼으로만 갈 수 있었다. */}
+            <Link
+              className="btn btn-ghost"
+              href={`/backtests?strategy_id=${strategy.id}`}
+              data-testid="editor-backtests-link"
+            >
+              이 전략의 백테스트
+            </Link>
             <Link className="btn" href={`/backtests/new?strategy_id=${strategy.id}`}>
               <PlayIcon aria-hidden="true" />
               백테스트 실행

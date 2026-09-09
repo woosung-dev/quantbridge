@@ -96,6 +96,8 @@ export function formatTimeSeconds(iso: string): string {
  */
 export function tradesToCsv(trades: readonly TradeItem[]): string {
   const headers = [
+    // [BL-860] 화면(리포트·원장)이 붙이는 1-based 번호. trade_index 는 원시 0-based 그대로 둔다.
+    "no",
     "trade_index",
     "direction",
     "status",
@@ -126,6 +128,7 @@ export function tradesToCsv(trades: readonly TradeItem[]): string {
     cumulative += pnl;
 
     const row = [
+      String(t.trade_index + 1),
       String(t.trade_index),
       t.direction,
       t.status,

@@ -78,6 +78,8 @@ export function BacktestList() {
   const statusParam = searchParams.get("status") ?? "all";
   const orderByParam = searchParams.get("order_by");
   const orderParam = searchParams.get("order");
+  // [BL-859] 전략 편집기에서 「이 전략의 백테스트」로 들어오는 문. 현재 페이지 안에서만 거른다(status 와 같은 한계).
+  const strategyParam = searchParams.get("strategy_id");
   const activeStatus: "all" | BacktestStatus = STATUS_FILTERS.some((f) => f.id === statusParam)
     ? (statusParam as "all" | BacktestStatus)
     : "all";
@@ -110,7 +112,11 @@ export function BacktestList() {
   // total > items.length 면 후속 페이지의 매칭이 누락 → chip(전체 제외) 비활성 + 안내 문구 표시.
   const total = data?.total ?? 0;
   const hasMorePages = total > items.length;
-  const filtered = activeStatus === "all" ? items : items.filter((b) => b.status === activeStatus);
+  const statusFiltered =
+    activeStatus === "all" ? items : items.filter((b) => b.status === activeStatus);
+  const filtered = strategyParam
+    ? statusFiltered.filter((b) => b.strategy_id === strategyParam)
+    : statusFiltered;
   const counts = useMemo(() => buildStatusCounts(items), [items]);
   const hasMixedSharpeConventions =
     orderBy === "sharpe_ratio" &&
@@ -125,6 +131,13 @@ export function BacktestList() {
     const params = new URLSearchParams(searchParams.toString());
     if (id === "all") params.delete("status");
     else params.set("status", id);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const clearStrategy = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("strategy_id");
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   };
@@ -247,6 +260,18 @@ export function BacktestList() {
             <span className="mono">{counts.failed}</span> · 취소{" "}
             <span className="mono">{counts.cancelled}</span>
           </p>
+          {strategyParam ? (
+            <p className="runs-summary" data-testid="backtest-strategy-filter">
+              전략{" "}
+              <span className="mono">
+                {strategyNameById.get(strategyParam) ?? strategyParam.slice(0, 8)}
+              </span>{" "}
+              의 실행만 보고 있습니다.{" "}
+              <button className="btn btn-ghost btn-xs" type="button" onClick={clearStrategy}>
+                전체 보기
+              </button>
+            </p>
+          ) : null}
           {hasMorePages ? (
             <p className="runs-summary" data-testid="backtest-filter-notice">
               현재 페이지(20건)만 필터됩니다. Beta 에 서버 필터가 추가될 예정입니다.

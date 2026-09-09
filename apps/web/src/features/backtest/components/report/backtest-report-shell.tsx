@@ -9,7 +9,8 @@
 // trades 는 useAllBacktestTrades(200-cap 해소) 1회 로드 후 전 섹션 공유.
 
 import { useEffect, type ReactNode } from "react";
-import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
+import { AlertTriangleIcon, ArrowRightIcon, RefreshCwIcon } from "lucide-react";
+import Link from "next/link";
 
 import { StateBox } from "@/components/state-box";
 import { useAllBacktestTrades } from "@/features/backtest/hooks";
@@ -185,6 +186,17 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
         ariaLabel="거래 내역"
         id="trades"
       >
+        {/* [BL-859] desc 가 「상세 보기에서 확인합니다」라고 가리키는 그 화면으로 가는 문. 종전엔 0건이었다. */}
+        <p className="section-desc" style={{ marginBottom: 12 }}>
+          <Link
+            className="btn btn-ghost btn-xs"
+            href={`/backtests/${currentId}/trades`}
+            data-testid="report-trades-link"
+          >
+            전체 원장 보기
+            <ArrowRightIcon aria-hidden="true" />
+          </Link>
+        </p>
         {trades.isLoading ? (
           <TradeSkeleton />
         ) : trades.isError ? (

@@ -71,6 +71,16 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
 
   const recoveryDays = m.excursion_stats?.max_drawdown_recovery_days ?? null;
   const sharpe = describeSharpe(m.sharpe_convention, m.sharpe_ratio);
+  // [BL-862] 색 규칙 하나 — 「부호가 의미를 갖는 값에만」 색을 싣는다. 최대 낙폭은 항상 음수라
+  // 빨강이 정보를 0 나르고(중립), 샤프의 부호는 이 실행의 가장 중요한 신호다(부호색).
+  const sharpeTone: Tone =
+    sharpe.isUnavailable || m.sharpe_ratio == null
+      ? "neutral"
+      : m.sharpe_ratio > 0
+        ? "pos"
+        : m.sharpe_ratio < 0
+          ? "neg"
+          : "neutral";
 
   const mddCaption = buildMddCaption({
     leverage: config?.leverage ?? 1,
@@ -115,7 +125,7 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
       <KpiCard
         label="최대 낙폭"
         value={signedPct(m.max_drawdown)}
-        tone="neg"
+        tone="neutral"
         testId="kpi-max-drawdown"
         foot={
           recoveryDays != null ? (
@@ -127,7 +137,13 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
           )
         }
       />
-      <KpiCard label="샤프 지수" value={sharpe.display} testId="kpi-sharpe" foot={sharpe.foot} />
+      <KpiCard
+        label="샤프 지수"
+        value={sharpe.display}
+        tone={sharpeTone}
+        testId="kpi-sharpe"
+        foot={sharpe.foot}
+      />
     </ul>
   );
 }

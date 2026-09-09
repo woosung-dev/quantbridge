@@ -17,6 +17,7 @@ import { extractBestParams } from "@/features/optimizer/best-params";
 import { formatObjectiveValue } from "@/features/optimizer/format";
 import { formatPercent } from "@/features/backtest/utils";
 import { useOptimizationRun } from "@/features/optimizer/hooks";
+import { useStrategy } from "@/features/strategy/hooks";
 import {
   BAYESIAN_PHASE_LABEL,
   BAYESIAN_PRIOR_LABEL,
@@ -62,6 +63,8 @@ function pnlClass(v: number): string {
 
 export function OptimizerRunDetail({ runId }: { runId: string }) {
   const { data, isLoading, error, refetch } = useOptimizationRun(runId);
+  // [BL-859] 어느 전략의 탐색인지 — 응답의 strategy_id 는 nullable 이라 없으면 칩을 그리지 않는다.
+  const strategyQ = useStrategy(data?.strategy_id ?? undefined);
 
   if (isLoading) {
     return (
@@ -139,6 +142,16 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
               >
                 백테스트 {data.backtest_id.slice(0, 8)}
               </Link>
+              {data.strategy_id ? (
+                <Link
+                  className="chip"
+                  href={`/strategies/${data.strategy_id}/edit`}
+                  title="전략 편집기로 이동"
+                  data-testid="optimizer-strategy-chip"
+                >
+                  {strategyQ.data?.name ?? `전략 ${data.strategy_id.slice(0, 8)}`}
+                </Link>
+              ) : null}
             </div>
           </div>
         </div>
