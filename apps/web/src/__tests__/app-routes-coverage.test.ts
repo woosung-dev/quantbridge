@@ -16,7 +16,6 @@
 
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-// @ts-expect-error — 커밋된 .mjs 유틸(타입 선언 없음). 런타임 계약은 이 파일이 집행한다.
 import {
   isDynamic,
   listAppRoutes,
@@ -69,7 +68,7 @@ const UNREVIEWED: Record<string, string> = {
 };
 
 describe("[BL-856] 화면 리뷰 커버리지", () => {
-  const routes: string[] = listAppRoutes(APP_DIR);
+  const routes = listAppRoutes(APP_DIR);
 
   it("앱이 라우트를 갖고 있다 — 글롭이 조용히 0을 돌려주면 이 래칫은 아무것도 안 잰다", () => {
     expect(routes.length).toBeGreaterThan(20);
