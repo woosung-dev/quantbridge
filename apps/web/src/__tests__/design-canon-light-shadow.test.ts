@@ -23,7 +23,8 @@ function lightBlock(): string {
 function alphas(block: string, token: string): number[] {
   const line = block.match(new RegExp(`${token}\\s*:\\s*([^;]+);`));
   expect(line, `${token} 이 라이트 오버라이드에 없다`).not.toBeNull();
-  return [...line![1].matchAll(/rgba\([^)]*,\s*([\d.]+)\)/g)].map((x) => Number(x[1]));
+  const value = line?.[1] ?? "";
+  return [...value.matchAll(/rgba\([^)]*,\s*([\d.]+)\)/g)].map((x) => Number(x[1]));
 }
 
 describe("[BL-853] 라이트 테마는 다크 그림자를 쓰지 않는다", () => {
