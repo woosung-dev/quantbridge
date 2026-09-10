@@ -48,8 +48,9 @@ pre-push 의 FE/BE 품질 검사부(ref 가드만 존치) · CI `documentation` 
 
 ### ② 남긴 것 — 하네스가 아닌 것 3군
 
-1. **운영 런타임**: `soak-*` 6종 · `db-backup.sh` · `disk-guard.sh` — Oracle 서버 systemd 타이머가
-   지금 호출 중인 백업·경보·소크 관측이다. 끄는 결정은 별개 사안이다.
+1. **운영 런타임**: ~~`soak-*` 6종 ·~~ `db-backup.sh` · `disk-guard.sh` — Oracle 서버 systemd 타이머가
+   지금 호출 중인 백업·경보다. ~~끄는 결정은 별개 사안이다.~~ → **2026-09-10 [ADR-043] 로 `soak-*` 6종은 종료됐다**
+   (졸업 PASS · 소비자 소멸). 이제 운영 런타임 = `deploy.sh` · `host-bootstrap.sh` · `docker-reclaim.sh` · `db-backup.sh` · `disk-guard.sh`.
 2. **CI 테스트 인프라**: pytest·vitest·eslint·tsc·build — 제품 테스트지 메타-하네스가 아니다.
    (nightly 3종 워크플로우는 이번 판정 유보 — 다음 재검토 후보.)
 3. **권한 경계 소품**: pre-push **ref 가드**(main 직접 push 영구 금지 = Golden Rule) ·

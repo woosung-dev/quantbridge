@@ -353,7 +353,7 @@ sequenceDiagram
 3. `run_in_worker_loop()` 는 nested running loop (pytest-asyncio / celery_eager) 안에서 호출 시 `RuntimeError` raise + `coro.close()`. silent fallback 금지 (codex G.0 P1 #6 + G.2 P3 #1).
 4. **per-task `create_worker_engine_and_sm()` + finally `engine.dispose()` 규칙 보존** (Sprint 17 패턴) — connection pool stale connection 누수 방어.
 5. **Module-level async state (`asyncio.Semaphore/Lock/Event/Queue`) 추가 금지** — AST audit gate (`tests/tasks/test_no_module_level_loop_bound_state.py`) 가 차단. 신규 추가 시 `_ALLOWLIST` 갱신 + PR 리뷰 의무 (Sprint 19 BL-084).
-6. `worker_max_tasks_per_child=250` (Sprint 18 보수, soak gate 미수행). Sprint 20+ BL-082 의 1h RSS slope 측정 후 `=1000` 검토.
+6. `worker_max_tasks_per_child=250` (Sprint 18 보수). RSS slope 측정([BL-828] — `docker stats` 24h 표본) 후 `=1000` 검토.
 
 ### 영향받은 task entry point (9개)
 
@@ -430,7 +430,7 @@ sequenceDiagram
 
 > 프로덕션 토폴로지 선택과 배포 trigger는 [`PRD.md`](../PRD.md) §0 **결정 3건**이 정본이다.
 
-~~현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.~~ → **2026-09-04 정정.** 실제 토폴로지는 오라클 A1(aarch64) 한 대다 — Cloudflare Tunnel(`cloudflared`, host 네트워크) + Access OTP 뒤에 FE 컨테이너(standalone, 루프백 3200)와 **호스트 systemd `quantbridge-api.service` 의 uvicorn**(루프백 8100)이 있고, Celery 워커 3 + beat 스케줄러 1 + db + redis 는 소크 compose 3층(`docker-compose.yml` + `.isolated.yml` + `.soak.yml`, Celery 서비스는 `.soak/src` 고정 스냅샷 mount)이다. 절차 정본 = [`../operations/frontend-deploy.md`](../operations/frontend-deploy.md) · [`../operations/backend-deploy.md`](../operations/backend-deploy.md). 실자금·외부 공개는 제품 범위 밖이다([`PRD.md`](../PRD.md) §0).
+~~현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.~~ → **2026-09-04 정정.** 실제 토폴로지는 오라클 A1(aarch64) 한 대다 — Cloudflare Tunnel(`cloudflared`, host 네트워크) + Access OTP 뒤에 FE 컨테이너(standalone, 루프백 3200)와 **호스트 systemd `quantbridge-api.service` 의 uvicorn**(루프백 8100)이 있고, Celery 워커 3 + beat 스케줄러 1 + db + redis 는 compose 2층(`docker-compose.yml` + `.server.yml`)이고 코드는 GHCR 이미지(`sha-<7>`) 안이다 — ~~소크 3층 · `.soak/src` mount~~ 는 2026-09-10 [ADR-043] 로 종료됐다. 배포 = `tools/scripts/deploy.sh`. 절차 정본 = [`../operations/frontend-deploy.md`](../operations/frontend-deploy.md) · [`../operations/backend-deploy.md`](../operations/backend-deploy.md). 실자금·외부 공개는 제품 범위 밖이다([`PRD.md`](../PRD.md) §0).
 
 ---
 

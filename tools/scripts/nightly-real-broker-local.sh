@@ -153,8 +153,9 @@ fi
 docker exec quantbridge-db pg_isready -U quantbridge >/dev/null 2>&1 \
   || _verdict BLOCKED "quantbridge-db 컨테이너가 응답하지 않는다 (mise run up-isolated 필요)" 2
 
-# 5) ★소크 충돌 가드 — 같은 Bybit 계정(uid 558689281)을 쓴다.
-#    소크가 포지션을 들고 있으면 이 스위트의 「진입 전 flat」 단언이 **소크 때문에** 깨진다.
+# 5) ★라이브 세션 충돌 가드 — 같은 Bybit 계정(uid 558689281)을 쓴다.
+#    (2026-09-10 소크 종료 — 활성 세션은 이제 사용자 라이브 세션이다. 판단은 같다.)
+#    라이브 세션이 포지션을 들고 있으면 이 스위트의 「진입 전 flat」 단언이 **그 세션 때문에** 깨진다.
 #    그건 결함이 아니라 **측정 불가**다 — 혼란스러운 residual 대신 명시적으로 끊는다.
 ACTIVE="$(docker exec quantbridge-db psql -U quantbridge -d quantbridge -Atc \
   "SELECT count(*) FROM trading.live_signal_sessions WHERE is_active = true;" 2>/dev/null || echo "?")"
@@ -162,7 +163,7 @@ if [ "$ACTIVE" = "?" ]; then
   _verdict BLOCKED "활성 라이브 세션 수를 읽지 못했다 — 판정 불가를 「이상 없음」으로 접지 않는다" 2
 fi
 if [ "$ACTIVE" != "0" ]; then
-  _verdict SKIP "소크가 돌고 있다 (활성 세션 ${ACTIVE}개) — 같은 Bybit 계정이라 포지션을 공유한다" 0
+  _verdict SKIP "라이브 세션이 돌고 있다 (활성 세션 ${ACTIVE}개) — 같은 Bybit 계정이라 포지션을 공유한다" 0
 fi
 echo "  ✓ 전제: 메인 체크아웃 · 자격증명 있음 · DB 응답 · 활성 세션 0"
 

@@ -86,7 +86,7 @@ def _run_check(
         "QB_DISK_WARN_PCT": "80",
         "QB_DISK_STATE": str(tmp_path / "state" / "disk-guard.state"),
         "QB_DISK_NOTIFY_CMD": str(notify_stub),
-        "QB_SOAK_ENV_FILE": str(tmp_path / "env.local"),
+        "QB_NOTIFY_ENV_FILE": str(tmp_path / "env.local"),
         "QB_TEST_NOTIFY_BODY": str(tmp_path / "notify-body"),
         "QB_TEST_NOTIFY_EXIT": str(notify_exit),
         "XDG_CONFIG_HOME": str(tmp_path / "xdg"),

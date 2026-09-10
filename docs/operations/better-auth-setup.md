@@ -113,10 +113,10 @@ docker 네트워크 밖이고 컨테이너 DNS 를 **못 푼다** — 실측(202
 절차 자체는 [`frontend-deploy.md`](./frontend-deploy.md) §3.3 과 같다. 인증이 들어오면서
 **서버 쪽에 두 단계가 추가**된다:
 
-1. 맥에서 `pnpm build` → `docker build` → `docker save | ssh docker load`
-2. **alembic 적용** — `tools/scripts/soak-stack.sh migrate`(dry-run) → 승인 → `--confirm`
-3. `QB_FRONTEND_TAG` 갱신 → `docker compose -f infra/compose/docker-compose.frontend.yml -p quantbridge-fe up -d`
-4. **API 유닛 재시작** — `systemctl --user restart quantbridge-api.service`
+1. ~~맥에서 `pnpm build` → `docker build` → `docker save | ssh docker load`~~ → 2026-09-10 [ADR-043] `release.yml` 이 올린다
+2. **alembic 적용** — ~~`tools/scripts/soak-stack.sh migrate`(dry-run) → 승인 → `--confirm`~~ → `tools/scripts/deploy.sh --migrate <sha>`(사람 · 매번 승인)
+3. ~~`QB_FRONTEND_TAG` 갱신 → `docker compose … up -d`~~ → `deploy.sh <sha>` 가 한다
+4. **API 유닛 재시작** — `deploy.sh` 가 한다(`systemctl --user restart quantbridge-api.service`)
    (★2026-08-16 [BL-762] — 이 단계가 절차에서 빠져 고쳐 둔 보안이 발효하지 않은 전례가 있다)
 5. read-back (§6)
 

@@ -5,7 +5,8 @@
 # 왜 있나
 #   2026-08-18 n5-ci-truth-close 레인 β 가 런북을 쓰며 실측했다: 서버의 systemd user 유닛
 #   6종 중 **다섯은 스크립트의 `--install` 이 heredoc 으로 만드는데**
-#   (`db-backup.sh` · `disk-guard.sh` · `soak-watch.sh` · `soak-gate.sh` · `soak-logs-follow.sh`)
+#   (`db-backup.sh` · `disk-guard.sh` · 당시의 소크 감시·게이트·로그 스크립트 3종 —
+#   소크 3종은 2026-09-10 종료로 지워졌다)
 #   `quantbridge-api.service` **하나만 예외**였다 — 유닛은 실재하고 running 인데 그것을 만드는
 #   코드가 레포에 **0건**이라 **복원할 원본이 없었다.** `better-auth-setup.md:119` 는 배포 절차에서
 #   `systemctl --user restart quantbridge-api.service` 를 지시하면서 정작 그 유닛의 출처를
@@ -33,9 +34,9 @@
 #     `better-auth-setup.md:119` 를 비롯한 배포 문서·런북이 그 이름을 인용한다. 규칙에 맞추려고
 #     이름을 바꾸면 **이 스크립트가 만드는 유닛과 서버에서 도는 유닛이 서로 다른 것**이 되어
 #     인스톨러가 있으나 마나가 된다. 이름은 실물을 따르고 예외 사유를 여기 남긴다.
-#   · **`Type=simple` + `Restart=always` 다.** 형제 3종(`db-backup`·`disk-guard`·`soak-watch`)은
+#   · **`Type=simple` + `Restart=always` 다.** 형제(`db-backup`·`disk-guard`·`docker-reclaim`)는
 #     `Type=oneshot` + timer 라 그 모양을 베끼면 안 된다 — 이쪽은 **상주하는 서버 프로세스**이고,
-#     같은 모양의 선례는 `soak-logs-follow.sh:214-262` 다. lingering 이 없으면 SSH 가 끊길 때
+#     같은 모양의 선례는 (2026-09-10 삭제된) `git show c488b545:tools/scripts/soak-logs-follow.sh` :214-262 다. lingering 이 없으면 SSH 가 끊길 때
 #     user manager 와 함께 죽으므로 `loginctl enable-linger` 를 시도한다(실패해도 경고만 — 없는
 #     호스트에서 설치 자체를 막을 이유는 없다).
 #   · **신선도는 `.venv` 경로 대조다.** 형제들의 `--status` 는
@@ -163,7 +164,7 @@ EOF
   systemctl --user enable --now "${UNIT_NAME}.service" || die "service enable 실패"
 
   # lingering 이 없으면 SSH 가 끊길 때 user manager 와 서비스가 같이 죽는다
-  # (`soak-logs-follow.sh:250-259` 와 같은 관용구). 실패해도 설치는 유지한다.
+  # (`git show c488b545:tools/scripts/soak-logs-follow.sh` :250-259 와 같은 관용구). 실패해도 설치는 유지한다.
   local linger=""
   linger="$(loginctl show-user "$(id -un)" -p Linger --value 2> /dev/null)" || linger=""
   if ! printf '%s\n' "${linger}" | grep -qi '^yes$'; then

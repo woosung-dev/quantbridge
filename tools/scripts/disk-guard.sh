@@ -5,7 +5,7 @@
 # 왜 있나
 #   2026-08-14T06:04:11Z 로컬 Docker VM 이 94% 에서 Redis AOF 쓰기에 실패했고 celery 가
 #   `Unrecoverable error` 로 **통째 정지**했다([BL-736]). 그 사고는 로컬에서 났지만 서버도
-#   구조가 같다 — `quantbridge-redis` 는 `appendonly=yes` 이고(2026-08-16 실측) 소크 스택·
+#   구조가 같다 — `quantbridge-redis` 는 `appendonly=yes` 이고(2026-08-16 실측) 워커 스택·
 #   백업 덤프·다른 앱 셋이 **디스크 한 벌(/dev/sda1 97G)을 공유**한다. 서버에서 같은 일이 나면
 #   24시간 안정성 창이 통째로 날아간다.
 #   ★그리고 이 회차가 [BL-767] 로 **백업 파일을 쌓기 시작한다** — 감시 없이 쓰는 쪽만 늘리지 않는다.
@@ -19,23 +19,23 @@
 #
 # 종료 코드: 0 = 점검 정상 수행 / 1 = **감시자 자신이 실패**(알림 전송 실패 · df 판독 실패)
 #   ★디스크가 임계를 넘었다는 사실은 종료 코드로 새어나오지 않는다 — 알림이 나갔으면 0 이다.
-#     그래야 systemd 의 빨간불이 「경보가 깨졌다」 하나만 뜻한다(soak-watch 와 같은 규약).
+#     그래야 systemd 의 빨간불이 「경보가 깨졌다」 하나만 뜻한다(db-backup 과 같은 규약).
 #
 # env:
 #   QB_DISK_TARGET     점검 대상 경로. 기본 `/`. 서버는 단일 파일시스템이라 이 하나로 충분하다.
 #   QB_DISK_WARN_PCT   임계(%). 기본 80.
 #   QB_DISK_STATE      상태 파일 경로.
-#   QB_SOAK_ENV_FILE   텔레그램 크레덴셜 파일(soak-watch 와 **같은 이름을 쓴다** — 서버에 파일이
-#                      한 벌뿐인데 이름을 둘로 만들면 한쪽만 고쳐진다).
+#   QB_NOTIFY_ENV_FILE 텔레그램 크레덴셜 파일(deploy.sh 와 **같은 이름을 쓴다** — 서버에 파일이
+#                      한 벌뿐인데 이름을 둘로 만들면 한쪽만 고쳐진다. 2026-09-10 `QB_SOAK_ENV_FILE` 에서 개명).
 #   QB_DISK_NOTIFY_CMD 주입 seam. 하네스가 실제 텔레그램을 쏘지 않게 하는 유일한 경로.
 #
 # ★설계 근거
-#   · **소크 감시와 분리한다.** soak-watch 에 얹으면 소크가 내려간 순간 디스크 감시도 사라진다.
-#     디스크는 소크보다 오래 살아야 하는 축이다.
+#   · **다른 감시·회수와 분리한다.** 배포기나 회수기(`docker-reclaim.sh`)에 얹으면 그쪽이 내려간 순간
+#     디스크 감시도 사라진다. 디스크는 그 어느 것보다 오래 살아야 하는 축이다.
 #   · **알림을 먼저 쏘고 상태를 나중에 저장한다.** 디스크가 꽉 차면 상태 파일 쓰기부터 실패한다 —
 #     저장을 먼저 하면 정작 알려야 할 그 순간에 알림 없이 죽는다.
-#   · **OK 가 「이어질」 때 조용하다.** heartbeat 를 여기서 또 보내지 않는다(soak-watch 가 이미
-#     매일 보낸다). WARN 이 이어지는 동안만 하루 1 회 재고지한다 — 계속 쏘면 사람이 무시하게 된다.
+#   · **OK 가 「이어질」 때 조용하다.** heartbeat 를 여기서 또 보내지 않는다(2026-09-10 까지는
+#     soak-watch 가 매일 보냈다 — 지금은 배포 요약이 그 자리다). WARN 이 이어지는 동안만 하루 1 회 재고지한다 — 계속 쏘면 사람이 무시하게 된다.
 #     ★단 **WARN→OK 전이는 쏜다**(회복 알림). 경보만 받고 회복을 못 받으면 사람은 아직 위험한
 #     줄 알고, 다음 경보를 「아까 그거」로 읽는다. 즉 「OK = 무조건 무발화」가 아니다 —
 #     발화 조건은 **상태 전이**이지 상태값이 아니다(2026-08-16 codex P2 · 기각. 하네스 ⑥⑦ 이
@@ -61,7 +61,7 @@ fi
 TARGET="${QB_DISK_TARGET:-/}"
 WARN_PCT="${QB_DISK_WARN_PCT:-80}"
 STATE_FILE="${QB_DISK_STATE:-${_DEFAULT_LOGDIR}/disk-guard.state}"
-ENV_FILE="${QB_SOAK_ENV_FILE:-${ROOT}/apps/api/.env.local}"
+ENV_FILE="${QB_NOTIFY_ENV_FILE:-${ROOT}/apps/api/.env.local}"
 TELEGRAM_TIMEOUT="${QB_DISK_TELEGRAM_TIMEOUT:-15}"
 
 UNIT_NAME="dev.quantbridge.disk-guard"
@@ -104,7 +104,7 @@ _notify() { # _notify <본문>  → 0 = 보냄 / 1 = 실패
 
 # ── 상태 파일 (key=value, 소싱하지 않는다) ──────────────────────────────────────
 # ★`.` 로 소싱하지 않는다 — 상태 파일이 예상 밖 내용이면 `command not found` 로 죽는다
-#   (`.soak/session` 이 맨 uuid 로 쓰여 그렇게 죽어 있던 것을 2026-08-07 에 실측했다).
+#   (소크 시절 `.soak/session` 이 맨 uuid 로 쓰여 그렇게 죽어 있던 것을 2026-08-07 에 실측했다).
 _state_get() { # _state_get <key> → stdout (없으면 빈 문자열)
   [ -f "${STATE_FILE}" ] || return 0
   sed -n "s/^$1=//p" "${STATE_FILE}" | head -1
@@ -161,7 +161,8 @@ Environment=QB_DISK_WARN_PCT=${WARN_PCT}
 ExecStart=/bin/bash ${SCRIPT_DIR}/disk-guard.sh
 EOF
 
-  # ★감시자 자신의 죽음을 알리는 축 — soak-watch 와 같은 관용구(`soak-watch.sh:167-194`).
+  # ★감시자 자신의 죽음을 알리는 축 — db-backup 과 같은 관용구(원형은 2026-09-10 소크 종료로 지워진
+  #   `git show c488b545:tools/scripts/soak-watch.sh` :167-194).
   #   ★★**`$$` 로 이스케이프해야 한다.** systemd 는 `ExecStart` 의 `${VAR}` 를 자기 환경으로
   #   **먼저 확장**하고 미정의 변수는 빈 문자열로 만든다 — 작은따옴표도 막지 못한다. 그러면 URL 이
   #   `…/bot/sendMessage` 가 되어 텔레그램이 **404** 를 준다(2026-08-15 실측).
@@ -186,7 +187,7 @@ EOF
 
   # ★`OnCalendar` 다 — `OnUnitActiveSec` 은 **마지막 활성화 기준**이라 사람이 한 번 손으로
   #   돌리면 위상이 밀린다(2026-08-15 [BL-737] 실측: 표본 간격이 53 분까지 벌어졌다).
-  #   ★매시 **15 분**에 둔다 — soak-watch 가 00·30 분을 쓰므로 겹치지 않게 어긋낸다.
+  #   ★매시 **15 분**에 둔다 — 형제 타이머(백업 정각 · 회수 04:30)와 겹치지 않게 어긋낸다.
   cat > "${unit_dir}/${UNIT_NAME}.timer" << 'EOF'
 [Unit]
 Description=QuantBridge 디스크 경보 — 매시 15분 (벽시계 고정)

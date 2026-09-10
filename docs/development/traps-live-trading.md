@@ -69,7 +69,7 @@
   변수가 아니다** — 2026-08-01 실측: 같은 세션에서 맨 컬럼 `SELECT is_active` 는 **`t/f`**,
   캐스트 `SELECT is_active::text || …` 는 **`true/false`** 를 냈다. **가르는 건 플래그가 아니라
   캐스트다.** ⇒ 표기를 확인하는 게 아니라 **nullable 텍스트 컬럼**(`deactivated_reason` 등)으로
-  판정해라. `tools/scripts/soak-observe.sh` 가 그 형태다.
+  판정해라. ~~`tools/scripts/soak-observe.sh` 가 그 형태다.~~(2026-09-10 [ADR-043] 삭제 — 원문 `git show c488b545:tools/scripts/soak-observe.sh`)
 - ★★**`psql -c` 에 세미콜론 여러 개는 암묵적 단일 트랜잭션**이라 뒤 문장의 실패가 앞 UPDATE 를
   통째로 롤백한다(2026-08-01 실측). **`-c` 하나에 문장 하나**로 써라. archive 에만 남아 있던
   것을 2026-08-03 에 승격했다.

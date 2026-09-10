@@ -35,7 +35,7 @@ compose 4벌 모두 `name:` 키가 없고 프로젝트명(=볼륨 소유)은 프
 프로젝트명이 바뀌고 **기존 TimescaleDB·beat-data 볼륨이 고아**가 된다. 그래서:
 
 - 모든 호출은 `--project-directory <체크아웃 루트>` 를 동반한다 — Makefile 은 `COMPOSE_FLAGS` 변수,
-  `tools/scripts/soak-stack.sh` 는 COMPOSE 배열이 정본.
+  ~~`tools/scripts/soak-stack.sh` 는 COMPOSE 배열이 정본~~ → 서버는 `tools/scripts/deploy.sh` 의 COMPOSE 배열이 정본(2026-09-10 [ADR-043]).
 - `name:` 고정은 **기각** — 메인/소크 서버/워크트리가 서로 다른 디렉터리명 파생을 쓰므로 한 이름으로
   고정하면 다른 체크아웃의 볼륨이 고아가 된다.
 - 수용 기준(통과함): 이동 전후 `docker compose config` 렌더 diff = 경로 치환분만(base 9쌍 ·

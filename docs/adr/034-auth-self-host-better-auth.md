@@ -37,13 +37,13 @@ peerDependency·문서 양쪽에서 정식 지원이다. 별도 Node 서비스�
 ⑴ `auth_*` 5테이블에만 권한이 있는 **전용 PG 롤**의 DSN 만 준다(`BETTER_AUTH_DATABASE_URL`).
 ⑵ 서버 DB 는 `127.0.0.1:5433` **루프백** publish 라 브리지에서 못 닿는다 — FE 스택을
 base compose 네트워크(`quantbridge_quantbridge`, 2026-08-17 서버 실측)에 **external 로 attach** 한다.
-★소크 창은 여전히 안 끊긴다 — external network 는 `-p quantbridge-fe down` 이 제거하지 않고,
-서비스도 볼륨도 겹치지 않는다. 창을 끊는 것은 `soak-stack.sh pin`/`down` 과 DB 실격뿐이다.
+~~★소크 창은 여전히 안 끊긴다 — … 창을 끊는 것은 `soak-stack.sh pin`/`down` 과 DB 실격뿐이다.~~
+→ 2026-09-10 [ADR-043] 소크 창 개념 폐기. FE 스택은 여전히 서비스·볼륨이 BE 와 겹치지 않는다.
 
 ### D2. 스키마 DDL 의 정본은 alembic 이다
 
-Better Auth 의 `migrate` CLI 는 Kysely 로 DB 를 직접 친다. 이 레포 규약은 「서버 소크 DB DDL =
-`soak-stack.sh migrate --confirm` + 매번 명시 승인」이다([BL-743]). 그래서
+Better Auth 의 `migrate` CLI 는 Kysely 로 DB 를 직접 친다. 이 레포 규약은 「서버 DB DDL =
+~~`soak-stack.sh migrate --confirm`~~ `deploy.sh --migrate <sha>` + 매번 명시 승인」이다([BL-743] · 2026-09-10 [ADR-043] 집행기 교체). 그래서
 `@better-auth/cli generate` 로 **SQL 을 뽑아** alembic revision(`20260817_0001`)으로 옮기고,
 `src/auth/better_auth_tables.py` 가 그 결과를 metadata 에 선언한다(우리 코드는 읽지도 쓰지도 않는다).
 

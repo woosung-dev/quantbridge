@@ -112,13 +112,13 @@ rewrites 를 안 넘김, 2026-08-07 실측 · ★★) · FastAPI/OIDC 로 인증
 **Est:** S
 **상태:** ⏳ 대기 (트리거 미도래) — ~~2026-08-30 실측 45%, 여유 54G~~ → **2026-09-10 실측 37%, 여유 61.7G.**
 ★**원인의 절반은 닫혔다** — 회수가 FE 배포에서 분리돼 `tools/scripts/docker-reclaim.sh`(주간 타이머 · `quantbridge-*` 만 ·
-3세대 유지 · 실패 비은폐)가 됐다. 남은 절반 = **서버에 `--install` 하는 것**(배포 승인 축) — 그때까지 이 항목은 산다.
+3세대 유지 · 실패 비은폐)가 됐다. 남은 절반 = **서버에 `--install` 하는 것** — [ADR-043] 서버 전환 절차 4단계에 포함돼 있다. 그 전환이 끝나면 이 항목은 삭제다.
 ★그 한 줄은 깨져 있기도 했다 — `{{.ID}}` rmi 가 다중 태그에서 죽고 `2>/dev/null` 이 삼켜 서버에 4벌이 남아 있었다.
 **출처:** 2026-08-30 docker 디스크 감사 · 2026-09-10 재감사(codex exec 대조)
 
 **원인 / 영향:** 이번 회차가 회수를 `frontend-deploy.md` §3.3 에 **한 줄로** 붙였다(태그 3세대 유지 +
 `builder prune --filter until=168h`). 그 한 줄은 **FE 를 배포할 때만 돈다.** BE 배포(`backend-deploy.md`
-§3.3)는 `soak-stack.sh` 경로라 회수를 타지 않고, BE 이미지는 `image:` 태그가 없어 재빌드가 드물다
+§3.3)는 ~~`soak-stack.sh`~~(당시) 경로라 회수를 타지 않고, BE 이미지는 `image:` 태그가 없어 재빌드가 드물다
 (실측: 3주 전 빌드본이 그대로). 따라서 FE 무배포 기간이 길어지면 build cache 만 자란다.
 
 ★**현재 회수 가능분의 주인은 우리가 아니다** — 2026-08-30 실측 12.2GB 중 quantbridge 몫은
@@ -133,34 +133,20 @@ rewrites 를 안 넘김, 2026-08-07 실측 · ★★) · FastAPI/OIDC 로 인증
 
 ---
 
-### BL-864
+### BL-865
 
-**Title:** BE 이미지 배포 경로 결정 — 현행(서버 빌드 · save|ssh|load) vs GHCR(CI arm64 빌드 · 서버 pull)
+**Title:** 호스트 API 를 같은 이미지의 `api` 롤 컨테이너로 — venv 드리프트의 마지막 자리
 **Category:** 운영 / 배포 아키텍처
 **Priority:** P3
-**Trigger:** BE 서버 빌드가 소크 실격을 한 번이라도 내거나, `pyproject` 변경 롤백이 실제로 필요해질 때, 또는 사용자가 고를 때
-**Est:** M (ci.yml 잡 1개 + compose `image:` 참조 + 런북 §3.3 ①-b)
-**상태:** ⏳ 대기 (사용자 결정) — 2026-09-10 등재
-**출처:** 2026-09-10 docker/CI 디스크 감사
+**Trigger:** `deploy.sh` 의 호스트 API 단계(`uv sync` → import probe → restart)가 한 번이라도 실패하거나, [ADR-043] 서버 전환이 안정된 뒤 사용자가 고를 때
+**Est:** M
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-09-10 등재
+**출처:** 2026-09-10 [ADR-043] — 워커 4개는 이미지로 갔는데 API 만 호스트 venv+systemd 로 남았다
 
-**사실(2026-09-10 실측):** 레포는 **공개**(`isPrivate=false`)라 GitHub 호스티드 arm64 러너(`ubuntu-24.04-arm`)와 GHCR 이
-무료다. BE 4서비스는 이제 `image: quantbridge-backend:${QB_BACKEND_TAG}` 한 이름을 쓰므로 어느 안이든 태그 규약은 같다.
-FE 는 이미 맥 빌드 · `--platform linux/arm64` · standalone 211MB 로 최적화돼 있어 이 결정의 영향은 BE 가 대부분이다.
-
-| 축 | 현행 | GHCR |
-| --- | --- | --- |
-| 서버 CPU | BE 빌드 ~10분, 소크 `down` 필요(2 OCPU 공유) | 0 — pull 만 |
-| 디스크 | build cache 상주(실측 1.69GB) + 회수기 의존 | build cache 0, pull 층만 |
-| 롤백 | FE 3세대 로컬 · BE 는 sha 태그 도입으로 **로컬 3세대**(이번 회차) | 레지스트리 전 세대, 태그로 즉시 |
-| 비용 | 0 | 0 (공개 레포) |
-| 노출 | 없음 | 공개 이미지에 코드 포함 — 레포가 이미 공개라 증가분 0 · 시크릿은 이미지에 없다(§3 Golden Rule) |
-| 변경량 | 0 | `ci.yml` 잡 1개(buildx push, `main` 머지 시) · compose `image: ghcr.io/…` · 런북 |
-| 장애 결합 | PyPI·서버 빌드 성공에 의존 | GHCR 도달에 의존(pull 실패 = 배포 실패, 기동 중 컨테이너는 무관) |
-
-**권장:** GHCR. 서버에서 빌드하지 않는 것이 소크 창을 지키는 가장 싼 길이고 롤백이 태그가 된다. 단 **결정은 사용자**다.
-[확인 필요] `.metrics` 디렉터리(2026-09-10 서버 실측 31M · 3,082 파일)의 inode 성장이 유계인가 —
-`metrics_multiproc.py` 가 `mark_process_dead` 를 부르지만 prefork 재시작마다 pid 파일이 남는지는 안 쟀다. 이 항목과 같이 본다.
-
+**원인 / 영향:** `quantbridge-api.service` 의 `ExecStart` 가 `apps/api/.venv/bin/uvicorn` 절대경로라 의존성이 **재시작 시점의 venv** 다.
+2026-08-28 405커밋 배포에서 `openai` 가 없어 재시작이 곧 장애였다. 이미지에는 이미 `api` 롤이 있다(`docker-entrypoint.sh` — alembic advisory lock → uvicorn).
+**막는 것:** entrypoint 의 `api` 롤이 **기동마다 `alembic upgrade head` 를 자동 실행**한다 — 「서버 DDL = 사람이 `deploy.sh --migrate`」 규칙([BL-743] · [ADR-043] 결정 4)과 정면충돌.
+**권장 접근:** ⑴ entrypoint 에 자동 alembic 을 끄는 스위치(env, `.env.example` 등재) 또는 `api` 롤에서 마이그레이션을 분리 ⑵ `docker-compose.server.yml` 에 `backend-api` 서비스(`127.0.0.1:8100:8080`, cloudflared 는 host 네트워크라 경로 불변) ⑶ `api-service.sh --uninstall` ⑷ `deploy.sh` 의 호스트 API 단계를 롤링 대상에 편입. 이 셋이 끝나면 「이미지 하나 = 모든 환경」이 된다(dev/prod parity, 2026-09-10 조사).
 
 ## 변경 이력
 
@@ -872,11 +858,11 @@ runbook → [BL-005] 실자본 dogfood → [BL-070~072] Beta`** 였다.
 
 **증상 (실측·[가정] 혼재, 2026-08-25):** prefork child 는 250 task 마다 교체되고(`apps/api/src/tasks/celery_app.py:98`, CLI 오버라이드 0건) 교체된 child 는 **빈 ANTLR DFA** 로 시작한다 — `worker_process_init`(`:208-238`)이 파싱을 하지 않으므로 fork 시점 상속도 없다. beat_schedule 16건이 전부 라우팅 없이 기본 큐로 가서(`:109-205`) **≈195회/시**, concurrency=2 이므로 **[가정]** child 당 ≈97.5회/시 ⇒ **≈1.3시간마다 콜드 child 1개 · 하루 ≈19회**. 콜드 창 1회의 크기는 실측 `s5_ema_trend` 2.61s · `s3_rsid` 11.55s · `i3_drfx` **52.37s**(격리·median-of-3).
 **영향:** 사용자가 아무것도 안 해도 하루 ≈19번, 누군가의 첫 백테스트가 최대 52초를 문다.
-**권장 접근:** 250 → 1000. 코드 주석이 이미 이 완화를 예고했다 — `celery_app.py:90-91`「1h soak gate(RSS slope + asyncpg/Redis fd count) 미수행 상태이므로 conservative. Sprint 19 의 soak 결과로 1000 으로 완화 검토」. 위험 = 메모리 누수 시 컨테이너 OOM(`infra/compose/docker-compose.soak.yml:33` `mem_limit: 2g`, idle 692MiB) → 콜드 창 2개 동시.
-★**하네스 lane 이 될 수 없다** — 판정 수단이 소크(RSS slope)뿐이라 AC 로 세울 수 없다.
+**권장 접근:** 250 → 1000. 코드 주석이 이미 이 완화를 예고했다 — `celery_app.py:90-91`「1h soak gate(RSS slope + asyncpg/Redis fd count) 미수행 상태이므로 conservative. Sprint 19 의 soak 결과로 1000 으로 완화 검토」. 위험 = 메모리 누수 시 컨테이너 OOM(`infra/compose/docker-compose.server.yml` `mem_limit: 2g`, idle 692MiB) → 콜드 창 2개 동시.
+~~★**하네스 lane 이 될 수 없다** — 판정 수단이 소크(RSS slope)뿐이라 AC 로 세울 수 없다.~~ → **2026-09-10 [ADR-043] 판정 수단 재정의**: 서버 워커 4개의 RSS 를 `docker stats --no-stream` 으로 24h 동안 30분 간격 표본(48점)해 slope 를 잰다 — 소크 산출물이 아니라 `docker stats` 한 줄이면 된다. AC = 「1000 으로 올린 뒤 24h RSS slope 가 250 때와 같은 수준(±10%)이고 `mem_limit` 의 70% 를 안 넘는다」.
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 **사용자 결정으로 이번 회차 제외**
-**트리거:** 소크 창이 열리는 회차에 동승. 착수 첫 작업 = child 교체 **실빈도** 측정(`docker logs` 의 child exit 간격 — CPU 0). 위 하루 ≈19회는 산술이지 실측이 아니다
+**트리거:** ~~소크 창이 열리는 회차에 동승~~ → 서버 전환([ADR-043]) 뒤 24h 표본을 뜰 수 있는 아무 회차. 착수 첫 작업 = child 교체 **실빈도** 측정(`docker logs` 의 child exit 간격 — CPU 0). 위 하루 ≈19회는 산술이지 실측이 아니다
 
 ### BL-830
 

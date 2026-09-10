@@ -131,7 +131,7 @@ apps/web/playwright/.cache/
 docs/_archive/
 # 자동 생성 산출물(run_auto_dogfood.py 등) — 2026-08-21 docs/reports/ 철거([ADR-038]), 산출물은 runs/ 에만
 /runs/
-# 데모 소크 관측 상태 — 세션 앵커 + /metrics 스냅샷 (tools/scripts/soak-observe.sh)
+# 소크 잔존 상태 디렉터리 — 2026-09-10 소크 종료. 서버·로컬에 남은 .soak/ 을 추적하지 않기 위해 유지한다
 .soak/
 
 # === DB 백업 (BL-451) ===

@@ -134,10 +134,10 @@ class SessionDeactivationReason(StrEnum):
        `tests/test_migrations.py::test_deactivation_reason_check_matches_the_enum` 이 잡는다
     3. FE 라벨 `apps/web/src/features/live-sessions/labels.ts` —
        라벨 패리티 vitest 가 잡는다. 미등재면 화면에 **원문 코드가 그대로** 나온다
-    4. ★소크 게이트 술어 `apps/api/scripts/soak_gate_predicate.py:AUTOMATIC_DEATH_REASONS` —
-       `tests/scripts/test_soak_gate_predicate.py` 가 잡는다. **이것은 단순 미러가 아니다**:
+    4. ★배포 전 24h 무실격 쿼리 `tools/scripts/deploy.sh` 의 `AUTO_DEATH_REASONS` —
+       `tests/scripts/test_deploy.py` 가 이 enum 과 대조한다. **이것은 단순 미러가 아니다**:
        새 사유가 「엔진이 스스로 무너졌다」인지 「사람·행정 이벤트」인지 판단해야 한다.
-       후자를 자동 사망에 넣으면 **소크 창이 거짓으로 리셋**된다(C3 실격 정의).
+       후자를 자동 사망에 넣으면 **배포가 거짓으로 막힌다**(2026-09-10 까지는 소크 C3 실격 정의였다).
     """
 
     # preflight (evaluate 진입 전 차단) — `live_signal.py` 의 `preflight_cat` 집합.

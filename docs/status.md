@@ -29,7 +29,7 @@
 > ★★**2026-08-31 ④ 축 신설** — 그 한 줄이 **`PRD.md` §5 를 겨냥해야** 한다(5줄 폭). ①②③ 은 전부 **양**만 재서
 > 14 회차 연속 결함 수리 진입점을 못 봤다. ④ 는 ① 의 **하한**도 만든다(0개면 red). 상세 = ⓬ 절.
 >
-> ★★★**착수 전 첫 명령 둘** — ⑴ `tools/scripts/soak-gate.sh`(서버, `bash -lc` 필수) ★**단 ⑴ 은 소크를 건드리는 회차 전용이다**(2026-09-06 정정 — 아래 ⓸ 의 정정 블록 참조). FE/UI 회차는 **건너뛴다**: 그 타이머는 2026-08-11 에 이미 unload 됐고 `launchctl` 은 사전 승인 대상이며 게이트는 PASS 지만 여는 문이 없다. 제로컨텍스트 검증이 이 줄을 그대로 따라 첫 수를 틀렸다.
+> ★★★**착수 전 첫 명령** — ~~⑴ `tools/scripts/soak-gate.sh`~~ → **2026-09-10 [ADR-043] 소크 게이트 종료**(PASS 5/3 로 졸업 · 스크립트 삭제). 서버 상태가 필요하면 `tools/scripts/deploy.sh --status`.
 > ⑵ FE 를 건드릴 회차라면 **`rm -rf apps/web/.next`**. ⑵ 는 농담이 아니다: 2026-08-08 에
 > Turbopack 영속 캐시가 1.99GB 까지 자라 `next dev` 가 **요청 0건에서 417% CPU** 를 태우고
 > 머신을 두 번 죽였다. 게다가 낡은 CSS 를 **서버 재기동을 넘어** 계속 줘서 음성 대조를
@@ -49,14 +49,15 @@
 `tools/scripts/ledger-vitals.sh` ② 축이 지킨다).
 
 **비목표(불변)** — 거래소 쓰기([BL-669]) · `exchange_accounts` 행 삭제([BL-477]·[BL-529]·[BL-592]) ·
-**서버 소크 DB 에 alembic 적용**. 셋 다 사용자 결정 대기다.
+**서버 DB 에 alembic 적용**(집행 = `deploy.sh --migrate <sha>`, 사람만). 셋 다 사용자 결정 대기다.
 
 > ★★**2026-08-15 사용자 결정 — alembic 축의 문구가 확정됐다.**
 > **「migration 파일 생성 · 로컬/CI 적용 = 허용 / 서버 소크 DB 에 DDL 적용 = 매번 명시 승인」.**
 > 근거: 실제 위험은 파일을 만드는 것이 아니라 **소크 창 중에 DDL 이 도는 것**이고, 전면 금지는
 > `apps/api/AGENTS.md` §7(models.py 를 바꾸면 migration 생성 **의무**)과 정면충돌한다.
-> ⇒ 비목표 항목의 이름을 「alembic 마이그레이션」에서 **「서버 소크 DB 에 alembic 적용」**으로
-> 좁혔다. 집행 도구 = `soak-stack.sh migrate`(기본 dry-run · `--confirm` 이 집행 — [BL-743]).
+> ⇒ 비목표 항목의 이름을 「alembic 마이그레이션」에서 **「서버 DB 에 alembic 적용」**으로
+> 좁혔다. 집행 도구 = ~~`soak-stack.sh migrate`(기본 dry-run · `--confirm` 이 집행)~~ → **2026-09-10 [ADR-043]**
+> `tools/scripts/deploy.sh --migrate <sha>`(사람 전용 · 자동 배포는 head 불일치면 rc 2 로 멈춘다 — [BL-743]).
 > ~~⑵ alembic 마이그레이션 — 승인을 받지 않았다 … 「금지」인지 「승인 후 허용」인지가 지금 모호하다~~
 > → **2026-08-15 해소.** 그때 만든 `20260815_0001` 은 승인을 받아 서버에 적용했고 격차는 0 이다.
 > ⑴ **거래소 쓰기** 는 그대로 — 고아 포지션 청산은 **사용자 승인을 받고** 했다([BL-024] 전례).
@@ -131,12 +132,9 @@ unload 완료**라 하고 ⑶ ⓹ 말미는 `launchctl` 을 **사전 승인 대�
 「재개 절차」(슬롯 확인 → 서버 짝 기동)다.
 
 ```bash
-# ① ★소크를 건드리는 회차 전용(그 외에는 건너뛴다 — 위 정정 참조). 순서 고정.
-#   ★bash -lc 필수(비로그인 셸엔 uv PATH 가 없다) ★launchctl 은 사전 승인 대상
-launchctl unload ~/Library/LaunchAgents/dev.quantbridge.soak-gate.plist  # 게이트에 flock 이 없다
-ssh truewords-oracle 'bash -lc "cd ~/quantbridge && tools/scripts/soak-gate.sh"'
-#   ★`/metrics` 는 **1회만** 읽는다 — 두 번 읽으면 근거들이 서로 다른 시점을 가리킨다.
-#     서버 `apps/api/.metrics` 직독([BL-620]). 방법은 `soak-gate.sh:517-527` 과 같은 것을 쓴다
+# ① ~~소크 게이트~~ → 2026-09-10 [ADR-043] 종료(스크립트 삭제). 서버 상태가 필요하면:
+#   ★bash -lc 필수(비로그인 셸엔 uv PATH 가 없다)
+ssh truewords-oracle 'bash -lc "cd ~/quantbridge && tools/scripts/deploy.sh --status"'
 
 # ② 항목별 표적 명령
 cd apps/api && set -a; . ./.env.local; set +a; uv run pytest -q       # ★.env.local **통째** 소싱
@@ -192,7 +190,7 @@ gh pr checks --watch                                       # 2잡 다 초록이�
 | [BL-003] C1 **168h** 문턱           | **교체 — 「누적 24h × N회」** (N=3 `[가정]`) | [BL-641] 산출 P(168h 무실격) = **4.115e-09**. 39세션 24h 도달 0건 ⇒ 종전 문턱은 **P0 이 영구히 안 닫힌다**                               |
 | `exchange_accounts` `0277c150` 삭제 | **삭제하지 않는다** — 비활성 + 409 핸들러    | FK `ondelete="RESTRICT"` ×3(`models.py:244,509,785`) + `exchange_exits` **103행** + `router.py:288` 핸들러 부재 ⇒ 지금 DELETE 는 **500** |
 | 2번째 Bybit demo 계정               | **발급하지 않는다** ⇒ [BL-024] 재정의        | nightly 6회 중 4회 SKIP, 사유 = **소크와 계정 공유**. 소크는 살아 있다(컨테이너 41h · C2 41.11h 진행)                                    |
-| 로컬 launchd soak-gate 타이머       | **정지**(2026-08-11 unload 완료)             | `StartInterval 1800` + `RunAtLoad true` + 게이트에 **flock 없음**. 실측 최근 종료 코드 **2** = 이미 실패 중                              |
+| ~~로컬 launchd soak-gate 타이머~~ (2026-09-10 [ADR-043] 삭제) | **정지**(2026-08-11 unload 완료)             | `StartInterval 1800` + `RunAtLoad true` + 게이트에 **flock 없음**. 실측 최근 종료 코드 **2** = 이미 실패 중                              |
 
 - ⇒ **[BL-477]·[BL-529]·[BL-592] 는 「행 삭제로 자연 소멸」이 아니다.** 원장이 「가장 싸다」고
   적은 그 경로는 **DB 가 거부한다.** 진짜 처방은 `router.py:288` 의 **409** 이고 이건 다음 회차다.
@@ -1091,91 +1089,8 @@ FE **3101** · BE **8101**. ★**CSS 를 고쳤는데 화면이 안 바뀌면 Tu
 > 셋 다 단독 착수 시 값이 0이라고 트리거 자신이 적었다.
 > ★~~실격 귀속 `undecided` 7건 행 단위 대조~~ → **2026-08-08 완료**(soak-attribution-close).
 
-## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
+## 📌 소크 운영 상비 참조
 
-> 아래는 특정 회차가 아니라 **소크를 굴릴 때마다 다시 밟는 함정**들이다. 회차별 숫자는
-> dev-log 로 갔다 — 여기에 낡은 T0/baseline 을 남겨두면 다음 사람이 죽은 세션을 현행으로 읽는다
-> (2026-08-03 실측 사고: 이 절이 이미 죽은 세션의 창 종료 시각을 가리키고 있었다).
-> ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다.** `CONTEXT.md`·`docs/` 정본은 반대다(읽어야 들어온다). (`apps/api/AGENTS.md`·`apps/web/AGENTS.md` 는 ADR-027 부터 그 디렉터리 파일을 열면 자동 로드.)
-
-### ★새 counter 를 읽는 법
-
-★★**2026-08-11 — `/metrics` 는 이제 토큰 없이 401 이다**(fail-closed 전환). 종전에 여기 있던
-`curl -s localhost:8100/metrics | grep …` 은 **`-f` 가 없어서 401 본문이 rc=0 으로 파이프에
-흘러들고 grep 이 0 매치**를 낸다 ⇒ 읽는 사람은 **「counter 미발화 = 이벤트 없음」으로 오독**한다.
-이 레포는 「이벤트 부재는 정지의 증거가 아니다」를 이미 한 번 밟았다. 아래를 써라.
-
-```bash
-# ⑴ 권장 — 직독. 인증이 없고 게이트가 쓰는 것과 같은 경로다 ([BL-620])
-cd apps/api && PROMETHEUS_MULTIPROC_DIR=.metrics uv run python -c '
-import sys
-from prometheus_client import CollectorRegistry, generate_latest, multiprocess
-r = CollectorRegistry(); multiprocess.MultiProcessCollector(r)
-sys.stdout.buffer.write(generate_latest(r))' | grep qb_live_conditional_fill_ownership_total
-
-# ⑵ HTTP 로 봐야 하면 **`-f` 와 토큰을 반드시 함께** — 둘 중 하나만 빠지면 조용히 0 매치다
-TOKEN="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' apps/api/.env.local)"
-curl -sf -H "Authorization: Bearer ${TOKEN}" localhost:8100/metrics \
-  | grep qb_live_conditional_fill_ownership_total || echo "✗ 취득 실패 — 0 매치와 구별해라"
-```
-
-| outcome                      | 뜻                                                                    |
-| ---------------------------- | --------------------------------------------------------------------- |
-| `agree`                      | 시뮬도 체결했을 자리에서 원장도 체결했다                              |
-| `engine_only_suppressed`     | ★**형 A 차단** — 시뮬은 체결했을 텐데 원장에 없다                     |
-| `ledger_only_adopted`        | ★**형 B 차단** — 원장은 체결했는데 시뮬은 아직이다                    |
-| `ledger_only_orphan`         | 원장 체결의 `trade_id` 에 해당하는 pending 이 엔진에 없다(**무동작**) |
-| `ledger_fill_out_of_window`  | 창(300봉) 밖 체결 — 엔진이 표현 못 한다                               |
-| `ledger_unreadable_fallback` | 원장을 못 읽어 그 tick 만 현행 시뮬로 되돌렸다                        |
-| `other`                      | 알려지지 않은 census 키(cardinality 방어). ★오르면 이름을 찾아라      |
-
-★**`agree` 대비 나머지의 비율이 「백테스트가 현실을 얼마나 잘 예측하나」의 첫 실측치다.**
-지금은 아무도 그 값을 모른다 — Trust Layer 는 **우리 자신의 얼린 출력**과 대조할 뿐이고 외부
-오라클(P-4)은 [ADR-020] 이 이연했다. 값이 쌓이면 그때 백테스트 체결 모델 보정을 **근거로** 정한다.
-
-### 첫 명령 (순서 있음)
-
-```bash
-tools/scripts/soak-gate.sh                 # ★첫 명령. PASS/FAIL/UNKNOWN + 누적 시간
-tools/scripts/soak-stack.sh status         # 고정 커밋 · 활성 세션 · main 조상 여부
-tools/scripts/soak-stack.sh commit         # 소크가 **실제로 돌리는** 커밋 (프로세스 기준)
-docker logs quantbridge-worker 2>&1 | (cd apps/api && uv run python \
-  scripts/classify_direction_divergence.py)          # 발산 재판정 (회복식)
-```
-
-### ★[ADR-025] 판정 — **Accepted** (2026-08-06)
-
-노출 12.28h 에서 사전등록 4관측량 전건 충족 — ① phantom **0건**(관측 4건 전부 `replay_lag`,
-p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 **84건**(≥40) · ④ 카운터 차분
-**+223**(형 A +183 · 형 B +6 — 양쪽 수리 갈래 발화). 실측 전문 =
-[ADR-025](./adr/025-conditional-fill-ownership.md).
-
-### ★착수 전 반드시 읽을 것 (2026-08-21 정정본)
-
-1. ★★★**데스크 회차가 반증하는 것은 「내가 적은 산문」이고, 소크가 반증하는 것은 「코드가 실제로
-   하는 일」이다.** 계측 부채는 오프라인에서 검증 가능하고 소크는 느리고 위험하다 — 그래서
-   **이 루프는 자기 지속된다.** 데스크만 돌면 코드는 한 번도 안 재진다.
-2. ★★**소크 전후로 거래소를 flat 으로 맞춰라.** 세션 `DELETE` 204 는 **아무것도 flat 하지
-   않는다**(0.03 포지션 + 조건부 1건 잔존 전례). T0 직전 `FLAT=YES` 를 확인해라.
-3. ★★**호스트 `/metrics` 는 워커 증가를 몇 초 늦게 비춘다** — **이벤트 직후 읽기로 판정하지 마라.**
-4. ★**`idle` 은 완료가 아니다** · **`:3000` 은 다른 앱(Kairos)** · API `:8100` · DB `:5433`(격리 스택).
-5. ★★**재기동은 손으로 밟지 마라 — `tools/scripts/soak-restart.sh`**(기본 dry-run · `--confirm` 으로
-   집행 · `FLAT=YES` 아니면 정지). **감시는 `tools/scripts/soak-watch.sh --install`** 이 맡고
-   **게이트 타이머를 대체한다**(게이트에 flock 이 없어 같이 돌리면 표본이 경합한다 — 2026-08-15
-   실측 0.7초 간격 중복 2건). ★설치본이 낡았는지는 **`soak-watch.sh --status`** 가 답한다(rc=1 이면
-   낡음) — 「타이머가 waiting」은 건강 신호가 아니다. ★**watch 는 단일 장애점**이라
-   `OnFailure=…soak-watch-alarm.service` 를 붙였다([BL-737] — 41시간 침묵의 대가).
-6. ★**게이트를 파이프에 넣지 마라**(rc 를 삼킨다) · **`cd apps/api && set -a; . ./.env.local` 금지**.
-   정본 = [`gates-and-traps.md`](./development/gates-and-traps.md) §함정.
-7. ★**표적 변이는 CONTROL 이 직접 집행**(`git checkout` 금지 · **sha256 왕복 복원 대조**).
-   치환 문자열이 다른 함수와 겹치는지 **먼저 세라**. ★**TS 대상에 타입 수준 변이는 변이가 아니다**
-   (`as undefined` 는 타입 소거 — 2026-08-21 실증).
-8. ★**브랜치 접두사는 `stage/` 또는 `feat/`** · **`QB_PRE_PUSH_BYPASS=1` 금지**(Golden Rule 집행기를
-   끄는 스위치다) · ★**pre-commit 이 `ruff format`·`prettier --write` 를 돌린다 — 커밋 후 게이트를
-   다시 재라.**
-
-> ★**2026-08-21 정정 3건.** 종전 이 목록은 **`Clerk JWT 는 60초`** 와 **`세션 등재는 Clerk 의 `azp`
-요구로 헤드리스 불가`** 를 적고 있었다 — **[ADR-034] 로 Clerk 은 2026-08-17 에 제거됐다**(지금은
-> self-host Better Auth). 그리고 「현행 소크 눈금」이 마이그레이션 head 를 **`20260801_0001`** 이라
-> 적었는데 실제 head 는 **`20260817_0002`** 다. 이 절의 머리말이 「낡은 T0 를 남기지 마라」라고
-> 경고한 바로 그 병을 **이 절 자신이 앓고 있었다.**
+> **강등 tombstone (2026-09-10 [ADR-043] 소크 종료).** 이 절 88줄(함정 8개 · 정정 3건)은 소크 의식 층과 함께 내려갔다.
+> 원문 = `git show c488b545:docs/status.md` (1094~1181행). 살아남을 한 줄: **로컬 스택을 켜면 `is_active` 세션이 부활해
+> 서버와 같은 Bybit demo 계정에 붙는다** — 그 함정은 `traps-environment-shell.md` 가 갖는다. 서버 상태 = `deploy.sh --status`.

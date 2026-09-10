@@ -1,0 +1,57 @@
+# 서버 오버레이 — 오라클 A1 에서 base 위에 **이 한 층만** 얹는다 (ADR-043, 2026-09-10).
+#
+#   docker compose --project-directory . -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.server.yml …
+#   (직접 부르지 마라 — tools/scripts/deploy.sh 가 순서를 지킨다)
+#
+# ★종전 서버 스택은 isolated + soak **2층**이었다. isolated 는 `./apps/api/src` 를 mount 해 watchfiles 로
+#   재적재하는 **개발용** 층이고, soak 는 그 mount 를 `.soak/src` 스냅샷으로 바꿔 「어느 코드가 도는가」를
+#   고정하는 층이었다. 이미지 태그(`sha-<7>`, release.yml)가 그 고정을 통째로 대신하므로 두 층 다 서버에
+#   필요 없다. 이 파일이 바꾸는 것:
+#   ports            — db/redis 를 루프백 5433/6380 으로 publish (호스트 API·backup·deploy 가 여기로 붙는다)
+#   pull_policy      — `up` 이 항상 레지스트리 태그를 pull 한다 (서버는 빌드하지 않는다 — 2 OCPU 공유)
+#   mem_limit        — 전역 OOM killer 의 표적을 우리로 고정 (값은 종전 soak 층 그대로 = idle 실측 + burst 여유)
+#   stop_grace_period — 롤링 교체 때 처리 중 작업이 끝날 시간. 기본 10초는 옵티마이저(hard limit 660초)를
+#                      SIGKILL 한다 — acks_late 라 유실은 없지만 재실행이 낭비다. 각 서비스의 작업 상한에 맞춘다.
+#   src mount 없음    — 코드는 이미지 안에 있다. `/metrics` 만 bind 다.
+#
+# ★루프백 publish 는 iptables(INPUT 22 만 ACCEPT)와 이중 방어다 — 외부에 5433/6380 이 열리지 않는다.
+
+services:
+  db:
+    ports: !override
+      - "127.0.0.1:5433:5432"
+
+  redis:
+    ports: !override
+      - "127.0.0.1:6380:6379"
+
+  backend-worker:
+    pull_policy: always
+    mem_limit: 2g
+    stop_grace_period: 60s
+    volumes: !override
+      - ./apps/api/.metrics:/metrics
+
+  backend-ws-stream:
+    pull_policy: always
+    mem_limit: 1536m
+    # lease TTL 60s — 종료 시 __aexit__ 가 lease 를 놓으므로 새 컨테이너가 바로 잡는다. 30s 면 넉넉하다.
+    stop_grace_period: 30s
+    volumes: !override
+      - ./apps/api/.metrics:/metrics
+
+  backend-optimizer-heavy:
+    pull_policy: always
+    mem_limit: 1g
+    # optimizer_tasks.py time_limit=660 — 그보다 길게 둬야 처리 중 run 이 정상 종료한다.
+    stop_grace_period: 11m
+    volumes: !override
+      - ./apps/api/.metrics:/metrics
+
+  backend-beat:
+    pull_policy: always
+    mem_limit: 512m
+    stop_grace_period: 10s
+    volumes: !override
+      - ./apps/api/.metrics:/metrics
+      - beat-data:/data
