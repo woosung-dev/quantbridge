@@ -110,8 +110,11 @@ rewrites 를 안 넘김, 2026-08-07 실측 · ★★) · FastAPI/OIDC 로 인증
 **Priority:** P3 (현재 45% · 경보선 80%)
 **Trigger:** `disk-guard` 가 80% 를 발화하거나, FE 무배포 4주 경과
 **Est:** S
-**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-30 실측 45%, 여유 54G
-**출처:** 2026-08-30 docker 디스크 감사
+**상태:** ⏳ 대기 (트리거 미도래) — ~~2026-08-30 실측 45%, 여유 54G~~ → **2026-09-10 실측 37%, 여유 61.7G.**
+★**원인의 절반은 닫혔다** — 회수가 FE 배포에서 분리돼 `tools/scripts/docker-reclaim.sh`(주간 타이머 · `quantbridge-*` 만 ·
+3세대 유지 · 실패 비은폐)가 됐다. 남은 절반 = **서버에 `--install` 하는 것**(배포 승인 축) — 그때까지 이 항목은 산다.
+★그 한 줄은 깨져 있기도 했다 — `{{.ID}}` rmi 가 다중 태그에서 죽고 `2>/dev/null` 이 삼켜 서버에 4벌이 남아 있었다.
+**출처:** 2026-08-30 docker 디스크 감사 · 2026-09-10 재감사(codex exec 대조)
 
 **원인 / 영향:** 이번 회차가 회수를 `frontend-deploy.md` §3.3 에 **한 줄로** 붙였다(태그 3세대 유지 +
 `builder prune --filter until=168h`). 그 한 줄은 **FE 를 배포할 때만 돈다.** BE 배포(`backend-deploy.md`
@@ -127,6 +130,36 @@ rewrites 를 안 넘김, 2026-08-07 실측 · ★★) · FastAPI/OIDC 로 인증
 **권장 접근:** 트리거 도래 시 ⑴ `docker system df` 로 주인을 먼저 가르고 ⑵ quantbridge 몫만 회수한 뒤
 ⑶ 그래도 부족하면 타 프로젝트 소유자와 협의. 회수를 `disk-guard.sh` 에 **얹지 마라** — 그 스크립트의
 설계 근거가 「경보와 회수의 분리」이고(`disk-guard.sh` 헤더), 경보가 회수 실패로 죽으면 둘 다 잃는다.
+
+---
+
+### BL-864
+
+**Title:** BE 이미지 배포 경로 결정 — 현행(서버 빌드 · save|ssh|load) vs GHCR(CI arm64 빌드 · 서버 pull)
+**Category:** 운영 / 배포 아키텍처
+**Priority:** P3
+**Trigger:** BE 서버 빌드가 소크 실격을 한 번이라도 내거나, `pyproject` 변경 롤백이 실제로 필요해질 때, 또는 사용자가 고를 때
+**Est:** M (ci.yml 잡 1개 + compose `image:` 참조 + 런북 §3.3 ①-b)
+**상태:** ⏳ 대기 (사용자 결정) — 2026-09-10 등재
+**출처:** 2026-09-10 docker/CI 디스크 감사
+
+**사실(2026-09-10 실측):** 레포는 **공개**(`isPrivate=false`)라 GitHub 호스티드 arm64 러너(`ubuntu-24.04-arm`)와 GHCR 이
+무료다. BE 4서비스는 이제 `image: quantbridge-backend:${QB_BACKEND_TAG}` 한 이름을 쓰므로 어느 안이든 태그 규약은 같다.
+FE 는 이미 맥 빌드 · `--platform linux/arm64` · standalone 211MB 로 최적화돼 있어 이 결정의 영향은 BE 가 대부분이다.
+
+| 축 | 현행 | GHCR |
+| --- | --- | --- |
+| 서버 CPU | BE 빌드 ~10분, 소크 `down` 필요(2 OCPU 공유) | 0 — pull 만 |
+| 디스크 | build cache 상주(실측 1.69GB) + 회수기 의존 | build cache 0, pull 층만 |
+| 롤백 | FE 3세대 로컬 · BE 는 sha 태그 도입으로 **로컬 3세대**(이번 회차) | 레지스트리 전 세대, 태그로 즉시 |
+| 비용 | 0 | 0 (공개 레포) |
+| 노출 | 없음 | 공개 이미지에 코드 포함 — 레포가 이미 공개라 증가분 0 · 시크릿은 이미지에 없다(§3 Golden Rule) |
+| 변경량 | 0 | `ci.yml` 잡 1개(buildx push, `main` 머지 시) · compose `image: ghcr.io/…` · 런북 |
+| 장애 결합 | PyPI·서버 빌드 성공에 의존 | GHCR 도달에 의존(pull 실패 = 배포 실패, 기동 중 컨테이너는 무관) |
+
+**권장:** GHCR. 서버에서 빌드하지 않는 것이 소크 창을 지키는 가장 싼 길이고 롤백이 태그가 된다. 단 **결정은 사용자**다.
+[확인 필요] `.metrics` 디렉터리(2026-09-10 서버 실측 31M · 3,082 파일)의 inode 성장이 유계인가 —
+`metrics_multiproc.py` 가 `mark_process_dead` 를 부르지만 prefork 재시작마다 pid 파일이 남는지는 안 쟀다. 이 항목과 같이 본다.
 
 
 ## 변경 이력

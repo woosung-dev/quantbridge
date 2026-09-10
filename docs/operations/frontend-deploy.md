@@ -110,9 +110,13 @@ ssh <서버> 'cd ~/quantbridge && docker compose --project-directory /home/ubunt
 #   109MB 짜리 죽은 태그가 무한히 쌓인다(2026-08-30 실측: 4벌 중 3벌이 죽은 것 = 328MB).
 #   ★`docker image prune` 을 쓰지 마라 — 이 호스트는 3개 프로젝트가 디스크 한 벌을 공유하고
 #     무차별 prune 은 남의 롤백 태그를 지운다(`traps-environment-shell.md` §디스크).
-#     태그를 지정한 `rmi` 와 기간을 건 `builder prune` 만이 그 금지 밖이다.
-ssh <서버> 'docker images quantbridge-frontend --format "{{.ID}}" | tail -n +4 \
-  | xargs -r docker rmi 2>/dev/null; docker builder prune -f --filter until=168h'
+#   ★★2026-09-10 정정 — 종전에 여기 있던 한 줄(`{{.ID}} | tail -n +4 | xargs docker rmi 2>/dev/null`)은
+#     **깨져 있었고 실패를 숨겼다**: 같은 ID 에 태그가 둘이면 `rmi <ID>` 가 conflict 로 죽는데
+#     `2>/dev/null` 이 그것을 삼켰다. 서버 실측 = 정책 3세대인데 4벌 잔존. 회수기는
+#     `tools/scripts/docker-reclaim.sh` 하나다(태그 이름으로 지우고 · 컨테이너가 쓰는 태그는 보호하고 ·
+#     `quantbridge-*` 밖은 보지도 않고 · 실패면 rc=1). 주간 타이머(`--install`)도 같은 스크립트라
+#     FE 를 안 올려도 회수는 돈다([BL-849]).
+ssh <서버> 'cd ~/quantbridge && tools/scripts/docker-reclaim.sh --confirm'
 ```
 
 실측: standalone 50MB · 이미지 211MB · 빌드 약 1분.
