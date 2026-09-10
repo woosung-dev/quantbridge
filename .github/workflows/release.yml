@@ -1,0 +1,138 @@
+# 이미지 파이프라인 — main 에 머지될 때마다 BE·FE 이미지를 arm64 로 빌드해 GHCR 에 올린다 (ADR-043 준비, 2026-09-10).
+#
+# 왜 있나
+#   서버(오라클 A1 · 2 OCPU 를 3개 프로젝트가 공유)에서 BE 이미지를 빌드하면 ~10분간 워커가 굶고
+#   build cache 1.7GB 가 디스크에 남는다(2026-09-10 실측). FE 는 맥에서 빌드해 `docker save | ssh | load`
+#   로 옮겼고, BE 워커 이미지는 **아무도 재빌드하지 않아 3주간 낡아 있었다**(PR #862). 이미지는 CI 가
+#   만들고 서버는 받기만 한다 — 12-factor build/release/run · Docker CI 가이드 · Kamal 이 같은 모양이다.
+#
+# 무엇을 만드나
+#   ghcr.io/woosung-dev/quantbridge-backend:sha-<7>  (+ :latest)
+#   ghcr.io/woosung-dev/quantbridge-frontend:sha-<7> (+ :latest)
+#   ★태그 = git sha. `latest` 는 사람용 별칭이고 배포·롤백은 sha 로만 한다(`deploy.sh`).
+#
+# 무엇을 안 하나
+#   서버에 손대지 않는다. 배포 잡은 서버 전환(ADR-043) 뒤 별도 PR 로 붙는다.
+#
+# ★러너 = `ubuntu-24.04-arm` — 서버와 같은 aarch64 라 QEMU 없이 네이티브다. 공개 레포라 무료.
+# ★FE 의 NEXT_PUBLIC_* 3종은 빌드 타임에 번들로 구워진다 — 값은 공개 URL 이라 repo Variables 다(시크릿 아님).
+#   BETTER_AUTH_* 는 런타임 값이지만 `pnpm build` 가 `betterAuth({secret})` 를 평가하므로 ci.yml 과 같은
+#   placeholder 를 준다(production 에서만 throw).
+
+name: Release images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # 이미지 push 중간에 끊으면 태그가 반쪽이 된다
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BACKEND: ghcr.io/woosung-dev/quantbridge-backend
+  IMAGE_FRONTEND: ghcr.io/woosung-dev/quantbridge-frontend
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_BACKEND }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # ★기동 전 되짚기 2축 — backend-deploy.md §3.3 ①-b 가 사람에게 시키던 것을 기계가 한다.
+      #   `--network none` 이 핵심이다: 네트워크가 살아 있으면 `uv run` 류의 숨은 재설치가 성공해
+      #   건강해 보인다(2026-08-30 실측). 런타임 의존성(openai)은 있어야 하고 dev(pytest)는 없어야 한다.
+      - name: probe image offline
+        run: |
+          set -euo pipefail
+          IMG="${IMAGE_BACKEND}:sha-$(git rev-parse --short=7 HEAD)"
+          docker pull "$IMG"
+          docker run --rm --network none --entrypoint "" "$IMG" python -c "import openai, celery, src.main" \
+            || { echo "✗ 런타임 의존성 import 실패"; exit 1; }
+          if docker run --rm --network none --entrypoint "" "$IMG" python -c "import pytest" 2>/dev/null; then
+            echo "✗ dev 의존성(pytest)이 런타임 이미지에 있다 — --no-dev 가 무효다"; exit 1
+          fi
+          docker run --rm --network none --entrypoint "" "$IMG" celery --version
+          echo "✓ $IMG"
+
+  frontend:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      # 도구 버전(node·pnpm)은 루트 mise.toml 하나가 정한다 (ADR-036) — ci.yml 과 같은 핀.
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_WS_URL: ${{ vars.NEXT_PUBLIC_WS_URL }}
+          NEXT_PUBLIC_ENABLE_TEST_ORDER: ${{ vars.NEXT_PUBLIC_ENABLE_TEST_ORDER }}
+          BETTER_AUTH_SECRET: ci-build-only-placeholder-secret-000000
+          BETTER_AUTH_URL: http://localhost:3000
+      - name: assert build vars were inlined
+        # 변수가 비어 있으면 번들이 localhost 를 가리키고 배포 뒤에야 안다. 빌드 산출물에서 먼저 잰다.
+        run: |
+          set -euo pipefail
+          test -n "${{ vars.NEXT_PUBLIC_API_URL }}" || { echo "✗ vars.NEXT_PUBLIC_API_URL 이 비어 있다"; exit 1; }
+          grep -rq "${{ vars.NEXT_PUBLIC_API_URL }}" .next/static/chunks || { echo "✗ API URL 이 번들에 없다"; exit 1; }
+          test -f .next/standalone/server.js
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_FRONTEND }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+      # apps/web/Dockerfile 은 런타임 전용이다(산출물만 담는다) — 그 계약을 그대로 쓴다.
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/web
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
