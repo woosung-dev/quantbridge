@@ -37,7 +37,7 @@
 #   QB_ALLOW_VERSION_SKEW=1      verify-restore 의 TimescaleDB 버전 대조를 우회
 #
 # 종료 코드: 0 = 정상 / 1 = 실패·거부 / 2 = 전제 미충족(측정 못 함)
-#   ★3 = **로컬 덤프는 정상인데 원격 업로드만 실패**(부분 성공). soak-stack.sh 의 3종 규약을
+#   ★3 = **로컬 덤프는 정상인데 원격 업로드만 실패**(부분 성공). (2026-09-10 삭제된) 소크 스택 스크립트의 3종 규약을
 #     한 칸 넓혔다 — 「덤프가 없다」와 「원격 사본이 없다」는 복구 가능성이 전혀 다른 사건인데
 #     둘 다 1 이면 알림을 받은 사람이 무엇이 깨졌는지 모른다. systemd 는 3 도 실패로 세므로
 #     OnFailure 알람은 그대로 발화한다 — 즉 「경고로 남기되 조용히 묻지는 않는다」.
@@ -51,10 +51,10 @@
 #     서버에서 [BL-003] 24시간 소크 창이 돌고 있고 `up`/`down`/`restart`/`stop`/`start` 는 그
 #     창을 **끊는다**. 백업 한 번이 소크 며칠을 지우는 것이 이 스크립트의 최대 위험이라,
 #     짝 하네스가 docker 인자를 전수 기록해 금지어 등장 자체를 red 로 잡는다.
-#   · **대상을 증명하고 시작한다.** base/isolated/soak compose 가 `container_name:
+#   · **대상을 증명하고 시작한다.** base/isolated/server compose 가 `container_name:
 #     quantbridge-db` 를 공유하므로 "지금 떠 있는 것"이 대상이 된다(Makefile:301-303).
 #     이미지가 timescaledb 계열인지 · DB 이름이 맞는지 · published port 가 `.env.local` 의
-#     DATABASE_URL 과 같은지까지 본다 (`soak-stack.sh` `_migrate` 와 같은 관용구).
+#     DATABASE_URL 과 같은지까지 본다 (`deploy.sh --migrate` 와 같은 관용구).
 #   · **빈 파일을 남기지 않는다.** 크기 0 이면 지우고 죽는다(Makefile:312-324 와 같은 규칙).
 #     0바이트 덤프가 쌓이면 「백업이 있다」가 거짓이 된다.
 #   · **자격증명은 파일이 아니라 컨테이너에서 읽는다.** `.env` 는 편집돼도 컨테이너는 기동
@@ -171,7 +171,7 @@ _prove_target() {
   PG_VERSION="${ver}"
   IMAGE_REF="${image}"
 
-  # published port ↔ .env.local DATABASE_URL 대조 (`soak-stack.sh` _migrate 관용구).
+  # published port ↔ .env.local DATABASE_URL 대조 (`deploy.sh --migrate` 관용구).
   # ★백업은 읽기 전용이라 DDL 만큼 위험하진 않지만, **엉뚱한 DB 를 백업하는 것**은
   #   실패로 보이지 않는 실패다. 그래서 여기서도 잰다. `.env.local` 이 없으면 못 재는
   #   것이므로 경고만 남긴다(레포 체크아웃 없이 도는 배치를 막지 않는다).
@@ -188,7 +188,7 @@ _prove_target() {
       #   `POSTGRES_DB` 에서 오고 `DATABASE_URL` 은 앱이 실제로 접속하는 DB 다 — 한 컨테이너
       #   안에 DB 가 여럿이면 **포트는 같은데 이름이 다를 수 있다**. 그러면 앱이 쓰는
       #   `another_db` 대신 `quantbridge` 를 떠 놓고 「백업 성공」이라고 말한다.
-      #   `soak-stack.sh:_migrate` 는 이 대조가 필요 없다 — 거기서는 DSN 을 **직접** 써서
+      #   `deploy.sh --migrate` 는 이 대조가 필요 없다 — 거기서는 DSN 을 **직접** 써서
       #   이름이 자동으로 일치한다. 백업만 이름을 딴 데서 얻으므로 여기서 재야 한다.
       dbname="${dburl##*/}"     # 마지막 '/' 뒤
       dbname="${dbname%%\?*}"   # 쿼리스트링 제거
@@ -485,7 +485,8 @@ Environment=QB_DB_CONTAINER=${DB_CONTAINER}
 ExecStart=/bin/bash ${SCRIPT_DIR}/db-backup.sh run
 EOF
 
-  # ★알람 유닛 — `soak-watch.sh:174-194` 를 그대로 물려받는다. 두 함정이 있고 둘 다 이
+  # ★알람 유닛 — soak-watch 의 관용구를 그대로 물려받는다(2026-09-10 소크 종료 — 원문
+  #   `git show c488b545:tools/scripts/soak-watch.sh` :174-194). 두 함정이 있고 둘 다 이
   #   레포에서 실제로 알람을 조용히 죽였다:
   #   ★★**`$$` 이스케이프.** systemd 는 ExecStart 의 `${VAR}` 를 **자기 환경으로 먼저
   #     확장**하고 미정의 변수는 **빈 문자열**로 만든다 — 작은따옴표도 막지 못한다. 그러면

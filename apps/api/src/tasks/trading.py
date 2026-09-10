@@ -1844,10 +1844,12 @@ def refresh_closed_pnl_task(self: Any, order_id: str, reversal: bool = False) ->
 
     ★★**반대 방향(새 메시지 → 옛 워커)은 이 기본값이 못 막는다** (2026-08-15 codex Standards-2).
     옛 워커의 시그니처에는 `reversal` 이 없어 `TypeError` 가 난다. 다만 이 레포에는
-    **rolling deploy 가 없다** — `.github/workflows/` 에 배포 워크플로가 없고(ci · live-smoke ·
-    nightly 뿐) 소크 배포는 `soak-stack.sh down → pin → up` 전체 재기동이라 구/신 워커가
-    **동시에 사는 창이 구조적으로 없다**. 남는 위험은 **롤백**이다 — 새 코드가 발행한 메시지가
-    큐에 남은 채 옛 pin 으로 되돌리면 그 메시지들이 죽는다.
+    ~~**rolling deploy 가 없다**~~ → **2026-09-10 정정** — `tools/scripts/deploy.sh` 가 워커 4서비스를
+    **순차로** 재생성한다(beat → optimizer-heavy → worker → ws-stream). 같은 큐의 구/신 워커가
+    동시에 사는 창은 여전히 없지만, **서로 다른 서비스의 구/신은 수십 초 겹친다** — 그 창에서
+    신 ws-stream 이 발행한 메시지를 구 worker 가 받을 수 있다. 시그니처를 바꿀 때는 **kwarg 기본값**
+    으로 하위 호환을 지켜라. 남는 위험은 **롤백**이다 — 새 코드가 발행한 메시지가
+    큐에 남은 채 옛 태그로 되돌리면 그 메시지들이 죽는다.
     ⇒ 그때의 대가는 「그 leg 의 refresh 가 5분 스윕까지 밀림」이고 손익은 스윕이 맞춘다.
     큐를 비우고 롤백하거나, 스윕 한 주기를 기다려라.
 

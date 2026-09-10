@@ -3,7 +3,7 @@
 ## 1. Tech Stack
 
 스택 정본은 **루트 `AGENTS.md` §2** 다. 여기 적는 것은 거기에 없는 BE 고유 사항뿐이다.
-- **배포** — Docker compose(개발) / 서버 소크 스택(§7). Object Storage · Vector DB 는 쓰지 않는다.
+- **배포** — Docker compose(개발) / 서버 = GHCR 이미지 + `tools/scripts/deploy.sh`(§7). Object Storage · Vector DB 는 쓰지 않는다.
 - **LLM 키** — `core/config.py` 의 `anthropic_api_key` / `openai_api_key` / `gemini_api_key`.
   ★어느 것을 쓸지는 **`LLM_PROVIDER_ORDER`** 가 정한다(쉼표 목록, 앞에서부터 시도, 키 없으면 건너뜀).
   전부 미설정이면 LLM 엔드포인트만 503 이고 결정론 브리핑·백테스트는 그대로 돈다
@@ -143,10 +143,11 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
   `trust-layer-nightly.yml:63` · `nightly-real-broker.yml:120` 이 `alembic upgrade head` 다.
   「PR CI 에 없다」와 「레포 어디에도 없다」는 다른 문장이고, 후자로 읽으면 nightly 가 깨졌을 때
   원인 후보에서 마이그레이션을 지운 채 찾게 된다
-- **서버 소크 스택** — compose 에 **api 롤이 없고** 실제 API 는 호스트 uvicorn systemd 유닛이라
-  entrypoint 를 지나지 않는다. **DDL 은 `soak-stack.sh migrate --confirm` 으로 사람이 승인해
-  적용한다** — 빼먹으면 새 코드가 옛 스키마 위에서 돈다([BL-743]).
-  절차 정본 = [`backend-deploy.md`](../../docs/operations/backend-deploy.md)
+- **서버** — compose 에 **api 롤이 없고** 실제 API 는 호스트 uvicorn systemd 유닛이라 entrypoint 를
+  지나지 않는다([BL-865] 컨테이너화 대기). ★**서버 DDL = `tools/scripts/deploy.sh --migrate <sha>` 를 사람이 친다.**
+  자동 배포(`deploy.sh <sha>`)는 이미지의 `alembic heads` 가 DB `alembic_version` 과 다르면 **rc 2 로 멈추고**
+  텔레그램으로 「DDL 필요」를 알린다 — 새 코드가 옛 스키마 위에서 도는 경로는 없다([BL-743] · [ADR-043]).
+  ~~`soak-stack.sh migrate --confirm`~~ 은 2026-09-10 에 삭제됐다. 절차 정본 = [`backend-deploy.md`](../../docs/operations/backend-deploy.md)
 
 ## 8. 백엔드 폴더 구조
 

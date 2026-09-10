@@ -41,8 +41,8 @@
 | 인증 경계 | **개방 가입**(`apps/web/src/lib/auth.ts` `requireEmailVerification: false`, allowlist 없음). Cloudflare Access 는 **FE 도메인에만** 걸려 있다 ⇒ 「실사용자 0명」은 「공격자 0명」이 아니다 |
 | 자원 제한 | compose 전 파일에 `cpus`·`pids_limit`·`cap_drop`·`read_only`·`network internal` **0건**. `backtest.run` 에 시간 상한 **없음**(`src/tasks/backtest.py:20`) |
 | 감지 | CPU·메모리·실행시간 알림 **0개**(`apps/api/prometheus/alerts.yml` 알림 2개, 둘 다 무관) |
-| 호스트 | 2 OCPU 를 타 프로젝트와 공유하며 [BL-003] 소크 창이 도는 중 ⇒ CPU 폭주 1건이 mainnet 진입 게이트를 리셋한다 |
-| 검증 수단 | CI 에 격리 판별력을 잴 전례 **0건**(docker-in-docker 스텝 없음), 로컬 격리 스택은 `assert-not-pinned` 로 소크 창과 배타 |
+| 호스트 | 2 OCPU 를 타 프로젝트와 공유한다 ⇒ CPU 폭주 1건이 라이브 세션 실격(auto_death)을 만든다(~~소크 창 리셋~~ 2026-09-10 [ADR-043]) |
+| 검증 수단 | CI 에 격리 판별력을 잴 전례 **0건**(docker-in-docker 스텝 없음), ~~로컬 격리 스택은 `assert-not-pinned` 로 소크 창과 배타~~(2026-09-10 [ADR-043]) |
 
 ⇒ **선행 조건이 10건이고 전부 미충족이다.** 「나중에 열려면」 이 목록이 체크리스트다.
 

@@ -165,7 +165,7 @@ async def scan_resting_conditionals(
 
     ★**`_cmd_status` 에서 뽑아낸 판정 본문이다** — 인라인으로 두면 화면 밖에서 재사용할 수
     없었다. `_cmd_status` 는 이제 이것을 부르고 **출력만** 한다(출력 문구·순서는 그대로다 —
-    `soak-restart.sh` 가 `FLAT=` 등을 sed 로 긁는다).
+    2026-09-10 까지 `soak-restart.sh` 가 `FLAT=` 등을 sed 로 긁었다 — 계약은 그대로 둔다).
 
     ★★★**조회 결과를 그대로 돌려주는 이유** — 초판은 `list[str]` 만 돌려줬고 `_cmd_status` 가
     출력을 위해 거래소를 **다시** 읽었다. 그래서 [BL-651] 회귀
@@ -350,7 +350,8 @@ async def _cmd_status(symbol: str) -> None:
                 if not mine:
                     print(f"  {label}: 없음")
 
-            # ★`FLAT=` 은 **한 줄만** 출력한다 — `soak-restart.sh` 가 sed 로 마지막 줄을 긁는다.
+            # ★`FLAT=` 은 **한 줄만** 출력한다 — 셸 소비자가 sed 로 마지막 줄을 긁는 계약(원 소비자
+            #   `soak-restart.sh` 는 2026-09-10 소크 종료로 지워졌다. 계약은 유지한다).
             #   포지션 축과 resting 축을 한 낱말에 섞지 않는다. 섞으면 「무엇이 flat 이 아닌가」를
             #   호출부가 되물을 수 없다.
             print(f"\nFLAT={'NO' if any_open else 'YES'}")
@@ -394,7 +395,7 @@ def _build_session_service(session: AsyncSession) -> Any:
             redis=get_redis_lock_pool(),
         ),
         # ★[BL-634] — 소크 재시작 경로도 같은 가드를 탄다. 종전의 유일한 강제는
-        #   `scripts/soak-restart.sh` 셸 한 곳이었고, 그 셸을 안 거치는 `_cmd_start`
+        #   `scripts/soak-restart.sh`(2026-09-10 삭제) 셸 한 곳이었고, 그 셸을 안 거치는 `_cmd_start`
         #   직접 호출은 무방비였다.
         exclusivity_service=AccountExclusivityService(
             account_repo=account_repo,
@@ -430,7 +431,7 @@ async def _cmd_start(strategy_id: UUID, account_id: UUID, symbol: str, interval:
             created = await service.register(account.user_id, request)
             print(f"✓ 세션 등재: {created.id}")
             print(f"  T0={created.created_at}  equity_baseline={created.equity_baseline_usdt}")
-            print("  ★`.soak/session` 을 이 id 로 갱신하고 `soak-observe.sh --baseline` 을 돌려라.")
+            print("  ★이 id 가 활성 라이브 세션이다 — 배포 전 24h 무실격 쿼리(`deploy.sh`)가 이 세션을 본다.")
     finally:
         await engine.dispose()
 

@@ -157,13 +157,13 @@ GitHub 은 HTML 을 렌더하지 않는다 — 클론한 뒤 브라우저로 열
 | ---------------- | ----------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------ |
 | `apps/web`       | Next.js 16 App Router · **Better Auth 서버 본체** · `proxy.ts` 세션 게이트    | `fe` → uvicorn 과 별도 프로세스, :3000    | `quantbridge-frontend` 컨테이너 (standalone), 루프백 :3200   |
 | `apps/api`       | FastAPI 100% async · JWKS 검증 · WS fan-out · 백테스트 dispatch               | `be` → uvicorn :8000                      | 호스트 systemd `quantbridge-api.service` 의 uvicorn, 루프백 :8100 |
-| Celery 워커 3 + beat 1 | `backend-worker` · `backend-ws-stream` · `backend-optimizer-heavy` · `backend-beat` | `up` → compose (`infra/compose/docker-compose.yml`) | 소크 compose 3층 — 4 서비스는 `.soak/src` **고정 스냅샷**을 mount |
+| Celery 워커 3 + beat 1 | `backend-worker` · `backend-ws-stream` · `backend-optimizer-heavy` · `backend-beat` | `up` → compose (`infra/compose/docker-compose.yml`) | 서버는 GHCR 이미지(`sha-<7>`)를 `docker-compose.server.yml` 로 pull — 코드는 이미지 안 |
 | PostgreSQL       | `timescale/timescaledb:2.14.2-pg15` · 스키마 `public` · `trading` · `ts`      | compose :5432 (격리 :5433)                | compose (루프백 :5433)                                        |
 | Redis            | `redis:7-alpine` · `noeviction` · AOF rewrite 8mb · 쓰기 프로브 healthcheck   | compose :6379 (격리 :6380)                | compose (루프백 :6380)                                        |
 | 공개 경로        | —                                                                             | —                                         | Cloudflare Tunnel(`cloudflared`, host 네트워크) + Access OTP  |
 | 외부             | Bybit Demo(CCXT) · TradingView 웹훅 · LLM 3사(`LLM_PROVIDER_ORDER` 가 순서를 정한다) | —                                    | —                                                            |
 
-★**실자금(mainnet) · 외부 공개 · 멀티 거래소는 제품 범위 밖**이다([`docs/PRD.md`](./docs/PRD.md) §0). 서버는 실사용자 0명의 소크 스택이다.
+★**실자금(mainnet) · 외부 공개 · 멀티 거래소는 제품 범위 밖**이다([`docs/PRD.md`](./docs/PRD.md) §0). 서버는 실사용자 0명의 데모 트레이딩 스택이다(main 머지마다 자동 배포 — [ADR-043]).
 
 ### 요청 수명주기 — 네 갈래
 
@@ -440,9 +440,9 @@ quant-bridge/
 │       └── e2e/                    #   Playwright 31 spec · 프로젝트 7종
 ├── contracts/openapi/              # openapi.json — 57 경로 · CI 가 drift 를 red 로 (ADR-031)
 ├── infra/
-│   ├── compose/                    # base · isolated (5433/6380 + watchfiles) · soak (.soak/src 고정) · frontend (FE + cloudflared)
+│   ├── compose/                    # base · isolated (5433/6380 + watchfiles) · server (5433/6380 + GHCR pull) · frontend (FE + cloudflared)
 │   └── db/init/                    # TimescaleDB 확장 + ts 스키마 (컨테이너 최초 1회)
-├── tools/scripts/                  # 운영 22 — soak-* · db-backup · disk-guard · ledger-vitals · ci-changed-scopes · hooks/
+├── tools/scripts/                  # 운영 — deploy · host-bootstrap · docker-reclaim · db-backup · disk-guard · ledger-vitals · ci-changed-scopes · hooks/
 ├── docs/                           # status · PRD · backlog* · architecture/ (diagrams/) · domain · api · development · operations · adr (42) · lessons
 ├── evals/harness/                  # 개발 하네스 eval (TypeScript)
 ├── phases/                         # 하네스 러너 회차 정의 — 산출물은 runs/ (gitignore)

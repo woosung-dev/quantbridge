@@ -168,7 +168,6 @@ description = "격리 스택 부팅 (migrate 미포함)"
 run = """
 set -eu
 tools/scripts/assert-main-checkout.sh up-isolated || exit 1
-tools/scripts/soak-stack.sh assert-not-pinned || exit 1
 tools/scripts/metrics-wipe.sh --project-directory . -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.isolated.yml
 docker compose --project-directory . -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.isolated.yml up -d
 """
@@ -179,7 +178,6 @@ description = "up-isolated + --build (코드 변경 후 image 재빌드)"
 run = """
 set -eu
 tools/scripts/assert-main-checkout.sh up-isolated-build || exit 1
-tools/scripts/soak-stack.sh assert-not-pinned || exit 1
 tools/scripts/metrics-wipe.sh --project-directory . -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.isolated.yml
 docker compose --project-directory . -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.isolated.yml up -d --build
 """
@@ -191,7 +189,6 @@ description = "worker 3종만 재빌드 + watchfiles 자동 reload (ADR-019)"
 run = """
 set -eu
 tools/scripts/assert-main-checkout.sh up-isolated-watch || exit 1
-tools/scripts/soak-stack.sh assert-not-pinned || exit 1
 mise run metrics-prepare
 docker compose --project-directory . -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.isolated.yml up -d --build backend-worker backend-ws-stream backend-beat
 """
@@ -248,35 +245,6 @@ run = """
 set -eu
 tools/scripts/assert-main-checkout.sh migrate || exit 1
 cd apps/api && uv run alembic upgrade head
-"""
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 소크 스택 (BL-003 게이트) — 정본 = tools/scripts/soak-stack.sh
-# 워커가 작업 트리가 아니라 **고정된 커밋 스냅샷**(.soak/src)을 돌게 한다.
-# ══════════════════════════════════════════════════════════════════════════════
-
-[tasks.soak-pin]
-description = "소크 스냅샷 고정 (COMMIT=<sha> 로 지정)"
-run = """
-set -eu
-tools/scripts/assert-main-checkout.sh soak-pin || exit 1
-tools/scripts/soak-stack.sh pin ${COMMIT:-}
-"""
-
-[tasks.up-soak]
-description = "소크 고정본 스택 부팅"
-run = """
-set -eu
-tools/scripts/assert-main-checkout.sh up-soak || exit 1
-tools/scripts/soak-stack.sh up
-"""
-
-[tasks.down-soak]
-description = "소크 고정본 스택 down"
-run = """
-set -eu
-tools/scripts/assert-main-checkout.sh down-soak || exit 1
-tools/scripts/soak-stack.sh down
 """
 
 # ══════════════════════════════════════════════════════════════════════════════

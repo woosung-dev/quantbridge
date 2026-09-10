@@ -75,7 +75,11 @@ jobs:
           set -euo pipefail
           IMG="${IMAGE_BACKEND}:sha-$(git rev-parse --short=7 HEAD)"
           docker pull "$IMG"
-          docker run --rm --network none --entrypoint "" "$IMG" python -c "import openai, celery, src.main" \
+          # `src.main` 은 import 시점에 Settings() 를 만든다 — ci.yml 과 같은 더미(비밀 아님)를 준다.
+          docker run --rm --network none --entrypoint "" \
+            -e TRADING_ENCRYPTION_KEYS="MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc=" \
+            -e DATABASE_URL=postgresql+asyncpg://x:x@localhost:1/x \
+            "$IMG" python -c "import openai, celery, src.main" \
             || { echo "✗ 런타임 의존성 import 실패"; exit 1; }
           if docker run --rm --network none --entrypoint "" "$IMG" python -c "import pytest" 2>/dev/null; then
             echo "✗ dev 의존성(pytest)이 런타임 이미지에 있다 — --no-dev 가 무효다"; exit 1

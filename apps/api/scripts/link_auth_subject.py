@@ -21,7 +21,7 @@ DB 에 없으므로 JIT 프로비저닝이 **빈 계정을 새로 만든다** �
 ★새 subject 는 로그인한 뒤 브라우저에서 `/api/auth/token` 의 JWT `sub`, 또는 서버에서
   `SELECT id FROM auth_user WHERE email = ...` 로 얻는다.
 ★`--confirm` 없이는 **아무것도 쓰지 않는다.** 기본이 dry-run 인 것은 이 레포 관례다
-  (`soak-stack.sh migrate` · `soak-restart.sh` 와 같은 형태).
+  (`deploy.sh --migrate` · `docker-reclaim.sh --confirm` 과 같은 형태).
 """
 
 from __future__ import annotations

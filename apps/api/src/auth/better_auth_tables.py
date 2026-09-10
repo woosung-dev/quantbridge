@@ -1,8 +1,8 @@
 """Better Auth 가 쓰는 5테이블의 **선언** — 우리 코드는 이 테이블을 읽지도 쓰지도 않는다(ADR-034).
 
 왜 여기 있나: DDL 정본을 alembic 하나로 유지하기 위해서다. Better Auth 의 `migrate` CLI 는
-Kysely 로 DB 를 직접 치는데, 이 레포는 「서버 소크 DB 에 DDL = `soak-stack.sh migrate --confirm`
-+ 매번 명시 승인」이 규약이다([BL-743]). 그래서 스키마는 `@better-auth/cli generate` 로 **뽑아서**
+Kysely 로 DB 를 직접 치는데, 이 레포는 「서버 DB 에 DDL = `deploy.sh --migrate <sha>` 를 **사람이** 친다
++ 매번 명시 승인」이 규약이다([BL-743] · 2026-09-10 까지는 소크 스택의 migrate 서브커맨드였다). 그래서 스키마는 `@better-auth/cli generate` 로 **뽑아서**
 alembic revision 으로 옮겼고, 그 결과를 metadata 에 선언해 `alembic check` 가 이 5개를
 「removed table」로 오인하지 않게 한다([BL-770] 과 같은 축).
 

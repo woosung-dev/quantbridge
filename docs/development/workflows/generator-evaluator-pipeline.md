@@ -287,7 +287,7 @@ assert sha256(path.read_bytes()).hexdigest()[:12] == base   # 복원 검증
 2. **두 가드가 같은 대역을 공유** — 초기 조회와 재확인이 같은 mock 을 쓰면 서로를 가린다. 하나만 실패시키는 픽스처가 필요하다.
 3. **대상 테스트 파일 오선택** — 리포지토리 SQL 변이를 서비스 테스트(리포지토리를 mock)로 재면 영원히 통과한다.
 
-### 7.3 라이브 soak 세션 시작
+### 7.3 라이브 세션 시작 (~~soak~~ — 2026-09-10 [ADR-043] 소크 게이트 종료, 라이브 세션 절차만 남긴다)
 
 `e2e/.auth/storageState.json` 의 세션 쿠키는 **만료돼 있을 수 있다**. 브라우저에서 신선한 토큰을 발급받아야 한다.
 ★**두 구간의 자격증명이 다르다**(ADR-034) — 브라우저↔Next 는 세션 쿠키, Next↔FastAPI 는 Bearer JWT 다.
@@ -312,7 +312,7 @@ await fetch("http://localhost:8100/api/v1/live-sessions", {
 
 - 경로는 `/api/v1/live-sessions` 다(`/api/v1/trading/...` 아님).
 - 종료도 같은 방식의 `DELETE` 로 — DB 직접 수정하면 **미체결 조건부 주문 정리가 안 된다**.
-- ★soak 전 **활성 세션 0 확인** + 워커 sentinel(신규 심볼 `hasattr`) 확인.
+- ★라이브 세션 시작 전 **활성 세션 0 확인** + 워커 sentinel(신규 심볼 `hasattr`) 확인.
 
 ### 7.4 외부 오라클 — raw HMAC 으로 거래소에 직접 묻는다
 
@@ -427,8 +427,8 @@ harness-v1:tools/scripts/<파일>`). 재추가는 「문서화된 사고 1건 = 
 
 1. 별도 하네스 `*-test.sh` (~~`mise run gate-harnesses` 가 부른다~~ — ADR-037 로 철거, 원문 = `git show harness-v1:tools/scripts/`)
 2. **내장 self-check** (~~`bl-trigger-sweep.sh --selftest`~~ 가 그 판본이었다 — 같은 철거, 원문 = `git show harness-v1:tools/scripts/bl-trigger-sweep.sh`)
-3. **판정 로직이 다른 층에 살면 그 층의 테스트** — `soak-gate.sh` 의 판정은
-   `apps/api/scripts/soak_gate_predicate.py` 에 있고 **pytest 61건**이 덮는다
+3. **판정 로직이 다른 층에 살면 그 층의 테스트** — (당시 예) `soak-gate.sh` 의 판정은
+   `apps/api/scripts/soak_gate_predicate.py` 에 있고 **pytest 61건**이 덮었다(둘 다 2026-09-10 [ADR-043] 로 삭제 — 원리는 남는다)
 
 ★★**「`*-test.sh` 가 없다」를 「안 덮였다」로 읽지 마라.** 2026-08-14 에 정확히 그 오독으로
 `soak-gate` 를 사각으로 등재할 뻔했다 — 파일명 규약으로 덮개를 쟀고, 판정 로직이 **다른 언어·다른

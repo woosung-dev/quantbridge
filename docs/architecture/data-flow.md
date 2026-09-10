@@ -409,7 +409,7 @@ sequenceDiagram
 ### 핵심 invariant
 
 - **모든 prefork child task body 가 같은 `_WORKER_LOOP` 사용** — asyncpg/SQLAlchemy/Redis pool/CCXT client 의 internal loop reference 가 stale 되지 않음.
-- **`worker_max_tasks_per_child=250`** (Sprint 18 보수) — child rotation 으로 memory bloat 방어. Sprint 20+ BL-082 1h soak gate 후 1000 검토.
+- **`worker_max_tasks_per_child=250`** (Sprint 18 보수) — child rotation 으로 memory bloat 방어. [BL-828] `docker stats` 24h RSS 표본 후 1000 검토.
 - **per-call `create_worker_engine_and_sm()` + finally `engine.dispose()` 그대로 유지** — connection pool 누수 방어 (loop binding 과 별개).
 - **`run_bybit_private_stream` (long-running)** 은 별도 `ws_stream` queue + `--pool=solo` worker 분리 (Sprint 12 패턴 유지). 같은 child 에 short task 안 옴.
 - **Sprint 19 BL-085** integration test 가 본 lifecycle 의 회귀 자동화: `init_worker_loop()` → 3 task type x 3 cycle = 9 호출 → 모두 succeeded.

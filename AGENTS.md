@@ -160,7 +160,7 @@ Claude Code 는 **그 디렉터리의 파일을 읽는 순간** 하위 `CLAUDE.m
 | `apps/api/src/<도메인>/` | router · service · repository · schemas · models · dependencies · exceptions (7파일 표준) |
 | `apps/api/src/strategy/pine_v2/` | Pine 인터프리터 **SSOT** |
 | `apps/web/src/` | Next.js FSD Lite. ★화면 컴포넌트의 기본 자리는 `features/<domain>/components/` — `app/**/_components/` 가 **아니다**([ADR-035](./docs/adr/035-fe-component-ownership.md)) |
-| `tools/scripts/` | 운영 런타임(`soak-*`·`db-backup`·`disk-guard`) · 가드 · `ledger-vitals` · `hooks/` · 스모크·재현 유틸 |
+| `tools/scripts/` | 운영 런타임(`deploy`·`host-bootstrap`·`docker-reclaim`·`db-backup`·`disk-guard`) · 가드 · `ledger-vitals` · `hooks/` · 스모크·재현 유틸 |
 | `phases/<회차>/` | 하네스 러너의 회차 정의. ★산출물은 `runs/`(gitignore)에만. ★**끝난 회차는 지운다** |
 | `docs/` | `status`·`PRD`·`backlog*` + 정본 6축 + `adr/` + `lessons.md` (지도 = [`docs/README.md`](./docs/README.md)) |
 | `.claude/workflows/` | `review-code.js` · 하네스 Eval = `evals/harness/` |

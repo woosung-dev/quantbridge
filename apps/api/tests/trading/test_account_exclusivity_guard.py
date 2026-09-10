@@ -1,7 +1,7 @@
 """[BL-634] 계정 배타성 가드 — `register()` 전제조건으로 **실제로 막는지** 검증한다.
 
 종전에 `EXCLUSIVE` 는 `live_session_admin.py _cmd_status` 에서 **판정만 하고 print** 했고,
-유일한 강제는 `scripts/soak-restart.sh` 셸 한 곳이라 소크 재시작 경로에만 걸렸다.
+유일한 강제는 (2026-09-10 삭제된) `scripts/soak-restart.sh` 셸 한 곳이라 소크 재시작 경로에만 걸렸다.
 [BL-633] 의 사망은 **재기동이 아니라 세션 시작** 시점에 이미 오염된 계정 위에서 났다.
 """
 
