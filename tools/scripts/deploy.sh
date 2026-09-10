@@ -91,6 +91,15 @@ _notify() { # 실패해도 배포를 멈추지 않는다 — 알림은 부수 �
 }
 
 # ── 판독 ────────────────────────────────────────────────────────────────────────
+# ★sha 는 16진수 7~40자만 받는다 — forced-command ssh 경로에서 SSH_ORIGINAL_COMMAND 가 그대로 여기 온다.
+#   `id; ls` 같은 것을 주면 docker 가 "invalid reference format" 으로 죽긴 했지만 그 전에 git pull 이 돌았다
+#   (2026-09-11 실측). 어떤 부작용보다 먼저 거른다.
+_assert_sha() {
+  case "$1" in
+    *[!0-9a-f]* | "") die "sha 가 아니다: '$1' — 16진수 7~40자만 받는다" 1 ;;
+  esac
+  [ "${#1}" -ge 7 ] && [ "${#1}" -le 40 ] || die "sha 길이가 틀리다: '$1'" 1
+}
 _tag_of() { printf 'sha-%s\n' "$(printf '%s' "$1" | cut -c1-7)"; }
 
 _sql() { docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge -Atc "$1" 2> /dev/null; }
@@ -167,6 +176,7 @@ _wait_running() { # _wait_running <container> — 최대 60초
 # ── 배포 ────────────────────────────────────────────────────────────────────────
 _deploy() { # _deploy <sha> <dry|run>
   local sha="$1" mode="$2" tag svc c
+  _assert_sha "${sha}"
   tag="$(_tag_of "${sha}")"
   echo "■ deploy ${tag} (${mode})"
   _assert_main
@@ -228,6 +238,7 @@ _deploy() { # _deploy <sha> <dry|run>
 # ── --migrate (사람 전용) ───────────────────────────────────────────────────────
 _migrate() {
   local sha="$1" tag cur head after brc
+  _assert_sha "${sha}"
   tag="$(_tag_of "${sha}")"
   _assert_main
   cur="$(_db_revision)"; [ -n "${cur}" ] || die "DB 의 alembic_version 을 못 읽었다" 1

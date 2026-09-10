@@ -11,8 +11,11 @@
 #   ghcr.io/woosung-dev/quantbridge-frontend:sha-<7> (+ :latest)
 #   ★태그 = git sha. `latest` 는 사람용 별칭이고 배포·롤백은 sha 로만 한다(`deploy.sh`).
 #
-# 무엇을 안 하나
-#   서버에 손대지 않는다. 배포 잡은 서버 전환(ADR-043) 뒤 별도 PR 로 붙는다.
+# 배포 잡(`deploy`)
+#   두 이미지가 올라간 뒤 서버에 ssh 로 `deploy.sh <sha>` 하나를 부른다. 서버 쪽 `authorized_keys` 가
+#   **forced command** 로 그 스크립트만 허용하므로 이 키로 할 수 있는 일은 배포뿐이다. 판정(24h 무실격 ·
+#   DDL 대조)은 서버 스크립트가 하고 rc 2 면 여기서도 빨갛게 멈춘다 — 사람이 본다(ADR-043).
+#   ★Environment `Production` 의 시크릿·변수 4개가 없으면 이 잡은 실패한다(조용히 건너뛰지 않는다).
 #
 # ★러너 = `ubuntu-24.04-arm` — 서버와 같은 aarch64 라 QEMU 없이 네이티브다. 공개 레포라 무료.
 # ★FE 의 NEXT_PUBLIC_* 3종은 빌드 타임에 번들로 구워진다 — 값은 공개 URL 이라 repo Variables 다(시크릿 아님).
@@ -140,3 +143,30 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: Production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false # 배포 도중 다음 배포가 끼어들면 롤링이 섞인다 — 줄을 선다
+    steps:
+      - name: ssh deploy.sh <sha>
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_HOST_KEY: ${{ vars.DEPLOY_HOST_KEY }} # `ssh-keyscan -t ed25519 <host>` 한 줄 — TOFU 를 안 한다
+        run: |
+          set -euo pipefail
+          for v in DEPLOY_SSH_KEY DEPLOY_HOST DEPLOY_USER DEPLOY_HOST_KEY; do
+            [ -n "${!v}" ] || { echo "✗ Environment Production 에 $v 가 없다"; exit 1; }
+          done
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          # forced command 가 SSH_ORIGINAL_COMMAND(= sha) 를 deploy.sh 에 넘긴다. rc 는 그대로 새어 나온다.
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 \
+            "$DEPLOY_USER@$DEPLOY_HOST" "${{ github.sha }}"

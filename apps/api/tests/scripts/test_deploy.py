@@ -15,6 +15,8 @@ import stat
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from src.trading.models import SessionDeactivationReason
 
 REPO = Path(__file__).resolve().parents[4]
@@ -231,6 +233,17 @@ def test_import_probe_failure_does_not_restart_api(tmp_path: Path) -> None:
     assert proc.returncode == 1
     assert not any("systemctl --user restart" in c for c in calls), "옛 API 를 살려 둔다"
     assert "import probe" in body
+
+
+@pytest.mark.parametrize("bad", ["id; ls", "abc", "0123456789abcdefg", "sha-0123456"])
+def test_refuses_anything_that_is_not_a_sha_before_any_side_effect(
+    tmp_path: Path, bad: str
+) -> None:
+    """forced-command ssh 는 SSH_ORIGINAL_COMMAND 를 그대로 넘긴다 — git pull 전에 걸러야 한다."""
+    proc, calls, _, _ = run(tmp_path, bad)
+    assert proc.returncode == 1
+    assert not any(c.startswith("git ") and "pull" in c for c in calls)
+    assert not any(c.startswith("pull ") for c in calls)
 
 
 def test_refuses_non_main_checkout(tmp_path: Path) -> None:
