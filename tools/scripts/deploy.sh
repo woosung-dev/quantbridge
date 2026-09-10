@@ -102,7 +102,10 @@ _auto_deaths_24h() {
 _db_revision() { _sql "SELECT version_num FROM alembic_version;"; }
 
 _image_head() { # 이미지 안의 alembic head. 오프라인·DB 없이 — heads 는 스크립트 디렉터리만 읽는다.
+  # ★alembic/env.py 가 `src.core.config.settings` 를 import 하므로 Settings() 의 필수 env 를 더미로 준다
+  #   (ci.yml 의 그 값 — 비밀이 아니다). 첫 release 런이 이것 없이 죽었다(2026-09-10).
   docker run --rm --network none --entrypoint "" \
+    -e TRADING_ENCRYPTION_KEYS="MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc=" \
     -e DATABASE_URL=postgresql+asyncpg://x:x@localhost:1/x \
     "${IMAGE_BACKEND}:$1" alembic heads 2> /dev/null | awk 'NR==1{print $1}'
 }
