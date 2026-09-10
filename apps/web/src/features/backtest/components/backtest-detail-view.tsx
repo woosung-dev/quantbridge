@@ -113,7 +113,7 @@ export function BacktestDetailView({ id }: { id: string }) {
               </span>
               <span className="chip">Bybit</span>
               <span className="chip">
-                {formatDate(bt.period_start)} ~ {formatDate(bt.period_end)}
+                요청 기간 {formatDate(bt.period_start)} ~ {formatDate(bt.period_end)}
               </span>
               <span className="chip accent">바 단위 이벤트 루프</span>
               <span className="chip">{bt.id.slice(0, 8)}</span>

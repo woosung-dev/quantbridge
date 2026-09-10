@@ -500,6 +500,16 @@
             "title": "Created At",
             "type": "string"
           },
+          "data_coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "equity_curve": {
             "anyOf": [
               {
@@ -2190,6 +2200,58 @@
           "pain_point"
         ],
         "title": "CreateWaitlistApplicationRequest",
+        "type": "object"
+      },
+      "DataCoverage": {
+        "properties": {
+          "actual_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual End"
+          },
+          "actual_start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Start"
+          },
+          "bar_count": {
+            "minimum": 0.0,
+            "title": "Bar Count",
+            "type": "integer"
+          },
+          "expected_bars": {
+            "minimum": 0.0,
+            "title": "Expected Bars",
+            "type": "integer"
+          },
+          "missing_bars": {
+            "minimum": 0.0,
+            "title": "Missing Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "actual_start",
+          "actual_end",
+          "bar_count",
+          "expected_bars",
+          "missing_bars"
+        ],
+        "title": "DataCoverage",
         "type": "object"
       },
       "DecimalField-Input": {

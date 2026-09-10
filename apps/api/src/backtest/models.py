@@ -96,6 +96,8 @@ class Backtest(SQLModel, table=True):
     # 결과 (completed 시에만)
     metrics: dict[str, Any] | None = Field(default=None, sa_column=Column(JSONB))
     equity_curve: list[Any] | None = Field(default=None, sa_column=Column(JSONB))
+    # 실제 엔진 입력의 구간·누락. 과거 실행은 복원하지 않고 NULL로 남긴다.
+    data_coverage: dict[str, Any] | None = Field(default=None, sa_column=Column(JSONB))
     error: str | None = Field(default=None, sa_column=Column(Text))
 
     # 2026-08-15 surface-truth (U8) — 엔진이 이 실행에 대해 남긴 경고.

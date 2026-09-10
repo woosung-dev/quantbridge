@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_serializer, model_validator
 
+from src.backtest.data_coverage import DataCoverage
 from src.backtest.models import BacktestStatus, TradeDirection, TradeStatus
 
 # --- Request ---
@@ -486,6 +487,7 @@ class BacktestDetail(BacktestSummary):
     # ★`None` 과 `[]` 는 다르다: `None` = 이 컬럼 이전에 끝난 실행(**모른다**),
     #   `[]` = 경고 없이 돌았다. 화면은 그 둘을 구분해 그린다.
     warnings: list[str] | None = None
+    data_coverage: DataCoverage | None = None
 
     @field_serializer("initial_capital")
     def _decimal_to_str(self, v: Decimal) -> str:

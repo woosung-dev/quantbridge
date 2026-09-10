@@ -206,6 +206,7 @@ export default defineConfig({
       //     잡이 사라짐). 열거식 회귀·배선 겹침은 지금 아무 테스트도 막지 않는다 — 재입힘 규칙 대상.
       testMatch: /\.spec\.ts$/,
       testIgnore: [
+        /verified-strategy-journey\.spec\.ts$/, // 별도 실제 서비스 여정 설정
         /(^|\/)smoke\.spec\.ts$/, // chromium
         /live-smoke\.spec\.ts$/, // chromium-live-smoke
         /design-canon-.*\.spec\.ts$/, // chromium-design-canon

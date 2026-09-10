@@ -75,7 +75,7 @@ export async function SharedBacktestPage({ token }: { token: string }) {
             {bt.symbol} · {bt.timeframe}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {formatRange(bt.period_start, bt.period_end)}
+            요청 기간 {formatRange(bt.period_start, bt.period_end)}
           </p>
         </header>
 
@@ -150,6 +150,7 @@ export async function SharedBacktestPage({ token }: { token: string }) {
             periodEnd={bt.period_end}
             ranAt={bt.completed_at}
             warnings={bt.warnings}
+            dataCoverage={bt.data_coverage}
           />
         </section>
 
