@@ -32,6 +32,7 @@ flowchart TB
 슬롯이 있으면 URL도 해당 슬롯에 맞춘다. 워크트리에서 공유 worker로 검증하지 않는다.
 
 - 로컬은 기존 Pine 코퍼스 5벌을 각각 임포트·백테스트·Monte Carlo까지 실행한다. 독립 전략 표본이나 수익성 보증이 아니다.
+- API 준비 검사 `/healthz`는 Celery 응답 수집 창보다 바깥 취소를 1초 늦춰 정상 응답과 취소가 경합하지 않게 한다.
 - CI는 `s5_ema_trend` 한 여정을 실제 Better Auth·FastAPI·Celery·DB로 실행한다. 시장 데이터만 저장된 CSV fixture이며 거래소 주문·외부 자격증명은 사용하지 않는다.
 - 요청 구간은 2026-04-01~06-30, 1h다. 생성 계정은 실행별 고유하며 로컬 결과는 삭제하지 않는다.
 - `test-results/verified-journey`에 결과 JSON·스크린샷·실패 trace를 남긴다. CI artifact는 API·worker 로그도 포함한다.

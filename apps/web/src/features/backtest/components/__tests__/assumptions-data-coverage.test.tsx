@@ -28,7 +28,7 @@ describe("실제 데이터 구간", () => {
   });
   it("과거 실행의 실제 구간을 요청 기간에서 추정하지 않는다", () => {
     render(<AssumptionsCard initialCapital={10000} dataCoverage={null} />);
-    expect(screen.getByText(/미기록 — 요청 기간과 같다고 보장할 수 없습니다/)).toBeVisible();
+    expect(screen.getByText(/미기록: 요청 기간과 같다고 보장할 수 없습니다/)).toBeVisible();
     expect(screen.queryByTestId("backtest-data-incomplete-note")).not.toBeInTheDocument();
   });
   it("완전한 데이터에는 누락 경고가 없다", () => {

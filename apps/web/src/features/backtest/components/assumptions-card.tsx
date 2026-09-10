@@ -149,7 +149,7 @@ export function AssumptionsCard({
     value:
       dataCoverage?.actual_start && dataCoverage.actual_end
         ? `${formatDateTime(dataCoverage.actual_start)} ~ ${formatDateTime(dataCoverage.actual_end)}`
-        : "미기록 — 요청 기간과 같다고 보장할 수 없습니다",
+        : "미기록: 요청 기간과 같다고 보장할 수 없습니다",
     isDefault: false,
   });
   if (dataCoverage) {

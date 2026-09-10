@@ -109,7 +109,8 @@ async def _check_celery_workers() -> tuple[int, str | None]:
 
     timeout_s = _get_celery_timeout_s()
     try:
-        async with asyncio.timeout(timeout_s):
+        # inspect는 수집 창 전체를 기다린다. 같은 시각의 바깥 취소가 정상 pong을 버리지 않게 한다.
+        async with asyncio.timeout(timeout_s + 1.0):
             result = await asyncio.to_thread(
                 lambda: celery_app.control.inspect(timeout=timeout_s).ping()
             )
