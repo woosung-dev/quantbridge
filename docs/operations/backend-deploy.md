@@ -155,6 +155,14 @@ entrypoint의 migration 경로를 우회한다(`tools/scripts/soak-stack.sh:310-
 4. user systemd timer/service가 SSH 종료 뒤에도 살아야 하면 `loginctl enable-linger` 상태를 확인한다
    (`docs/operations/frontend-deploy.md:163-165`).
    ★**2026-08-18 서버 실측 — `Linger=yes`** (`loginctl show-user ubuntu -p Linger`). 이미 켜져 있다.
+5. ★**호스트에만 있는 설정 2건** — 레포가 만들지 않으므로 호스트를 다시 세우면 사람이 넣어야 한다
+   (2026-09-10 디스크 감사). 둘 다 root 설정이라 **적용 = 배포 승인 축**이다.
+   - `/etc/docker/daemon.json` = `{"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}`
+     (compose `x-logging` 이 같은 값을 갖고 있어 이것이 없어도 우리 컨테이너는 상한을 갖는다 — 남의 컨테이너는 아니다).
+   - `/etc/systemd/journald.conf.d/quantbridge.conf` = `[Journal]\nSystemMaxUse=500M`
+     — **아직 없다.** 2026-09-10 실측 journal 1.2G, 상한은 기본값(fs 10% ≈ 10G)뿐이다. 넣은 뒤 `systemctl restart systemd-journald`.
+6. 디스크 회수 타이머 — `tools/scripts/docker-reclaim.sh --install`(매주 일요일 04:30, `quantbridge-*` 만).
+   경보(`disk-guard.sh`)와 **별도 유닛**이다 — 회수 실패로 경보가 죽지 않게([BL-849]).
 
 ### 3.2 서버 환경
 
@@ -232,11 +240,16 @@ tools/scripts/soak-stack.sh status 2>&1 | sed -n '/워커 이미지 신선도/,/
 #   ★FE·cloudflared 는 별도 compose 프로젝트라 빌드 중에도 공개 사이트는 안 끊긴다.
 #
 #   tools/scripts/soak-stack.sh down
-#   docker compose --project-directory "$PWD" \
+#   ★`QB_BACKEND_TAG=$SHA` — 4서비스가 `image: quantbridge-backend:${QB_BACKEND_TAG}` 한 이름을 공유한다
+#     (2026-09-10). sha 로 태그해야 세대가 남고 §3.4⑵ 의 「의존성 롤백 불가」가 「이전 태그로 up」이 된다.
+#     같은 값을 루트 `.env` 에도 적어야 `up` 이 그 태그를 쓴다(FE 의 `QB_FRONTEND_TAG` 와 같은 규약).
+#   QB_BACKEND_TAG="$SHA" docker compose --project-directory "$PWD" \
 #     -f infra/compose/docker-compose.yml \
 #     -f infra/compose/docker-compose.isolated.yml \
 #     -f infra/compose/docker-compose.soak.yml \
 #     build backend-worker backend-ws-stream backend-optimizer-heavy backend-beat
+#   sed -i "s/^QB_BACKEND_TAG=.*/QB_BACKEND_TAG=$SHA/" .env
+#   tools/scripts/docker-reclaim.sh --confirm   # 3세대 밖 quantbridge-* 태그 + build cache 회수
 #
 #   재빌드했으면 **기동 전에** 되짚어라(2026-08-30 이 4축으로 확인했다):
 #   docker run --rm --network none --entrypoint "" <이미지> python -c "import openai"   # 있어야 한다
