@@ -11,24 +11,32 @@
 flowchart TB
     Trigger[PR → main / stage/**\n+ merge_group + workflow_dispatch]
     CH[changes\n경로 스코프 판정 ~30초]
-    BE[backend\nruff + pytest 전량]
+    BE[backend\nruff + OpenAPI + mypy + pytest 전량]
     FE[frontend\nbiome + tsc + vitest + build]
 
+    J[strategy-journey\n실제 인증·API·worker·리포트·Monte Carlo]
     Trigger --> CH
     CH -->|backend == true| BE
     CH -->|frontend == true| FE
+    CH -->|backend 또는 frontend| J
 ```
 
-★**2026-08-19 [ADR-037] 제로베이스 — 잡은 이 2개가 전부다.** 구 구조(changes paths-filter ·
-documentation · backend_static · backend ×3샤드 · backend_coverage · e2e · ci summary) 원문 =
-`git show harness-v1:.github/workflows/ci.yml`.
+품질 잡은 backend·frontend·strategy-journey다. 마지막 잡은 BL-845의 인증 이후 검사 공백에 대한 최소 복귀다.
+`ledger-vitals.sh`는 원장 변경 시 pre-commit에서 실행한다.
 
-- **경로 스코프 실행** — `changes` 잡이 정한다(2026-08-26 재입힘 · 아래 절). docs only PR 은 두 잡 다 skip 이고, **판정이 애매하면 둘 다 돈다.**
-- **병렬 2잡** — 서로 `needs` 없음. 집계(summary) 잡도 없다.
-- **branch protection required check 이름 = `backend` · `frontend`** — 구 `ci` 집계 check 는
-  더 이상 생성되지 않으므로, required check 에 그 이름을 남겨두면 영구 pending 이다(ADR-037).
-- `tools/scripts/ledger-vitals.sh`(원장 기계 집행 3축)는 **CI 잡이 아니라 pre-commit 훅**이다 —
-  CI 에 이 노드를 그리지 마라.
+### 실제 전략 여정
+
+`playwright.journey.config.ts`는 일반 mock 기반 authed 스위트와 분리된다.
+로컬: BE·FE 격리 서버와 현재 코드의 Celery worker를 메인 체크아웃에서 기동한 후
+`cd apps/web && PLAYWRIGHT_BASE_URL=http://localhost:3100 pnpm exec playwright test --config playwright.journey.config.ts`.
+슬롯이 있으면 URL도 해당 슬롯에 맞춘다. 워크트리에서 공유 worker로 검증하지 않는다.
+
+- 로컬은 기존 Pine 코퍼스 5벌을 각각 임포트·백테스트·Monte Carlo까지 실행한다. 독립 전략 표본이나 수익성 보증이 아니다.
+- API 준비 검사 `/healthz`는 Celery 응답 수집 창보다 바깥 취소를 1초 늦춰 정상 응답과 취소가 경합하지 않게 한다.
+- CI는 `s5_ema_trend` 한 여정을 실제 Better Auth·FastAPI·Celery·DB로 실행한다. 시장 데이터만 저장된 CSV fixture이며 거래소 주문·외부 자격증명은 사용하지 않는다.
+- 요청 구간은 2026-04-01~06-30, 1h다. 생성 계정은 실행별 고유하며 로컬 결과는 삭제하지 않는다.
+- `test-results/verified-journey`에 결과 JSON·스크린샷·실패 trace를 남긴다. CI artifact는 API·worker 로그도 포함한다.
+- 나머지 Playwright 파일은 이 잡의 보장 밖이다. 공개 라우트 스모크는 별도 `live-smoke.yml`이 실행한다.
 
 ### 트리거 — PR 만 (2026-08-06)
 

@@ -16,6 +16,7 @@ from uuid import UUID
 import pandas as pd
 
 from src.backtest.config_mapper import build_engine_config_from_db
+from src.backtest.data_coverage import DataCoverage, measure_data_coverage
 from src.backtest.dispatcher import TaskDispatcher
 from src.backtest.engine import PINE_V2_ENGINE_VERSION, run_backtest
 from src.backtest.engine.types import BacktestConfig, RawTrade
@@ -403,6 +404,9 @@ class BacktestService:
                 metrics=metrics_jsonb,
                 equity_curve=equity_jsonb,
                 warnings=dedupe_engine_warnings(outcome.parse.warnings),
+                data_coverage=measure_data_coverage(
+                    pd.DatetimeIndex(ohlcv.index), bt.timeframe, bt.period_start, bt.period_end
+                ).model_dump(mode="json"),
             )
             if completed_rows == 0:
                 await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
@@ -875,6 +879,11 @@ class BacktestService:
             equity_curve=equity_out,
             error=bt.error,
             warnings=bt.warnings,
+            data_coverage=(
+                DataCoverage.model_validate(bt.data_coverage)
+                if bt.data_coverage is not None
+                else None
+            ),
         )
 
 

@@ -25,6 +25,10 @@ _Avoid_: transpiler, "vectorbt 엔진", Pine v1(인터프리터는 Sprint 59 에
 **Track**:
 pine_v2 가 스크립트 선언을 분류해 실행 경로를 정하는 라우팅 분류 — **S**(strategy 선언 → native `run_historical`) / **A**(indicator|library + alert → `run_virtual_strategy` 가상 래퍼) / **M**(indicator|library, alert 없음 → 지표 pass-through `run_historical`). `library` 선언도 indicator 와 동일하게 alert 유무로 A/M 분기(`ast_classifier._classify_track`).
 
+**Pine time**:
+`time` / `time[n]`은 엔진에 전달된 실제 OHLCV 봉 개시 시각(epoch ms)을 읽는다.
+시각·이력이 없는 입력은 `na`이며 합성 달력을 만들지 않는다. 백테스트·가상 전략·라이브 재생이 같은 접근자를 쓴다.
+
 **Coverage Analyzer**:
 백테스트 제출 시점에 미지원 함수 포함 여부로 실행 가능성(`is_runnable`)을 all-or-nothing 판정하는 사전 검사(ADR-003).
 _Avoid_: parser(별개 — 파서는 문법만, 지원범위 판정은 안 함)

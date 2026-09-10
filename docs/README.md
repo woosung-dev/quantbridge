@@ -83,3 +83,5 @@ git show 0f0f0b06:<위 목록의 경로>                     # 원문 조회
 
 스프린트 종료 시 작업 문서는 반드시 승격·강등·삭제 중 하나로 종결한다.
 자세한 절차는 [`development/workflows/sprint-template.md`](./development/workflows/sprint-template.md) §9를 따른다.
+
+- 2026-09-10: BL-842·BL-847 완료 본문 삭제. 구현 계약은 `architecture/data-flow.md`, 원문은 `git show ca5c93d3:docs/backlog.md`.

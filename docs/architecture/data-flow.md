@@ -248,21 +248,28 @@ sequenceDiagram
             TP->>Repo: insert_bulk(rows) — ON CONFLICT DO NOTHING
             Repo->>TS: INSERT idempotent
         end
-        TP->>Repo: commit() → advisory lock 해제
     end
 
     TP->>Repo: get_range(symbol, tf, start, end)
     Repo->>TS: SELECT ... WHERE time BETWEEN ... ORDER BY time
     TS-->>Repo: list[OHLCV]
+    TP->>Repo: commit() → 캐시 적중도 advisory lock 해제
     TP-->>Backtest: pd.DataFrame[time index, open/high/low/close/volume float]
 ```
+
+### 백테스트 데이터 구간 계약
+
+- 요청 `period_start/end`는 불변이다. 결과의 `data_coverage` JSONB는 **실행 당시 입력**의 `actual_start/end`, `bar_count`, `expected_bars`, `missing_bars`를 보존한다.
+- UTC 캔들 개시 시각 기준으로 요청 양 끝을 포함한다. 예상 봉은 시작을 올림·끝을 내림한 timeframe 격자이며 중간 누락도 센다. 실제 구간은 첫·마지막 봉의 개시 시각이다.
+- 부족한 데이터로 계산한 결과도 반환하되 리포트·공유 화면에 구간과 누락 경고를 표시한다. 과거 행의 NULL은 미기록이며 요청 기간에서 복원하지 않는다.
+- Pine `time`과 `time[n]`은 주입된 OHLCV 시각의 epoch ms다. 시각·이력이 없으면 `na`이고 합성 달력을 만들지 않는다.
 
 ### 핵심 결정 (Sprint 5 M3)
 
 - **on-demand cache-first** — Backtest 실행 시점에 필요한 구간만 fetch. 별도 동기화 task 없음.
 - **gap 계산은 Postgres가 책임** — `generate_series + EXCEPT + ROW_NUMBER` island grouping (FE/BE 가공 없음).
 - **idempotent insert** — `ON CONFLICT DO NOTHING`. UPDATE 안 함 (CCXT 데이터는 immutable past data).
-- **동시 fetch race** — `pg_advisory_xact_lock(hashtext(key))`. 같은 (symbol, tf, period) lock 보유 중인 타 트랜잭션은 대기. tx commit 시 해제.
+- **동시 fetch race** — `pg_advisory_xact_lock(hashtext(key))`, 획득 대기는 `lock_timeout=5s`. 기존 timeout은 획득 후 복원한다. 최종 조회·DataFrame 변환 후 항상 commit하여 계산 전에 해제하고, 실패·취소는 rollback한다. 호출자는 조회 전에 업무 변경을 commit해야 한다.
 - **closed bar filter** — CCXTProvider가 `last_closed_ts = (now // tf_sec) * tf_sec - tf_sec` 이하만 반환 (진행 중 캔들 제외).
 - **provider lifecycle** — HTTP는 FastAPI lifespan singleton, Worker는 prefork-safe lazy + worker_shutdown close ([`system-architecture.md`](./system-architecture.md) §lifecycle 참조).
 

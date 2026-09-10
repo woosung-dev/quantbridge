@@ -2,7 +2,7 @@
 
 // 08 실행 조건 — variant-c "가정과 데이터 출처" 이식. 공용 .trust-grid/.trust-row/.disclaimer 를 소비한다.
 // 프로토타입 variant-c.html:1587-1609 의 2열(실행 가정 / 데이터·비용) 구조. 봉 개수·결측 봉·소요 시간은
-// BacktestDetail 스키마에 대응 필드가 없어 그리지 않는다(§4.9). 고지 문구는 프로토타입의 "샘플 데이터"
+// 데이터 구간·봉 수·누락은 실행 당시 저장된 관측만 표시한다. 고지 문구는 프로토타입의 "샘플 데이터"
 // 카피가 아니라 실데이터 화면의 정직한 가설적 결과 고지를 유지한다(카피 재설계 아님, 도메인 정합).
 //
 // LESSON-004: render body 에서 ref/state 변경 없음. props → 파생값만 계산.
@@ -10,7 +10,7 @@
 import { AlertTriangle } from "lucide-react";
 
 import { InfoIcon } from "@/components/info-icon";
-import type { BacktestConfig } from "@/features/backtest/schemas";
+import type { BacktestConfig, DataCoverage } from "@/features/backtest/schemas";
 import { formatDate, formatDateTime, formatPercent } from "@/features/backtest/utils";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
@@ -44,6 +44,7 @@ export interface AssumptionsCardProps {
   readonly periodStart?: string | null;
   readonly periodEnd?: string | null;
   readonly ranAt?: string | null;
+  readonly dataCoverage?: DataCoverage | null;
   /**
    * 엔진이 이 실행에 대해 남긴 경고 (2026-08-15 surface-truth · U8).
    *
@@ -79,6 +80,7 @@ export function AssumptionsCard({
   periodEnd,
   ranAt,
   warnings,
+  dataCoverage,
 }: AssumptionsCardProps) {
   const fees = config?.fees ?? DEFAULT_FEES;
   const slippage = config?.slippage ?? DEFAULT_SLIPPAGE;
@@ -137,8 +139,28 @@ export function AssumptionsCard({
   if (periodStart != null && periodEnd != null) {
     const d = daysBetween(periodStart, periodEnd);
     dataRows.push({
-      label: "기간",
+      label: "요청 기간",
       value: `${formatDate(periodStart)} ~ ${formatDate(periodEnd)}${d != null ? ` (${d}일)` : ""}`,
+      isDefault: false,
+    });
+  }
+  dataRows.push({
+    label: "실제 데이터 구간",
+    value:
+      dataCoverage?.actual_start && dataCoverage.actual_end
+        ? `${formatDateTime(dataCoverage.actual_start)} ~ ${formatDateTime(dataCoverage.actual_end)}`
+        : "미기록: 요청 기간과 같다고 보장할 수 없습니다",
+    isDefault: false,
+  });
+  if (dataCoverage) {
+    dataRows.push({
+      label: "사용 봉 / 예상 봉",
+      value: `${dataCoverage.bar_count.toLocaleString()} / ${dataCoverage.expected_bars.toLocaleString()}`,
+      isDefault: false,
+    });
+    dataRows.push({
+      label: "누락 봉",
+      value: `${dataCoverage.missing_bars.toLocaleString()}개`,
       isDefault: false,
     });
   }
@@ -195,6 +217,16 @@ export function AssumptionsCard({
           체결 가정. 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후 트리거가에 체결됩니다.
         </span>
       </p>
+
+      {dataCoverage && dataCoverage.missing_bars > 0 ? (
+        <p className="disclaimer report-note-warn" data-testid="backtest-data-incomplete-note">
+          <AlertTriangle aria-hidden="true" />
+          <span>
+            요청 기간에 누락된 캔들이 있습니다. 이 결과는 확보된 봉만 계산했으며, 전체 요청 기간의
+            성과를 보장하지 않습니다.
+          </span>
+        </p>
+      ) : null}
 
       {fundingDataIncomplete === true ? (
         <p className="disclaimer report-note-warn" data-testid="backtest-funding-incomplete-note">

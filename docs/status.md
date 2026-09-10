@@ -904,7 +904,6 @@ FE 하위층 → `@/app/*` 0 · `any`(비테스트) 0 · `_components/` 0. **gre
 | 스트레스 테스트 누적 | **0건** | **한 번도 쓰인 적 없다** |
 | 옵티마이저 누적 | 1건 | |
 | 등록 전략 · 사용자 | 3개 · 2명 (전부 본인) | |
-| `ts.ohlcv` 실질 보유 | BTC/USDT 1h **9,337행 · 2025-07-01~2026-07-25** | **37일 낡았다** — 첫 마찰 후보. [BL-842] 가 「갭을 못 메우면 조용히 좁힌 창을 요청 기간으로 라벨한다」 |
 | 소크 게이트 | **PASS** (24h 창 4/3회 · 최장 291.42h · 실격 0 · C5 6/6) | **여는 문이 없다** — 선행이던 [BL-003] 은 결정 ⑴ 로 삭제됐다 |
 | 라이브 성과 | 백테스트 PF 0.6069 → 라이브 **0.373** (−38.5%) | 핵심가치 ③ 의 미해명 격차 |
 | 체결 레이턴시 (시장가) | p50 **1.829s** · p95 **2.509s** (n=356) | 원안 「< 2초」 **p50 통과 · p95 미달** |
@@ -1012,10 +1011,11 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 ★**authed e2e 92건 중 13 실패는 전부 `page.goto` 60s / context teardown 30s 타임아웃**(서버 응답은 <600ms — 브라우저
 층 정체)이고 assertion 실패는 mock 전략 404 콘솔 1건뿐이었다 → fixture 에 `GET /strategies/:id` mock 을 붙여 종결.
 
-**다음 행동 = [BL-842] `TimescaleProvider` 가 조용히 좁힌 창을 요청 기간으로 라벨하는 것을 멈춘다.**
-PRD **§5** 「결과와 가정이 얼마나 정직하게 보이는가」의 정면 위반이고, 2026-09-06 병합에서 「UI/UX 축을 닫은 직후」로
-미뤄 둔 그 자리다. UI/UX 축(A안 셋 + 결과 화면 4건)은 2026-09-10 에 닫혔다. 남은 화면 항목 [BL-863]·[BL-854]·[BL-857]·
-[BL-853] 잔여 두 축은 하드 실패 0 이라 실사용 마찰이 순서를 정하게 둔다.
+**다음 행동 = PRD §5 실사용 축 — 이번 전략 5벌을 다른 기간으로 검증할 후보로 유지할지, 새 원본을 가져올지 결정한다.**
+현재 변경의 CI 판정은 작업 PR이 갖는다. 요청·실제 데이터 구간/누락 보존과 `time` 실제 시각 배선,
+실제 서비스 여정 계약은 `architecture/data-flow.md`·`development/ci-cd.md`가 정본이다.
+2026-04-01~06-30 BTC/USDT 1h에서 기존 코퍼스 5벌은 모두 손실이라 이번 조건의 데모 운용 후보에서 제외한다.
+현재 실측 지표는 PRD §5, 실행별 원문은 로컬 `runs/verified-strategy-journey/decisions.json`과 PR 검증 근거를 본다.
 
 ★**이 축의 범위(2026-09-06 사용자 확정 = A안)** — 남은 둘을 닫으면 이 축은 끝이다.
 ⑴ ~~[BL-856] 미열람 6화면 리뷰~~ → **2026-09-08 완료**(위 참조)
@@ -1060,13 +1060,11 @@ FE **3101** · BE **8101**. ★**CSS 를 고쳤는데 화면이 안 바뀌면 Tu
 | **I**  | [BL-848] heartbeat/receive task 예외를 `asyncio.wait` done 집합에서 **아무도 안 꺼낸다** | P3 | ★ | 하 | S | **건드림** | **2026-08-31 등재** — [BL-837] 수리 중 인접 코드 대조에서 나왔다. `bybit_private_stream.py:281` 이 done 집합을 `_` 로 버려 소켓발 `OSError` 가 평범한 연결 끊김으로 읽힌다. ★**자가 치유된다**(재연결은 돈다) — 잃는 것은 침묵이 아니라 **원인**이라 P3 다. ★새 metric 전에 **그 경로가 실제로 발화하는지** 소크 로그에서 먼저 재라 |
 | **K**  | [BL-841] `codex-block-dangerous.sh` 가 `jq` 실패 시 **fail-open** | P2 | ★★★ | 하 | S | 0줄 | **2026-08-30 등재** — `hooks/codex-block-dangerous.sh:16` 이 파싱 실패를 통과로 떨어뜨린다. **차단기가 fail-open 이면 차단기가 아니다.** ★음성 대조(깨진 입력이 실제로 막히는가)를 먼저 재라 |
 | **L**  | [BL-740] stress_test 의 sharpe degenerate 판정이 convention 축을 안 읽어 **파산 셀이 「그냥 0」** | P2 | ★★ | 중 | M | **건드림** | **2026-08-30 승격** — 옵티마이저 절반은 PR #857 로 수리됐고 stress_test 3곳이 남았다(`grid_result.py:73` · `walk_forward.py:190` · `serializers.py:238`). ★**영속 스키마(`result_jsonb`) 변경 동반** — 구 행은 `None` = 소급 판정 안 함 |
-| **M**  | [BL-842] `TimescaleProvider` 가 갭을 못 메우면 **짧은 시리즈**를 요청 기간으로 라벨한다 | P2 | ★★ | 중 | M | **건드림** | **2026-08-30 등재 · 2026-09-06 PARTIAL** — `providers/timescale.py` 3증상 중 **⑶(빈 결과가 `RangeIndex`)은 수리**(PR #873). 남은 것: ⑴ 조용히 좁힌 창 ⑵ `pg_advisory_xact_lock` 이 **엔진 실행 전체**를 잡고 `lock_timeout` 없음. ⑴ 은 「채운 실제 구간」을 결과에 싣는 것이 먼저다 |
 | **N**  | [BL-839] 느린 WS 클라이언트 1개가 **전 사용자** realtime listener 를 정지시킨다 | P2 | ★★ | 하 | S | **건드림** | **2026-08-30 등재** — `realtime/manager.py:72` 의 `send_to_user` 가 timeout 없이 `await` 하고 단일 listener 가 순차 배분한다. ★큐를 새로 만들지 말고 **timeout 부터** 재라 |
 | **P**  | ~~[BL-844] FE 실시간이 4401 재시도에서 **같은 캐시 토큰**을 다시 보내 영구 정지~~ → **2026-09-06 종결**(`fix/global-401-policy`) | P2 | ★★ | 하 | S | 0줄 | 4401 재시도 **전에** `onAuthFailure`→`clearAuthTokenCache`(ws-client.ts) · 동승분(세대 카운터)은 이미 코드에 있었다 · 같은 PR 이 `apiFetch` 전역 401 정책(재발급 1회 재시도 · 세션 없음 → /sign-in 1회 · single-flight)을 넣었다. ★**리뷰가 잡은 2차 결함** — 거절 축이 REST 401·WS 4401 **둘**인데 single-flight 를 REST 쪽에만 걸어 WS 가 `clearAuthTokenCache` 를 직접 부르면 in-flight 재발급의 세대를 밀어 **정상 사용자를 /sign-in 으로 튕겼다**(PR 자신의 주석이 경고한 바로 그 결함). `reissueAuthToken()` 단일 입구로 접었다 — 변이 5/5 red |
-| **Q**  | [BL-845] CI 가 Playwright spec **31개 중 1개**만 돈다 — 문서는 격차를 「1개」로 적었다 | P2 | ★★ | 하 | S | 0줄 | **2026-08-30 등재** — `ci.yml` 은 Playwright 를 아예 안 돌리고 `live-smoke.yml` 의 `testMatch` 가 **정확히 1파일**이다. ★수치를 고치는 것이 이 항목의 절반 — 지금 문서는 커버리지를 **30배 과대**로 읽게 한다 |
+| **Q** | [BL-845] 핵심 여정 외 Playwright 검증 범위 선별 | P2 | ★★ | 하 | S | 0줄 | 실제 인증·API·worker·리포트·Monte Carlo 대표 여정은 CI 편입. 나머지는 실사용 마찰이 우선순위를 정한다 |
 | **R**  | [BL-843] prefork 가드가 `src/common/` 을 **하드코딩 2이름**으로 스코프해 1건을 못 본다 | P2 | ★★ | 하 | S | 0줄 | **2026-08-30 등재** — 실제 module-level Semaphore 는 `alert.py:49` · `telegram_alert.py:48` **2건**인데 `AGENTS.md` §9 는 「1건」이라 적었다. ★목록형 스코프는 **파일이 사라져도 조용히 통과**한다 |
 | **S**  | [BL-840] public ticker circuit breaker 는 **쓰기만 하고 아무도 읽지 않는다** | P2 | ★★ | 하 | S | **건드림** | **2026-08-30 등재** — `tasks/websocket_task.py:152` 가 상태를 기록하는데 그 키로 차단하는 소비자가 없다. ★읽는 쪽을 붙이거나 쓰기까지 걷어내라 — **반쪽으로 두면** 다음 사람이 또 「보호되고 있다」로 읽는다 |
-| **T**  | [BL-847] `time` 빌트인이 **달력을 조작**하는데 degraded 플래그가 없다 | P2 | ★ | 하 | S | **건드림** | **2026-08-30 등재 · ★사용자 결정 필요** — `interpreter.py:1301` 이 언제나 합성 timestamp(2020-01-01 + 전 봉 1분)를 낸다. `_DEGRADED_ATTRIBUTES` 엔 `timeframe.period` 뿐이다. **⑴ degraded 승격(제출 게이트 변경) vs ⑵ 실제 OHLCV timestamp 배선** 중 무엇을 할지가 이 항목의 결정 사항 |
 | **G**  | [BL-835] 위저드의 indicator 변환 진입점이 `supported` 분기에만 있다 | P3 | ★ | 하 | S | 0줄 | **2026-08-30 등재** — n14 lane 2 의 diff 를 사람이 읽다가 나왔다. `parse-result-panel.tsx` 가 변환 블록을 `SupportedBody` 안에 두는데 그 분기의 게이트가 `unsupported_builtins.length === 0` 이라, **indicator 이면서 미지원 builtin 을 함께 가진** 스크립트는 버튼을 못 본다 — [BL-834] ⑶ 이 없애려던 「422 를 받아야 버튼을 만난다」로 되돌아간다. ★조건은 `declaration.kind` 하나로 유지해라 |
 | **H**  | [BL-836] `track == "unknown"` 잠복 500 은 수리됐는데 **그 경로를 재는 테스트가 0건**이다 | P3 | ★★ | 하 | S | 0줄 | **2026-08-30 등재** — `Track` 도메인에 `"unknown"` 이 있는데 `StrategyBriefResponse.track` 은 `"S"/"A"/"M"` 셋과 `None` 만 받으므로 브리핑이 **500** 이었다. 예외가 `try` 본문 밖(응답 조립)에서 나 기존 `except` 가 못 잡았다. **mypy 를 게이트로 올리지 않았으면 아무도 못 봤다.** 지금 초록은 「`unknown` 이 안 난다」가 아니라 **「아무도 안 재고 있다」**다 |
 | **U**  | [BL-827] ⑶ `_to_detail` 이 `direction_counts` 위반을 **관측하지 않는다** | P3 | ★ | 하 | S | **건드림** | **2026-08-30 ⑴⑵ 종결**(PR #850 → #851 `4b270510`) — `openapi-check`·`mypy` 가 CI 차단 게이트가 됐다. ★**남은 것은 ⑶ 하나** — `direction_counts[0] >= m.num_trades` 위반을 관측 로그로(응답은 깨지 말 것). 근거는 `deriveTradeCounts` 의 침묵 보정 |

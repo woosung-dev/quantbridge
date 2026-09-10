@@ -2,6 +2,7 @@
 
 AsyncSession 유일 보유. commit()은 Service 요청으로만.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -45,9 +46,7 @@ class OHLCVRepository:
         """ON CONFLICT DO NOTHING — 동일 PK 중복 row는 silently skip (idempotent)."""
         if not ohlcv_rows:
             return
-        stmt = insert(OHLCV).on_conflict_do_nothing(
-            index_elements=["time", "symbol", "timeframe"]
-        )
+        stmt = insert(OHLCV).on_conflict_do_nothing(index_elements=["time", "symbol", "timeframe"])
         await self.session.execute(stmt, ohlcv_rows)
 
     async def find_gaps(
@@ -106,14 +105,20 @@ class OHLCVRepository:
         period_end: datetime,
     ) -> None:
         """동시 fetch race 방지 — pg_advisory_xact_lock (트랜잭션 종료 시 자동 해제)."""
-        key = (
-            f"ohlcv:{symbol}:{timeframe}:"
-            f"{period_start.isoformat()}:{period_end.isoformat()}"
-        )
+        key = f"ohlcv:{symbol}:{timeframe}:{period_start.isoformat()}:{period_end.isoformat()}"
+        previous_timeout = await self.session.scalar(text("SHOW lock_timeout"))
+        await self.session.execute(text("SET LOCAL lock_timeout = '5s'"))
         await self.session.execute(
             text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
             {"key": key},
         )
+        await self.session.execute(
+            text("SELECT set_config('lock_timeout', :value, true)"),
+            {"value": previous_timeout},
+        )
 
     async def commit(self) -> None:
         await self.session.commit()
+
+    async def rollback(self) -> None:
+        await self.session.rollback()

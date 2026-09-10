@@ -263,3 +263,20 @@ def test_get_celery_timeout_s_uses_env_or_default(
         monkeypatch.setenv("HEALTHZ_CELERY_TIMEOUT_S", env_value)
 
     assert _get_celery_timeout_s() == expected
+
+
+@pytest.mark.asyncio
+async def test_celery_reply_collection_finishes_before_outer_deadline(monkeypatch):
+    """inspect가 수집 창을 다 기다린 뒤 반환하는 정상 응답을 취소하지 않는다."""
+    import time
+
+    from src.health.router import _check_celery_workers
+
+    def collect_replies():
+        time.sleep(0.06)
+        return {"worker": {"ok": "pong"}}
+
+    monkeypatch.setattr("src.health.router._get_celery_timeout_s", lambda: 0.05)
+    control = SimpleNamespace(inspect=Mock(return_value=SimpleNamespace(ping=collect_replies)))
+    _install_celery_app(monkeypatch, SimpleNamespace(control=control))
+    assert await _check_celery_workers() == (1, None)

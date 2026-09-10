@@ -257,6 +257,7 @@ class BacktestRepository:
         metrics: dict[str, Any],
         equity_curve: list[Any],
         warnings: list[str],
+        data_coverage: dict[str, Any] | None = None,
         where_status: BacktestStatus = BacktestStatus.RUNNING,
     ) -> int:
         """Running → completed. 조건부. Returns affected rows.
@@ -276,6 +277,7 @@ class BacktestRepository:
                 metrics=metrics,
                 equity_curve=equity_curve,
                 warnings=warnings,
+                data_coverage=data_coverage,
                 completed_at=datetime.now(UTC),
             )
         )

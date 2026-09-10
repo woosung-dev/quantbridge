@@ -146,3 +146,79 @@ def test_empty_and_filled_dataframes_share_index_type() -> None:
     assert type(empty.index) is type(filled.index)
     assert empty.index.name == filled.index.name
     assert empty.index.tz == filled.index.tz
+
+
+@pytest.mark.asyncio
+async def test_cache_hit_releases_fetch_transaction_before_return():
+    """갭이 없어도 optimizer 계산 전에 락이 해제되어야 한다."""
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    repo = AsyncMock(spec=OHLCVRepository)
+    repo.find_gaps.return_value = []
+    repo.get_range.return_value = [_orm_row(base)]
+    provider = TimescaleProvider(repo, AsyncMock(spec=CCXTProvider))
+    await provider.get_ohlcv("BTC/USDT", "1h", base, base)
+    repo.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_fetch_failure_rolls_back_before_propagating():
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    repo = AsyncMock(spec=OHLCVRepository)
+    repo.find_gaps.return_value = [(base, base)]
+    ccxt = AsyncMock(spec=CCXTProvider)
+    ccxt.fetch_ohlcv.side_effect = TimeoutError("exchange timeout")
+    with pytest.raises(TimeoutError):
+        await TimescaleProvider(repo, ccxt).get_ohlcv("BTC/USDT", "1h", base, base)
+    repo.rollback.assert_awaited_once()
+    repo.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fetch_lock_is_bounded_and_failed_transaction_is_reusable(_test_engine):
+    """별도 연결이 락을 보유해도 5초 후 실패하고 다음 SQL은 실행 가능하다."""
+    import asyncio
+
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    async with AsyncSession(_test_engine) as holder, AsyncSession(_test_engine) as waiter:
+        holder_repo = OHLCVRepository(holder)
+        await holder_repo.acquire_fetch_lock("BTC/USDT:USDT", "1h", base, base)
+        ccxt = AsyncMock(spec=CCXTProvider)
+        provider = TimescaleProvider(OHLCVRepository(waiter), ccxt)
+        try:
+            with pytest.raises(DBAPIError, match="lock timeout"):
+                await asyncio.wait_for(provider.get_ohlcv("BTC/USDT", "1h", base, base), timeout=10)
+            assert await waiter.scalar(text("SELECT 1")) == 1
+            ccxt.fetch_ohlcv.assert_not_awaited()
+        finally:
+            await holder.rollback()
+
+
+@pytest.mark.asyncio
+async def test_fetch_releases_lock_for_another_connection(_test_engine):
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    async with (
+        _test_engine.connect() as connection,
+        AsyncSession(connection) as first,
+        AsyncSession(_test_engine) as second,
+    ):
+        await first.execute(text("SET lock_timeout = '2s'"))
+        ccxt = AsyncMock(spec=CCXTProvider)
+        ccxt.fetch_ohlcv.return_value = []
+        await TimescaleProvider(OHLCVRepository(first), ccxt).get_ohlcv(
+            "BTC/USDT", "1h", base, base
+        )
+        assert await first.scalar(text("SHOW lock_timeout")) == "2s"
+        key = f"ohlcv:BTC/USDT:USDT:1h:{base.isoformat()}:{base.isoformat()}"
+        assert (
+            await second.scalar(
+                text("SELECT pg_try_advisory_xact_lock(hashtext(:key))"), {"key": key}
+            )
+            is True
+        )
