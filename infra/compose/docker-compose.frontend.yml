@@ -11,8 +11,9 @@
 #   docker compose -f docker-compose.frontend.yml -p quantbridge-fe down
 #
 # 선행 조건:
-#   ⑴ `quantbridge-frontend:${QB_FRONTEND_TAG}` 이미지가 서버에 load 돼 있다
-#      (맥에서 `docker save | ssh … docker load` — 빌드는 서버에서 하지 않는다. 2 OCPU 공유)
+#   ⑴ ~~`quantbridge-frontend:${QB_FRONTEND_TAG}` 이미지가 서버에 load 돼 있다(맥 빌드 · save|ssh|load)~~
+#      → **2026-09-10** — 이미지는 `.github/workflows/release.yml` 이 main 머지마다 GHCR 에 올린다.
+#      서버는 `docker compose pull` 만 한다(빌드는 여전히 서버에서 하지 않는다. 2 OCPU 공유).
 #   ⑵ 루트 `.env` 에 `QB_TUNNEL_TOKEN` · `QB_FRONTEND_TAG` ·
 #      `BETTER_AUTH_SECRET` · `BETTER_AUTH_URL` · `BETTER_AUTH_DATABASE_URL` 이 있다
 #
@@ -31,7 +32,7 @@ x-logging: &default-logging
 services:
   # Next.js 16 standalone 런타임. `apps/web/Dockerfile` 은 맥 빌드 산출물만 담는다.
   frontend:
-    image: quantbridge-frontend:${QB_FRONTEND_TAG:?required — 맥에서 build 한 태그를 .env 에 적어라}
+    image: ghcr.io/woosung-dev/quantbridge-frontend:${QB_FRONTEND_TAG:?required — release.yml 이 올린 sha-<7> 태그를 .env 에 적어라}
     container_name: quantbridge-frontend
     logging: *default-logging
     # ★루프백 전용 publish. cloudflared 가 host 네트워크에 있으므로 이것만으로 닿고,

@@ -88,9 +88,21 @@ command -v docker > /dev/null 2>&1 || {
 
 # ── 판독 ────────────────────────────────────────────────────────────────────────
 # `docker images` 는 생성 시각 내림차순이다 — 저장소별로 잘라도 그 순서가 유지된다.
-# 저장소 필터는 **접두사 + 하이픈** 이다. `quantbridge` 만 주면 `quantbridge2-*` 같은 이웃도 잡는다.
+# ★저장소 이름은 두 모양이다 — 로컬 빌드 `quantbridge-*` 와 GHCR `ghcr.io/woosung-dev/quantbridge-*`
+#   (2026-09-10 release.yml). 둘 다 우리 것이고 둘 다 아닌 것은 전부 남의 것이다.
+_is_ours() { # _is_ours <repo 또는 repo:tag> → 0/1
+  case "$1" in
+    "${PREFIX}-"* | */"${PREFIX}-"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 _list_ours() { # stdout: "<repo>\t<tag>" (dangling 은 repo 가 <none> 이라 여기 안 들어온다)
-  docker images --format '{{.Repository}}\t{{.Tag}}' "${PREFIX}-*" | awk -F'\t' '$2 != "<none>"'
+  docker images --format '{{.Repository}}\t{{.Tag}}' | while IFS=$'\t' read -r repo tag; do
+    [ "${tag}" != "<none>" ] || continue
+    _is_ours "${repo}" || continue
+    printf '%s\t%s\n' "${repo}" "${tag}"
+  done
 }
 
 _in_use_refs() { # stdout: 컨테이너가 참조하는 image 문자열 (실행 중 + 정지 전부)
@@ -99,13 +111,9 @@ _in_use_refs() { # stdout: 컨테이너가 참조하는 image 문자열 (실행 
 
 # ★단 하나의 안전판 — rmi 인자로 가는 모든 ref 는 여기를 지난다. 접두사 밖이면 죽는다.
 _assert_ours() {
-  case "$1" in
-    "${PREFIX}-"*) return 0 ;;
-    *)
-      echo "✗ 내부 오류: 접두사 밖 ref 가 회수 후보에 들어왔다 — ${1} (아무것도 지우지 않았다)" >&2
-      exit 1
-      ;;
-  esac
+  _is_ours "$1" && return 0
+  echo "✗ 내부 오류: 접두사 밖 ref 가 회수 후보에 들어왔다 — ${1} (아무것도 지우지 않았다)" >&2
+  exit 1
 }
 
 # stdout: 지울 ref 목록 (한 줄 하나). 저장소별 KEEP 초과분 − 사용 중.
@@ -126,7 +134,7 @@ _candidates() {
 }
 
 _summary() {
-  echo "■ 대상 접두사 ${PREFIX}-* · 저장소당 ${KEEP}세대 유지 · builder prune until=${BUILDER_AGE}"
+  echo "■ 대상 저장소 ${PREFIX}-* · */${PREFIX}-* · 저장소당 ${KEEP}세대 유지 · builder prune until=${BUILDER_AGE}"
   _list_ours | awk -F'\t' '{ n[$1]++ } END { for (r in n) printf "  %-40s %d 태그\n", r, n[r] }' | sort
 }
 

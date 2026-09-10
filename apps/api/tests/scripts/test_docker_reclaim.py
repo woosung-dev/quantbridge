@@ -28,6 +28,14 @@ IMAGES = [
     ("quantbridge-backend", "b2"),
     ("quantbridge-backend", "b3"),
     ("quantbridge-backend", "bold4"),
+    ("ghcr.io/woosung-dev/quantbridge-backend", "sha-g1"),
+    ("ghcr.io/woosung-dev/quantbridge-backend", "sha-g2"),
+    ("ghcr.io/woosung-dev/quantbridge-backend", "sha-g3"),
+    ("ghcr.io/woosung-dev/quantbridge-backend", "sha-g4"),
+    ("ghcr.io/woosung-dev/quantbridge2-fake", "x1"),
+    ("ghcr.io/woosung-dev/quantbridge2-fake", "x2"),
+    ("ghcr.io/woosung-dev/quantbridge2-fake", "x3"),
+    ("ghcr.io/woosung-dev/quantbridge2-fake", "x4"),
     ("truewords-backend", "t1"),
     ("truewords-backend", "t2"),
     ("truewords-backend", "t3"),
@@ -42,14 +50,7 @@ FAKE_DOCKER = r"""#!/usr/bin/env bash
 # 가짜 docker — 호출을 $FAKE_LOG 에 적고, images/ps 는 픽스처를 낸다.
 printf '%s\n' "$*" >> "$FAKE_LOG"
 case "$1 $2" in
-  "images --format")
-    # $4 = 저장소 패턴 (예: quantbridge-*). 접두사 매칭만 흉내 낸다.
-    pat="${4%\*}"
-    while IFS=$'\t' read -r repo tag; do
-      [ -n "$repo" ] || continue
-      case "$repo" in "$pat"*) printf '%s\t%s\n' "$repo" "$tag" ;; esac
-    done < "$FAKE_IMAGES"
-    ;;
+  "images --format") cat "$FAKE_IMAGES" ;;
   "ps -a") cat "$FAKE_PS" ;;
   "rmi "*)
     for f in $FAKE_RMI_FAIL; do
@@ -129,7 +130,12 @@ def test_confirm_keeps_three_per_repo_and_prunes_builder(tmp_path: Path) -> None
     proc, calls = run(tmp_path, "--confirm")
     assert proc.returncode == 0, proc.stderr
     assert sorted(rmi_targets(calls)) == sorted(
-        ["quantbridge-frontend:old4", "quantbridge-frontend:old5", "quantbridge-backend:bold4"]
+        [
+            "quantbridge-frontend:old4",
+            "quantbridge-frontend:old5",
+            "quantbridge-backend:bold4",
+            "ghcr.io/woosung-dev/quantbridge-backend:sha-g4",
+        ]
     )
     assert "builder prune -f --filter until=168h" in calls
 
@@ -139,6 +145,8 @@ def test_never_touches_other_projects(tmp_path: Path) -> None:
     proc, calls = run(tmp_path, "--confirm")
     assert proc.returncode == 0, proc.stderr
     assert not any(ref.startswith(("truewords-", "kairos-")) for ref in rmi_targets(calls))
+    # 접두사가 겹치는 이웃(`quantbridge2-*`)도 남이다 — 하이픈까지 맞아야 우리 것이다.
+    assert not any("quantbridge2-" in ref for ref in rmi_targets(calls))
 
 
 def test_in_use_tag_is_protected_regardless_of_generation(tmp_path: Path) -> None:

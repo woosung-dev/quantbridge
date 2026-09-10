@@ -106,8 +106,10 @@ services:
   # ★`image:` 를 4서비스가 **한 이름**으로 공유한다 (2026-09-10). 종전에는 태그가 없어 compose 가
   #   `quantbridge-backend-{worker,ws-stream,optimizer-heavy,beat}:latest` 4벌을 만들었고(층은 공유,
   #   이름만 4개) sha 태그가 없어 **의존성 롤백 경로가 없었다**(`backend-deploy.md` §3.4⑵).
-  #   `QB_BACKEND_TAG=<sha>` 로 빌드하면 세대가 남고 `tools/scripts/docker-reclaim.sh` 가 3세대만 유지한다.
-  #   ★기존 4이름 `:latest` 는 첫 재빌드 뒤 죽은 태그가 된다 — 회수기가 접두사로 잡는다.
+  #   ★이미지는 CI 가 만든다(`.github/workflows/release.yml` → GHCR, 태그 `sha-<7>`). 로컬 `mise run up` 은
+  #   `build:` 로 같은 이름을 빌드해 쓰고, 서버는 `QB_BACKEND_TAG=sha-<7>` 로 pull 만 한다.
+  #   `tools/scripts/docker-reclaim.sh` 가 저장소당 3세대만 남긴다. 옛 4이름 `quantbridge-backend-*:latest` 는
+  #   죽은 태그가 된다 — 회수기가 잡는다.
   # ★★★**`uv run` 을 되돌리지 마라** (2026-08-30). `uv run` 은 실행 전에 암묵 `uv sync` 를 도는데
   #   러너 스테이지의 uv 캐시는 비어 있다(빌더는 root, 러너는 appuser) — 그래서 **기동할 때마다**
   #   dev 그룹 28개를 PyPI 에서 받았다(`mypy`·`ruff`·`debugpy`·`pyarrow` 43.6MiB, 16.18초).
@@ -118,7 +120,7 @@ services:
   backend-worker:
     build:
       context: ./apps/api
-    image: quantbridge-backend:${QB_BACKEND_TAG:-latest}
+    image: ghcr.io/woosung-dev/quantbridge-backend:${QB_BACKEND_TAG:-latest}
     container_name: quantbridge-worker
     logging: *default-logging
     command: celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=2
@@ -160,7 +162,7 @@ services:
   backend-ws-stream:
     build:
       context: ./apps/api
-    image: quantbridge-backend:${QB_BACKEND_TAG:-latest}
+    image: ghcr.io/woosung-dev/quantbridge-backend:${QB_BACKEND_TAG:-latest}
     container_name: quantbridge-ws-stream
     logging: *default-logging
     # 계정 N개 private stream + public ticker 1개이므로 N + 1 ≤ concurrency를 유지한다.
@@ -194,7 +196,7 @@ services:
   backend-optimizer-heavy:
     build:
       context: ./apps/api
-    image: quantbridge-backend:${QB_BACKEND_TAG:-latest}
+    image: ghcr.io/woosung-dev/quantbridge-backend:${QB_BACKEND_TAG:-latest}
     container_name: quantbridge-optimizer-heavy
     logging: *default-logging
     command: celery -A src.tasks.celery_app worker -Q optimizer_heavy --pool=prefork --concurrency=1 --loglevel=info
@@ -233,7 +235,7 @@ services:
   backend-beat:
     build:
       context: ./apps/api
-    image: quantbridge-backend:${QB_BACKEND_TAG:-latest}
+    image: ghcr.io/woosung-dev/quantbridge-backend:${QB_BACKEND_TAG:-latest}
     container_name: quantbridge-beat
     logging: *default-logging
     command: celery -A src.tasks.celery_app beat --loglevel=info --schedule=/data/celerybeat-schedule
