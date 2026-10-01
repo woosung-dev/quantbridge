@@ -54,7 +54,7 @@ RUN useradd -m -u 1000 appuser
 
 # ★레이어를 둘로 나눈다 (2026-10-02). 종전 `COPY --from=builder /app /app` 한 줄은 venv 와 코드를 **한 레이어**로
 #   묶어서 코드 한 줄만 바뀌어도 그 레이어(운영 `sha-2f0ac34` 의 `docker history` 실측 420MB)가 통째로 새로 생겼다 —
-#   서버는 배포마다 그만큼 받고(압축 ~141MB), 3세대 보존분과 GHCR 에 버전마다 쌓였다.
+#   서버는 배포마다 그만큼 받고(GHCR 매니페스트의 그 레이어 = 압축 108.6MB), 3세대 보존분과 GHCR 에 버전마다 쌓였다.
 #   분리 후 코드만 바뀐 빌드의 새 레이어 ≈ 4.7MB(깨끗한 체크아웃 · 로컬 arm64 실측, venv 레이어 416MB 는 재사용).
 # ① 의존성 레이어 — pyproject.toml·uv.lock 이 같고 빌드 캐시가 살아 있으면 직전 이미지와 같은 레이어다
 COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
