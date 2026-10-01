@@ -4,16 +4,20 @@ DDL 승인 규칙이 조용히 우회되거나, 실격이 난 위에 새 코드�
 가짜 docker·git·uv·systemctl·curl 을 PATH 앞에 두고 **호출 순서와 rc** 만 본다. 잰 것:
 ⑴ 24h 자동 사망 ≥1 이면 rc 2 + 아무것도 안 바꾼다  ⑵ DDL 불일치면 rc 2  ⑶ 롤링 순서 beat→optimizer→worker→ws-stream
 ⑷ 한 서비스 up 실패 = 그 자리에서 멈추고 rc 1(다음 서비스 안 건드림)  ⑸ import probe 실패면 API 를 재시작하지 않는다
-⑹ --dry-run 은 판정만 하고 부작용 0  ⑺ 자동 사망 어휘가 `SessionDeactivationReason` 과 어긋나지 않는다.
+⑹ --dry-run 은 판정만 하고 부작용 0  ⑺ 자동 사망 어휘가 `SessionDeactivationReason` 과 어긋나지 않는다
+⑻ --migrate 의 alembic 은 루트 `.env` 의 옛 태그가 아니라 **대상 이미지**에서 돈다  ⑼ `sha-` 접두 입력이 같은 태그가 된다.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import shutil
 import stat
 import subprocess
 from pathlib import Path
+
+import pytest
 
 from src.trading.models import SessionDeactivationReason
 
@@ -28,7 +32,8 @@ case "$1" in
     # … psql … -Atc <SQL>
     sql="${@: -1}"
     case "$sql" in
-      *alembic_version*) echo "${FAKE_DB_REV}" ;;
+      *alembic_version*)
+        if [ -n "${FAKE_MIGRATED:-}" ] && [ -f "${FAKE_MIGRATED}" ]; then echo "${FAKE_HEAD}"; else echo "${FAKE_DB_REV}"; fi ;;
       *count\(\*\)*) echo "${FAKE_DEATHS}" ;;
     esac
     exit 0 ;;
@@ -44,6 +49,15 @@ case "$1" in
       *" up -d --no-deps --no-build "*)
         svc="${@: -1}"
         [ "$svc" = "${FAKE_UP_FAIL:-}" ] && exit 1
+        ;;
+      *" run --rm "*)
+        # compose 처럼 이미지를 고른다 — 셸 env 가 우선, 없으면 --project-directory 의 .env, 없으면 latest.
+        # head 를 가진 이미지(FAKE_HEAD_TAG)로 돌 때만 DB 가 head 로 오른다 — 옛 이미지의 alembic 은 no-op.
+        tag="${QB_BACKEND_TAG:-}"
+        [ -n "$tag" ] || tag="$(sed -n 's/^QB_BACKEND_TAG=//p' "${QB_DEPLOY_ROOT}/.env" 2> /dev/null)"
+        tag="${tag:-latest}"
+        printf 'compose-run image-tag=%s\n' "$tag" >> "$FAKE_LOG"
+        [ "$tag" = "${FAKE_HEAD_TAG:-}" ] && touch "${FAKE_MIGRATED}"
         ;;
     esac
     exit 0 ;;
@@ -96,6 +110,8 @@ def run(
     branch: str = "main",
     up_fail: str = "",
     probe_rc: str = "0",
+    head_tag: str = "",
+    script: Path = SCRIPT,
     env_extra: dict[str, str] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], list[str], str, Path]:
     bin_dir = tmp_path / "bin"
@@ -127,6 +143,8 @@ def run(
         "FAKE_BRANCH": branch,
         "FAKE_UP_FAIL": up_fail,
         "FAKE_PROBE_RC": probe_rc,
+        "FAKE_HEAD_TAG": head_tag,
+        "FAKE_MIGRATED": str(tmp_path / "migrated"),
         "FAKE_NOTIFY_BODY": str(body),
         "QB_DEPLOY_ROOT": str(root),
         "QB_NOTIFY_ENV_FILE": str(env_file),
@@ -136,8 +154,10 @@ def run(
         **(env_extra or {}),
     }
     env.pop("QB_DEPLOY_FORCE", None) if not (env_extra and "QB_DEPLOY_FORCE" in env_extra) else None
+    # 개발자 셸에 QB_BACKEND_TAG 가 있으면 가짜 compose 의 이미지 선택이 오염된다
+    env.pop("QB_BACKEND_TAG", None) if not (env_extra and "QB_BACKEND_TAG" in env_extra) else None
     proc = subprocess.run(
-        ["bash", str(SCRIPT), *args],
+        ["bash", str(script), *args],
         capture_output=True,
         text=True,
         timeout=60,
@@ -190,6 +210,53 @@ def test_ddl_mismatch_blocks_with_rc2(tmp_path: Path) -> None:
     assert proc.returncode == 2
     assert _ups(calls) == []
     assert "DDL 필요" in body and "r1" in body and "r2" in body
+    # 사람이 그대로 복사하는 줄이다 — 태그(sha-…)가 아니라 sha 를 보여 준다
+    assert "deploy.sh --migrate 0123456`" in proc.stderr, proc.stderr
+
+
+@pytest.mark.parametrize("arg", ["0123456789abcdef", "sha-0123456", "sha-0123456789abcdef"])
+def test_sha_prefixed_input_is_the_same_tag(tmp_path: Path, arg: str) -> None:
+    """막힘 안내·release 태그를 그대로 붙여 넣어도 `sha-sha-…` 가 되면 안 된다(2026-10-02 서버 실측)."""
+    proc, calls, _, _ = run(tmp_path, "--dry-run", arg)
+    assert proc.returncode == 0, proc.stderr
+    assert "pull -q ghcr.io/woosung-dev/quantbridge-backend:sha-0123456" in calls, calls
+
+
+def _script_with_fake_backup(tmp_path: Path) -> Path:
+    """`--migrate` 는 `${SCRIPT_DIR}/db-backup.sh` 를 부른다 — 진짜를 부르면 실제 백업이 돈다.
+    deploy.sh 를 복사해 그 옆에 가짜 db-backup.sh 를 둔다(코드는 같은 파일이다)."""
+    d = tmp_path / "scripts"
+    (d / "lib").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(SCRIPT, d / "deploy.sh")
+    shutil.copy2(SCRIPT.parent / "lib" / "notify-telegram.sh", d / "lib" / "notify-telegram.sh")
+    _write_exec(d / "db-backup.sh", FAKE_LOGGER)
+    return d / "deploy.sh"
+
+
+def test_migrate_runs_alembic_from_the_target_image_not_the_env_tag(tmp_path: Path) -> None:
+    """루트 `.env` 의 QB_BACKEND_TAG 는 배포가 **성공한 뒤에만** 갱신된다 — DDL 로 막힌 순간 그것은 옛 태그다.
+    compose run 이 그 태그로 이미지를 고르면 옛 alembic 이 no-op 으로 돌고 사후 대조에서 죽는다(2026-10-02 서버 실측)."""
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / ".env").write_text("QB_BACKEND_TAG=sha-old0000\n")
+    proc, calls, body, root = run(
+        tmp_path,
+        "--migrate",
+        "0123456789abcdef",
+        db_rev="r1",
+        head="r2",
+        head_tag="sha-0123456",
+        script=_script_with_fake_backup(tmp_path),
+    )
+    assert "compose-run image-tag=sha-0123456" in calls, calls
+    assert proc.returncode == 0, proc.stderr
+    assert calls.index("db-backup.sh run") < calls.index("compose-run image-tag=sha-0123456"), (
+        "백업이 DDL 보다 먼저"
+    )
+    assert (root / ".env").read_text() == "QB_BACKEND_TAG=sha-old0000\n", (
+        "migrate 는 .env 를 안 건드린다 — 배포 전 실패 시 태그가 앞서가면 안 된다"
+    )
+    assert "r1 → r2" in body
 
 
 def test_happy_path_rolls_in_order_then_fe_then_api(tmp_path: Path) -> None:

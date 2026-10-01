@@ -9,7 +9,7 @@
 #   소크의 `.soak/src` pin 은 이미지 태그(`sha-<7>`)가 대신한다 — 창·게이트·감시 타이머는 없다.
 #
 # 사용:
-#   tools/scripts/deploy.sh <sha>             # 배포 (release.yml 이 올린 sha-<7> 태그)
+#   tools/scripts/deploy.sh <sha>             # 배포 (release.yml 이 올린 sha-<7> 태그. 커밋 sha 든 sha-<7> 든 같다)
 #   tools/scripts/deploy.sh --dry-run <sha>   # 판정만 — 무실격·DDL 대조까지 하고 아무것도 안 바꾼다
 #   tools/scripts/deploy.sh --status          # 지금 도는 태그 · DB revision · 24h 실격 · 체크아웃 신선도
 #   tools/scripts/deploy.sh --migrate <sha>   # ★사람 전용 — 백업 → 이미지 안에서 alembic upgrade head → 재확인
@@ -91,7 +91,10 @@ _notify() { # 실패해도 배포를 멈추지 않는다 — 알림은 부수 �
 }
 
 # ── 판독 ────────────────────────────────────────────────────────────────────────
-_tag_of() { printf 'sha-%s\n' "$(printf '%s' "$1" | cut -c1-7)"; }
+_tag_of() { # <sha | sha-<7>> → sha-<7>. 태그를 그대로 넣어도 접두를 또 붙이지 않는다(2026-10-02 `sha-sha-451` 실측)
+  local s="${1#sha-}"
+  printf 'sha-%s\n' "$(printf '%s' "${s}" | cut -c1-7)"
+}
 
 _sql() { docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge -Atc "$1" 2> /dev/null; }
 
@@ -140,7 +143,7 @@ _gate() { # _gate <tag> → 0 통과 / 2 막힘
   head="$(_image_head "${tag}")"
   [ -n "${head}" ] || die "이미지 ${IMAGE_BACKEND}:${tag} 의 alembic head 를 못 읽었다 — pull 됐나, 태그가 맞나" 1
   if [ "${cur}" != "${head}" ]; then
-    echo "■ 막힘: DDL 필요 — DB ${cur} ≠ 이미지 head ${head}. 사람이 \`deploy.sh --migrate ${tag}\` 를 친다." >&2
+    echo "■ 막힘: DDL 필요 — DB ${cur} ≠ 이미지 head ${head}. 사람이 \`deploy.sh --migrate ${tag#sha-}\` 를 친다." >&2
     _notify "⛔ deploy ${tag} 막힘 — DDL 필요 (DB ${cur} → ${head}). deploy.sh --migrate 는 사람이."
     return 2
   fi
@@ -239,7 +242,11 @@ _migrate() {
   # rc 3 = 로컬 덤프는 정상, 원격 사본만 실패 — DDL 앞 안전판으로는 충분하다
   case "${brc}" in 0 | 3) ;; *) die "백업 실패 (rc=${brc}) — DDL 을 넣지 않는다" 1 ;; esac
   echo "  alembic upgrade head (advisory lock · 이미지 안 · compose 네트워크)"
-  docker compose "${COMPOSE[@]}" run --rm --no-deps --entrypoint "" backend-worker \
+  # ★이미지 태그를 셸 env 로 준다(compose 는 셸 env 가 `.env` 보다 우선). compose 는 이미지를 루트 `.env` 의
+  #   QB_BACKEND_TAG 로 고르는데 그 줄은 배포가 **성공한 뒤에만** 갱신된다(`_set_env_tag`) — DDL 로 막힌 지금은
+  #   옛 태그다. 안 주면 옛 이미지의 alembic 이 no-op 으로 돌고 아래 사후 대조에서 죽는다(2026-10-02 서버 실측).
+  #   `.env` 는 건드리지 않는다 — 배포 전에 실패하면 태그가 배포보다 앞서간다.
+  QB_BACKEND_TAG="${tag}" docker compose "${COMPOSE[@]}" run --rm --no-deps --entrypoint "" backend-worker \
     python -m src.scripts.run_alembic_with_lock --lock-key "${ALEMBIC_ADVISORY_LOCK_KEY:-1903723824}" --timeout "${ALEMBIC_LOCK_TIMEOUT_S:-30}" \
     || die "alembic upgrade 실패" 1
   after="$(_db_revision)"
