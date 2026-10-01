@@ -60,6 +60,15 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: securityHeaders,
       },
+      {
+        // PWA 서비스 워커(`docs/architecture/pwa.md` §2.5) — 낡은 SW 가 캐시에 붙어 있으면
+        // 수정(CACHE 버전 올림)이 사용자에게 닿지 않는다. 브라우저 HTTP 캐시를 끈다.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        ],
+      },
     ];
   },
 };

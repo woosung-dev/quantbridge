@@ -2047,6 +2047,39 @@
         "title": "CreateOptimizationRunRequest",
         "type": "object"
       },
+      "CreatePushSubscriptionRequest": {
+        "description": "POST /push/subscriptions — `subscription.toJSON()` + `user_agent`.",
+        "properties": {
+          "endpoint": {
+            "maxLength": 2048,
+            "minLength": 9,
+            "pattern": "^https://",
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushSubscriptionKeys"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "CreatePushSubscriptionRequest",
+        "type": "object"
+      },
       "CreateStrategyRequest": {
         "properties": {
           "description": {
@@ -2343,6 +2376,23 @@
           "kind"
         ],
         "title": "DeclarationResponse",
+        "type": "object"
+      },
+      "DeletePushSubscriptionRequest": {
+        "description": "DELETE /push/subscriptions body — 발송하지 않으므로 호스트 허용 목록 없이 https 만 본다.",
+        "properties": {
+          "endpoint": {
+            "maxLength": 2048,
+            "minLength": 9,
+            "pattern": "^https://",
+            "title": "Endpoint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint"
+        ],
+        "title": "DeletePushSubscriptionRequest",
         "type": "object"
       },
       "DriftReport": {
@@ -5685,6 +5735,99 @@
           "local_source"
         ],
         "title": "PositionDiffSchema",
+        "type": "object"
+      },
+      "PushConfigResponse": {
+        "description": "GET /push/config — VAPID 3종 중 하나라도 없으면 `enabled: false, public_key: null`.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "public_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Key"
+          }
+        },
+        "required": [
+          "enabled",
+          "public_key"
+        ],
+        "title": "PushConfigResponse",
+        "type": "object"
+      },
+      "PushSubscriptionKeys": {
+        "description": "브라우저 `subscription.toJSON().keys`.",
+        "properties": {
+          "auth": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Auth",
+            "type": "string"
+          },
+          "p256dh": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "P256Dh",
+            "type": "string"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "title": "PushSubscriptionKeys",
+        "type": "object"
+      },
+      "PushSubscriptionResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "endpoint": {
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "endpoint",
+          "created_at"
+        ],
+        "title": "PushSubscriptionResponse",
+        "type": "object"
+      },
+      "PushTestResponse": {
+        "description": "POST /push/test — 성공 발송 수 · 만료(404/410)로 지운 구독 수.",
+        "properties": {
+          "removed": {
+            "title": "Removed",
+            "type": "integer"
+          },
+          "sent": {
+            "title": "Sent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sent",
+          "removed"
+        ],
+        "title": "PushTestResponse",
         "type": "object"
       },
       "PythonView": {
@@ -9812,6 +9955,131 @@
         "summary": "Cancel Order",
         "tags": [
           "trading"
+        ]
+      }
+    },
+    "/api/v1/push/config": {
+      "get": {
+        "operationId": "get_push_config_api_v1_push_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Push Config",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/v1/push/subscriptions": {
+      "delete": {
+        "operationId": "unsubscribe_api_v1_push_subscriptions_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletePushSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unsubscribe",
+        "tags": [
+          "push"
+        ]
+      },
+      "post": {
+        "operationId": "subscribe_api_v1_push_subscriptions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePushSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscriptionResponse"
+                }
+              }
+            },
+            "description": "기존 구독 갱신(upsert)"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscriptionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Subscribe",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/v1/push/test": {
+      "post": {
+        "operationId": "send_test_push_api_v1_push_test_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Send Test Push",
+        "tags": [
+          "push"
         ]
       }
     },

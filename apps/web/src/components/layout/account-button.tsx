@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import { clearAuthTokenCache, deleteAccount, signOut } from "@/lib/auth-client";
+import { runBeforeSignOut } from "@/lib/before-sign-out";
 
 /** 표시용 머리글자 — 이름 → 이메일 → 물음표 순으로 떨어진다. */
 function initialOf(name: string | null | undefined, email: string | null | undefined): string {
@@ -48,6 +49,10 @@ export function AccountButton({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleSignOut = async () => {
+    // ★이 기기 푸시 구독 해제가 맨 앞이다(pwa.md §2.7) — 서버 행 DELETE 는 아직 살아 있는 세션의
+    //   JWT 로 나가야 하고, 공용 기기에서 다음 사용자가 이전 사용자의 알림을 받지 않아야 한다.
+    //   best-effort · 최대 2초라 실패해도 아래 로그아웃은 그대로 진행된다.
+    await runBeforeSignOut();
     // ★캐시를 먼저 비운다 — 이 순서가 뒤집히면 로그아웃 직후 남은 JWT 로 API 호출이 한 번 더 나간다.
     clearAuthTokenCache();
     await signOut();
@@ -58,6 +63,8 @@ export function AccountButton({
   const handleDelete = async () => {
     setDeleting(true);
     setDeleteError(null);
+    // 로그아웃과 같은 이유로 계정 삭제 **앞**에서 푸시 구독을 끊는다(pwa.md §2.7, best-effort).
+    await runBeforeSignOut();
     const { error } = await deleteAccount();
     setDeleting(false);
     if (error) {

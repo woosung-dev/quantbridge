@@ -156,7 +156,7 @@ apps/api/src/
 ├── main.py         # create_app() — 라우터 조립 · 미들웨어 · 예외 핸들러 · lifespan
 │                   #   ★조립 전용 디렉터리(api/)는 없다. /api/v1 프리픽스는 여기서 붙인다
 ├── [domain]/       # 3-Layer 7파일 도메인 — backtest · stress_test · optimizer · strategy
-│                   #   · trading · waitlist · auth (exchange 는 trading 으로 통합 — ADR-018)
+│                   #   · trading · waitlist · auth · notifications (exchange 는 trading 으로 통합 — ADR-018)
 │                   # ★7파일은 **필수 코어**이지 상한이 아니다. 실제로 7개 도메인 전부가 부속
 │                   #   모듈을 더 갖는다 — 통용되는 확장 형태는 `engine/`(backtest·optimizer·
 │                   #   stress_test) · `providers/`(market_data) · `dispatcher.py`/`serializers.py`

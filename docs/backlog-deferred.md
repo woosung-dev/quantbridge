@@ -148,6 +148,45 @@ rewrites 를 안 넘김, 2026-08-07 실측 · ★★) · FastAPI/OIDC 로 인증
 **막는 것:** entrypoint 의 `api` 롤이 **기동마다 `alembic upgrade head` 를 자동 실행**한다 — 「서버 DDL = 사람이 `deploy.sh --migrate`」 규칙([BL-743] · [ADR-043] 결정 4)과 정면충돌.
 **권장 접근:** ⑴ entrypoint 에 자동 alembic 을 끄는 스위치(env, `.env.example` 등재) 또는 `api` 롤에서 마이그레이션을 분리 ⑵ `docker-compose.server.yml` 에 `backend-api` 서비스(`127.0.0.1:8100:8080`, cloudflared 는 host 네트워크라 경로 불변) ⑶ `api-service.sh --uninstall` ⑷ `deploy.sh` 의 호스트 API 단계를 롤링 대상에 편입. 이 셋이 끝나면 「이미지 하나 = 모든 환경」이 된다(dev/prod parity, 2026-09-10 조사).
 
+### BL-867
+
+**Title:** 스트레스 테스트·옵티마이저 완료 + 크래시 회수된 백테스트 실패 웹 푸시
+**Category:** 기능 / PWA
+**Priority:** P3
+**Trigger:** 스트레스 테스트나 옵티마이저 결과를 화면을 지키며 기다린 일이 실사용에서 1회라도 생길 때
+**Est:** S
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-10-02 등재
+**출처:** 2026-10-02 [ADR-044] 범위 밖 — 트리거를 백테스트 종료·주문·Kill Switch 셋으로 좁혔다
+
+**원인 / 영향:** 둘 다 Celery 에서 끝나지만 `enqueue_push` 를 안 부른다. 또 워커 크래시·미처리 예외로 `reclaim_stale`(`src/tasks/backtest.py`)이 FAILED 로 만든 백테스트도 푸시가 없다 — 사용자는 끝난 줄 모른다. 백테스트 본보기 = `BacktestService.run` 이 「이 호출이 기록한 종료 상태」일 때만 enqueue(`src/backtest/service.py`).
+**권장 접근:** 같은 패턴으로 각 서비스의 종료 지점 **한 곳**에 훅 · `notifications/dispatcher.py` 에 페이로드 함수 추가 · 트리거당 enqueue 정확히 1회 테스트.
+
+### BL-868
+
+**Title:** `realtime` publish 없이 끝나는 주문 거부 경로는 웹 푸시가 안 간다
+**Category:** 기능 / PWA
+**Priority:** P3
+**Trigger:** 거부된 주문을 푸시로 못 받은 일이 데모 트레이딩에서 1회라도 관측될 때
+**Est:** S
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-10-02 등재
+**출처:** 2026-10-02 [ADR-044] — 주문 푸시를 `publish_realtime` 한 곳에 걸었다
+
+**원인 / 영향:** `src/tasks/trading.py` 의 `transition_to_rejected` 호출 중 일부(358·376·395·438·501 행 근처 — 거래소 호출 **전** 거부·레거시 pending 등)는 `publish_realtime` 을 안 지나 화면 갱신도 푸시도 없다. 재집계 = `grep -n "transition_to_rejected\|publish_realtime" src/tasks/trading.py`.
+**권장 접근:** 거부 종결 지점에서 `publish_realtime("order_update", state=rejected)` 를 부르게 하면 화면·푸시가 함께 해결된다(푸시 전용 훅을 따로 두지 마라).
+
+### BL-869
+
+**Title:** 프로덕션에서 앱 내 「앱 설치」 버튼이 안 뜬다 — 크롬 주소창 설치는 된다
+**Category:** 기능 / PWA
+**Priority:** P3
+**Trigger:** 앱 내 설치 버튼으로 설치를 안내해야 할 때(지금은 크롬 주소창 「설치」로 같은 일이 된다)
+**Est:** S
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-10-02 등재
+**출처:** 2026-10-02 BL-866 프로덕션 실측(배포 `4518755`) — 설치 요건·푸시 왕복은 PASS, 이 한 가지만 어긋남
+
+**원인 / 영향:** localhost(dev)에선 버튼이 떴는데 `qb.woosung.dev` 에선 로그인 뒤 · 전체 새로고침 뒤 · 클릭 1회 + 35초 체류 뒤 모두 안 떴다. 같은 페이지에 뒤늦게 붙인 관찰 리스너도 `beforeinstallprompt` 를 못 받았다 ⇒ 이벤트가 **리스너보다 먼저**(페이지 로드 직후) 왔거나 크롬이 안 쏜다. [가정] 전자 — 리스너가 `features/pwa/install-prompt.ts` **모듈 평가 시점**인데 그 모듈은 대시보드 셸 청크에만 있고(로그인 화면엔 없음), 캐시된 SW·manifest 로 크롬의 판정이 비동기 청크보다 빠를 수 있다. 판별에는 **페이지 로드 순간**의 리스너가 필요하다(이번 도구로는 못 붙임).
+**권장 접근:** ⑴ 루트 `layout.tsx` 의 `<head>` 인라인 스크립트가 이벤트를 먼저 받아 `window` 에 보관하고(`preventDefault`) 모듈은 평가 시 그것을 읽는다(`rendering-hydration-no-flicker` 패턴) ⑵ 프로덕션 크롬에서 로그인 화면 → 대시보드 · 새로고침 두 경로로 버튼 노출 확인 ⑶ 그래도 안 뜨면 `chrome://web-app-internals` 로 크롬 쪽 판정을 본다.
+
 ## 변경 이력
 
 ### BL-527

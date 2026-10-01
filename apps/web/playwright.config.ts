@@ -181,6 +181,25 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
+    // PWA 수용 기준 AC-1~7 — 정본 `docs/architecture/pwa.md` §5. 인증 6건 + 비인증 1건
+    // (AC-7 은 spec 안에서 storageState 를 비운다).
+    // ★★`channel: "chromium"` 이 load-bearing 이다. 기본 headless shell 은
+    //   `Page.getInstallabilityErrors` 를 구현하지 않고 **항상 `[]`** 를 돌려줘 AC-1 이 공허하게
+    //   초록이 된다(2026-10-02 실측: 매니페스트 없는 페이지에서 shell `[]` / chromium `no-manifest`).
+    // ★`setup-authed-reachability` 가 아니라 `setup` 만 문다 — PWA AC 는 BE 응답을 판정하지 않는다
+    //   (형제 `chromium-screen-evidence-authed` 와 같은 이유).
+    {
+      name: "chromium-pwa",
+      outputDir: artifactDirFor("chromium-pwa"),
+      testMatch: /(^|\/)pwa\.spec\.ts$/,
+      fullyParallel: false,
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chromium",
+        storageState: "e2e/.auth/storageState.json",
+      },
+      dependencies: ["setup"],
+    },
     {
       name: "chromium-authed",
       outputDir: artifactDirFor("chromium-authed"),
@@ -211,6 +230,7 @@ export default defineConfig({
         /design-canon-.*\.spec\.ts$/, // chromium-design-canon
         /(^|\/)screen-evidence\.spec\.ts$/, // chromium-screen-evidence ([BL-797])
         /(^|\/)screen-evidence-authed\.spec\.ts$/, // chromium-screen-evidence-authed ([BL-797])
+        /(^|\/)pwa\.spec\.ts$/, // chromium-pwa
       ],
       fullyParallel: false,
       use: {

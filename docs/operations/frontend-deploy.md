@@ -168,6 +168,11 @@ fail-closed 전환 이후 토큰이 **없어도** 401 이다(있으면 베어러
 
 ★**systemd user service 는 lingering 없이 ssh 세션과 함께 죽는다** — `loginctl enable-linger`.
 
+★**PWA manifest 는 Access 쿠키가 실려야 받힌다**([ADR-044]) — 브라우저는 manifest 를 기본적으로 **쿠키 없이** 요청하므로
+Access 가 302 를 돌려주고 설치가 불가능해진다. 그래서 루트 `layout.tsx` 가 `<link rel="manifest" crossOrigin="use-credentials">` 를
+**직접** 렌더한다. `app/manifest.ts` 로 옮기지 마라 — Next 는 그 링크에 `crossOrigin` 을 Vercel preview 에서만 붙인다.
+2026-10-02 프로덕션 실측 PASS(manifest·아이콘·`/sw.js` 200, 크롬 설치 판정) — 앱 내 설치 버튼만 [BL-869].
+
 ★**`/healthz` 는 구조적으로 200 이 안 나온다**(`asyncio.timeout(12.0)` 이 12.89초짜리 `inspect` 를
 감싼다). 헬스 판정에는 `/health` 를 써라. 게이트는 둘 다 안 쓴다.
 

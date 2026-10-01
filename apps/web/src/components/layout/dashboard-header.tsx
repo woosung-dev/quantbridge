@@ -4,6 +4,7 @@
 //   햄버거는 .hamburger 시맨틱 클래스(≤768px 에서만 CSS 로 노출)로 모바일 drawer 를 연다.
 //   검색창은 백엔드 검색 기능이 없어 이식하지 않는다(가짜 UI 방지).
 
+import type { ReactNode } from "react";
 import { Menu as MenuIcon } from "lucide-react";
 
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -12,9 +13,15 @@ import { useUiStore } from "@/store/ui-store";
 
 type DashboardHeaderProps = {
   pageTitle: string;
+  /**
+   * 테마 토글 **바로 앞**에 놓이는 도메인 액션(PWA 설치 버튼·푸시 벨 — pwa.md §2.6).
+   * ★슬롯인 이유: 이 파일은 공유층(`components/`)이라 `features/` 를 import 할 수 없다(biome.jsonc).
+   *   조립은 `features/dashboard/components/dashboard-shell.tsx` 가 한다.
+   */
+  actions?: ReactNode;
 };
 
-export function DashboardHeader({ pageTitle }: DashboardHeaderProps) {
+export function DashboardHeader({ pageTitle, actions }: DashboardHeaderProps) {
   const mobileNavOpen = useUiStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
   const handleHamburgerClick = () => {
@@ -40,6 +47,7 @@ export function DashboardHeader({ pageTitle }: DashboardHeaderProps) {
 
       <span className="topbar-spacer" />
 
+      {actions}
       <ThemeToggle />
 
       {/* 계정 경로는 폭 구간마다 주인이 다르다.
