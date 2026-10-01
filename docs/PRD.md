@@ -59,6 +59,7 @@ TradingView Pine Script 전략을 가져와 **같은 코드로** 백테스트 �
 | 시장 데이터 | OHLCV 수집 + TimescaleDB hypertable 보관 | [`architecture/data-flow.md`](./architecture/data-flow.md) |
 | 트레이딩 | **Bybit Demo 만**. 주문 전 리스크 평가 + Kill Switch | [`domain/state-machines.md`](./domain/state-machines.md) · [`api/endpoints.md`](./api/endpoints.md) |
 | 신뢰·안전 | 실행·지원 범위·비용·리스크를 숨기지 않는다. Pine 회귀는 Trust Layer CI 로 방어 | [`architecture/trust-layer-architecture.md`](./architecture/trust-layer-architecture.md) |
+| PWA·웹 푸시 | 설치 가능 · 연결이 끊기면 오프라인 **안내만**(데이터 캐시 0) · 백테스트 종료·주문 체결/거부·Kill Switch 를 웹 푸시로. 서버 VAPID 키가 없으면 푸시는 꺼진다 | [`adr/044`](./adr/044-pwa-web-push.md) · [`architecture/pwa.md`](./architecture/pwa.md) |
 
 ## 4. 비범위 — 의식적으로 안 하는 것
 
@@ -73,7 +74,7 @@ TradingView Pine Script 전략을 가져와 **같은 코드로** 백테스트 �
   ★**여전히 안 하는 것 둘** — ⑴ 기존 Pine 을 LLM 이 **Python 으로 번역**해 실행([ADR-011] §7, 실측
   「수렴도 0」) ⑵ 사용자·LLM 이 쓴 **Python 을 서버에서 실행**([ADR-004] 「영구 불채택」·[ADR-042] §실측).
 - **사용자 Python 전략 실행** — Python 은 **읽기 전용 뷰**로만 존재한다([ADR-042]). 실행기는 만들지 않는다
-- **모바일 네이티브 앱** — 반응형 웹만
+- **모바일 네이티브 앱** — 반응형 웹 + PWA(설치·웹 푸시, [ADR-044])만
 - **멀티 사용자 협업** — 실시간 공동 편집 없음
 - **옵션 등 파생상품** — Spot + Perpetual Futures 한정
 - **알고리즘 마켓플레이스 · 회계/세무 리포트** — 외부 도구 연동 권장

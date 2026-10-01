@@ -24,6 +24,7 @@ from src.auth import models as _auth_models  # noqa: F401
 from src.backtest import models as _backtest_models  # noqa: F401
 from src.core.config import secret_value, settings
 from src.market_data import models as _market_data_models  # noqa: F401
+from src.notifications import models as _notifications_models  # noqa: F401
 
 # ★2026-08-17 [BL-770] — optimizer·waitlist 가 빠져 있었다. `table=True` 모델이 metadata 에
 #   등록되지 않으니 `alembic check` 가 그 두 테이블을 **removed table** 로 보고 rc=255 로 죽었다.

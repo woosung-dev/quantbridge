@@ -68,6 +68,7 @@ from src.market_data.constants import TIMEFRAME_SECONDS, normalize_symbol, to_cc
 from src.market_data.models import OHLCV
 from src.market_data.providers import OHLCVProvider
 from src.market_data.repository import OHLCVRepository
+from src.notifications.dispatcher import backtest_finished_payload, enqueue_push
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import Strategy, StrategyVersion
 from src.strategy.pine_v2.coverage import analyze_coverage
@@ -267,26 +268,59 @@ class BacktestService:
     # --- Worker run path (§5.1 3-guard) ---
 
     async def run(self, backtest_id: UUID) -> None:
-        """Worker _execute() 엔트리. 3-guard cancel + finalize_cancelled 수습."""
+        """Worker _execute() 엔트리. 3-guard cancel + finalize_cancelled 수습.
+
+        [pwa.md §3.5] 종료(성공·실패) 푸시는 **여기 한 곳**에서 건다 — `_run` 이 이 호출에서
+        COMPLETED/FAILED 를 기록했다고 답할 때만이라, 종료 1회당 정확히 1번이다(가드에서
+        건너뛴 재전달·취소 수습은 None 을 돌려준다).
+        """
+        finished = await self._run(backtest_id)
+        if finished is not None:
+            await self._enqueue_finished_push(backtest_id, finished)
+
+    async def _enqueue_finished_push(self, backtest_id: UUID, finished: BacktestStatus) -> None:
+        """푸시는 부가 경로다 — 어떤 실패도 이미 커밋된 백테스트 결과로 새지 않는다."""
+        try:
+            bt = await self.repo.get_by_id(backtest_id, defer_equity_curve=True)
+            if bt is None:
+                return
+            strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
+            enqueue_push(
+                str(bt.user_id),
+                backtest_finished_payload(
+                    backtest_id,
+                    succeeded=finished == BacktestStatus.COMPLETED,
+                    strategy_name=strategy.name if strategy is not None else "",
+                ),
+            )
+        except Exception:
+            logger.warning(
+                "backtest_push_enqueue_failed",
+                extra={"bt_id": str(backtest_id)},
+                exc_info=True,
+            )
+
+    async def _run(self, backtest_id: UUID) -> BacktestStatus | None:
+        """실행 본문. 반환 = **이 호출이** 기록한 종료 상태(COMPLETED/FAILED), 아니면 None."""
         bt = await self.repo.get_by_id(backtest_id)
         if bt is None:
             logger.warning(
                 "backtest_not_found_in_worker",
                 extra={"bt_id": str(backtest_id)},
             )
-            return
+            return None
 
         # Guard #1: pickup
         if bt.status == BacktestStatus.CANCELLING:
             await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
             await self.repo.commit()
-            return
+            return None
         if bt.status != BacktestStatus.QUEUED:
             logger.info(
                 "worker_skip_non_queued",
                 extra={"bt_id": str(bt.id), "status": bt.status.value},
             )
-            return
+            return None
 
         # StrategyVersion + OHLCV. strategy_version_id NULL은 migration 전 fixture 호환 경로다.
         strategy_version = await self.strategy_repo.get_version_by_id(
@@ -294,13 +328,13 @@ class BacktestService:
             strategy_id=bt.strategy_id,
         )
         if bt.strategy_version_id is not None and strategy_version is None:
-            await self.repo.fail(
+            fail_rows = await self.repo.fail(
                 backtest_id,
                 error="Strategy version not found at execute time",
                 where_status=BacktestStatus.QUEUED,
             )
             await self.repo.commit()
-            return
+            return BacktestStatus.FAILED if fail_rows else None
         if strategy_version is None:
             logger.warning(
                 "backtest_run_without_pinned_strategy_version",
@@ -308,13 +342,13 @@ class BacktestService:
             )
             strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
             if strategy is None:
-                await self.repo.fail(
+                fail_rows = await self.repo.fail(
                     backtest_id,
                     error="Strategy not found at execute time",
                     where_status=BacktestStatus.QUEUED,
                 )
                 await self.repo.commit()
-                return
+                return BacktestStatus.FAILED if fail_rows else None
             pine_source = strategy.pine_source
         else:
             pine_source = strategy_version.pine_source
@@ -325,13 +359,13 @@ class BacktestService:
             )
         except Exception as exc:
             logger.exception("ohlcv_fetch_failed")
-            await self.repo.fail(
+            fail_rows = await self.repo.fail(
                 backtest_id,
                 error=f"OHLCV fetch failed: {exc}",
                 where_status=BacktestStatus.QUEUED,
             )
             await self.repo.commit()
-            return
+            return BacktestStatus.FAILED if fail_rows else None
 
         # Transition queued → running (조건부)
         rows = await self.repo.transition_to_running(backtest_id, started_at=datetime.now(UTC))
@@ -339,7 +373,7 @@ class BacktestService:
             # cancel이 선행됨 → cancelling → finalize_cancelled
             await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
             await self.repo.commit()
-            return
+            return None
         await self.repo.commit()
 
         # Guard #2: pre-engine
@@ -349,11 +383,11 @@ class BacktestService:
                 "backtest_vanished_pre_engine",
                 extra={"bt_id": str(backtest_id)},
             )
-            return
+            return None
         if bt2.status == BacktestStatus.CANCELLING:
             await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
             await self.repo.commit()
-            return
+            return None
 
         # Engine (sync CPU-bound — await 없이 직접 호출)
         # Sprint 31 BL-162a — 사용자 입력 BacktestConfig 적용 (TradingView 패턴).
@@ -380,11 +414,11 @@ class BacktestService:
                 "backtest_vanished_post_engine",
                 extra={"bt_id": str(backtest_id)},
             )
-            return
+            return None
         if bt3.status == BacktestStatus.CANCELLING:
             await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
             await self.repo.commit()
-            return
+            return None
 
         # Terminal write (조건부 UPDATE + bulk insert trades):
         # Spec §5.1 Step 10의 begin_nested() savepoint는 commit이 분리될 때의 원자성용.
@@ -407,13 +441,14 @@ class BacktestService:
             if completed_rows == 0:
                 await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
                 await self.repo.commit()
-                return
+                return None
 
             trade_models = self._raw_trades_to_models(
                 outcome.result.trades, backtest_id, pd.DatetimeIndex(ohlcv.index)
             )
             if trade_models:
                 await self.repo.insert_trades_bulk(trade_models)
+            finished: BacktestStatus | None = BacktestStatus.COMPLETED
         else:
             error_str = (
                 str(outcome.error)
@@ -423,8 +458,10 @@ class BacktestService:
             fail_rows = await self.repo.fail(backtest_id, error=error_str)
             if fail_rows == 0:
                 await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
+            finished = BacktestStatus.FAILED if fail_rows else None
 
         await self.repo.commit()
+        return finished
 
     async def _ensure_current_strategy_version(self, strategy: Strategy) -> StrategyVersion:
         """정상 생성/수정 경로의 latest snapshot을 쓰고, legacy fixture만 보완한다."""

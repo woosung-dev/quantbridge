@@ -56,6 +56,8 @@ const REVIEWED: Record<string, string> = {
   "/optimizer/:id": "2026-09-08",
   "/strategies/:id/edit": "2026-09-08",
   "/share/backtests/:token": "2026-09-08",
+  // PWA 오프라인 안내(pwa.md §2.4) — 320/1280 다크로 열어 봤다.
+  "/offline": "2026-10-02",
 };
 
 /**

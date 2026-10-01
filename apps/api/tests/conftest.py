@@ -44,6 +44,11 @@ if not os.environ.get("WAITLIST_ADMIN_EMAILS"):
 os.environ["SLACK_WEBHOOK_URL"] = ""
 os.environ["TELEGRAM_BOT_TOKEN"] = ""
 os.environ["TELEGRAM_CHAT_ID"] = ""
+# PWA 웹 푸시도 같은 이유로 비운다 — 키가 살아 있으면 체결·백테스트 테스트가 실제 브로커에
+# `notifications.send_push` 를 enqueue 한다. 푸시 테스트는 settings 를 명시로 덮는다.
+os.environ["VAPID_PUBLIC_KEY"] = ""
+os.environ["VAPID_PRIVATE_KEY"] = ""
+os.environ["VAPID_SUBJECT"] = ""
 
 # Sprint 11 Phase C — slowapi rate-limit storage. `.env.example` 의 기본값
 # `redis://redis:6379/3` 은 Docker 내부 호스트명이라 로컬 pytest 에서 해석 불가.
@@ -76,6 +81,7 @@ from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 — metada
 from src.common.database import get_async_session
 from src.main import create_app
 from src.market_data.models import OHLCV  # noqa: F401 — metadata 등록 (ts.ohlcv)
+from src.notifications.models import PushSubscription  # noqa: F401 — metadata 등록
 
 # ★[BL-788] 이 줄은 「없어도 초록이던」 것을 명시로 되돌린 것이다. 2026-08-17 실측 —
 #   `optimization_runs` 는 위 `from src.main import create_app` 이 `src/main.py:447` 의

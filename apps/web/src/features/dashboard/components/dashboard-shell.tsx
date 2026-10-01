@@ -10,6 +10,9 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import { RealtimeBridge } from "@/features/realtime/realtime-bridge";
+import { InstallButton } from "@/features/pwa/components/install-button";
+import { OfflineBanner } from "@/features/pwa/components/offline-banner";
+import { PushBell } from "@/features/pwa/components/push-bell";
 
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
@@ -42,6 +45,15 @@ function derivePageTitle(pathname: string | null): string {
   return pathname.split("/").filter(Boolean).at(-1) ?? "";
 }
 
+// 상단바 PWA 액션(설치 버튼 · 푸시 벨 — pwa.md §2.6). props 가 없는 정적 JSX 라 모듈 레벨로 올린다.
+// 둘 다 조건이 안 맞으면 스스로 null 을 그린다.
+const HEADER_ACTIONS = (
+  <>
+    <InstallButton />
+    <PushBell />
+  </>
+);
+
 export function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const pageTitle = derivePageTitle(pathname);
@@ -53,9 +65,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <DashboardSidebar pathname={pathname} />
       {/* 모바일 drawer — Sheet 기반 left-side, ≤768px 햄버거로 연다 (min-[769px]:hidden — KITPORT 경계 포함 정합). */}
       <MobileNav pathname={pathname} />
-      <DashboardHeader pageTitle={pageTitle} />
+      <DashboardHeader pageTitle={pageTitle} actions={HEADER_ACTIONS} />
       {/* #main-content = 스킵 링크 대상(app/layout.tsx). .main = margin-left 오프셋. */}
       <main id="main-content" className="main">
+        {/* 오프라인 배너 — .main 안이라야 사이드바(position:fixed) 밑에 깔리지 않는다. */}
+        <OfflineBanner />
         {children}
       </main>
     </>

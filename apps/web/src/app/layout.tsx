@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { AppProviders } from "@/components/providers/app-providers";
 import { LegalNoticeBanner } from "@/components/legal-notice-banner";
 import { Toaster } from "@/components/ui/sonner";
+import { PwaBootstrap } from "@/features/pwa/components/pwa-bootstrap";
 import { BRAND_PALETTE } from "@/lib/brand-palette";
 import { archivo, ibmPlexMono } from "@/lib/fonts";
 import "@/styles/globals.css";
@@ -41,6 +42,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${archivo.variable} ${ibmPlexMono.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        {/* PWA manifest(docs/architecture/pwa.md §2.2) — metadata API 가 아니라 직접 렌더한다.
+            프로덕션 FE 는 Cloudflare Access 뒤라 쿠키 없는 manifest 요청은 Access 로그인으로 302 →
+            설치 불가. Next 는 `crossOrigin` 을 Vercel preview 에서만 붙인다.
+            ★문서 안 `<link rel="manifest">` 는 정확히 1개 — `metadata.manifest`·`app/manifest.ts` 를 쓰지 마라. */}
+        <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
+      </head>
       <body>
         {/* Skip link (WCAG 2.4.1 bypass blocks) — Tab 첫 포커스 시 노출 */}
         <a
@@ -52,6 +60,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* Sprint 11 Phase B — Beta 단계 고지 배너 (전 페이지 상단). H2 말 정식 변호사 교체 예정. */}
         <LegalNoticeBanner />
         <AppProviders>{children}</AppProviders>
+        {/* 서비스 워커 등록 — 앱 로드당 1회, load 이후(첫 렌더를 막지 않는다). 아무것도 그리지 않는다. */}
+        <PwaBootstrap />
         {/* Sonner Toaster — provider 체인 최하단 (z-index: modal 위) */}
         <Toaster position="top-center" richColors closeButton />
       </body>

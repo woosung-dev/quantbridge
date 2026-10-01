@@ -121,6 +121,18 @@ Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy 
 
 ---
 
+## 9-1. 웹 푸시 — VAPID ([ADR-044](../adr/044-pwa-web-push.md))
+
+| 변수                | 마킹   | 설명                                                                                          |
+| ------------------- | ------ | --------------------------------------------------------------------------------------------- |
+| `VAPID_PUBLIC_KEY`  | [선택] | base64url 공개 키 — `GET /api/v1/push/config` 로 브라우저 `applicationServerKey` 가 된다     |
+| `VAPID_PRIVATE_KEY` | [선택] | base64url 개인 키(`SecretStr`). 생성 = `architecture/pwa.md` §4.2                             |
+| `VAPID_SUBJECT`     | [선택] | `mailto:...` — VAPID `sub` 클레임                                                             |
+
+> ★**셋 중 하나라도 비면 푸시 기능 전체가 꺼진다**(벨 미렌더 · enqueue 0). API 호스트 `.env.local` 과 compose 워커(루트 `.env` → `docker-compose.yml` `VAPID_*`) **두 자리에 같은 값**을 넣는다.
+
+---
+
 ## 10. 환경별 차이 (현재/계획)
 
 | 환경       | 상태       | 비고                                                          |
