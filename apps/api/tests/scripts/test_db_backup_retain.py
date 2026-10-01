@@ -14,14 +14,11 @@ UNIT_NAME = "dev.quantbridge.db-backup"
 ALARM_UNIT = "dev.quantbridge.db-backup-alarm"
 RETAIN_SNIPPET = 'set -- --help; . "$0" > /dev/null 2>&1; set +e; _retain'
 UPLOAD_SNIPPET = (
-    'upload_path="$1"; set -- --help; . "$0" > /dev/null 2>&1; '
-    'set +e; _upload "$upload_path"'
+    'upload_path="$1"; set -- --help; . "$0" > /dev/null 2>&1; set +e; _upload "$upload_path"'
 )
 
 
-def run_status(
-    tmp_path: Path, xdg: Path, backup_dir: Path
-) -> subprocess.CompletedProcess[str]:
+def run_status(tmp_path: Path, xdg: Path, backup_dir: Path) -> subprocess.CompletedProcess[str]:
     """실제 스크립트의 `--status`만 격리 경로로 실행한다."""
     env = {
         **os.environ,
@@ -61,28 +58,36 @@ def run_upload(
     tmp_path: Path,
     upload_path: Path,
     *,
-    prefix: str,
+    prefix: str | None,
+    bucket: str | None = "shared-backups",
     oci_stub_rc: int = 0,
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
-    """OCI 스텁을 고정한 채 `_upload` argv와 종료 코드를 관찰한다."""
+    """OCI 스텁을 고정한 채 `_upload` argv와 종료 코드를 관찰한다.
+
+    `bucket`·`prefix` 가 None 이면 그 env 를 **아예 뺀다** — systemd 유닛 밖 호출자의 모양이다.
+    """
     oci_stub = tmp_path / "bin" / "oci"
     oci_log = tmp_path / "oci-argv.txt"
     oci_stub.parent.mkdir()
     oci_stub.write_text(
         "#!/usr/bin/env bash\n"
-        "printf '%s\\n' \"$@\" > \"${OCI_STUB_LOG}\"\n"
-        "exit \"${OCI_STUB_RC:-0}\"\n",
+        'printf \'%s\\n\' "$@" > "${OCI_STUB_LOG}"\n'
+        "[ \"${OCI_STUB_RC:-0}\" = 0 ] || echo 'ServiceError: stub-oci-failure' >&2\n"
+        'exit "${OCI_STUB_RC:-0}"\n',
         encoding="utf-8",
     )
     oci_stub.chmod(0o755)
     env = {
         **os.environ,
-        "QB_BACKUP_BUCKET": "shared-backups",
-        "QB_BACKUP_PREFIX": prefix,
         "QB_OCI_BIN": str(oci_stub),
         "OCI_STUB_LOG": str(oci_log),
         "OCI_STUB_RC": str(oci_stub_rc),
     }
+    for key, value in (("QB_BACKUP_BUCKET", bucket), ("QB_BACKUP_PREFIX", prefix)):
+        if value is None:
+            env.pop(key, None)
+        else:
+            env[key] = value
     result = subprocess.run(
         ["bash", "-c", UPLOAD_SNIPPET, str(SCRIPT), str(upload_path)],
         capture_output=True,
@@ -105,9 +110,7 @@ def _write_backup_unit(xdg: Path, executable: Path, *, has_run_suffix: bool = Tr
     suffix = " run" if has_run_suffix else ""
     unit_path = _unit_dir(xdg) / f"{UNIT_NAME}.service"
     unit_path.parent.mkdir(parents=True, exist_ok=True)
-    unit_path.write_text(
-        f"[Service]\nExecStart=/bin/bash {executable}{suffix}\n", encoding="utf-8"
-    )
+    unit_path.write_text(f"[Service]\nExecStart=/bin/bash {executable}{suffix}\n", encoding="utf-8")
 
 
 def _write_alarm_unit(xdg: Path) -> None:
@@ -271,9 +274,7 @@ def test_retain_deletes_only_expired_quantbridge_dump_and_meta(tmp_path: Path) -
     other_dump = _write_dump(backup_dir, "other-20260101.dump")
     notes = backup_dir / "notes.txt"
     notes.write_text("keep", encoding="utf-8")
-    nested_dump = _write_dump(
-        backup_dir / "sub", "quantbridge-20260101T000000Z.dump"
-    )
+    nested_dump = _write_dump(backup_dir / "sub", "quantbridge-20260101T000000Z.dump")
     old_timestamp = time.time() - (retain_days + 16) * 86_400
     fresh_timestamp = time.time() - 86_400
     for path in (old_dump, old_dump.with_suffix(".dump.meta"), other_dump, notes, nested_dump):
@@ -329,8 +330,27 @@ def test_upload_normalizes_prefix_and_passes_oci_argv(
     assert "//" not in argv[argv.index("--name") + 1]
 
 
+def test_upload_defaults_to_shared_bucket_when_env_is_unset(tmp_path: Path) -> None:
+    """유닛 env 없이 불러도(`deploy.sh --migrate`) 타이머와 같은 버킷·prefix 로 간다.
+
+    2026-10-02 실측 — 타이머 업로드는 성공하는데 마이그레이션 직전 덤프 2개만 버킷에 없었다.
+    종전 기본값 `quantbridge-backups` 는 존재하지 않는 버킷(OCI 404)이었다.
+    """
+    upload_path = _write_dump(tmp_path / "backups", "quantbridge-20260821T000000Z.dump")
+
+    result, oci_log = run_upload(tmp_path, upload_path, prefix=None, bucket=None)
+
+    assert result.returncode == 0, result.stderr
+    argv = oci_log.read_text(encoding="utf-8").splitlines()
+    assert argv[argv.index("--bucket-name") + 1] == "truewords-backups"
+    assert argv[argv.index("--name") + 1] == "quantbridge/quantbridge-20260821T000000Z.dump"
+
+
 def test_upload_propagates_oci_failure_code(tmp_path: Path) -> None:
-    """원격 CLI 실패는 성공으로 감추지 않고 호출자의 종료 코드로 전달한다."""
+    """원격 CLI 실패는 성공으로 감추지 않고 호출자의 종료 코드로 전달한다.
+
+    원인(oci stderr)도 호출자에게 보여야 한다 — 버리면 journal 에 「업로드 실패」 한 줄만 남는다.
+    """
     upload_path = _write_dump(tmp_path / "backups", "quantbridge-20260821T000000Z.dump")
 
     result, oci_log = run_upload(tmp_path, upload_path, prefix="qb", oci_stub_rc=7)
@@ -338,3 +358,4 @@ def test_upload_propagates_oci_failure_code(tmp_path: Path) -> None:
     assert oci_log.is_file()
     assert oci_log.read_text(encoding="utf-8")
     assert result.returncode == 7
+    assert "stub-oci-failure" in result.stderr

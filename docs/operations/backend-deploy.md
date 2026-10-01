@@ -38,7 +38,7 @@ main 머지 ──release.yml(arm64)──▶ GHCR :sha-<7>
 | --- | --- |
 | 상태 보기 | `tools/scripts/deploy.sh --status` |
 | 무엇이 바뀔지만 | `tools/scripts/deploy.sh --dry-run <sha>` |
-| **DDL 이 있는 배포**(자동이 rc 2 로 멈췄다) | `tools/scripts/deploy.sh --migrate <sha>` — `db-backup.sh run` 선행 → 이미지 안 `run_alembic_with_lock` → 재확인. ★**매번 명시 승인**([BL-743]) |
+| **DDL 이 있는 배포**(자동이 rc 2 로 멈췄다) | `tools/scripts/deploy.sh --migrate <sha>` — `db-backup.sh run` 선행 → 이미지 안 `run_alembic_with_lock` → 재확인. ★**매번 명시 승인**([BL-743]). 선행 백업은 타이머와 **같은 버킷**(`truewords-backups/quantbridge/`)에 올라간다 — 2026-10-02 전에는 유닛 env 를 못 봐 매번 원격 사본이 빠졌다(rc 3) |
 | 롤백 | `tools/scripts/deploy.sh <이전 sha>` — 이미지 3세대는 서버에 남아 있고(`docker-reclaim`) 그 밖은 GHCR 에서 받는다 |
 | 호스트 전용 설정(재구축 시) | `tools/scripts/host-bootstrap.sh --install` — `/etc/docker/daemon.json`(json-file 10m×3) · journald `SystemMaxUse=500M`. `--status` 가 드리프트를 잰다 |
 | 회수 타이머 | `tools/scripts/docker-reclaim.sh --install`(주간) |
