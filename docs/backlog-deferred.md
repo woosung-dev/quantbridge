@@ -17,6 +17,11 @@
 > 안 건드리는 ATN 클로저 계산 본체다. 대체 축 = **[BL-832] 프로세스 밖 AST 캐시**.
 > ★되살리지 마라 — 되살리려면 「full-context 가 지배 성분이 되는 코퍼스」를 먼저 실측해라.
 
+> ★**2026-10-02 [BL-849] 삭제 tombstone — 트리거 전에 원인이 닫혔다.** 「서버 디스크 회수가 FE 배포에 얹혀 있다」는
+> 이제 거짓이다 — 회수는 `tools/scripts/docker-reclaim.sh` 가 **주간 user 타이머**(서버 설치 · 2026-09-27 실행 기록)와
+> **매 배포 `deploy.sh` ⑧** 두 곳에서 돌고, 서버는 이미지를 빌드하지 않는다(build cache 가 자랄 경로가 없다).
+> 원문 = `git show 2f0ac341:docs/backlog-deferred.md`.
+
 
 > ★★★**2026-08-21 — 이 파일이 언급하는 검사기 4종은 존재하지 않는다.** [ADR-037] 제로베이스가
 > `bl-audit.sh` · `docs-audit.sh` · `bl-trigger-sweep.sh` · `final-gates.sh` 를 **2026-08-19 에
@@ -100,36 +105,6 @@ B-2 는 FastAPI 에 쿠키+헤더 이중 경로를 영구히 남긴다. 네이�
    클라이언트 후보(전부 커뮤니티) = `flutter_better_auth` · `better_auth_client` · `better_auth_flutter` · `super_better_auth`.
 ★**여기 적힌 3곳 밖으로 인증 경계를 옮기지 마라** — 조사가 기각한 축 = B-2 전환(★) · Next 전면 프록시(WS 가
 rewrites 를 안 넘김, 2026-08-07 실측 · ★★) · FastAPI/OIDC 로 인증 이전(ADR-034 기각 축 · ★★, 트리거 = Flutter+소셜+MFA 동시).
-
----
-
-### BL-849
-
-**Title:** ★서버 디스크 회수가 **FE 배포에 얹혀 있다** — FE 를 안 올리면 build cache 상한이 사라진다
-**Category:** 운영 / 디스크
-**Priority:** P3 (현재 45% · 경보선 80%)
-**Trigger:** `disk-guard` 가 80% 를 발화하거나, FE 무배포 4주 경과
-**Est:** S
-**상태:** ⏳ 대기 (트리거 미도래) — ~~2026-08-30 실측 45%, 여유 54G~~ → **2026-09-10 실측 37%, 여유 61.7G.**
-★**원인의 절반은 닫혔다** — 회수가 FE 배포에서 분리돼 `tools/scripts/docker-reclaim.sh`(주간 타이머 · `quantbridge-*` 만 ·
-3세대 유지 · 실패 비은폐)가 됐다. 남은 절반 = **서버에 `--install` 하는 것** — [ADR-043] 서버 전환 절차 4단계에 포함돼 있다. 그 전환이 끝나면 이 항목은 삭제다.
-★그 한 줄은 깨져 있기도 했다 — `{{.ID}}` rmi 가 다중 태그에서 죽고 `2>/dev/null` 이 삼켜 서버에 4벌이 남아 있었다.
-**출처:** 2026-08-30 docker 디스크 감사 · 2026-09-10 재감사(codex exec 대조)
-
-**원인 / 영향:** 이번 회차가 회수를 `frontend-deploy.md` §3.3 에 **한 줄로** 붙였다(태그 3세대 유지 +
-`builder prune --filter until=168h`). 그 한 줄은 **FE 를 배포할 때만 돈다.** BE 배포(`backend-deploy.md`
-§3.3)는 ~~`soak-stack.sh`~~(당시) 경로라 회수를 타지 않고, BE 이미지는 `image:` 태그가 없어 재빌드가 드물다
-(실측: 3주 전 빌드본이 그대로). 따라서 FE 무배포 기간이 길어지면 build cache 만 자란다.
-
-★**현재 회수 가능분의 주인은 우리가 아니다** — 2026-08-30 실측 12.2GB 중 quantbridge 몫은
-**330MB(2.7%)** 이고 나머지 11.9GB 는 **kairos·truewords 의 죽은 롤백 태그**다
-(`truewords-backend` 죽은 4벌 × 1.79GB ≈ 7.2GB · `kairos-api` 죽은 4벌 ≈ 3.7GB).
-이 호스트는 `/dev/sda1` 97G 한 벌을 3개 프로젝트가 공유한다. **남의 프로젝트 이미지는 지우지 마라** —
-그쪽 롤백 경로가 사라진다. 트리거가 오면 **그 프로젝트 소유자에게 알리는 것**이 첫 행동이다.
-
-**권장 접근:** 트리거 도래 시 ⑴ `docker system df` 로 주인을 먼저 가르고 ⑵ quantbridge 몫만 회수한 뒤
-⑶ 그래도 부족하면 타 프로젝트 소유자와 협의. 회수를 `disk-guard.sh` 에 **얹지 마라** — 그 스크립트의
-설계 근거가 「경보와 회수의 분리」이고(`disk-guard.sh` 헤더), 경보가 회수 실패로 죽으면 둘 다 잃는다.
 
 ---
 

@@ -8,7 +8,10 @@
 ## 1. 이 배포가 무엇인가 (그리고 무엇이 아닌가)
 
 **맞다** — main 에 머지된 커밋의 **이미지**(`ghcr.io/woosung-dev/quantbridge-backend:sha-<7>`, `release.yml` 이 만든다)를
-서버가 받아 워커 4개를 하나씩 교체하고, 호스트 API 를 재시작하는 절차다. **자동이다** — 머지마다 `deploy.sh <sha>` 가 돈다(PR-3 이후).
+서버가 받아 워커 4개를 하나씩 교체하고, 호스트 API 를 재시작하는 절차다. **자동이다** — ~~머지마다 `deploy.sh <sha>` 가 돈다(PR-3 이후).~~
+→ **2026-10-02** — 머지마다 돈다. 단 바뀐 파일이 **전부** 문서·테스트면(`release.yml` 의 `paths-ignore` 8종 —
+`docs/**` · `**/*.md` · `evals/**` · `phases/**` · `.claude/**` · `apps/api/tests/**` · `apps/web/{e2e,tests}/**`)
+빌드도 배포도 돌지 않는다. 그런 머지 뒤에 배포가 필요하면 Actions → *Release images* → **Run workflow**(workflow_dispatch).
 
 **아니다** — 서버에서 빌드하지 않는다(2 OCPU 공유). DDL 을 자동으로 넣지 않는다. 소크 창·pin 은 없다([ADR-043]).
 
