@@ -1,16 +1,20 @@
 """`tools/scripts/deploy.sh` 의 계약을 고정한다 — 이 스크립트가 틀리면 매매 워커가 잘못된 순서로 죽거나,
 DDL 승인 규칙이 조용히 우회되거나, 실격이 난 위에 새 코드가 얹힌다.
 
-가짜 docker·git·uv·systemctl·curl 을 PATH 앞에 두고 **호출 순서와 rc** 만 본다. 잰 것:
+가짜 docker·git·uv·systemctl·curl·sleep 을 PATH 앞에 두고 **호출 순서와 rc** 만 본다. 잰 것:
 ⑴ 24h 자동 사망 ≥1 이면 rc 2 + 아무것도 안 바꾼다  ⑵ DDL 불일치면 rc 2  ⑶ 롤링 순서 beat→optimizer→worker→ws-stream
 ⑷ 한 서비스 up 실패 = 그 자리에서 멈추고 rc 1(다음 서비스 안 건드림)  ⑸ import probe 실패면 API 를 재시작하지 않는다
-⑹ --dry-run 은 판정만 하고 부작용 0  ⑺ 자동 사망 어휘가 `SessionDeactivationReason` 과 어긋나지 않는다.
+⑹ --dry-run 은 판정만 하고 부작용 0  ⑺ 자동 사망 어휘가 `SessionDeactivationReason` 과 어긋나지 않는다
+⑻ compose pull 은 새 태그를 셸 env 로 받고, 실패하면 루트 `.env` 를 안 고친다  ⑼ 워커는 자기 노드 celery ping 이
+답해야 다음으로 간다  ⑽ 다른 deploy.sh 가 잠금을 쥐고 있으면 rc 75 + 아무것도 안 바꾼다.
 """
 
 from __future__ import annotations
 
+import fcntl
 import os
 import re
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -27,6 +31,10 @@ printf '%s\n' "$*" >> "$FAKE_LOG"
 case "$1" in
   pull) [ "${FAKE_PULL_FAIL:-}" = 1 ] && exit 1; exit 0 ;;
   exec)
+    # celery … inspect ping -d <node> — $2 = 컨테이너
+    case "$*" in
+      *"inspect ping"*) [ "$2" = "${FAKE_PING_FAIL:-}" ] && exit 1; exit 0 ;;
+    esac
     # … psql … -Atc <SQL>
     sql="${@: -1}"
     case "$sql" in
@@ -39,10 +47,16 @@ case "$1" in
     case "$*" in
       *State.Status*) echo running ;;
       *Config.Image*) echo "ghcr.io/woosung-dev/quantbridge-backend:sha-running" ;;
+      *Config.Hostname*) echo "host-${@: -1}" ;;
     esac
     exit 0 ;;
   compose)
     case "$*" in
+      *" pull -q"*)
+        # compose 는 셸 env 를 `.env` 보다 먼저 본다 — 이 pull 이 어느 태그를 받는지 남긴다
+        printf 'compose-pull-env be=%s fe=%s\n' "${QB_BACKEND_TAG:-}" "${QB_FRONTEND_TAG:-}" >> "$FAKE_LOG"
+        [ "${FAKE_COMPOSE_PULL_FAIL:-}" = 1 ] && exit 1
+        ;;
       *" up -d --no-deps --no-build "*)
         svc="${@: -1}"
         [ "$svc" = "${FAKE_UP_FAIL:-}" ] && exit 1
@@ -104,7 +118,7 @@ def run(
     bin_dir.mkdir(exist_ok=True)
     _write_exec(bin_dir / "docker", FAKE_DOCKER)
     _write_exec(bin_dir / "git", FAKE_GIT)
-    for name in ("uv", "systemctl", "curl"):
+    for name in ("uv", "systemctl", "curl", "sleep"):
         _write_exec(bin_dir / name, FAKE_LOGGER)
     api_python = _write_exec(tmp_path / "api-python", FAKE_API_PYTHON)
     notify = _write_exec(tmp_path / "notify", FAKE_NOTIFY)
@@ -226,6 +240,66 @@ def test_service_up_failure_stops_there_with_rc1(tmp_path: Path) -> None:
     )
     assert not any(c.startswith("systemctl") for c in calls)
     assert "🔴" in body and "backend-worker up" in body
+
+
+def test_pull_takes_the_new_tag_from_shell_env_then_writes_env(tmp_path: Path) -> None:
+    proc, calls, _, root = run(tmp_path, "0123456789abcdef")
+    assert proc.returncode == 0, proc.stderr
+    assert "compose-pull-env be=sha-0123456 fe=" in calls, "BE pull 이 새 태그를 받는다"
+    assert "compose-pull-env be= fe=sha-0123456" in calls, "FE pull 이 새 태그를 받는다"
+    assert "QB_BACKEND_TAG=sha-0123456" in (root / ".env").read_text()
+
+
+def test_compose_pull_failure_leaves_env_untouched(tmp_path: Path) -> None:
+    """먼저 `.env` 를 고치면 pull 이 실패한 배포가 받지도 않은 태그를 남긴다 — 다음 `up` 이 그 태그를 찾는다."""
+    root = tmp_path / "root"
+    root.mkdir()
+    old = "QB_BACKEND_TAG=sha-old0000\nQB_FRONTEND_TAG=sha-old0000\n"
+    (root / ".env").write_text(old)
+    proc, calls, body, root = run(
+        tmp_path, "0123456789abcdef", env_extra={"FAKE_COMPOSE_PULL_FAIL": "1"}
+    )
+    assert proc.returncode == 1
+    assert (root / ".env").read_text() == old
+    assert _ups(calls) == []
+    assert "④ BE pull" in body
+
+
+def test_each_worker_must_answer_its_own_celery_ping(tmp_path: Path) -> None:
+    proc, calls, _, _ = run(tmp_path, "0123456789abcdef")
+    assert proc.returncode == 0, proc.stderr
+    pings = [c for c in calls if "inspect ping" in c]
+    for c in ("quantbridge-optimizer-heavy", "quantbridge-worker", "quantbridge-ws-stream"):
+        assert any(p.startswith(f"exec {c} ") and f"-d celery@host-{c}" in p for p in pings), (
+            f"{c} 는 자기 노드로 ping 한다 — 목적지가 없으면 다른 서비스의 구 워커가 대신 답한다"
+        )
+    assert not any("quantbridge-beat" in p for p in pings), "beat 는 ping 에 답하지 않는다"
+
+
+def test_worker_that_does_not_answer_ping_stops_the_roll(tmp_path: Path) -> None:
+    proc, calls, body, _ = run(
+        tmp_path, "0123456789abcdef", env_extra={"FAKE_PING_FAIL": "quantbridge-worker"}
+    )
+    assert proc.returncode == 1
+    assert _ups(calls) == ["backend-beat", "backend-optimizer-heavy", "backend-worker"], (
+        "답하지 않은 다음은 안 건드린다"
+    )
+    assert not any(c.startswith("systemctl") for c in calls)
+    assert "celery ping" in body
+
+
+@pytest.mark.skipif(
+    shutil.which("flock") is None, reason="flock(1) 은 util-linux — 서버·CI 에만 있다"
+)
+def test_concurrent_deploy_is_refused_with_rc75_and_changes_nothing(tmp_path: Path) -> None:
+    """CI 의 concurrency 그룹은 Actions 끼리만 줄 세운다 — 사람이 ssh 로 친 배포와 겹치면 여기서 막는다."""
+    with open("/tmp/quantbridge-deploy.lock", "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        proc, calls, _, root = run(tmp_path, "0123456789abcdef")
+    assert proc.returncode == 75, proc.stderr
+    assert not any(c.startswith("git ") and "pull" in c for c in calls)
+    assert not any(c.startswith("pull ") for c in calls)
+    assert not (root / ".env").exists()
 
 
 def test_import_probe_failure_does_not_restart_api(tmp_path: Path) -> None:

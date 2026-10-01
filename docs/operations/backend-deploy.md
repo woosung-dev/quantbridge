@@ -18,11 +18,13 @@
 main 머지 ──release.yml(arm64)──▶ GHCR :sha-<7>
                  │
                  └──deploy job(ssh, forced command)──▶ ~/quantbridge/tools/scripts/deploy.sh <sha>
+      ⓪ 잠금                           /tmp/quantbridge-deploy.lock — 다른 deploy.sh(사람 ssh 포함)가 돌면 rc 75, 아무것도 안 바꾼다
       ① git pull --ff-only            (compose·스크립트만 — 코드는 이미지 안)
       ② 24h 무실격                     trading.live_signal_sessions.deactivated_reason ∈ 8종 → 1건이라도 있으면 rc 2 + 텔레그램
       ③ DDL 대조                       이미지 `alembic heads` == DB `alembic_version` ? 아니면 rc 2 「DDL 필요」 + 텔레그램
-      ④ docker compose pull
+      ④ docker compose pull            새 태그는 셸 env 로 준다. 루트 `.env` 의 태그는 BE·FE pull 이 **둘 다 끝난 뒤에** 고친다
       ⑤ 워커 롤링                      beat → optimizer-heavy → worker → ws-stream (`up -d --no-deps`, stop_grace_period 준수)
+                                       각 워커는 running 뒤 **자기 노드로** `celery inspect ping` 이 답해야 다음으로 간다(beat 제외 · 최대 약 90초)
       ⑥ FE up -d                       (`docker-compose.frontend.yml`, 같은 sha 태그)
       ⑦ 호스트 API                     uv sync → `import src.main` probe → systemctl --user restart quantbridge-api.service
       ⑧ /health → docker-reclaim.sh --confirm → 텔레그램 요약
@@ -62,6 +64,8 @@ ssh truewords-oracle 'bash -lc "cd ~/quantbridge && tools/scripts/deploy.sh --st
 - ★**`/healthz` 가 아니라 `/health`** — `/healthz` 는 celery inspect 12초 상한에 걸려 503 이 정상이다.
 - ★**GHCR 패키지가 private 이면 pull 이 막힌다** — 첫 push 뒤 패키지 설정에서 public 확인(레포가 공개라 노출 증가 0).
 - ★**자동 배포가 멈춘 것은 실패가 아니다** — rc 2 = 「24h 실격 있음」 또는 「DDL 필요」. 텔레그램에 사유가 온다. 후자는 §3 의 `--migrate`.
+- ★**rc 75 = 다른 deploy.sh 가 돌고 있었다** — 아무것도 안 바꿨다. 앞 배포가 끝난 뒤 같은 sha 로 다시 친다.
+  release.yml 의 concurrency 그룹은 Actions 끼리만 줄 세우므로 사람 ssh 배포와의 겹침은 이 잠금이 막는다.
 
 ## 6. 관련 문서
 
