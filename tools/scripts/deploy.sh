@@ -16,20 +16,23 @@
 #
 # 종료 코드: 0 = 배포 완료 / 1 = 실패(중간에 멈춤 — 텔레그램에 단계가 적힌다) /
 #           2 = **막힘**(24h 실격 ≥1 · DDL 필요) — 아무것도 안 바꿨다. 자동 배포(release.yml)는 여기서 멈추고
-#               사람이 판단한다. 이것이 「서버 DDL 은 매번 명시 승인」 규칙의 집행 지점이다.
+#               사람이 판단한다. 이것이 「서버 DDL 은 매번 명시 승인」 규칙의 집행 지점이다. /
+#           75 = 다른 deploy.sh 가 돌고 있다(잠금) — 아무것도 안 바꿨다. 앞 배포가 끝난 뒤 다시 친다.
 #
 # 순서 (각 단계가 실패하면 그 자리에서 멈춘다 — 앞 단계는 되돌리지 않는다)
 #   ① 체크아웃 갱신 (git pull --ff-only origin main — compose·스크립트만. 코드는 이미지에 있다)
 #   ② 24h 무실격  — `trading.live_signal_sessions.deactivated_reason` 이 자동 사망 8종이면 막힘.
 #                   어휘 정본 = `src/trading/models.py:SessionDeactivationReason` (테스트가 대조)
 #   ③ DDL 대조    — 이미지의 `alembic heads` ≠ DB `alembic_version` 이면 막힘 (`--migrate` 는 사람이)
-#   ④ pull        — BE 4서비스 + FE
+#   ④ pull        — BE 4서비스 + FE. 새 태그는 셸 env 로만 넘기고 루트 `.env` 는 **둘 다 받은 뒤에** 고친다
+#                   (먼저 고치면 pull 이 실패한 배포가 받지도 않은 태그를 `.env` 에 남긴다 — 2026-10-02 재현)
 #   ⑤ 롤링 교체   — beat → optimizer-heavy → worker → ws-stream 순으로 하나씩 `up -d --no-deps`.
 #                   Celery 워커는 수평 확장 안전(acks_late · prefetch 1)이고 ws-stream 은 Redis lease 가
 #                   단일성을 지키므로 한 서비스씩 갈아도 매매가 안 끊긴다(재부팅 실측 2026-09-03).
 #                   ★교체 중 수십 초 동안 **구·신 워커가 서로 다른 서비스에서 겹친다**(신 ws-stream 이 발행한
 #                   태스크를 구 worker 가 받을 수 있다). 태스크 시그니처를 바꿀 때 kwarg 기본값 호환을 지켜라 —
 #                   `src/tasks/trading.py` 의 주석이 그 규칙이다.
+#                   각 워커는 `running` 뒤에 **자기 노드로** `celery inspect ping` 이 답해야 다음으로 간다(beat 제외).
 #   ⑥ FE up
 #   ⑦ 호스트 API  — uv sync → import probe(재시작 **전에** 잰다 — 살아 있는 API 를 죽이고 알면 늦다)
 #                   → systemctl restart → /health
@@ -44,7 +47,7 @@
 #   QB_DEPLOY_FORCE          1 = ② 를 건너뛴다. **사람이 알면서 쓸 때만** (rc 2 를 본 뒤)
 #   QB_DEPLOY_ROOT           체크아웃 루트. 기본 = 이 스크립트의 레포 (★테스트 seam — .env·compose 경로가 여기서 풀린다)
 #
-# 테스트 seam: docker·git·uv·systemctl·curl 은 PATH 로 찾는다 — `apps/api/tests/scripts/test_deploy.py` 가
+# 테스트 seam: docker·git·uv·systemctl·curl·sleep 은 PATH 로 찾는다 — `apps/api/tests/scripts/test_deploy.py` 가
 #   가짜 바이너리로 ②③ 막힘 · ⑤ 순서 · 실패 비은폐 · --dry-run 무부작용을 잰다.
 
 set -uo pipefail
@@ -60,6 +63,9 @@ FORCE="${QB_DEPLOY_FORCE:-}"
 IMAGE_BACKEND="ghcr.io/woosung-dev/quantbridge-backend"
 API_UNIT="quantbridge-api.service"
 API_HEALTH="http://127.0.0.1:8100/health"
+# 잠금 파일 — ★경로를 env 로 고르지 않는다. CI 의 forced-command ssh 와 사람의 ssh 가 다른 값을 보면
+#   서로 다른 파일을 잠가 잠금이 없는 것과 같다. 재부팅하면 사라져도 된다(flock 은 프로세스가 죽으면 풀린다).
+LOCK_FILE=/tmp/quantbridge-deploy.lock
 
 COMPOSE=(--project-directory "${ROOT}" -f "${ROOT}/infra/compose/docker-compose.yml" -f "${ROOT}/infra/compose/docker-compose.server.yml")
 COMPOSE_FE=(--project-directory "${ROOT}" -f "${ROOT}/infra/compose/docker-compose.frontend.yml" -p quantbridge-fe)
@@ -80,6 +86,15 @@ AUTO_DEATH_REASONS="'coverage_unrunnable','degraded_unconsented','equity_baselin
 
 die() { echo "✗ $1" >&2; exit "${2:-1}"; }
 
+# ── 잠금 — CI deploy 잡과 사람이 같은 서버에서 겹치지 않게 ─────────────────────────
+#   release.yml 의 concurrency 그룹은 GitHub Actions 실행끼리만 줄 세운다. ssh 로 손으로 친 배포는 못 본다.
+#   rc 75(EX_TEMPFAIL) = 아무것도 안 바꿨다. 앞 배포가 끝난 뒤 다시 치면 된다.
+_lock() {
+  command -v flock > /dev/null || { echo "  ⚠ flock 이 없다 — 잠금 생략 (맥 테스트 환경)" >&2; return 0; }
+  exec 9> "${LOCK_FILE}"
+  flock -n 9 || die "다른 deploy.sh 가 돌고 있다 (${LOCK_FILE}) — 끝난 뒤 다시" 75
+}
+
 # ── 알림 ────────────────────────────────────────────────────────────────────────
 NOTIFY_LIB="${QB_NOTIFY_LIB:-${SCRIPT_DIR}/lib/notify-telegram.sh}"
 [ -f "${NOTIFY_LIB}" ] || die "알림 라이브러리가 없다: ${NOTIFY_LIB}"
@@ -91,6 +106,17 @@ _notify() { # 실패해도 배포를 멈추지 않는다 — 알림은 부수 �
 }
 
 # ── 판독 ────────────────────────────────────────────────────────────────────────
+# ★sha 는 16진수 7~40자만 받는다 — forced-command ssh 경로에서 SSH_ORIGINAL_COMMAND 가 그대로 여기 온다.
+#   `id; ls` 같은 것을 주면 docker 가 "invalid reference format" 으로 죽긴 했지만 그 전에 git pull 이 돌았다
+#   (2026-09-11 실측). 어떤 부작용보다 먼저 거른다.
+#   `sha-<7>` 태그 꼴도 받는다(`_tag_of` 와 같은 입력) — 접두를 벗긴 나머지를 같은 규칙으로 잰다.
+_assert_sha() {
+  local s="${1#sha-}"
+  case "${s}" in
+    *[!0-9a-f]* | "") die "sha 가 아니다: '$1' — 16진수 7~40자(또는 sha-<7>)만 받는다" 1 ;;
+  esac
+  [ "${#s}" -ge 7 ] && [ "${#s}" -le 40 ] || die "sha 길이가 틀리다: '$1'" 1
+}
 _tag_of() { # <sha | sha-<7>> → sha-<7>. 태그를 그대로 넣어도 접두를 또 붙이지 않는다(2026-10-02 `sha-sha-451` 실측)
   local s="${1#sha-}"
   printf 'sha-%s\n' "$(printf '%s' "${s}" | cut -c1-7)"
@@ -167,12 +193,26 @@ _wait_running() { # _wait_running <container> — 최대 60초
   return 1
 }
 
+_wait_celery() { # _wait_celery <container> — 이 컨테이너의 워커 노드가 브로커를 거쳐 ping 에 답하는가 (최대 약 90초)
+  # ★`running` 은 프로세스가 떠 있다는 뜻뿐이다 — 「Up 34 hours 인데 celery 는 죽어 있었다」(2026-09-06 실측).
+  #   목적지를 이 컨테이너 노드로 고정한다: 목적지 없이 ping 하면 다른 서비스의 구 워커가 대신 답해 위양성이 된다.
+  local c="$1" node i=0
+  node="celery@$(docker inspect -f '{{.Config.Hostname}}' "${c}" 2> /dev/null)"
+  while [ "${i}" -lt 18 ]; do
+    docker exec "${c}" celery -A src.tasks.celery_app inspect ping -d "${node}" --timeout 5 > /dev/null 2>&1 && return 0
+    sleep 5; i=$((i + 1))
+  done
+  return 1
+}
+
 # ── 배포 ────────────────────────────────────────────────────────────────────────
 _deploy() { # _deploy <sha> <dry|run>
   local sha="$1" mode="$2" tag svc c
+  _assert_sha "${sha}"
   tag="$(_tag_of "${sha}")"
   echo "■ deploy ${tag} (${mode})"
   _assert_main
+  [ "${mode}" = run ] && _lock
 
   if [ "${mode}" = run ]; then
     echo "  ① git pull --ff-only origin main"
@@ -189,12 +229,13 @@ _deploy() { # _deploy <sha> <dry|run>
     return 0
   fi
 
+  echo "  ④ pull"
+  # 새 태그는 셸 env 로만 넘긴다(compose 보간에서 셸 env 가 .env 보다 우선한다).
+  # .env 는 pull 이 둘 다 끝난 뒤에만 고친다 — 실패한 배포가 받지도 않은 태그를 남기지 않게.
+  QB_BACKEND_TAG="${tag}" docker compose "${COMPOSE[@]}" pull -q "${ROLL_SERVICES[@]}" || { _notify "🔴 deploy ${tag} 실패 ④ BE pull"; die "BE pull 실패" 1; }
+  QB_FRONTEND_TAG="${tag}" docker compose "${COMPOSE_FE[@]}" pull -q || { _notify "🔴 deploy ${tag} 실패 ④ FE pull"; die "FE pull 실패" 1; }
   _set_env_tag QB_BACKEND_TAG "${tag}"
   _set_env_tag QB_FRONTEND_TAG "${tag}"
-
-  echo "  ④ pull"
-  docker compose "${COMPOSE[@]}" pull -q "${ROLL_SERVICES[@]}" || { _notify "🔴 deploy ${tag} 실패 ④ BE pull"; die "BE pull 실패" 1; }
-  docker compose "${COMPOSE_FE[@]}" pull -q || { _notify "🔴 deploy ${tag} 실패 ④ FE pull"; die "FE pull 실패" 1; }
 
   echo "  ⑤ 롤링 교체"
   for svc in "${ROLL_SERVICES[@]}"; do
@@ -202,6 +243,9 @@ _deploy() { # _deploy <sha> <dry|run>
     docker compose "${COMPOSE[@]}" up -d --no-deps --no-build "${svc}" \
       || { _notify "🔴 deploy ${tag} 실패 ⑤ ${svc} up"; die "${svc} up 실패" 1; }
     _wait_running "${c}" || { _notify "🔴 deploy ${tag} 실패 ⑤ ${c} 가 60초 안에 running 이 아니다"; die "${c} 기동 실패 — docker logs ${c}" 1; }
+    if [ "${svc}" != backend-beat ]; then # beat 는 스케줄러라 ping 에 답하지 않는다
+      _wait_celery "${c}" || { _notify "🔴 deploy ${tag} 실패 ⑤ ${c} 가 celery ping 에 답하지 않는다"; die "${c} 응답 없음 — docker logs ${c}" 1; }
+    fi
     echo "     ✓ ${svc} → $(_running_tag "${c}")"
   done
 
@@ -231,8 +275,10 @@ _deploy() { # _deploy <sha> <dry|run>
 # ── --migrate (사람 전용) ───────────────────────────────────────────────────────
 _migrate() {
   local sha="$1" tag cur head after brc
+  _assert_sha "${sha}"
   tag="$(_tag_of "${sha}")"
   _assert_main
+  _lock
   cur="$(_db_revision)"; [ -n "${cur}" ] || die "DB 의 alembic_version 을 못 읽었다" 1
   head="$(_image_head "${tag}")"; [ -n "${head}" ] || die "이미지 head 를 못 읽었다 (${tag})" 1
   echo "■ migrate ${tag}: DB ${cur} → 이미지 head ${head}"
@@ -243,8 +289,8 @@ _migrate() {
   case "${brc}" in 0 | 3) ;; *) die "백업 실패 (rc=${brc}) — DDL 을 넣지 않는다" 1 ;; esac
   echo "  alembic upgrade head (advisory lock · 이미지 안 · compose 네트워크)"
   # ★이미지 태그를 셸 env 로 준다(compose 는 셸 env 가 `.env` 보다 우선). compose 는 이미지를 루트 `.env` 의
-  #   QB_BACKEND_TAG 로 고르는데 그 줄은 배포가 **성공한 뒤에만** 갱신된다(`_set_env_tag`) — DDL 로 막힌 지금은
-  #   옛 태그다. 안 주면 옛 이미지의 alembic 이 no-op 으로 돌고 아래 사후 대조에서 죽는다(2026-10-02 서버 실측).
+  #   QB_BACKEND_TAG 로 고르는데 그 줄은 ③ DDL 대조를 통과하고 ④ pull 이 끝난 뒤에만 갱신된다(`_set_env_tag`) —
+  #   DDL 로 막힌 지금은 옛 태그다. 안 주면 옛 이미지의 alembic 이 no-op 으로 돌고 아래 사후 대조에서 죽는다(2026-10-02 서버 실측).
   #   `.env` 는 건드리지 않는다 — 배포 전에 실패하면 태그가 배포보다 앞서간다.
   QB_BACKEND_TAG="${tag}" docker compose "${COMPOSE[@]}" run --rm --no-deps --entrypoint "" backend-worker \
     python -m src.scripts.run_alembic_with_lock --lock-key "${ALEMBIC_ADVISORY_LOCK_KEY:-1903723824}" --timeout "${ALEMBIC_LOCK_TIMEOUT_S:-30}" \
