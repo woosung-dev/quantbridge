@@ -61,8 +61,9 @@ BE 잡 ~13분 · FE 잡 ~4분이므로 **30 PR 당 약 236분**이 검증 대상
 
 1. **`on.pull_request.paths` 를 쓰지 않는다.** 그러면 워크플로 자체가 안 돌아 required check 가
    **영구 대기**한다(§1 의 merge_group 함정과 같은 뿌리). 잡은 항상 생성되고 `if:` 로 skip 된다 —
-   skip 은 branch protection 이 성공으로 친다. main 은 2026-08-26 현재 보호가 없지만
-   (`gh api .../branches/main/protection` = 404) 켜는 날 이 구조가 그대로 성립해야 한다.
+   skip 은 branch protection 이 성공으로 친다. ~~main 은 2026-08-26 현재 보호가 없지만
+   (`gh api .../branches/main/protection` = 404)~~ → **2026-10-02 ruleset `main-protect`(PR 경유 · force push ·
+   삭제 금지)가 켜졌다. required check 는 아직 없다** — 그것을 켜는 날 이 구조가 그대로 성립해야 한다.
 2. **`.github/**` 와 `tools/**` 는 양쪽을 켠다.** 워크플로·스크립트를 **입력으로 읽는 감사 테스트**가
    양쪽 스위트에 있기 때문이다. 이 단언은 테스트에 박혀 있다(`test_shared_paths_run_both`).
 3. **fail-safe 3중** — ⑴ diff 취득 실패 ⑵ 변경 파일 0건(빈 입력을 통과로 읽지 않는다) ⑶ **분류표에
@@ -264,8 +265,9 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 정직하게 적어 둔다 — 나중에 이 목록을 「없는 위험」으로 읽지 마라.
 
 - ★**main 의 실제 커밋은 자동 검증되지 않는다.** `push: [main]` 을 뺐으므로 ⑴ 직접 push
-  ⑵ PR 검사 후 base 가 움직인 뒤의 머지 는 검사 없이 main 에 들어간다. 직접 push 는 로컬
-  pre-push 훅과 규율로만 막히고, 실질 방어선은 **순차 머지 + 머지 직전 `gh pr checks` 재확인**이다.
+  ⑵ PR 검사 후 base 가 움직인 뒤의 머지 는 검사 없이 main 에 들어간다. ~~직접 push 는 로컬
+  pre-push 훅과 규율로만 막히고~~ → **2026-10-02 ⑴ 직접 push 는 ruleset `main-protect` 가 서버에서 막는다.**
+  ⑵ 는 그대로라 실질 방어선은 **순차 머지 + 머지 직전 `gh pr checks` 재확인**이다.
   ★**2026-08-06 정정 — 이 항목의 전제가 바뀌었다.** 원래 「이 레포는 GitHub branch protection 을
   **쓸 수 없다**(private free — API 403 실측)」라고 적었는데, 같은 날 **저장소를 public 으로
   전환**해서 branch protection 이 **다시 가능하다.** 아직 켜지 않았으므로 위 서술(자동 검증

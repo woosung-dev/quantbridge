@@ -128,6 +128,7 @@ herdr 함대 래퍼는 2026-08-13 제거됐다([ADR-030](./docs/adr/030-harness-
 | 훅/게이트 | 무엇을 막나 |
 | --- | --- |
 | `.husky/pre-push` | main/master 직접 push (`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*` 는 통과) |
+| GitHub ruleset `main-protect` | main/master 직접 push · force push · 삭제 — **서버 측**이라 `--no-verify` 로도 못 넘는다. 우회 허용 0 · 리뷰 승인 0명(2026-10-02 · 그 전엔 위 로컬 훅뿐이었다) |
 | pre-commit `ledger-vitals.sh` | `다음 행동` ≤1 **∧ ≥1** · ⓪ 표 ≥1행 · RESOLVED 역류 0 · ★**진입점이 `PRD.md` §5 를 겨냥**(2026-08-31 ④ 신설 — ①②③ 은 전부 양만 잰다) |
 | pre-commit lint-staged | 스테이지된 `.py` 에 `ruff check --fix` + `ruff format` |
 | CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` → `scripts/export_openapi.py --check`(OpenAPI drift) → `mypy src` → `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` |
