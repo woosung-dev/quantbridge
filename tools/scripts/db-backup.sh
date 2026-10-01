@@ -24,13 +24,14 @@
 #   tools/scripts/db-backup.sh --uninstall
 #
 # 환경 변수 (전부 선택):
-#   QB_BACKUP_DIR=/opt/backups   QB_BACKUP_RETAIN_DAYS=14   QB_BACKUP_BUCKET=quantbridge-backups
-#   QB_BACKUP_PREFIX=            객체 이름 앞에 붙는 경계. **남의 버킷을 빌려 쓸 때 쓴다.**
+#   QB_BACKUP_DIR=/opt/backups   QB_BACKUP_RETAIN_DAYS=14   QB_BACKUP_BUCKET=truewords-backups
+#   QB_BACKUP_PREFIX=quantbridge 객체 이름 앞에 붙는 경계. **남의 버킷을 빌려 쓸 때 쓴다.**
 #                                2026-08-16 실측 — 이 VM 의 Instance Principal 은 `manage objects`
 #                                는 있는데 **버킷 생성 권한이 없다**(`bucket create` 409 인데
 #                                `bucket get` 은 404 = 존재하지도 않는데 못 만든다). 그래서
-#                                `QB_BACKUP_BUCKET=truewords-backups QB_BACKUP_PREFIX=quantbridge`
-#                                로 다른 앱 버킷을 공유한다. 전용 버킷이 생기면 prefix 를 비워라.
+#                                다른 앱 버킷을 공유하고, 그 값이 곧 기본값이다(2026-10-02 — 종전
+#                                기본값은 없는 버킷이라 유닛 밖 호출자가 매번 실패했다).
+#                                전용 버킷이 생기면 `QB_BACKUP_BUCKET=<버킷> QB_BACKUP_PREFIX=` 로.
 #   QB_DB_CONTAINER=quantbridge-db   QB_DB_USER=  QB_DB_NAME=  (미지정 시 컨테이너에서 읽는다)
 #   QB_SKIP_UPLOAD=1             원격 업로드를 **명시적으로** 건너뛴다 (rc 에 영향 없음)
 #   QB_OCI_BIN=/usr/local/bin/oci
@@ -71,9 +72,13 @@ ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 BACKUP_DIR="${QB_BACKUP_DIR:-/opt/backups}"
 RETAIN_DAYS="${QB_BACKUP_RETAIN_DAYS:-14}"
-BUCKET="${QB_BACKUP_BUCKET:-quantbridge-backups}"
-# 남의 버킷을 공유할 때의 경계. 비면 버킷 루트에 올린다 (`_upload` 주석 참조).
-BACKUP_PREFIX="${QB_BACKUP_PREFIX:-}"
+# ★기본값 = 이 VM 에서 **실제로 올라가는** 값이다 (2026-10-02). 종전 기본값 `quantbridge-backups` 는
+#   존재하지 않는 버킷이었고(OCI 404) 올바른 값은 `--install` 이 유닛 `Environment=` 에만 구워 넣었다 —
+#   그래서 타이머는 성공하고 유닛 밖 호출자(`deploy.sh --migrate`)는 **매번** 업로드에 실패했다.
+BUCKET="${QB_BACKUP_BUCKET:-truewords-backups}"
+# 남의 버킷을 공유할 때의 경계 (`_upload` 주석 참조). ★`:-` 가 아니라 `-` 다 — 명시적 빈 값
+# `QB_BACKUP_PREFIX=` 은 「전용 버킷, 루트에 올린다」로 존중한다.
+BACKUP_PREFIX="${QB_BACKUP_PREFIX-quantbridge}"
 OCI_BIN="${QB_OCI_BIN:-/usr/local/bin/oci}"
 ENV_FILE="${QB_ENV_FILE:-${ROOT}/apps/api/.env.local}"
 
@@ -326,8 +331,10 @@ _upload() { # _upload <파일>
   local name
   name="$(basename "$1")"
   [ -n "${BACKUP_PREFIX}" ] && name="${BACKUP_PREFIX%/}/${name}"
+  # ★stdout(성공 JSON)만 버린다. stderr 까지 버리면 실패 로그가 「업로드 실패」 한 줄뿐이라
+  #   원인(버킷 없음·권한·네트워크)을 못 가른다 — 2026-10-02 실제로 그래서 서버에서 재현해야 했다.
   "${OCI_BIN}" os object put --auth instance_principal \
-    --bucket-name "${BUCKET}" --file "$1" --name "${name}" --force > /dev/null 2>&1
+    --bucket-name "${BUCKET}" --file "$1" --name "${name}" --force > /dev/null
 }
 
 _retain() {

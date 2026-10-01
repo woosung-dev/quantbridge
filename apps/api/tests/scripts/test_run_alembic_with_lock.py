@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -194,7 +195,8 @@ async def test_run_alembic_upgrade_head_uses_exact_argv_and_returns_wait_code(
 
     assert result == 3
     assert proc.wait_calls == 1
-    create_subprocess.assert_awaited_once_with("uv", "run", "alembic", "upgrade", "head")
+    # `uv run` 이 아니다 — 이미지 안에서 암묵 `uv sync` 가 dev 그룹을 PyPI 에서 받는다(2026-10-02).
+    create_subprocess.assert_awaited_once_with(sys.executable, "-m", "alembic", "upgrade", "head")
 
 
 @pytest.mark.asyncio

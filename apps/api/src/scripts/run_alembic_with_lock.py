@@ -86,9 +86,12 @@ async def _run_alembic_upgrade_head() -> int:
     Returns subprocess returncode (0 = 성공).
     """
     logger.info("alembic_upgrade_head_start")
+    # ★`uv run` 을 되돌리지 마라 (2026-10-02). `uv run` 은 실행 전에 암묵 `uv sync` 를 돌아
+    #   `--rm` 마이그레이션 컨테이너마다 dev 그룹을 PyPI 에서 다시 받았다(#861 과 같은 기전 —
+    #   그때는 셸·compose 의 `uv run` 만 지우고 이 argv 를 놓쳤다). 부모와 같은 인터프리터로 띄운다.
     proc = await asyncio.create_subprocess_exec(
-        "uv",
-        "run",
+        sys.executable,
+        "-m",
         "alembic",
         "upgrade",
         "head",

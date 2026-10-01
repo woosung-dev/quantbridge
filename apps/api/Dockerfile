@@ -39,8 +39,9 @@ FROM python:3.12-slim AS runner
 
 WORKDIR /app
 
-# uv 는 entrypoint 에서 alembic 호출 시 사용
-COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /usr/local/bin/uv
+# ★러너에는 uv 가 없다 (2026-10-02). 마지막 사용처 `run_alembic_with_lock` 의 `uv run` 이 매 마이그레이션마다
+#   dev 그룹을 PyPI 에서 받고 있었다. 도구는 `PATH=/app/.venv/bin` 의 맨 이름으로 부른다 —
+#   `uv run` 이 다시 들어오면 조용한 재설치가 아니라 `uv: not found` 로 즉시 드러난다.
 
 ENV UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
