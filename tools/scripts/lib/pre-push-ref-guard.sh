@@ -12,7 +12,7 @@
 #   - `set -e` 아래에서 source 되므로 문장 형태의 `[ ... ] && cmd` 를 쓰지 않는다(if 로 쓴다).
 #   - ★판정 **순서**가 곧 보호다. qb_push_ref_verdict 주석을 먼저 읽어라.
 
-# main/master — 영구 금지 대상. bypass 로 뚫을 수 없다 (Golden Rule).
+# main/master — 사람 확인 대상(2026-10-02 — 막지 않고 훅이 터미널로 묻는다). bypass 플래그와 무관하다.
 qb_ref_is_protected() {  # <ref>
   case "${1#refs/heads/}" in
     main|master) return 0 ;;
@@ -31,7 +31,7 @@ qb_ref_is_head_ref() {  # <ref>
 # 태그 ref 인가.
 #
 # ★태그 push 정책 (BL-554 R1-④ — 왜 허용인가)
-#   이 훅이 지키는 것은 둘이다: (1) main 직접 push 금지, (2) 워커 격리(메인 체크아웃에서 워커
+#   이 훅이 지키는 것은 둘이다: (1) main 직접 push 확인, (2) 워커 격리(메인 체크아웃에서 워커
 #   브랜치를 밀지 않기). 태그는 **브랜치가 아니라서 둘 중 어느 것도 아니다** — 태그를 밀어도
 #   원격 브랜치가 생기지 않고 main 이 갱신되지 않는다. 그래서 릴리스 태깅(`git push --tags`,
 #   `git push origin v1.2.3`)을 막을 근거가 없고, 막으면 **조용한 회귀**가 된다(관례 작업마다
@@ -80,13 +80,13 @@ qb_ref_is_delete() {  # <local_ref> <local_sha>
 
 # (local_ref, local_sha, remote_ref, remote_sha, bypass) → 판정 문자열 1 개
 #   allow-tag | allow-tag-delete | allow-delete | allow-whitelist | allow-bypass
-#   deny-main | deny-arbitrary
+#   confirm-main | deny-arbitrary
 #
 # ★순서가 보호다. main/master 는 **remote_ref 로 가장 먼저** 본다.
 #   `git push origin feat/foo:main` 의 stdin 은 local=refs/heads/feat/foo · **remote=refs/heads/main**
 #   이다. 화이트리스트를 local_ref 로 먼저 태우면 실제 원격 main 갱신이 그대로 나간다 = fail-open.
 #
-#   ① remote 가 main/master              → deny-main       (갱신이든 삭제든. bypass 불가)
+#   ① remote 가 main/master              → confirm-main    (갱신이든 삭제든. bypass 플래그와 무관 — 훅이 사람에게 묻는다)
 #   ② remote 가 refs/tags/* 이고
 #        삭제                            → allow-tag-delete
 #        local 도 refs/tags/*            → allow-tag        (릴리스 태깅. 근거는 qb_ref_is_tag_ref 주석)
@@ -103,7 +103,7 @@ qb_push_ref_verdict() {  # <local_ref> <local_sha> <remote_ref> <remote_sha> [by
   _qb_l="$1"; _qb_lsha="$2"; _qb_r="$3"; _qb_bypass="${5:-0}"
 
   if qb_ref_is_protected "$_qb_r"; then
-    echo "deny-main"
+    echo "confirm-main"
     return 0
   fi
   if qb_ref_is_tag_ref "$_qb_r"; then                                    # ★R1-④ 변이 지점

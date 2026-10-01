@@ -264,8 +264,10 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 정직하게 적어 둔다 — 나중에 이 목록을 「없는 위험」으로 읽지 마라.
 
 - ★**main 의 실제 커밋은 자동 검증되지 않는다.** `push: [main]` 을 뺐으므로 ⑴ 직접 push
-  ⑵ PR 검사 후 base 가 움직인 뒤의 머지 는 검사 없이 main 에 들어간다. 직접 push 는 로컬
-  pre-push 훅과 규율로만 막히고, 실질 방어선은 **순차 머지 + 머지 직전 `gh pr checks` 재확인**이다.
+  ⑵ PR 검사 후 base 가 움직인 뒤의 머지 는 검사 없이 main 에 들어간다. ~~직접 push 는 로컬
+  pre-push 훅과 규율로만 막히고~~ → **2026-10-02 사람의 직접 push 는 허용(pre-push 가 `[y/N]` 확인)이고
+  GitHub 보호는 두지 않기로 했다.** ★#888 이후 main 커밋은 곧바로 운영 배포되므로 ⑴ 은 「검사 없이 배포」다.
+  실질 방어선은 **순차 머지 + 머지 직전 `gh pr checks` 재확인**이다.
   ★**2026-08-06 정정 — 이 항목의 전제가 바뀌었다.** 원래 「이 레포는 GitHub branch protection 을
   **쓸 수 없다**(private free — API 403 실측)」라고 적었는데, 같은 날 **저장소를 public 으로
   전환**해서 branch protection 이 **다시 가능하다.** 아직 켜지 않았으므로 위 서술(자동 검증

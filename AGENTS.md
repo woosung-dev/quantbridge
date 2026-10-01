@@ -52,9 +52,11 @@ Trading(CCXT 주문) / Market Data(TimescaleDB).
 - **NEVER** — 환경 변수·API 키·시크릿을 코드에 하드코딩. **이유:** 히스토리에 실제 키가 들어간 적이 2회 있다. `SecretStr` 을 써라
 - **NEVER** — Repository layer 밖에서 DB 접근. **이유:** service 가 세션을 쥐면 DB 없이 단위 테스트가 불가능해진다(`apps/api/AGENTS.md` §3)
 - **NEVER** — `.env.example` 에 없는 환경 변수를 코드에서 참조. **이유:** 배포 호스트가 그 값을 안 넣어 조용히 다르게 동작한다(2026-08-15 `/docs` 인터넷 노출 실사고)
-- **NEVER** — **main/master 직접 push**(영구 차단 · bypass 불가 · PR 경유 의무).
-  ★**작업 브랜치 push 와 `gh pr create` 는 승인 없이 해도 된다**(2026-08-22 사용자 결정) —
-  기계 집행 `.husky/pre-push` 도 처음부터 그랬다(main/master 만 거부). 막고 있던 것은 이 문서였다
+- **NEVER (AI 세션)** — **main/master 직접 push**. 작업 브랜치 + PR 로 간다. **이유:** main 에 들어간 커밋은
+  PR CI 없이 `release.yml` 이 곧바로 운영에 배포한다(#888 이후).
+  ★~~영구 차단 · bypass 불가~~ → **2026-10-02 사용자 결정: 개인 레포라 사람은 main 에 직접 push 할 수 있다** —
+  `.husky/pre-push` 가 터미널로 `[y/N]` 을 묻는다(기본 N · 터미널이 없으면 막는다). GitHub 쪽 보호(ruleset)는 두지 않는다.
+  ★**작업 브랜치 push 와 `gh pr create` 는 승인 없이 해도 된다**(2026-08-22 사용자 결정)
 - **NEVER** — LLM 생성 규칙 파일을 검토 없이 그대로 사용
 - **NEVER** — 워크트리에서 `mise run up`/`down`/`migrate`/`seed`. **이유:** 컨테이너·앱 DB 는 1벌 공유라 함께 깨진다
 - **NEVER** — 워크트리에서 celery 경유 검증(백테스트·라이브신호·옵티마이저). **이유:** worker 가 메인의 `src` 를 mount 하므로 **내 코드가 아니라 메인 코드가 돈다**(침묵 실패). 정본 = [`worktree-parallel.md`](./docs/development/worktree-parallel.md)
@@ -127,7 +129,7 @@ herdr 함대 래퍼는 2026-08-13 제거됐다([ADR-030](./docs/adr/030-harness-
 
 | 훅/게이트 | 무엇을 막나 |
 | --- | --- |
-| `.husky/pre-push` | main/master 직접 push (`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*` 는 통과) |
+| `.husky/pre-push` | main/master 직접 push 는 **막지 않고 터미널로 묻는다**(기본 N · 터미널 없으면 거부 — 2026-10-02) · 메인 체크아웃의 임의 브랜치(`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*` 는 통과). ★워크트리에서는 판정하지 않는다 |
 | pre-commit `ledger-vitals.sh` | `다음 행동` ≤1 **∧ ≥1** · ⓪ 표 ≥1행 · RESOLVED 역류 0 · ★**진입점이 `PRD.md` §5 를 겨냥**(2026-08-31 ④ 신설 — ①②③ 은 전부 양만 잰다) |
 | pre-commit lint-staged | 스테이지된 `.py` 에 `ruff check --fix` + `ruff format` |
 | CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` → `scripts/export_openapi.py --check`(OpenAPI drift) → `mypy src` → `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` |
