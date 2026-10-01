@@ -101,7 +101,9 @@ cd $QB/apps/web && pnpm e2e:authed
 `.husky/pre-push` 는 **ref 가드 하나만** 한다 ([ADR-037] 2026-08-19 — 품질 검사부는 철거,
 원문 = `git show harness-v1:.husky/pre-push`). CI 가 품질을 단독 판정한다.
 
-- `main` / `master` push **영구 차단** (bypass 불가)
+- ~~`main` / `master` push **영구 차단** (bypass 불가)~~ → **2026-10-02 사용자 결정(개인 레포): 막지 않고 터미널로
+  `[y/N]` 을 묻는다** — 기본 N, 터미널이 없으면(GUI·자동화·에이전트) 거부. main 커밋은 PR CI 없이 곧바로 운영 배포된다
+- ★판정은 **메인 체크아웃에서만** 돈다(git_dir == git_common_dir) — 워크트리에서는 아무것도 막지 않는다
 - `stage/*` `feat/*` `fix/*` `chore/*` `docs/*` `test/*` `refactor/*` `hotfix/*` 만 허용.
   그 외 임의 브랜치는 차단 + bypass 안내 (판정 순수 함수 = `tools/scripts/lib/pre-push-ref-guard.sh`)
 - 판정 대상은 현재 브랜치가 아니라 **실제로 미는 ref** 다 ([BL-554]·[BL-555])

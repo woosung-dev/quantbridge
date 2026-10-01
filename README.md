@@ -447,7 +447,7 @@ quant-bridge/
 ├── evals/harness/                  # 개발 하네스 eval (TypeScript)
 ├── phases/                         # 하네스 러너 회차 정의 — 산출물은 runs/ (gitignore)
 ├── .github/workflows/              # ci.yml (단일 게이트) · trust-layer-nightly · live-smoke · nightly-real-broker (수동)
-├── .husky/                         # pre-commit (lint-staged + ledger-vitals) · pre-push (main 직접 push 영구 거부)
+├── .husky/                         # pre-commit (lint-staged + ledger-vitals) · pre-push (main 직접 push 는 터미널로 확인)
 ├── AGENTS.md  CONTEXT.md  DESIGN.md  # 에이전트 오리엔테이션 · 도메인 용어 SSOT · 디자인 토큰
 └── mise.toml                       # 도구 버전 + 개발 명령 34 — SSOT (ADR-036)
 ```
@@ -456,7 +456,7 @@ quant-bridge/
 
 | 경계                          | 집행 장치                                                                                          | 어디                                                                        |
 | ----------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| main/master 직접 push         | 영구 거부 (bypass 불가). 작업 브랜치 push 와 PR 생성은 자유                                        | `.husky/pre-push` → `tools/scripts/lib/pre-push-ref-guard.sh`               |
+| main/master 직접 push         | 터미널로 `[y/N]` 확인(기본 N · 터미널 없으면 거부). 작업 브랜치 push 와 PR 생성은 자유            | `.husky/pre-push` → `tools/scripts/lib/pre-push-ref-guard.sh`               |
 | 코드 스타일                   | `ruff check --fix` + `ruff format` (py) · `biome check --write` (ts/tsx/css/json)                   | pre-commit lint-staged (루트 `package.json`)                                |
 | 원장 사활 4축                 | 살아 있는 `다음 행동 =` ≤1 · ⓪ 표 ≥1행 · RESOLVED 역류 0 · 진입점이 PRD §5 겨냥                  | pre-commit → `tools/scripts/ledger-vitals.sh` (status/backlog 스테이지 시)  |
 | green                         | be: `ruff` → `export_openapi.py --check` → `mypy` → `pytest` 전량 / fe: `biome` → `tsc` → `vitest` → `build` | `.github/workflows/ci.yml` — 경로 스코프, 분류 실패 시 전량 (ADR-037)  |
