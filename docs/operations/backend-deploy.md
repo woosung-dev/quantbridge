@@ -67,6 +67,9 @@ ssh truewords-oracle 'bash -lc "cd ~/quantbridge && tools/scripts/deploy.sh --st
 - ★**자동 배포가 멈춘 것은 실패가 아니다** — rc 2 = 「24h 실격 있음」 또는 「DDL 필요」. 텔레그램에 사유가 온다. 후자는 §3 의 `--migrate`.
 - ★**rc 75 = 다른 deploy.sh 가 돌고 있었다** — 아무것도 안 바꿨다. 앞 배포가 끝난 뒤 같은 sha 로 다시 친다.
   release.yml 의 concurrency 그룹은 Actions 끼리만 줄 세우므로 사람 ssh 배포와의 겹침은 이 잠금이 막는다.
+- ★**`DEPLOY_HOST_KEY` 에 `ssh-keyscan` 첫 줄을 넣지 마라** — 그 줄은 `# <host>:22 SSH-2.0-…` 주석이라 키가 0개다.
+  첫 자동 배포가 「Host key verification failed」로 죽었다(2026-10-02). 값 = `<host> ` + 서버의 `/etc/ssh/ssh_host_ed25519_key.pub`
+  앞 두 필드(이미 신뢰한 ssh 로 읽는다). 넣은 뒤 `gh api …/environments/Production/variables/DEPLOY_HOST_KEY --jq .value | ssh-keygen -lf -` 로 잰다.
 
 ## 6. 관련 문서
 
