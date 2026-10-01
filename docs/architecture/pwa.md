@@ -187,8 +187,8 @@ vapid_subject: str | None           # "mailto:..."
 
 ### 4.2 프로덕션
 
-- FE(`qb.woosung.dev`)는 Cloudflare Access 뒤 — §2.2 의 `use-credentials` 가 그 대응이다. **설치 가능성은 배포 후에만 잴 수 있다**(로컬 검증 불가).
-- 서버 VAPID 키 주입 = 사람 작업([`operations/backend-deploy.md`](../operations/backend-deploy.md) §3 · [BL-866]). 넣기 전까지 푸시는 꺼져 있다.
+- FE(`qb.woosung.dev`)는 Cloudflare Access 뒤 — §2.2 의 `use-credentials` 가 그 대응이다. **2026-10-02 실측 PASS**(배포 `4518755`): Access 통과 뒤 manifest·아이콘 3종·`/sw.js`·`/offline` 전부 200·리다이렉트 0 · SW scope `/` activated · 크롬 주소창 「설치」 표시 → Access 우회 정책 불필요. 앱 내 「앱 설치」 버튼만 안 뜬다 → [BL-869].
+- 서버 VAPID 키 주입 = 사람 작업([`operations/backend-deploy.md`](../operations/backend-deploy.md) §3). **2026-10-02 켜짐** — 호스트 API + 워커 4개에 같은 키, 프로덕션 크롬에서 구독(FCM) → 테스트 알림 왕복 PASS.
 - 키 생성(개인 키 = P-256 `d` 32바이트 base64url · 공개 키 = 비압축 점 65바이트 base64url — `pywebpush` 가 둘 다 이 형식을 받는다):
 
 ```bash
@@ -222,4 +222,4 @@ cd apps/api && uv run python -c "import base64 as b;from cryptography.hazmat.pri
 
 - [BL-867] 스트레스 테스트·옵티마이저 완료 푸시 + `reclaim_stale` 이 실패로 만든 백테스트 푸시
 - [BL-868] publish 없이 끝나는 주문 거부 경로(`src/tasks/trading.py`)에 realtime·푸시 둘 다 없음
-- [BL-866] 프로덕션 활성화 — 서버 VAPID 키 주입 + Access 뒤 설치 가능성 실측
+- [BL-869] 프로덕션에서 앱 내 「앱 설치」 버튼 미표시(크롬 주소창 설치는 됨)
