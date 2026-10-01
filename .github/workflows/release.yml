@@ -158,7 +158,10 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
-          DEPLOY_HOST_KEY: ${{ vars.DEPLOY_HOST_KEY }} # `ssh-keyscan -t ed25519 <host>` 한 줄 — TOFU 를 안 한다
+          # known_hosts 한 줄 = `<host> ssh-ed25519 AAAA…`. ★`ssh-keyscan` 의 첫 줄은 `# <host>:22 SSH-2.0-…` 주석이다 —
+          #   그 줄만 넣으면 키가 0개라 「Host key verification failed」로 죽는다(2026-10-02 첫 자동 배포 실측).
+          #   이미 신뢰한 ssh 로 서버의 `/etc/ssh/ssh_host_ed25519_key.pub` 를 읽어 만든다 — TOFU 를 안 한다.
+          DEPLOY_HOST_KEY: ${{ vars.DEPLOY_HOST_KEY }}
         run: |
           set -euo pipefail
           for v in DEPLOY_SSH_KEY DEPLOY_HOST DEPLOY_USER DEPLOY_HOST_KEY; do
@@ -167,6 +170,9 @@ jobs:
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          # 비어 있지 않아도 주석뿐이면 키가 0개다 — 위 `-n` 검사는 그것을 못 본다. ssh 전에 키 줄이 있는지 잰다
+          ssh-keygen -lf ~/.ssh/known_hosts > /dev/null \
+            || { echo "✗ DEPLOY_HOST_KEY 에 호스트 키 줄이 없다 — ssh-keyscan 의 주석 줄만 넣었나"; exit 1; }
           # forced command 가 SSH_ORIGINAL_COMMAND(= sha) 를 deploy.sh 에 넘긴다. rc 는 그대로 새어 나온다.
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 \
             "$DEPLOY_USER@$DEPLOY_HOST" "${{ github.sha }}"
