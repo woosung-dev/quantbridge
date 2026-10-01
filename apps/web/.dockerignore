@@ -5,6 +5,9 @@
 node_modules
 .next/cache
 .next/trace
+# Turbopack 개발 캐시(`pnpm dev`) — 이미지에는 안 들어가지만(Dockerfile 이 standalone·static 만 복사) 빌드 컨텍스트로
+# 전송된다. 로컬 메인 체크아웃 실측 1.1G(2026-10-02).
+.next/dev
 
 src
 tests

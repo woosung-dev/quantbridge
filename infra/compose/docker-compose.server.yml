@@ -9,7 +9,8 @@
 #   필요 없다. 이 파일이 바꾸는 것:
 #   ports            — db/redis 를 루프백 5433/6380 으로 publish (호스트 API·backup·deploy 가 여기로 붙는다)
 #   pull_policy      — `up` 이 항상 레지스트리 태그를 pull 한다 (서버는 빌드하지 않는다 — 2 OCPU 공유)
-#   mem_limit        — 전역 OOM killer 의 표적을 우리로 고정 (값은 종전 soak 층 그대로 = idle 실측 + burst 여유)
+#   mem_limit        — 전역 OOM killer 의 표적을 우리로 고정 (값은 종전 soak 층 그대로 = idle 실측 + burst 여유
+#                      · db/redis 는 2026-10-02 추가 — 아래 해당 서비스 주석)
 #   stop_grace_period — 롤링 교체 때 처리 중 작업이 끝날 시간. 기본 10초는 옵티마이저(hard limit 660초)를
 #                      SIGKILL 한다 — acks_late 라 유실은 없지만 재실행이 낭비다. 각 서비스의 작업 상한에 맞춘다.
 #   src mount 없음    — 코드는 이미지 안에 있다. `/metrics` 만 bind 다.
@@ -17,13 +18,24 @@
 # ★루프백 publish 는 iptables(INPUT 22 만 ACCEPT)와 이중 방어다 — 외부에 5433/6380 이 열리지 않는다.
 
 services:
+  # ★db·redis 의 mem_limit (2026-10-02) — 종전에는 이 둘만 상한이 없어, 폭주하면 호스트 전역 OOM killer 가
+  #   **이웃 프로젝트의 프로세스**를 고를 수 있었다. 상한이 있으면 그 컨테이너 안에서 끝난다.
+  #   ★이 값은 머지·`deploy.sh` 로 적용되지 않는다 — 롤링은 `up -d --no-deps <워커>` 라 db/redis 를 재생성하지 않는다.
+  #   적용 = `docs/operations/backend-deploy.md` §3 의 1회 수동 절차(몇 초 중단).
   db:
     ports: !override
       - "127.0.0.1:5433:5432"
+    # 2026-10-02 서버 실측: shared_buffers 160MB · max_connections 100 × work_mem 4MB = 400MB · maintenance_work_mem 64MB ·
+    # 사용 64.6MiB · 연결 11개 · DB 56MB. 설정상 어림 최악(160+400+64×3 ≈ 750MB)의 약 2.7배.
+    # 넘치면 그 백엔드 프로세스가 죽고 postgres 가 크래시 복구로 연결을 끊는다 — 호스트 전체가 흔들리는 것보다 낫다.
+    mem_limit: 2g
 
   redis:
     ports: !override
       - "127.0.0.1:6380:6379"
+    # 데이터 상한은 base 의 `--maxmemory 512mb`(noeviction)다. 그 위에 AOF rewrite fork 의 copy-on-write 몫을 얹는다.
+    # 2026-10-02 서버 실측: used 4.28M · peak 30.94M · rss 13.39M · aof_last_cow_size ≈ 1MB.
+    mem_limit: 768m
 
   backend-worker:
     pull_policy: always
