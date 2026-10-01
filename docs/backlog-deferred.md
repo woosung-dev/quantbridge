@@ -148,6 +148,45 @@ rewrites 를 안 넘김, 2026-08-07 실측 · ★★) · FastAPI/OIDC 로 인증
 **막는 것:** entrypoint 의 `api` 롤이 **기동마다 `alembic upgrade head` 를 자동 실행**한다 — 「서버 DDL = 사람이 `deploy.sh --migrate`」 규칙([BL-743] · [ADR-043] 결정 4)과 정면충돌.
 **권장 접근:** ⑴ entrypoint 에 자동 alembic 을 끄는 스위치(env, `.env.example` 등재) 또는 `api` 롤에서 마이그레이션을 분리 ⑵ `docker-compose.server.yml` 에 `backend-api` 서비스(`127.0.0.1:8100:8080`, cloudflared 는 host 네트워크라 경로 불변) ⑶ `api-service.sh --uninstall` ⑷ `deploy.sh` 의 호스트 API 단계를 롤링 대상에 편입. 이 셋이 끝나면 「이미지 하나 = 모든 환경」이 된다(dev/prod parity, 2026-09-10 조사).
 
+### BL-866
+
+**Title:** 웹 푸시 프로덕션 활성화 — 서버 VAPID 키 주입 + Cloudflare Access 뒤 설치 실측
+**Category:** 운영 / PWA
+**Priority:** P3
+**Trigger:** 사용자가 서버에서 푸시를 켜기로 고를 때(배포 승인 대상)
+**Est:** S
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-10-02 등재
+**출처:** 2026-10-02 [ADR-044] — 로컬에서만 검증했고 서버엔 키가 없어 기능이 꺼져 있다
+
+**원인 / 영향:** `GET /api/v1/push/config` 는 VAPID 3종이 다 있어야 `enabled:true` 다. 서버 API 호스트(`apps/api/.env.local`)와 compose 워커 4개(루트 `.env` → `docker-compose.yml` 의 `VAPID_*`)에 **같은 키**가 들어가야 한다. 또 FE 가 Access 뒤라 manifest 요청에 쿠키가 실려야 설치된다(`crossOrigin="use-credentials"`) — 로컬에선 잴 수 없다.
+**권장 접근:** ⑴ 키 생성(`architecture/pwa.md` §4) ⑵ 두 자리에 주입 → `deploy.sh` ⑶ 프로덕션 크롬에서 `Page.getInstallabilityErrors` 와 벨 → 테스트 알림 왕복을 실측 ⑷ 실패하면 Access 정책에 `/manifest.webmanifest`·`/sw.js` 우회를 검토.
+
+### BL-867
+
+**Title:** 스트레스 테스트·옵티마이저 완료 + 크래시 회수된 백테스트 실패 웹 푸시
+**Category:** 기능 / PWA
+**Priority:** P3
+**Trigger:** 스트레스 테스트나 옵티마이저 결과를 화면을 지키며 기다린 일이 실사용에서 1회라도 생길 때
+**Est:** S
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-10-02 등재
+**출처:** 2026-10-02 [ADR-044] 범위 밖 — 트리거를 백테스트 종료·주문·Kill Switch 셋으로 좁혔다
+
+**원인 / 영향:** 둘 다 Celery 에서 끝나지만 `enqueue_push` 를 안 부른다. 또 워커 크래시·미처리 예외로 `reclaim_stale`(`src/tasks/backtest.py`)이 FAILED 로 만든 백테스트도 푸시가 없다 — 사용자는 끝난 줄 모른다. 백테스트 본보기 = `BacktestService.run` 이 「이 호출이 기록한 종료 상태」일 때만 enqueue(`src/backtest/service.py`).
+**권장 접근:** 같은 패턴으로 각 서비스의 종료 지점 **한 곳**에 훅 · `notifications/dispatcher.py` 에 페이로드 함수 추가 · 트리거당 enqueue 정확히 1회 테스트.
+
+### BL-868
+
+**Title:** `realtime` publish 없이 끝나는 주문 거부 경로는 웹 푸시가 안 간다
+**Category:** 기능 / PWA
+**Priority:** P3
+**Trigger:** 거부된 주문을 푸시로 못 받은 일이 데모 트레이딩에서 1회라도 관측될 때
+**Est:** S
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-10-02 등재
+**출처:** 2026-10-02 [ADR-044] — 주문 푸시를 `publish_realtime` 한 곳에 걸었다
+
+**원인 / 영향:** `src/tasks/trading.py` 의 `transition_to_rejected` 호출 중 일부(358·376·395·438·501 행 근처 — 거래소 호출 **전** 거부·레거시 pending 등)는 `publish_realtime` 을 안 지나 화면 갱신도 푸시도 없다. 재집계 = `grep -n "transition_to_rejected\|publish_realtime" src/tasks/trading.py`.
+**권장 접근:** 거부 종결 지점에서 `publish_realtime("order_update", state=rejected)` 를 부르게 하면 화면·푸시가 함께 해결된다(푸시 전용 훅을 따로 두지 마라).
+
 ## 변경 이력
 
 ### BL-527

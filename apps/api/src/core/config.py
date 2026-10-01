@@ -355,6 +355,41 @@ class Settings(BaseSettings):
         stripped = v.strip()
         return stripped or None
 
+    # --- PWA 웹 푸시 (docs/architecture/pwa.md §3.3) ---
+    # ★셋 중 하나라도 비면 푸시가 통째로 꺼진다 — `GET /push/config` 가 `enabled: false` 를
+    #   내고 FE 벨이 렌더되지 않으며, 트리거는 enqueue 도 하지 않는다.
+    vapid_public_key: str | None = Field(
+        default=None,
+        description="VAPID 공개 키 (base64url) — 브라우저 `applicationServerKey` 로 내려간다.",
+    )
+    vapid_private_key: SecretStr | None = Field(
+        default=None,
+        description="VAPID 개인 키 (base64url). 비어 있으면 푸시 비활성.",
+    )
+    vapid_subject: str | None = Field(
+        default=None,
+        description='VAPID `sub` 클레임 — "mailto:..." 형식. 비어 있으면 푸시 비활성.',
+    )
+
+    @field_validator("vapid_public_key", "vapid_subject")
+    @classmethod
+    def _normalize_vapid_text(cls, v: str | None) -> str | None:
+        """빈 문자열 → None (`telegram_chat_id` 와 같은 규칙)."""
+        if v is None:
+            return None
+        stripped = v.strip()
+        return stripped or None
+
+    @field_validator("vapid_private_key")
+    @classmethod
+    def _normalize_vapid_private_key(cls, v: SecretStr | None) -> SecretStr | None:
+        """빈 문자열 → None (`slack_webhook_url` 와 같은 규칙)."""
+        if v is None:
+            return None
+        if not v.get_secret_value().strip():
+            return None
+        return v
+
     # --- Experiment: Pine Script → Strategy 변환 (Claude API) ---
     anthropic_api_key: SecretStr | None = Field(
         default=None,

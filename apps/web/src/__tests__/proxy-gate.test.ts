@@ -46,6 +46,18 @@ describe("proxy 인증·지역 제한 게이트", () => {
     expect(res.status).toBe(200);
   });
 
+  it("PWA 오프라인 안내 /offline 은 세션 없이 200 이다 (SW precache 대상 — pwa.md §2.4)", async () => {
+    // ★인증을 걸면 SW 설치 시 precache 가 `/sign-in` 으로 튕기고, 오프라인 내비게이션이
+    //   안내 화면 대신 로그인 화면(또는 설치 실패)이 된다. 변이 ⑶ 이 AC-7 과 함께 이것을 죽인다.
+    getSession.mockResolvedValue(null);
+
+    const res = await proxy(req("/offline"));
+
+    expect(getSession).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
   it.each([
     "/api/auth/session",
     "/api/webhooks/tv/abc",
@@ -219,6 +231,19 @@ describe("config.matcher — 어떤 경로가 proxy 를 타는가", () => {
   );
 
   it.each([["/favicon.ico"], ["/icon.svg"]])("루트 정적 자산은 여전히 제외된다: %s", (pathname) => {
+    expect(runsProxy(pathname)).toBe(false);
+  });
+
+  // PWA(pwa.md §2.1) — manifest·SW·아이콘은 **루트에 있어서** 게이트를 안 탄다. 하위 폴더로
+  // 옮기면 위 「확장자가 붙어도 proxy 를 탄다」 규칙에 걸려 비인증 요청이 `/sign-in` 으로 간다.
+  it.each([
+    ["/manifest.webmanifest"],
+    ["/sw.js"],
+    ["/icon-192.png"],
+    ["/icon-512.png"],
+    ["/icon-maskable-512.png"],
+    ["/apple-icon.png"],
+  ])("PWA 루트 자산은 proxy 를 타지 않는다: %s", (pathname) => {
     expect(runsProxy(pathname)).toBe(false);
   });
 });

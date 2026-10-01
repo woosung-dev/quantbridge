@@ -42,6 +42,7 @@ main 머지 ──release.yml(arm64)──▶ GHCR :sha-<7>
 | 롤백 | `tools/scripts/deploy.sh <이전 sha>` — 이미지 3세대는 서버에 남아 있고(`docker-reclaim`) 그 밖은 GHCR 에서 받는다 |
 | 호스트 전용 설정(재구축 시) | `tools/scripts/host-bootstrap.sh --install` — `/etc/docker/daemon.json`(json-file 10m×3) · journald `SystemMaxUse=500M`. `--status` 가 드리프트를 잰다 |
 | 회수 타이머 | `tools/scripts/docker-reclaim.sh --install`(주간) |
+| **웹 푸시 켜기**([ADR-044] · [BL-866]) | VAPID 키 1쌍(`architecture/pwa.md` §4)을 **두 자리에 같은 값으로** — 호스트 API `apps/api/.env.local` + 루트 `.env`(compose 워커 4개가 `VAPID_*` 를 받는다) → `deploy.sh <sha>`. 키가 하나라도 없으면 기능 전체가 꺼진 채 정상 동작한다 |
 
 ★**의존성을 넘는 롤백도 된다** — 이미지에 구워져 있다. 종전 「pyproject 를 넘는 롤백은 이 경로로 할 수 없다」는 사라졌다.
 ★**DB 롤백**(백업 복원 · alembic downgrade)은 종전대로 **[확인 필요] 절차**다 — 원문 tombstone 의 §3.4⑶⑷ 를 보되 실행 전 별도 승인.

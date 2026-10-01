@@ -53,6 +53,7 @@
 | [040](./040-strategy-brief-outside-trust-layer.md) | 전략 브리핑 = Trust Layer 밖 보조 설명 | 결정 | 판정은 결정론 층 독점 |
 | [041](./041-ai-strategy-generation.md) | 자연어 → 전략 생성 (Pine 정본) | 결정 | PRD §4 비범위 1줄 개정 |
 | [042](./042-pine-to-python-readonly-renderer.md) | Pine AST → Python 읽기 전용 렌더러 | 결정 | 실행 경로 없음 — 004 의 미구현 대안 |
+| [044](./044-pwa-web-push.md) | PWA(설치·오프라인 안내·웹 푸시) — 데이터 무캐시 | 결정 | PRD §4 비범위 1줄 개정 |
 
 ## 새 ADR 을 쓸 때
 

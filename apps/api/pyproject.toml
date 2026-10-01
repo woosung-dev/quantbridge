@@ -42,6 +42,7 @@ dependencies = [
     "scikit-optimize>=0.10.0,<0.11",
     "google-genai>=2.2.0",
     "openai>=1.60",
+    "pywebpush>=2.3.0",
 ]
 
 [dependency-groups]

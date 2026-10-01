@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from src.common.metrics import qb_rt_publish_failed_total, qb_rt_publish_invalid_total
 from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.common.redis_client import get_redis_lock_pool
+from src.notifications.dispatcher import enqueue_push, realtime_push_payload
 from src.realtime.schemas import PAYLOAD_MODELS, RealtimeEnvelope, ticker_channel, user_channel
 
 logger = logging.getLogger(__name__)
@@ -20,14 +21,18 @@ def _get_redis_lock_pool() -> Any:
     return get_redis_lock_pool()
 
 
-async def _publish_envelope(channel: str, event_type: str, payload: dict[str, Any]) -> None:
-    """계약 검증 뒤 Redis pub/sub envelope를 발행한다."""
+async def _publish_envelope(channel: str, event_type: str, payload: dict[str, Any]) -> bool:
+    """계약 검증 뒤 Redis pub/sub envelope를 발행한다.
+
+    반환 = payload 가 계약 검증을 통과했는가. Redis 발행 실패는 False 가 아니다 — 그건
+    전송 실패이지 payload 결함이 아니므로 푸시 같은 다른 전달 경로까지 막을 이유가 없다.
+    """
     try:
         PAYLOAD_MODELS[event_type].model_validate(payload)
     except (KeyError, ValidationError):
         logger.warning("realtime_publish_invalid_payload event_type=%s", event_type)
         _count_safely(qb_rt_publish_invalid_total, event_type=event_type)
-        return
+        return False
 
     try:
         envelope = RealtimeEnvelope(
@@ -49,11 +54,27 @@ async def _publish_envelope(channel: str, event_type: str, payload: dict[str, An
     except Exception:
         logger.exception("realtime_publish_failed event_type=%s", event_type)
         record_metric_safely(qb_rt_publish_failed_total.inc)
+    return True
 
 
 async def publish_realtime(user_id: str, event_type: str, payload: dict[str, Any]) -> None:
     """사용자별 Redis pub/sub 발행 실패가 거래 상태 전이를 방해하지 않게 한다."""
-    await _publish_envelope(user_channel(user_id), event_type, payload)
+    # ★계약 검증에 실패한 payload 는 화면에도 안 가므로 푸시도 보내지 않는다("None None" 본문 방지).
+    if await _publish_envelope(user_channel(user_id), event_type, payload):
+        _enqueue_push_safely(user_id, event_type, payload)
+
+
+def _enqueue_push_safely(user_id: str, event_type: str, payload: dict[str, Any]) -> None:
+    """[pwa.md §3.5] 체결·거부·Kill Switch 를 웹 푸시로 enqueue 한다 — 실패는 로그로만.
+
+    ★주문 체결은 워치독·WS 두 경로로 올 수 있지만 `tag` 가 같아 기기에서 하나로 합쳐진다.
+    """
+    try:
+        push_payload = realtime_push_payload(event_type, payload)
+        if push_payload is not None:
+            enqueue_push(user_id, push_payload)
+    except Exception:
+        logger.warning("push_enqueue_failed event_type=%s", event_type, exc_info=True)
 
 
 async def publish_ticker(symbol: str, payload: dict[str, Any]) -> None:

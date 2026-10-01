@@ -21,14 +21,33 @@ import {
   signOut,
 } from "@/lib/__mocks__/auth-client";
 
+import { setBeforeSignOut } from "@/lib/before-sign-out";
+
 import { AccountButton } from "../account-button";
 
 afterEach(() => {
   cleanup();
   resetAuthMock();
+  setBeforeSignOut(null);
   replace.mockClear();
   refresh.mockClear();
 });
+
+/**
+ * 끝나지 않은 정리(푸시 구독 해제 자리)를 등록한다. `release()` 전까지 진행 중이다 —
+ * 그동안 인증 호출이 0건이면 「앞」이 호출 순서가 아니라 **완료 대기**라는 것까지 잰다.
+ */
+function holdBeforeSignOut(): { cleanup: ReturnType<typeof vi.fn>; release: () => void } {
+  let release = () => {};
+  const cleanup = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+  );
+  setBeforeSignOut(cleanup);
+  return { cleanup, release: () => release() };
+}
 
 describe("AccountButton", () => {
   it("로그아웃 — 토큰 캐시를 먼저 비우고 sign-in 으로 보낸다", async () => {
@@ -108,6 +127,55 @@ describe("AccountButton", () => {
 
     await waitFor(() => expect(deleteAccount).toHaveBeenCalledTimes(1));
     expect(replace).toHaveBeenCalledWith("/sign-in");
+  });
+
+  // pwa.md §2.7 — 공용 기기에서 다음 사용자가 이전 사용자의 알림을 받지 않게, 서버 행 DELETE 가
+  // 아직 살아 있는 세션의 JWT 로 나가게. 순서가 뒤집히면 DELETE 는 401 이고 기기 구독이 남는다.
+  it("로그아웃 — 이 기기 푸시 구독 해제가 끝난 **뒤에야** 토큰 캐시를 비우고 signOut 한다", async () => {
+    const { cleanup, release } = holdBeforeSignOut();
+    render(<AccountButton />);
+
+    fireEvent.click(screen.getByRole("button", { name: /로그아웃/ }));
+
+    await waitFor(() => expect(cleanup).toHaveBeenCalledTimes(1));
+    expect(clearAuthTokenCache).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
+
+    release();
+
+    await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
+    expect(clearAuthTokenCache).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith("/sign-in");
+  });
+
+  it("계정 삭제 — 이 기기 푸시 구독 해제가 끝난 **뒤에야** deleteAccount 한다", async () => {
+    const { cleanup, release } = holdBeforeSignOut();
+    render(<AccountButton />);
+
+    fireEvent.click(screen.getByRole("button", { name: "내 계정 지우기" }));
+    fireEvent.click(await screen.findByRole("button", { name: "영구 삭제" }));
+
+    await waitFor(() => expect(cleanup).toHaveBeenCalledTimes(1));
+    expect(deleteAccount).not.toHaveBeenCalled();
+
+    release();
+
+    await waitFor(() => expect(deleteAccount).toHaveBeenCalledTimes(1));
+    expect(replace).toHaveBeenCalledWith("/sign-in");
+  });
+
+  it("로그아웃 — 구독 해제가 실패해도 로그아웃은 진행된다 (best-effort)", async () => {
+    setBeforeSignOut(async () => {
+      throw new Error("push service down");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    render(<AccountButton />);
+
+    fireEvent.click(screen.getByRole("button", { name: /로그아웃/ }));
+
+    await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
+    expect(replace).toHaveBeenCalledWith("/sign-in");
+    warn.mockRestore();
   });
 
   it("계정 삭제 실패 — 사용자에게 말하고 **이동하지 않는다**", async () => {

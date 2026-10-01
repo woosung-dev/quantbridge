@@ -36,6 +36,9 @@ const isPublicRoute = createRouteMatcher([
   "/pricing",
   // W3-H — 점검 페이지는 인증(및 백엔드)이 내려가도 렌더돼야 하므로 공개.
   "/maintenance",
+  // PWA(`docs/architecture/pwa.md` §2.4) — SW 가 설치 시 precache 하는 오프라인 안내 화면.
+  // 인증을 걸면 precache 가 `/sign-in` 응답을 `/offline` 으로 저장한다.
+  "/offline",
   // W3-H — 디자인 캐논 404 프로브. 존재하지 않는 공개 경로라 인증 게이트를 우회한 뒤
   // not-found 를 렌더한다(design-canon-public.spec.ts 가 인증 없이 감사). 실제 페이지는 없다.
   "/qb-canon-404-probe",

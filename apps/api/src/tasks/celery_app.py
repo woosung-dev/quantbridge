@@ -67,6 +67,7 @@ celery_app = Celery(
         "src.tasks.conditional_entry_janitor",
         "src.tasks.conditional_entry_recovery",
         "src.tasks.alert_rules",
+        "src.tasks.notifications",  # PWA 웹 푸시 (pwa.md §3.4)
     ],
 )
 
@@ -103,6 +104,9 @@ celery_app.conf.task_routes = {
     "trading.run_bybit_private_stream": {"queue": "ws_stream"},
     "trading.run_bybit_public_ticker_stream": {"queue": "ws_stream"},
     "optimizer.run": {"queue": "optimizer_heavy"},  # BL-237: dedicated queue
+    # PWA 웹 푸시 — 기본 큐(`backend-worker`, `-Q` 없음)가 소비한다. ws_stream 에서 체결을
+    # 받아 enqueue 해도 발송은 기본 큐 워커가 한다.
+    "notifications.send_push": {"queue": "celery"},
 }
 
 # Beat schedule — worker 상주 시 주기 task 실행.

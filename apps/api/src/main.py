@@ -456,6 +456,11 @@ def create_app() -> FastAPI:
 
     app.include_router(waitlist_router, prefix="/api/v1")
 
+    # PWA 웹 푸시 — 구독 원장 + 테스트 발송 (docs/architecture/pwa.md §3.2)
+    from src.notifications.router import router as push_router
+
+    app.include_router(push_router, prefix="/api/v1")
+
     from src.realtime.router import router as realtime_router
 
     app.include_router(realtime_router, prefix="/api/v1")

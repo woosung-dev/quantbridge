@@ -147,6 +147,11 @@ services:
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      # PWA 웹 푸시(pwa.md §3.4) — 워커는 명시 매핑된 env 만 받는다. 없으면 API 는 enabled 인데
+      # `notifications.send_push` 가 키를 못 봐 발송이 0 이 된다.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     volumes:
       - ./apps/api/.metrics:/metrics
     restart: unless-stopped
@@ -184,6 +189,9 @@ services:
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     volumes:
       - ./apps/api/.metrics:/metrics
     restart: unless-stopped
@@ -223,6 +231,9 @@ services:
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     volumes:
       - ./apps/api/.metrics:/metrics
     restart: unless-stopped
@@ -259,6 +270,9 @@ services:
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     volumes:
       - ./apps/api/.metrics:/metrics
       - beat-data:/data

@@ -15,6 +15,7 @@
 | 거래소 계정·주문·세션·Webhook | `trading/router.py`                                | `/api/v1` 아래 trading route                |
 | Waitlist                      | `waitlist/router.py`                               | `/api/v1` 아래 waitlist route               |
 | 실시간 브라우저 연결          | `realtime/router.py`                               | `/api/v1/realtime/ws`                       |
+| 웹 푸시 구독·테스트 발송      | `notifications/router.py`                          | `/api/v1/push` ([ADR-044](../adr/044-pwa-web-push.md)) |
 
 ## 공통 계약
 

@@ -186,7 +186,8 @@ def test_dependencies_do_not_contain_scoped_select_calls() -> None:
         if _select_calls(path)
     }
 
-    assert len(dependency_paths) == 8
+    # 9 = 2026-10-02 `notifications/dependencies.py`(PWA 웹 푸시) 편입.
+    assert len(dependency_paths) == 9
     assert paths_with_calls == set()
 
 
