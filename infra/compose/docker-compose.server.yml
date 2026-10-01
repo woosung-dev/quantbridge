@@ -25,8 +25,8 @@ services:
   db:
     ports: !override
       - "127.0.0.1:5433:5432"
-    # 2026-10-02 서버 실측: shared_buffers 160MB · max_connections 100 × work_mem 4MB = 400MB · maintenance_work_mem 64MB ·
-    # 사용 64.6MiB · 연결 11개 · DB 56MB. 설정상 어림 최악(160+400+64×3 ≈ 750MB)의 약 2.7배.
+    # 2026-10-02 서버 실측(`SHOW`): shared_buffers 128MB · max_connections 100 × work_mem 4MB = 400MB · maintenance_work_mem 64MB ·
+    # 사용 64.6MiB · 연결 11개 · DB 56MB. 설정상 어림 최악(128+400+64×3 ≈ 720MB)의 약 2.8배.
     # 넘치면 그 백엔드 프로세스가 죽고 postgres 가 크래시 복구로 연결을 끊는다 — 호스트 전체가 흔들리는 것보다 낫다.
     mem_limit: 2g
 
