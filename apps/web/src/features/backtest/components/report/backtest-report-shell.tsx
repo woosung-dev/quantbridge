@@ -320,6 +320,7 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
           periodEnd={bt.period_end}
           ranAt={bt.completed_at}
           warnings={bt.warnings}
+          dataCoverage={bt.data_coverage}
         />
       </Section>
 

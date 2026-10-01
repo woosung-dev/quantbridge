@@ -60,24 +60,21 @@ class TimescaleProvider:
         symbol = to_ccxt_perpetual_symbol(symbol)
         tf_sec = TIMEFRAME_SECONDS[timeframe]
 
-        # 1. advisory lock — 동시 fetch race 방지 (트랜잭션 종료 시 해제)
-        await self.repo.acquire_fetch_lock(symbol, timeframe, period_start, period_end)
-
-        # 2. lock 획득 후 gap 재조회 — 다른 트랜잭션이 이미 채웠을 수 있음
-        gaps = await self.repo.find_gaps(symbol, timeframe, period_start, period_end, tf_sec)
-
-        # 3. 빈 구간만 CCXT fetch
-        for gap_start, gap_end in gaps:
-            raw = await self.ccxt.fetch_ohlcv(symbol, timeframe, gap_start, gap_end)
-            rows = self._to_db_rows(raw, symbol, timeframe)
-            await self.repo.insert_bulk(rows)
-
-        if gaps:
+        # 데이터 조회 트랜잭션은 CPU 계산 전에 끝낸다. 캐시 적중도 락을 해제한다.
+        try:
+            await self.repo.acquire_fetch_lock(symbol, timeframe, period_start, period_end)
+            gaps = await self.repo.find_gaps(symbol, timeframe, period_start, period_end, tf_sec)
+            for gap_start, gap_end in gaps:
+                raw = await self.ccxt.fetch_ohlcv(symbol, timeframe, gap_start, gap_end)
+                await self.repo.insert_bulk(self._to_db_rows(raw, symbol, timeframe))
+            cached = await self.repo.get_range(symbol, timeframe, period_start, period_end)
+            frame = self._to_dataframe(cached)
             await self.repo.commit()
-
-        # 4. 최종 cache 조회 → DataFrame
-        cached = await self.repo.get_range(symbol, timeframe, period_start, period_end)
-        return self._to_dataframe(cached)
+            return frame
+        except BaseException:
+            # 락 타임아웃·요청 취소도 세션을 실패한 트랜잭션 상태로 남기지 않는다.
+            await self.repo.rollback()
+            raise
 
     def _to_db_rows(
         self, raw: list[list[Any]], symbol: str, timeframe: str

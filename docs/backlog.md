@@ -372,24 +372,6 @@
 
 ---
 
-### BL-842
-
-**Title:** `TimescaleProvider` 가 갭을 못 메우면 **짧은 시리즈**를 돌려주고, 백테스트는 요청한 기간으로 라벨된다
-**Category:** Backend / market_data
-**Priority:** P2
-**출처:** 2026-08-30 아키텍처 감사 gap sweep — `market-data` 축
-
-**증상 3종 (같은 파일):**
-⑴ `providers/timescale.py:70` — 거래소가 갭을 못 채우면 짧은 시리즈를 그대로 반환한다. 결과 행에는 **요청 기간**이 적히므로 사용자는 좁은 창에서 돈 백테스트를 넓은 창의 결과로 읽는다.
-⑵ `:75` — `pg_advisory_xact_lock` 이 fetch 구간이 아니라 **엔진 실행 전체** 동안 잡혀 있고 `lock_timeout` 이 없다. 옵티마이저/스트레스 테스트가 그 락을 길게 물면 다른 실행이 무한 대기한다.
-~~⑶ `:109` — 빈 결과가 `DatetimeIndex` 가 아니라 `RangeIndex` 를 갖는다.~~ → **2026-09-06 수리**(PR #873 `5349d996`). `_to_dataframe` 가 빈 경우에도 `pd.DatetimeIndex([], name="time", tz=UTC)` 를 붙인다. ★**기존 테스트가 그 축을 안 재고 있었다** — `test_get_ohlcv_empty_when_no_cache_no_ccxt_response` 는 `len==0` 과 컬럼만 봤다. 회귀 2건 신설(`test_empty_dataframe_has_datetime_index` · `test_empty_and_filled_dataframes_share_index_type`), 착수 전 red 확인.
-**권장 접근:** ⑴ 은 「채운 실제 구간」을 결과에 싣는 것이 먼저다(조용히 좁히지 말고 보이게 한다). ⑵ 는 락 범위를 fetch 로 좁히고 `lock_timeout` 을 건다. ~~⑶ 은 빈 시리즈도 `DatetimeIndex` 로 통일.~~ → 완료.
-
-**상태:** 🟡 PARTIAL — 2026-08-30 등재. **⑶ 2026-09-06 수리**(PR #873) · **⑴⑵ 미수리**
-**트리거 판정:** 도래
-
----
-
 ### BL-843
 
 **Title:** BL-084 prefork 가드가 `src/common/` 을 **하드코딩 2개 이름**으로 스코프해 `telegram_alert.py` 의 module-level Semaphore 를 못 본다
@@ -407,18 +389,12 @@
 
 ### BL-845
 
-**Title:** CI 가 Playwright spec **31개 중 1개**만 돈다 — 문서는 이 격차를 「1개」로 적어 두었다
+**Title:** 핵심 여정 외 Playwright 검증 범위 선별
 **Category:** Ops / CI 커버리지
 **Priority:** P2
-**출처:** 2026-08-30 아키텍처 감사 gap sweep — `test-architecture` 축 (CONTROL 실측 확인)
-
-**증상 (실측):** `apps/web/e2e/` 에 spec 이 **31개**다. `ci.yml` 은 Playwright 를 **아예 안 돌린다**(fe 잡 = `biome`+`tsc`+`vitest`+`build`). Playwright 를 도는 워크플로는 `live-smoke.yml` 하나이고 `--project=chromium-live-smoke` 인데, 그 project 의 `testMatch` 는 `playwright.config.ts:134` 의 `/live-smoke\.spec\.ts$/` — **정확히 1개 파일**이다. ⇒ **30개가 CI 에서 0회 실행**된다.
-★`apps/web/AGENTS.md` §10 은 이 격차를 「`e2e/design-canon-responsive.spec.ts` 는 CI 에서 안 돈다」로 **1건**만 적어 두었다. 실제로는 그 파일이 예외가 아니라 **규칙**이다.
-**권장 접근:** 먼저 **어느 spec 이 다른 게이트로 대체 불가능한 것을 지키는지** 가른다(전부 CI 에 넣는 것이 목표가 아니다 — authed spec 은 secret·DB 를 요구한다). 그다음 문서의 「1건」을 실제 목록으로 바꾼다. ★수치를 고치는 것이 이 항목의 절반이다 — 지금 문서는 커버리지를 **30배 과대**로 읽게 한다.
-**Risk:** 🟢 (지금 무엇을 깨지는 않는다. 「지켜지고 있다」는 오해가 비용이다)
-
-**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
-**트리거 판정:** 도래 (단독 착수 가능)
+**상태:** 🟡 PARTIAL — 실제 인증·API·Celery·리포트·Monte Carlo 여정은 `ci.yml`의 `strategy-journey` 잡에 편입했다. 공개 스모크는 `live-smoke.yml`이 맡는다.
+**남은 범위:** 나머지 화면 spec 중 단위 테스트로 대체 불가능한 경로를 실사용 마찰에 따라 선별한다. 전량 CI 편입은 목표가 아니다. 현재 보장·실행 명령 = `development/ci-cd.md`의 실제 전략 여정 절.
+**트리거 판정:** 도래 — 실제 사용에서 새 회귀가 드러날 때 우선순위를 정한다.
 
 ---
 
@@ -724,33 +700,6 @@ KITPORT 의 `.topbar` 는 **110**, `.sidebar` 는 **120** 이다 — **문서의
 
 **상태:** 🔵 ACTIVE — 2026-09-06 등재, 증상만 수리
 **트리거 판정:** 도래 (단독 착수 가능)
-
----
-
-### BL-847
-
-**Title:** `time` 빌트인이 **달력을 조작**하는데 degraded 플래그가 없다 — `timeframe.period` 는 플래그가 있다
-**Category:** Backend / pine_v2 (신뢰 층)
-**Priority:** P2
-**출처:** 2026-08-30 아키텍처 감사 gap sweep — `pine-v2` 축 (CONTROL 코드 대조 확인)
-
-**증상 (실측):** `interpreter.py:1301-1306` 의 `time` 은 실제 OHLCV 타임스탬프를 **안 읽고**
-`50*365*86_400*1000 + bar_index*60_000` 을 돌려준다 — **2020-01-01 시작 + 전 봉이 1분봉**이라는
-가정을 만들어 낸다. 주석은 「OHLCV 에 timestamp 없으면」이라는 조건을 말하지만 **코드에 그 분기가 없다** —
-언제나 합성값이다. ⇒ `time` 으로 날짜 범위·세션을 거르는 전략은 **의도와 다른 봉에서 매매한다.**
-
-★그런데 `coverage.py` 의 `_DEGRADED_ATTRIBUTES` 에는 **`timeframe.period` 하나뿐**이고 `time` 은 없다.
-`timeframe.period`(기본값 `"1D"`)가 degraded 인데 **달력 전체를 지어내는 `time` 은 아니라는 것**이 모순이다.
-`CONTEXT.md` 의 Degraded Pine 정의 = 「supported 지만 TradingView 와 결과가 달라질 수 있는 호출」에 정확히 해당한다.
-
-**권장 접근:** `time`(그리고 같은 성질이면 `timestamp`)을 degraded 로 올린다 —
-그러면 `allow_degraded_pine=true` 명시 동의 없이는 제출이 막힌다.
-★**이것은 순수 버그 수정이 아니라 제출 게이트 변경**이므로 사용자 판단이 필요하다.
-현재 실사용자 0명이라 차단 위험은 없다. 대안은 OHLCV 실제 timestamp 를 읽게 고치는 것이고 그쪽이 근본적이다 —
-**둘 중 무엇을 할지가 이 항목의 결정 사항**이다.
-
-**상태:** 🔵 ACTIVE — 2026-08-30 등재, **사용자 결정 필요**(플래그 vs 실제 timestamp 배선)
-**트리거 판정:** 도래
 
 ---
 

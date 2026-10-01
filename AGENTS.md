@@ -130,7 +130,7 @@ herdr 함대 래퍼는 2026-08-13 제거됐다([ADR-030](./docs/adr/030-harness-
 | `.husky/pre-push` | main/master 직접 push (`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*` 는 통과) |
 | pre-commit `ledger-vitals.sh` | `다음 행동` ≤1 **∧ ≥1** · ⓪ 표 ≥1행 · RESOLVED 역류 0 · ★**진입점이 `PRD.md` §5 를 겨냥**(2026-08-31 ④ 신설 — ①②③ 은 전부 양만 잰다) |
 | pre-commit lint-staged | 스테이지된 `.py` 에 `ruff check --fix` + `ruff format` |
-| CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` → `scripts/export_openapi.py --check`(OpenAPI drift) → `mypy src` → `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` |
+| CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` → `scripts/export_openapi.py --check`(OpenAPI drift) → `mypy src` → `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` / `strategy-journey`: 실제 인증·백테스트·Monte Carlo |
 | `tools/scripts/hooks/` | codex 레이어 가드 (위험 명령 차단) |
 
 ★**CI 는 `ruff format` 을 안 잰다** — 레포에 format 드리프트가 상시 있고 그것은 red 가 아니다.

@@ -179,6 +179,13 @@ class BarContext:
             return float("nan")
         return float(self.ohlcv.iloc[idx][field])
 
+    def timestamp_ms(self, offset: int = 0) -> int | float:
+        """Pine time/time[n]: 실제 봉 개시 시각. 시각·이력이 없으면 na."""
+        index = self.bar_index - offset
+        if self.timestamps is None or index < 0 or index >= len(self.timestamps):
+            return float("nan")
+        return self.timestamps[index].value // 1_000_000
+
     def current_timestamp(self) -> pd.Timestamp | None:
         """현재 bar 의 tz-aware timestamp. timestamps 미주입 시 None.
 
@@ -871,6 +878,9 @@ class Interpreter:
         if isinstance(value_node, pyne_ast.Name) and value_node.id in _SYNTHETIC_SERIES:
             return self._synthetic_source(value_node.id, offset)
 
+        if isinstance(value_node, pyne_ast.Name) and value_node.id == "time":
+            return self.bar.timestamp_ms(offset)
+
         # 사용자 변수 series
         if isinstance(value_node, pyne_ast.Name):
             name = value_node.id
@@ -1307,11 +1317,7 @@ class Interpreter:
         if name == "bar_index":
             return self.bar.bar_index
         if name == "time":
-            # Pine `time` = 현재 bar의 timestamp (epoch ms). OHLCV에 timestamp 없으면
-            # 2020-01-01 기준(≈ 50년 * 365*86400*1000 ms)으로 bar_index 분봉 가정.
-            # backtest range 필터(time >= startDate and time <= finishDate)가
-            # fromYear=1970 / toYear=2100 범위에서 True가 되도록 맞춤.
-            return 50 * 365 * 86_400 * 1000 + self.bar.bar_index * 60_000
+            return self.bar.timestamp_ms()
         if name == "na":
             return float("nan")
         if name == "true":
