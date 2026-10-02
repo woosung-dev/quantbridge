@@ -38,6 +38,9 @@ def create_worker_engine_and_sm() -> tuple[AsyncEngine, async_sessionmaker[Async
     테스트에서는 본 함수를 monkeypatch 로 대체하여 공유 세션 / no-op engine
     주입 가능.
     """
-    engine = create_async_engine(secret_value(settings.database_url), echo=False)
+    # pool_pre_ping — db 재시작 뒤 풀에 남은 죽은 연결을 꺼내 태스크가 죽는 것을 막는다([BL-870]).
+    engine = create_async_engine(
+        secret_value(settings.database_url), echo=False, pool_pre_ping=True
+    )
     sm = async_sessionmaker(engine, expire_on_commit=False)
     return engine, sm
