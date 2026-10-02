@@ -84,6 +84,18 @@ async def _async_impl():
 2. ws_stream 같은 long-running 은 별도 queue (`task_routes`) 로 분리 — pool 은 prefork 고정 (Sprint 12 solo → Sprint 24 BL-012 prefork 복귀, `docker-compose.yml` 이 정본)
 3. Sprint 19 BL-082 1h soak gate 통과 (RSS slope < 임계, fd 누수 없음)
 
+## 백포트 — `AsynPool.flush()` (Celery 5.6.x · [BL-870] ⑵)
+
+broker 연결이 끊기면 5.6.3 의 `AsynPool.flush()` 가 `_busy_workers` 를 통째로 비운다. 그러면 끝나지 않는
+태스크(ws-stream)를 돌리는 자식도 「한가함」이 되고, 재연결 뒤 새 태스크가 그 자식의 파이프에 들어가
+`reserved` 에 영원히 머문다. `src/tasks/_celery_backports.py` 가 상류 수정(celery/celery#10346)과 같은 규칙으로
+「살아 있고 수락된 job 을 돌리는 자식」을 바쁨으로 되돌리고, `celery_app.py` 가 import 시점에 건다.
+
+- ★**Celery ≥5.7 로 올리면 백포트는 스스로 꺼진다** — 그때 모듈과 호출 한 줄을 지워라. 카나리
+  `tests/tasks/test_celery_backports.py::test_installed_celery_flush_still_clears_busy_workers` 가 그 시점을 알린다
+- 실프로세스 재현 = `apps/api/scripts/repro_bl870_broker_reconnect.py` — **전용 docker 네트워크 + 일회용 redis** 위에서
+  운영 이미지로 워커를 띄운다. 공유 스택의 worker 를 쓰지 않으므로 워크트리 금지 규칙(메인 `src` mount)에 걸리지 않는다
+
 ## Alert task pending observability
 
 영속 `_WORKER_LOOP` 채택으로 fire-and-forget alert task (e.g. `KillSwitchService` 의 Slack 발송 task) 가 **Celery task 경계를 넘어 살아남을 수 있음** — 이전 `asyncio.run()` 패턴은 task 종료 시 모든 pending task 자동 cancel. cross-task semantic 변화 → 운영 모니터링 의무.

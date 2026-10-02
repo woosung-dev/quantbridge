@@ -21,6 +21,7 @@ from celery.signals import (
 from src.common.logging_config import configure_logging
 from src.common.metrics_multiproc import mark_metrics_process_dead
 from src.core.config import secret_value, settings
+from src.tasks._celery_backports import apply_asynpool_flush_backport
 
 if TYPE_CHECKING:
     from src.market_data.providers.ccxt import CCXTProvider
@@ -98,6 +99,10 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=250,
 )
+
+# [BL-870] ⑵ — broker 재연결 뒤 새 태스크가 무한히 도는 스트림 프로세스에 들어가 `reserved` 에
+# 멈추는 Celery 5.6.x 결함의 백포트(상류 celery/celery#10346). Celery ≥5.7 이면 아무것도 안 한다.
+apply_asynpool_flush_backport()
 
 # Sprint 12 Phase C — ws_stream queue routing. Sprint 57 BL-237 — optimizer_heavy.
 celery_app.conf.task_routes = {
