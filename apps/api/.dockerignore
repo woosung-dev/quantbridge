@@ -1,7 +1,9 @@
 .venv
-__pycache__
-*.pyc
-*.pyo
+# ★`**/` 가 없으면 컨텍스트 루트에만 맞는다 — 종전 `__pycache__` 는 `src/**/__pycache__` 를 못 막아 로컬 빌드 이미지에
+#   222개가 섞였다(2026-10-02 실측). CI 는 깨끗한 체크아웃이라 영향이 없었다.
+**/__pycache__
+**/*.pyc
+**/*.pyo
 .pytest_cache
 .mypy_cache
 .ruff_cache

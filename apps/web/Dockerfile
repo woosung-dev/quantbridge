@@ -24,9 +24,13 @@ ENV HOSTNAME=0.0.0.0
 
 # ★복사 순서가 곧 구조다 — standalone 은 server.js + 최소 node_modules 만 담고
 #   정적 자산(.next/static)과 public 은 별도로 얹어야 한다(Next 공식 규약).
-COPY .next/standalone ./
-COPY .next/static ./.next/static
+#   ★비root 실행 (2026-10-02) — 종전에는 root 로 돌았다. 베이스 이미지에 있는 `node`(uid 1000)로 내린다.
+#   Next 런타임이 쓰는 곳은 `.next/` 아래(캐시)뿐이라 그 둘만 `node` 소유로 복사한다 — public 은 읽기만 한다.
+COPY --chown=node:node .next/standalone ./
+COPY --chown=node:node .next/static ./.next/static
 COPY public ./public
+
+USER node
 
 EXPOSE 3000
 
