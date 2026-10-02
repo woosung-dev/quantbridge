@@ -790,3 +790,24 @@ KITPORT 의 `.topbar` 는 **110**, `.sidebar` 는 **120** 이다 — **문서의
 
 **상태:** 🔵 ACTIVE — 2026-08-30 승격, 옵티마이저 절반 수리됨 · **stress_test 절반 미수리**
 **트리거 판정:** 도래 (Sharpe 가 판단 입력이 됐다 — 2026-08-30)
+
+---
+
+### BL-870
+
+**Title:** db·redis 를 워커와 따로 재시작하면 ws-stream 의 public ticker 가 스스로 돌아오지 않는다
+**Category:** Backend / tasks (ws-stream)
+**Priority:** P2
+**Trigger:** on-demand — db·redis 를 워커와 따로 재시작할 일이 다시 생기기 전에
+**출처:** 2026-10-02 db·redis `mem_limit` 적용(PR #898 · `backend-deploy.md` §3) 직후 서버 로그 실측
+
+**증상 (실측):** 00:38:06Z 재생성 → ticker 공백 00:39:05 ~ 00:49:22(≈10분). 결함 두 개가 겹쳤다.
+- ⑴ **DB 쪽 — 원인 확정.** `tasks/_worker_engine.py:41` 의 `create_async_engine` 에 `pool_pre_ping` 이 없다(API 엔진 `common/database.py:20` 에는 있다). ticker 는 재생성 2초 전에 엔진을 만들었고, 60초 심볼 refresh(`websocket_task.py:204`)가 끊긴 풀 연결을 그대로 꺼내 `InterfaceError: connection is closed` 로 태스크가 죽었다.
+- ⑵ **broker 쪽 — 메커니즘 [확인 필요].** 00:43:03 reconcile 이 ticker 를 다시 넣었고 워커가 `received` 했지만, 5분 넘게 `inspect reserved` 에만 있고 `active` 로 가지 않았다(풀 3칸 중 2칸만 사용 중). redis 재연결 때 Celery 5.6.3 이 「Temporarily reducing the prefetch count to 1 … 3 tasks are currently being processed」를 남겼다. 계정 스트림 2개는 끊기지 않았다.
+- 복구 = `docker restart quantbridge-ws-stream` 1회(53초 뒤 ticker lease, ≈4.5분 뒤 계정 lease 복귀 · 에러 0).
+
+**권장 접근:** ⑴ 워커 엔진에 `pool_pre_ping=True` 한 줄 + 회귀 테스트. ⑵ 재현부터 — ws-stream 을 띄운 채 redis 만 재시작해 같은 `reserved` 정체가 나는지 본다(★celery 경유 검증이라 워크트리 금지 · 메인 체크아웃에서). 그때까지는 `backend-deploy.md` §3 의 「ws-stream 재시작」 절차가 막는다.
+**Risk:** 🟢 (Bybit demo · 실사용자 0명. ticker 는 화면용 실시간 가격 푸시(`realtime_publisher.publish_ticker`)에만 쓰인다)
+
+**상태:** 🔵 ACTIVE — 2026-10-02 등재, 미수리
+**트리거 판정:** 도래 (⑴ 은 단독 착수 가능 · 한 줄 + 테스트)
