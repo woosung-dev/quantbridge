@@ -34,7 +34,7 @@ export const API_ROUTES = {
 export const MOCK_DEMO_ACCOUNT = {
   id: "a0000000-0000-4000-a000-000000000001",
   name: "Bybit Demo",
-  exchange: "bybit_futures",
+  exchange: "bybit", // 서버 enum(`ExchangeName.bybit`). `bybit_futures` 는 와이어에 없다.
   mode: "demo",
   label: "Bybit Demo",
   api_key_masked: "***masked***",
