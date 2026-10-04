@@ -96,6 +96,12 @@ export const useOnboardingStore = create<OnboardingState>()(
         }
         return window.localStorage;
       }),
+      // ★하이드레이션을 마운트 뒤로 미룬다(`rendering-hydration-no-flicker`). 저장소가 동기
+      //   localStorage 라 생성 즉시 복원하면 클라이언트 첫 렌더가 저장된 step 을 그리는데, 서버는
+      //   localStorage 를 못 읽어 언제나 `welcome` 을 그린다 — 진행 중 새로고침마다 하이드레이션
+      //   불일치가 나서 React 가 SSR 마크업을 버리고 다시 그렸다. 복원은 `OnboardingView` 의
+      //   마운트 effect 가 `persist.rehydrate()` 로 한다.
+      skipHydration: true,
       partialize: (s) => ({
         step: s.step,
         strategyId: s.strategyId,

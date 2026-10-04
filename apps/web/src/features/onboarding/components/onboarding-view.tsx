@@ -55,8 +55,10 @@ export function OnboardingView() {
   const setBacktest = useOnboardingStore((s) => s.setBacktest);
   const reset = useOnboardingStore((s) => s.reset);
 
-  // 마운트 시 TTL 초과 체크 → 초과하면 welcome 으로 돌아감.
+  // 마운트 시 저장된 진행도 복원(store 의 `skipHydration` — 첫 렌더를 SSR 과 맞춘다) → TTL 초과
+  // 체크 → 초과하면 welcome 으로 돌아감. 저장소가 동기 localStorage 라 rehydrate 는 이 줄에서 끝난다.
   useEffect(() => {
+    void useOnboardingStore.persist.rehydrate();
     maybeExpireAndReset();
   }, []);
 
