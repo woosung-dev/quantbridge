@@ -26,6 +26,7 @@ import { describeSharpe } from "@/features/backtest/sharpe-convention";
 // ★`useUnrealizedPnlEstimate` 는 `hooks` 가 아니라 `unrealized` 에 있다(배럴이 두 파일을 합친다).
 import { useLiveSessions, useLiveSessionsAggregate } from "@/features/live-sessions/hooks";
 import { useUnrealizedPnlEstimate } from "@/features/live-sessions/unrealized";
+import type { LiveSession } from "@/features/live-sessions/schemas";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 import { useOptimizationRuns } from "@/features/optimizer/hooks";
@@ -78,7 +79,9 @@ export function DashboardCockpit() {
     [sessionItems],
   );
   const agg = useLiveSessionsAggregate(activeSessions);
-  const unrealized = useUnrealizedPnlEstimate(activeSessions);
+  // 미실현 추정은 WS ticker 를 구독한다 — 여기서 부르면 활성 세션 심볼이 틱할 때마다
+  // 코크핏 전체(§01~§04 · 자산 곡선 차트)가 재렌더된다. 값을 그리는 leaf 로 내렸다
+  // (트레이딩 코크핏 BL-663 `UnrealizedPnlKpi` 와 같은 처방).
 
   const accountsQ = useExchangeAccounts();
   // 목록 쿼리 하나로 §04 전략 목록 + 실행표의 전략명 매핑 + KPI 카운트(.total)를 모두 얻는다.
@@ -227,7 +230,7 @@ export function DashboardCockpit() {
                 USDT. 활성 세션 종료 거래 <span className="mono">{agg.totalClosedTrades}</span>건의
                 실현 손익 합입니다.
                 <br />
-                미실현(추정) {unrealized.total === null ? "—" : formatSignedUsd(unrealized.total)}
+                미실현(추정) <UnrealizedPnlEstimateText sessions={activeSessions} />
                 {/* BL-458 — 이 합계의 신뢰 등급. 채워진 세션 중 하나라도 소계를 안
                     보고하면 집계가 null 이라 아무것도 그리지 않는다 — 반쪽 분할을
                     전체인 것처럼 보여주지 않는다. */}
@@ -492,6 +495,12 @@ export function DashboardCockpit() {
       </footer>
     </main>
   );
+}
+
+// WS ticker 구독을 이 텍스트 하나에 가둔다 — 틱마다 재렌더되는 범위는 이 leaf 뿐이다.
+function UnrealizedPnlEstimateText({ sessions }: { sessions: readonly LiveSession[] }) {
+  const unrealized = useUnrealizedPnlEstimate(sessions);
+  return unrealized.total === null ? "—" : formatSignedUsd(unrealized.total);
 }
 
 function RecentRunRow({

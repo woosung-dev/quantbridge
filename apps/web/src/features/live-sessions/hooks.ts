@@ -10,6 +10,7 @@
 //         queryKey factory userId 첫 인자.
 // 폴링: state와 events는 active 시에만, list는 30s.
 
+import { useCallback } from "react";
 import {
   useQueries,
   useQuery,
@@ -463,6 +464,13 @@ export function useLiveSessionsPositions(
   sessions: readonly LiveSession[],
 ): LiveSessionsPositionsAggregate {
   const { uid, getToken } = useAuthCtx();
+  // 인라인 combine 은 매 렌더 새 함수라 RQ 가 **렌더마다** 다시 합산한다(rows 등 새 identity).
+  // `sessions` 가 바뀔 때만 함수를 갈아 결과가 바뀔 때만 재합산되게 한다.
+  const combine = useCallback(
+    (results: UseQueryResult<LiveSessionPositions, Error>[]) =>
+      combineLiveSessionPositions(sessions, results),
+    [sessions],
+  );
   return useQueries({
     queries: sessions.map((session) => ({
       queryKey: liveSessionKeys.positions(uid, session.id),
@@ -470,7 +478,7 @@ export function useLiveSessionsPositions(
       enabled: Boolean(session.id),
       refetchInterval: positionsRefetchInterval,
     })),
-    combine: (results) => combineLiveSessionPositions(sessions, results),
+    combine,
   });
 }
 

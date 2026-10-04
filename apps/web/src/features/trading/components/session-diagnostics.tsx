@@ -233,7 +233,12 @@ function relativeEventTime(lastEventTs: number | null): string {
 
 function RealtimeDiagnostic() {
   const status = useRealtimeStore(selectRealtimeStatus);
-  const lastEventTs = useRealtimeStore(selectLastRealtimeEventTs);
+  // `lastEventTs` 는 ticker 를 포함한 **모든** WS 이벤트마다 바뀐다. 원값을 구독하면 이 카드가
+  // 틱마다 재렌더되지만 화면에 나가는 것은 분 단위 문구뿐이다 — 문구(string)를 구독해
+  // 문구가 바뀔 때만 재렌더한다.
+  const eventLabel = useRealtimeStore((state) =>
+    relativeEventTime(selectLastRealtimeEventTs(state)),
+  );
   const pollingNote = "폴링 스냅샷이 정합성 기준이며 스트림은 갱신 힌트입니다.";
 
   if (status === "authed") {
@@ -244,7 +249,7 @@ function RealtimeDiagnostic() {
         state="ok"
         icon={<WifiIcon />}
         heading="실시간 스트림 연결됨"
-        body={`${relativeEventTime(lastEventTs)} · ${pollingNote}`}
+        body={`${eventLabel} · ${pollingNote}`}
       />
     );
   }

@@ -36,15 +36,22 @@ export function computeUnrealizedPnl(
   trades: readonly OpenTrade[],
   markPrice: string,
 ): number | null {
+  const parsedTrades = z.array(OpenTradeSchema).safeParse(trades);
+  if (!parsedTrades.success) return null;
+  return computeUnrealizedPnlFromTrades(parsedTrades.data, markPrice);
+}
+
+/** 이미 `OpenTradeSchema` 로 검증된 거래만 받는다 — ticker 핫 경로에서 zod 재검증을 건너뛴다. */
+function computeUnrealizedPnlFromTrades(
+  trades: readonly OpenTrade[],
+  markPrice: string,
+): number | null {
   if (markPrice.trim() === "") return null;
   const mark = Number(markPrice);
   if (!Number.isFinite(mark)) return null;
 
-  const parsedTrades = z.array(OpenTradeSchema).safeParse(trades);
-  if (!parsedTrades.success) return null;
-
   let total = 0;
-  for (const trade of parsedTrades.data) {
+  for (const trade of trades) {
     if (!Number.isFinite(trade.qty) || !Number.isFinite(trade.entry_price)) {
       return null;
     }
@@ -63,7 +70,7 @@ export interface UnrealizedPnlEstimate {
 
 function deriveUnrealizedPnl(
   activeSessions: readonly LiveSession[],
-  states: readonly (LiveSignalState | null | undefined)[],
+  tradesBySession: readonly (OpenTrade[] | null)[],
   tickerBySessionId: Readonly<Record<string, TickerEntry | undefined>>,
 ): UnrealizedPnlEstimate {
   if (activeSessions.length === 0) {
@@ -83,9 +90,9 @@ function deriveUnrealizedPnl(
     }
     latestTs = latestTs === null ? ticker.ts : Math.max(latestTs, ticker.ts);
 
-    const trades = parseOpenTrades(states[index]);
+    const trades = tradesBySession[index] ?? null;
     if (trades === null) return { total: null, isEstimating, latestTs };
-    const pnl = computeUnrealizedPnl(trades, ticker.markPrice);
+    const pnl = computeUnrealizedPnlFromTrades(trades, ticker.markPrice);
     if (pnl === null) return { total: null, isEstimating, latestTs };
     total += pnl;
   }
@@ -129,8 +136,12 @@ export function useUnrealizedPnlEstimate(
     }),
   );
 
+  // open_trades 검증(zod)은 state 폴링(5s)마다 한 번이면 된다. ticker 틱마다 도는
+  // 아래 파생에서 빼 둔다 — 틱은 폴링보다 훨씬 잦다.
+  const tradesBySession = useMemo(() => states.map(parseOpenTrades), [states]);
+
   return useMemo(
-    () => deriveUnrealizedPnl(activeSessions, states, tickerBySessionId),
-    [activeSessions, states, tickerBySessionId],
+    () => deriveUnrealizedPnl(activeSessions, tradesBySession, tickerBySessionId),
+    [activeSessions, tradesBySession, tickerBySessionId],
   );
 }
