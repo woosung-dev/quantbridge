@@ -6,9 +6,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+const prefetchBrief = vi.fn();
 vi.mock("@/features/strategy/hooks", () => ({
   useStrategy: () => ({ data: undefined, isLoading: true, isError: false }),
   useUpdateStrategy: () => ({ mutate: vi.fn(), isPending: false }),
+  usePrefetchStrategyBrief: (id: string) => prefetchBrief(id),
 }));
 
 // 로딩 분기 테스트라 무거운 자식(Monaco 등)은 렌더에 안 닿지만, 모듈 import 자체를 끊는다.
@@ -40,5 +42,15 @@ describe("EditorView 로딩 스켈레톤", () => {
       (el) => el.style.height === "518px",
     );
     expect(frames.length).toBe(1);
+  });
+});
+
+describe("EditorView 브리핑 병렬 조회", () => {
+  it("전략 상세가 아직 로딩 중일 때 이미 브리핑 prefetch 를 건다 (상세 → 브리핑 직렬 왕복 방지)", () => {
+    prefetchBrief.mockClear();
+    render(<EditorView id="550e8400-e29b-41d4-a716-446655440000" />);
+
+    expect(screen.getByTestId("strategy-editor-skeleton")).toBeTruthy();
+    expect(prefetchBrief).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440000");
   });
 });

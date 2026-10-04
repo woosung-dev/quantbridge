@@ -14,6 +14,7 @@
 
 import {
   useMutation,
+  usePrefetchQuery,
   useQuery,
   useQueryClient,
   type UseMutationResult,
@@ -194,6 +195,22 @@ export function useStrategyBrief(id: string | undefined): UseQueryResult<Strateg
     queryKey: id ? strategyKeys.brief(uid, id) : strategyKeys.all(uid),
     queryFn: makeBriefFetcher(id ?? "", getToken),
     enabled: Boolean(id),
+    retry: 1,
+  });
+}
+
+/**
+ * 브리핑을 **구독 없이** 미리 띄운다 — 편집 화면 진입 시 `GET /strategies/{id}` 와 병렬로.
+ *
+ * ★브리핑은 id 만 있으면 부를 수 있는데, 패널이 전략 상세 로드 **뒤에** 마운트되므로 그대로 두면
+ *   상세 왕복 → 콜드 파스(수십 초)가 직렬로 이어진다. 같은 query key 라 패널은 진행 중 요청을 잇는다.
+ * ★`usePrefetchQuery` 는 결과를 구독하지 않으므로 호출한 컴포넌트를 다시 그리지 않는다.
+ */
+export function usePrefetchStrategyBrief(id: string): void {
+  const { uid, getToken } = useAuthCtx();
+  usePrefetchQuery({
+    queryKey: strategyKeys.brief(uid, id),
+    queryFn: makeBriefFetcher(id, getToken),
     retry: 1,
   });
 }
