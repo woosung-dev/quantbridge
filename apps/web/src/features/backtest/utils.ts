@@ -35,15 +35,29 @@ export function formatPercent(value: number, digits = 2): string {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
+// `Number#toLocaleString(locale, options)` 은 호출마다 Intl.NumberFormat 을 새로 만든다.
+// 거래 표(50행 × 4~5칸)·CSV 미리보기·KPI 가 한 렌더에 수백 번 부르므로 자릿수별로 하나만
+// 만들어 재사용한다(js-cache-function-results). 출력은 같은 locale·options 라 동일하다.
+const currencyFormatters = new Map<number, Intl.NumberFormat>();
+
+function currencyFormatter(digits: number): Intl.NumberFormat {
+  let formatter = currencyFormatters.get(digits);
+  if (formatter === undefined) {
+    formatter = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+    currencyFormatters.set(digits, formatter);
+  }
+  return formatter;
+}
+
 /**
  * USDT 등 통화 숫자 (소수점 2자리 + 천단위 구분).
  */
 export function formatCurrency(value: number, digits = 2): string {
   if (!Number.isFinite(value)) return "—";
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
+  return currencyFormatter(digits).format(value);
 }
 
 /**
@@ -54,6 +68,10 @@ export function formatCurrency(value: number, digits = 2): string {
 export function formatDate(iso: string | number): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso);
+  return formatUtcDate(d);
+}
+
+function formatUtcDate(d: Date): string {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   const day = String(d.getUTCDate()).padStart(2, "0");
@@ -67,7 +85,8 @@ export function formatDateTime(iso: string | number | null | undefined): string 
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  const base = formatDate(iso);
+  // 이미 파싱한 Date 를 넘긴다 — 종전엔 formatDate(iso) 가 같은 문자열을 한 번 더 파싱했다.
+  const base = formatUtcDate(d);
   const hh = String(d.getUTCHours()).padStart(2, "0");
   const mm = String(d.getUTCMinutes()).padStart(2, "0");
   return `${base} ${hh}:${mm}`;

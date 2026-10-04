@@ -8,13 +8,13 @@
 // 이전 shadcn Tabs 5탭 IA 를 위 번호 섹션 구조로 재편했다.
 // trades 는 useAllBacktestTrades(200-cap 해소) 1회 로드 후 전 섹션 공유.
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { AlertTriangleIcon, ArrowRightIcon, RefreshCwIcon } from "lucide-react";
 import Link from "next/link";
 
 import { StateBox } from "@/components/state-box";
 import { useAllBacktestTrades } from "@/features/backtest/hooks";
-import type { BacktestDetail } from "@/features/backtest/schemas";
+import type { BacktestDetail, EquityPoint, TradeItem } from "@/features/backtest/schemas";
 
 import { AssumptionsCard } from "@/features/backtest/components/assumptions-card";
 import { StressTestPanel } from "@/features/backtest/components/stress-test-panel";
@@ -34,6 +34,9 @@ interface BacktestReportShellProps {
 }
 
 const STRESS_ANCHOR = "stress-test";
+// 로딩 중 `tradeItems ?? []` 가 렌더마다 새 배열을 만들면 자식 memo(closed/분포/원장 정렬)가
+// 매번 다시 돈다 — 모듈 상수 하나로 identity 를 고정한다(rerender-memo-with-default-value).
+const EMPTY_TRADES: readonly TradeItem[] = [];
 const REPORT_TRADE_SKELETON_ROWS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
 const REPORT_TRADE_SKELETON_CELLS = [
   "cell-1",
@@ -103,11 +106,14 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
     document.getElementById(anchor)?.scrollIntoView();
   }, []);
 
-  const buyAndHoldPoints =
-    bt.metrics?.buy_and_hold_curve?.map(([timestamp, value]) => ({
-      timestamp,
-      value,
-    })) ?? null;
+  // ★memo 필수 — 이 배열은 EquityChartV2·MetricGroupsSection·DetailedResultsSection 의 memo dep 다.
+  //   렌더마다 새로 만들면(종전) 부모가 다시 그려질 때마다(trades 도착 · 전략명 도착 등) 그 memo 가
+  //   전부 무효가 되고, 벤치마크 시리즈가 lightweight-charts 에 `setData` 로 다시 꽂혔다.
+  const buyAndHoldTuples = bt.metrics?.buy_and_hold_curve;
+  const buyAndHoldPoints = useMemo<EquityPoint[] | null>(
+    () => buyAndHoldTuples?.map(([timestamp, value]) => ({ timestamp, value })) ?? null,
+    [buyAndHoldTuples],
+  );
 
   if (!bt.metrics) {
     return null;
@@ -223,7 +229,7 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
           </div>
         ) : (
           <TradeLedgerTable
-            trades={tradeItems ?? []}
+            trades={tradeItems ?? EMPTY_TRADES}
             filenamePrefix={`backtest-${currentId.slice(0, 8)}`}
           />
         )}
@@ -242,7 +248,7 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
           <div className="card-body">
             <TradeAnalyticsSection
               metrics={metrics}
-              trades={tradeItems ?? []}
+              trades={tradeItems ?? EMPTY_TRADES}
               truncated={truncated}
             />
           </div>
