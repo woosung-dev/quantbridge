@@ -83,11 +83,8 @@ class ConvertService:
 
     @staticmethod
     def _heuristic_quality_warnings(original: str, converted: str) -> list[str]:
+        # 빈 결과는 호출부(`convert`)가 이미 RuntimeError 로 막는다 — 여기 오면 비어 있지 않다.
         msgs: list[str] = []
-        if not converted.strip():
-            msgs.append("⚠️ 변환 결과가 비어있습니다. provider 응답 형식 확인 필요.")
-            return msgs
-
         leftover_patterns = (
             "array.",
             "plotshape",

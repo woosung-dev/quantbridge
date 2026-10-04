@@ -240,6 +240,38 @@ def test_anthropic_without_tool_block_is_a_failure(monkeypatch):
         call(settings("anthropic", anthropic="k"))
 
 
+def test_empty_openai_content_is_a_failure_and_falls_back(monkeypatch):
+    """★거절(refusal)은 content=None 으로 온다. `{}` 로 받으면 빈 해설이 성공으로 나가고
+    다음 provider 로 넘어가지도 않는다 — anthropic 의 「도구 응답 없음」과 같은 실패다."""
+
+    class _C:
+        def create(self, **kw):
+            msg = SimpleNamespace(content=None, refusal="I can't help with that")
+            return SimpleNamespace(choices=[SimpleNamespace(message=msg, finish_reason="stop")])
+
+    monkeypatch.setattr(
+        P, "OpenAI", lambda api_key: SimpleNamespace(chat=SimpleNamespace(completions=_C()))
+    )
+    with pytest.raises(RuntimeError):
+        call(settings("openai", openai="k"))
+
+    cap: dict[str, Any] = {}
+    stub_gemini(monkeypatch, cap)
+    assert call(settings("openai,gemini", openai="k", gemini="k")).provider == "gemini"
+
+
+def test_empty_gemini_text_is_a_failure(monkeypatch):
+    """안전 필터 차단은 `response.text` 가 None 이다 — 빈 dict 성공이 아니라 실패다."""
+
+    class _M:
+        def generate_content(self, **kw):
+            return SimpleNamespace(text=None)
+
+    monkeypatch.setattr(P.genai, "Client", lambda api_key: SimpleNamespace(models=_M()))
+    with pytest.raises(RuntimeError):
+        call(settings("gemini", gemini="k"))
+
+
 # ── ⑸ 기본 순서에서 anthropic 을 뺐다 (2026-08-28 사용자 결정) ────────────────
 def test_default_provider_order_excludes_anthropic() -> None:
     """★`Settings()` 를 만들지 않고 **Field 기본값**을 직접 읽는다.

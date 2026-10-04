@@ -8,7 +8,19 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Numeric, and_, case, delete, func, literal, or_, select, text, update
+from sqlalchemy import (
+    Numeric,
+    and_,
+    case,
+    delete,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
@@ -19,7 +31,7 @@ from src.backtest.engine.metrics import (
     SHARPE_CONVENTION_NONPOSITIVE_EQUITY,
     SHARPE_CONVENTION_UNAVAILABLE,
 )
-from src.backtest.models import Backtest, BacktestStatus, BacktestTrade
+from src.backtest.models import Backtest, BacktestStatus, BacktestTrade, TradeDirection
 
 # --- [BL-462] Sharpe 정렬 등급 — 값 하나로는 의미가 다른 것들이 한 순위로 섞인다 ---
 #
@@ -375,28 +387,17 @@ class BacktestRepository:
         Returns:
             (total, long, short) — 모두 open + closed 포함.
         """
-        from src.backtest.models import TradeDirection
-
-        total_stmt = (
-            select(func.count())
+        # 한 번의 왕복으로 세 개를 센다 (`COUNT(*) FILTER (WHERE ...)`).
+        stmt = (
+            select(
+                func.count(),
+                func.count().filter(BacktestTrade.direction == TradeDirection.LONG),  # type: ignore[call-overload]
+                func.count().filter(BacktestTrade.direction == TradeDirection.SHORT),  # type: ignore[call-overload]
+            )
             .select_from(BacktestTrade)
             .where(BacktestTrade.backtest_id == backtest_id)  # type: ignore[arg-type]
         )
-        long_stmt = (
-            select(func.count())
-            .select_from(BacktestTrade)
-            .where(BacktestTrade.backtest_id == backtest_id)  # type: ignore[arg-type]
-            .where(BacktestTrade.direction == TradeDirection.LONG)  # type: ignore[arg-type]
-        )
-        short_stmt = (
-            select(func.count())
-            .select_from(BacktestTrade)
-            .where(BacktestTrade.backtest_id == backtest_id)  # type: ignore[arg-type]
-            .where(BacktestTrade.direction == TradeDirection.SHORT)  # type: ignore[arg-type]
-        )
-        total = (await self.session.execute(total_stmt)).scalar_one()
-        long_n = (await self.session.execute(long_stmt)).scalar_one()
-        short_n = (await self.session.execute(short_stmt)).scalar_one()
+        total, long_n, short_n = (await self.session.execute(stmt)).one()
         return int(total), int(long_n), int(short_n)
 
     # --- Sprint 41 Worker H — share token lookup (public read-only) ---
@@ -453,15 +454,11 @@ class BacktestRepository:
     # --- Cross-domain query (§4.8 Strategy delete 선조회) ---
 
     async def exists_for_strategy(self, strategy_id: UUID) -> bool:
-        stmt = (
-            select(func.count())
-            .select_from(Backtest)
-            .where(
-                Backtest.strategy_id == strategy_id  # type: ignore[arg-type]
-            )
+        # 전 행을 세지 않고 첫 행에서 멈춘다 (EXISTS).
+        stmt = select(
+            exists().where(Backtest.strategy_id == strategy_id)  # type: ignore[arg-type]
         )
-        count = (await self.session.execute(stmt)).scalar_one()
-        return count > 0
+        return bool((await self.session.execute(stmt)).scalar_one())
 
     # --- Stale reclaim (§8.3) ---
 
