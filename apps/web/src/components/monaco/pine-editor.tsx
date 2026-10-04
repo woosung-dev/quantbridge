@@ -5,6 +5,7 @@
 
 import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
+import { useEffect, useRef } from "react";
 import type { BeforeMount, OnMount } from "@monaco-editor/react";
 import { ibmPlexMono } from "@/lib/fonts";
 import { registerPineLanguage } from "./pine-language";
@@ -35,10 +36,19 @@ export function PineEditor(props: PineEditorProps) {
     registerPineLanguage(monaco);
   };
 
+  // ★`addCommand` 는 마운트 때 **한 번** 등록된다. 콜백이 `props` 를 직접 잡으면 마운트 시점의
+  //   `onTriggerParse` 가 영원히 불려, 부모가 매 렌더 넘기는 새 클로저(최신 소스)를 못 본다 —
+  //   새 전략 위저드에서 ⌘+Enter 가 빈 초기 소스로 판정돼 아무 일도 안 했다.
+  //   최신 콜백은 ref 로 읽는다(H-3: render body 대입 금지 → deps 없는 effect 에서 갱신).
+  const onTriggerParseRef = useRef(props.onTriggerParse);
+  useEffect(() => {
+    onTriggerParseRef.current = props.onTriggerParse;
+  });
+
   const handleMount: OnMount = (editor, monaco) => {
     // ⌘+Enter / Ctrl+Enter → 상위로 파싱 트리거 delegate.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      props.onTriggerParse?.();
+      onTriggerParseRef.current?.();
     });
   };
 
