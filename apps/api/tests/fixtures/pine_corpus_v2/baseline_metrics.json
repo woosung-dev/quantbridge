@@ -88,9 +88,9 @@
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:868bb760d0cacb4cf9ce9073c7bf7d140b06b907573e8c0d2526242c75e8e6f7",
-      "trades_digest": "sha256:0912887eb9ded4964d0f23cbd01471a36b8988242d9f7c907f2a009fe970a491",
+      "trades_digest": "sha256:0a2fabd884e3e95047ebba3e68dc2587c46c5a762cec2627fcd7681fb4a4e226",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-10-20T15:13:37Z"
+      "updated_at": "2026-10-20T16:47:16Z"
     },
     "s2_utbot": {
       "metrics": {
@@ -172,9 +172,9 @@
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:092002513c6d641ed29c22e3b8f5d7aa8f5c904e7aba006469ecf89b3c098ec3",
-      "trades_digest": "sha256:b3ac7f6957eec04d1e0b8068040edf8205e70b93fba3fbc3100ed1a32083fd35",
+      "trades_digest": "sha256:e6cba82861b291b424c471965790c1f72af32240eee0b69cc8bf0dd8fa9a2dee",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-10-20T15:13:45Z"
+      "updated_at": "2026-10-20T16:47:25Z"
     },
     "s3_rsid": {
       "metrics": {
@@ -256,9 +256,9 @@
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:bcd47328db3c68cc0eb18a89014c75a11926361e57a6dfdb799c170cccb6af56",
-      "trades_digest": "sha256:418a73fb0c0532105c22a42f8cc48d33e0bc065a2c29550c68d5c27bf4b3aa28",
+      "trades_digest": "sha256:2de71f669ac2440a259a4a239848d577c8779fb6ff52232243ddeb9538bbd3f4",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-10-20T15:12:00Z"
+      "updated_at": "2026-10-20T16:47:37Z"
     },
     "i1_utbot": {
       "metrics": {
@@ -340,9 +340,9 @@
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-      "trades_digest": "sha256:b3ac7f6957eec04d1e0b8068040edf8205e70b93fba3fbc3100ed1a32083fd35",
+      "trades_digest": "sha256:e6cba82861b291b424c471965790c1f72af32240eee0b69cc8bf0dd8fa9a2dee",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-10-20T15:13:52Z"
+      "updated_at": "2026-10-20T16:47:45Z"
     },
     "i2_luxalgo": {
       "metrics": {
@@ -516,9 +516,9 @@
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:fe75653c6f4b87338ba434a30e480455be5b0eac18d40a482c79b35bb29501bb",
-      "trades_digest": "sha256:c6244a7d8433fb51aa85c1dc11e3b07abd36c7bc905b811491f812e76fdacea7",
+      "trades_digest": "sha256:ce065199ad2d8b2c1e92040b95495ffc5070dc61029e8a31d138179cdb92cce3",
       "warnings_digest": "sha256:9ba2cdb07efc5e38d0934242497ca965a5c3afd0cbb599d9546e3ab51035b9b1",
-      "updated_at": "2026-10-20T15:13:56Z"
+      "updated_at": "2026-10-20T16:47:50Z"
     },
     "s5_ema_trend": {
       "metrics": {
@@ -600,9 +600,9 @@
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:c7f0b50a8c21928672fbc5f408fdd83fc82ab54fd4cb2832a97c269444fdad71",
-      "trades_digest": "sha256:099f5c5e465210a35f8ee21df8f0068333ff14c39c1ebf8fa8b671e14dabb951",
+      "trades_digest": "sha256:52b2b5dec429d7f28ede1a76621822e26ee1d5bc5d340b51169aba4189afce22",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-10-20T15:14:00Z"
+      "updated_at": "2026-10-20T16:47:53Z"
     }
   }
 }

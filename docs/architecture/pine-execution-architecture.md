@@ -47,6 +47,40 @@ Pine v5 이하의 `and`/`or`는 모든 항을 평가하며 v6부터 단축 평�
 ([공식 달력 계산 예시](https://www.tradingview.com/pine-script-docs/faq/times-dates-and-sessions/#how-can-i-plot-a-value-starting-n-months-or-years-back)).
 날짜 문자열·비UTC 시간대와 지원 달력 범위 밖 값은 추측해 계산하지 않고 명시 오류를 반환한다.
 
+### 체결 위상과 비용 경계
+
+`strategy_state.Trade`는 진입·청산을 `bar_open`, `bar_close`, `intrabar_unknown`으로 구분한다.
+시가 시장가 체결과 봉 내부의 조건부 체결을 같은 시각으로 간주하지 않는다. 이 위상은 내부 `RawTrade`까지
+보존하며 공개 거래 응답이나 DB 컬럼을 늘리지 않는다.
+
+`backtest/engine/holding_period.py`의 순수 `HoldingPeriod`가 거래별 MFE/MAE와 펀딩 보유 여부를 함께 판정한다.
+시가 진입봉은 보유하고 시가 청산봉의 이후 wick은 제외한다. 종가 진입봉의 이전 wick도 제외한다.
+MFE/MAE는 확실히 전부 보유한 봉과 실제 진입·청산 가격으로 계산한다. 조건부 체결봉의 고저가 순서를
+알 수 없으면 해당 wick을 보유 성과로 만들지 않는다. 별도 intrabar equity 극값 근사의 모든 경우까지
+검증했다는 의미는 아니다.
+
+```mermaid
+flowchart LR
+    T[Trade 체결 위상] --> R[RawTrade 내부 메타데이터]
+    R --> H[HoldingPeriod]
+    H --> E[거래별 MFE · MAE]
+    H --> F[관측 정산의 펀딩 보유 판정]
+    F --> C[같은 비용 배열을 equity · metrics에 공유]
+```
+
+펀딩은 관측한 정산 시각만 사용한다. 종가 진입에 그 봉의 앞선 정산을 소급 부과하지 않으며,
+종가 청산 직전까지의 정산은 포함한다. 마지막 확정 봉도 `[시가, 시가 + cfg.freq)` 범위의 정산을 포함한다.
+OHLCV 공백을 이전 봉으로 늘려 귀속하지 않는다. 봉 내부 체결 순서가 불명확하거나 정산에 해당하는 봉이
+없으면 그 정산을 미반영하고 경고한다. 비용의 명목금액은 해당 봉 종가×수량의 근사이며, 정산 시점의
+거래소 mark price를 재현한 것이 아니다.
+
+`funding_data_incomplete`의 `True`는 관측 정산을 반영하지 못한 경우, `False`는 펀딩 노출이 없는 경우다.
+보유가 있지만 과거 정산 일정의 독립적인 증거가 없으면 `None`(미검증)이다. rate의 최소·최대 시각이나
+관측 간격만으로 완전성을 주장하지 않는다. `total_funding`과 `include_funding`으로 미계산/구 결과와
+관측 비용의 계산을 구분하고, 화면에서도 미검증을 안내한다. 고정 8시간 주기를 가정하지 않는다
+([Bybit 상품 정보](https://bybit-exchange.github.io/docs/v5/market/instrument),
+[정산 이력](https://bybit-exchange.github.io/docs/v5/market/history-fund-rate)).
+
 ### 파스 캐시 2층 (BL-832)
 
 파싱 진입점은 `parser_adapter.parse_to_ast` **하나**다(n13 이 직접 `pynescript.ast.parse` 를 부르던 3곳을 여기로 모았다). 그 위에 캐시가 2층이다.

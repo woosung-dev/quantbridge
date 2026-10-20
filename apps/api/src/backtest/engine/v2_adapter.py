@@ -22,6 +22,7 @@ from typing import Literal
 import pandas as pd
 from pynescript.ast.error import SyntaxError as PyneSyntaxError
 
+from src.backtest.engine.holding_period import HoldingPeriod
 from src.backtest.engine.metrics import (
     calmar_ratio,
     compute_excursion_stats,
@@ -178,7 +179,9 @@ def run_backtest_v2(
         trades = _build_raw_trades(state, cfg, ohlcv=ohlcv)
         # C6 funding accrual — 비용/결측을 한 번만 계산해 모든 equity 경로와 metric 에 공유.
         funding_costs, funding_incomplete = (
-            _funding_cost_by_bar(trades, ohlcv, funding_rates)
+            _funding_cost_by_bar(
+                trades, ohlcv, funding_rates, freq=cfg.freq, warnings=state.warnings
+            )
             if funding_rates is not None
             else (None, None)
         )
@@ -292,18 +295,14 @@ def _trade_excursion(
     entry_price: Decimal,
     qty: Decimal,
 ) -> tuple[Decimal, Decimal]:
-    """보유 구간 (entry_bar, exit_bar](open 은 last bar 까지) 의 gross excursion.
-
-    returns (runup_abs=MFE, drawdown_abs=MAE) — 음수 clamp 0. 윈도 공집합
-    (same-bar close) 은 (0, 0). 규약 근거는 RawTrade 필드 docstring (types.py).
-    """
-    last_bar = len(highs) - 1
-    end_bar = t.exit_bar if t.exit_bar is not None else last_bar
-    start = t.entry_bar + 1
-    if start > end_bar:
-        return Decimal("0"), Decimal("0")
-    window_high = max(highs[start : end_bar + 1])
-    window_low = min(lows[start : end_bar + 1])
+    """확실한 보유 봉과 체결가의 gross excursion. 부분 봉의 경로는 추측하지 않는다."""
+    period = HoldingPeriod(t.entry_bar, t.exit_bar, t.entry_phase, t.exit_phase)
+    bars = period.full_bars(len(highs) - 1)
+    endpoints = [entry_price]
+    if t.exit_price is not None:
+        endpoints.append(Decimal(str(t.exit_price)))
+    window_high = max(endpoints + [highs[i] for i in bars])
+    window_low = min(endpoints + [lows[i] for i in bars])
     if t.direction == "long":
         favorable = (window_high - entry_price) * qty
         adverse = (entry_price - window_low) * qty
@@ -430,6 +429,8 @@ def _build_raw_trades(
                 comment=t.comment or None,
                 cumulative_pnl=running_pnl,
                 liquidated=t.liquidated,
+                entry_phase=t.entry_phase,
+                exit_phase=t.exit_phase,
             )
         )
     return raw
@@ -438,65 +439,78 @@ def _build_raw_trades(
 # --- equity curve --------------------------------------------------------
 
 
-def _funding_coverage_incomplete(
-    trades: list[RawTrade], ohlcv: pd.DataFrame, funding_rates: pd.Series
-) -> bool:
-    """funding 데이터가 보유 구간을 완전히 포괄하는지 — 결측 시 True (0 묵살 금지).
+def _funding_coverage_incomplete(trades: list[RawTrade]) -> bool | None:
+    """정산 일정의 증거가 없으면 완전성을 단정하지 않는다.
 
-    보유 구간 = [최초 entry bar, 최종 exit bar(또는 마지막 bar)]. funding_rates 의
-    커버 범위가 이 구간을 못 덮으면(앞/뒤 결측) True → C14 배너에 "funding 데이터
-    일부 결측" 고지 (C6 정직성). 포지션이 없으면 funding 무관 → False.
+    저장된 rate의 min/max나 샘플 간격은 상품별 과거 정산 일정이 아니다.
+    보유가 없을 때만 False이며, 실제 보유의 완전성은 현재 입력으로 미검증(None)이다.
+    관측 정산을 반영하지 못한 사실이 있으면 호출부가 True로 올린다.
     """
-    if not trades:
-        return False
-    if len(funding_rates) == 0:
-        return True
-    bar_ns = [t.value for t in pd.DatetimeIndex(ohlcv.index)]
-    fund_ns = [t.value for t in pd.DatetimeIndex(funding_rates.index)]
-    last_bar = len(ohlcv) - 1
-    held_start_bar = min(t.entry_bar_index for t in trades)
-    held_end_bar = max(
-        (t.exit_bar_index if t.exit_bar_index is not None else last_bar) for t in trades
-    )
-    held_start = bar_ns[held_start_bar]
-    held_end = bar_ns[min(held_end_bar, last_bar)]
-    return min(fund_ns) > held_start or max(fund_ns) < held_end
+    return None if trades else False
 
 
 def _funding_cost_by_bar(
-    trades: list[RawTrade], ohlcv: pd.DataFrame, funding_rates: pd.Series
-) -> tuple[list[Decimal], bool]:
-    """각 bar 의 funding 비용(차감액 리스트) + 데이터 결측 여부 — C6 SSOT.
+    trades: list[RawTrade],
+    ohlcv: pd.DataFrame,
+    funding_rates: pd.Series,
+    *,
+    freq: str,
+    warnings: list[str] | None = None,
+) -> tuple[list[Decimal], bool | None]:
+    """관측 정산 비용 + 완전성(True=미반영 확인, False=불필요, None=미검증).
 
-    funding 은 정산 경계(보통 8h)마다 보유 perp 포지션에 부과. settlement ts 는
+    funding은 수집된 정산 시각마다 보유 perp 포지션에 부과. settlement ts는
     이를 포함하는 bar 에 귀속(searchsorted). cost = notional(close*qty) * rate *
     direction_sign (long=+1 → rate>0 시 지불 equity↓ / short=-1 → 수취).
-    funding_rates index = tz-aware 정산 시각, value = Decimal rate.
+    닫힌 봉의 범위는 [시가 시각, 시가 시각 + cfg.freq)다. OHLCV 내부 gap은
+    이전 봉으로 늘려 잡지 않는다. 정산 주기는 추측하지 않는다.
     """
     n = len(ohlcv)
     costs = [Decimal("0")] * n
+    if freq not in _FREQ_HOURS_V2:
+        raise ValueError(f"펀딩 계산의 봉 폭을 알 수 없습니다: freq={freq!r}")
+    # 기존 봉 폭 매핑을 재사용하되, 미지원값의 24h fallback은 허용하지 않는다.
+    bar_width_ns = int(_freq_to_hours_v2(freq) * 3600) * 1_000_000_000
     # int64 ns 로 변환해 bisect — pandas searchsorted overload/Hashable 타입 마찰 회피.
     bar_ns: list[int] = [t.value for t in pd.DatetimeIndex(ohlcv.index)]
     funding_ns: list[int] = [t.value for t in pd.DatetimeIndex(funding_rates.index)]
     funding_vals = list(funding_rates)
+    periods = [
+        HoldingPeriod(t.entry_bar_index, t.exit_bar_index, t.entry_phase, t.exit_phase)
+        for t in trades
+    ]
+    uncertain = False
+    missing_candle = False
     for ts_ns, rate_raw in zip(funding_ns, funding_vals, strict=True):
         rate = rate_raw if isinstance(rate_raw, Decimal) else Decimal(str(rate_raw))
-        # ts 를 포함하는 bar (가장 가까운 이전/동일 bar). 첫 bar 이전 ts → skip.
-        # 마지막 bar 시각 초과(백테스트 window 밖) 정산은 마지막 bar 오귀속 방지 위해 skip.
-        if not bar_ns or ts_ns > bar_ns[-1]:
+        if not bar_ns or ts_ns < bar_ns[0] or ts_ns >= bar_ns[-1] + bar_width_ns:
             continue
         pos = bisect.bisect_right(bar_ns, ts_ns) - 1
-        if pos < 0:
+        if ts_ns >= bar_ns[pos] + bar_width_ns:
+            # 이전 봉 종료 시 열린 포지션만 이 gap의 정산과 관련된다.
+            missing_candle |= any(
+                t.entry_bar_index <= pos and (t.exit_bar_index is None or t.exit_bar_index > pos)
+                for t in trades
+            )
             continue
         close_px = Decimal(str(ohlcv["close"].iloc[pos]))
-        for t in trades:
-            if t.entry_bar_index > pos:
-                continue
-            if t.exit_bar_index is not None and t.exit_bar_index <= pos:
+        for t, period in zip(trades, periods, strict=True):
+            held = period.holds_at(pos)
+            if held is None:
+                uncertain = True
+            if held is not True:
                 continue
             direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
             costs[pos] += close_px * t.size * rate * direction_sign
-    incomplete = _funding_coverage_incomplete(trades, ohlcv, funding_rates)
+    if uncertain and warnings is not None:
+        warnings.append(
+            "봉 내부 체결 시각을 알 수 없어 해당 체결 봉의 펀딩 정산을 반영하지 못했습니다."
+        )
+    if missing_candle and warnings is not None:
+        warnings.append(
+            "보유 중 관측된 펀딩 정산에 해당하는 OHLCV 봉이 없어 해당 정산을 반영하지 못했습니다."
+        )
+    incomplete = True if uncertain or missing_candle else _funding_coverage_incomplete(trades)
     return costs, incomplete
 
 
@@ -540,7 +554,7 @@ def _compute_equity_curve(
     # 누적 차감 (None = 회귀 0, 기존 동작 byte-identical).
     funding_by_bar = funding_costs
     if funding_by_bar is None and funding_rates is not None:
-        funding_by_bar = _funding_cost_by_bar(trades, ohlcv, funding_rates)[0]
+        funding_by_bar = _funding_cost_by_bar(trades, ohlcv, funding_rates, freq=cfg.freq)[0]
 
     # exit bar 별 realized pnl 누적
     exits_by_bar: dict[int, list[RawTrade]] = {}
@@ -612,7 +626,7 @@ def _compute_equity_extremes(
 
     funding_by_bar = funding_costs
     if funding_by_bar is None and funding_rates is not None:
-        funding_by_bar = _funding_cost_by_bar(trades, ohlcv, funding_rates)[0]
+        funding_by_bar = _funding_cost_by_bar(trades, ohlcv, funding_rates, freq=cfg.freq)[0]
     exits_by_bar: dict[int, list[RawTrade]] = {}
     for t in trades:
         if t.exit_bar_index is not None:

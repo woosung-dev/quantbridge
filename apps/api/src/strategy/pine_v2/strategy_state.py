@@ -32,6 +32,7 @@ from src.strategy.pine_v2.leverage_model import (
 )
 
 Direction = Literal["long", "short"]
+FillPhase = Literal["bar_open", "bar_close", "intrabar_unknown"]
 
 
 @dataclass
@@ -208,9 +209,14 @@ class Trade:
     liq_price: float | None = None
     # BL-186a — 격리 증거금. 가용 증거금은 open trade 합계에서 파생한다.
     margin_used: float | None = None
-    # 다음 봉 시장가 큐에서 시가에 체결됐을 때만 True다. stop/limit·종가 진입은
-    # 해당 봉의 고저가가 체결 전인지 모르므로 기존 진입봉 청산 제외를 유지한다.
-    entry_at_bar_open: bool = False
+    # 봉 내부 조건부 체결은 정확한 시각을 모른다. 종가·시가와 구분해 후처리에 전달한다.
+    entry_phase: FillPhase = "bar_close"
+    exit_phase: FillPhase = "bar_close"
+
+    @property
+    def entry_at_bar_open(self) -> bool:
+        """시가 진입만 해당 봉의 강제청산 검사에 노출한다."""
+        return self.entry_phase == "bar_open"
 
     @property
     def is_open(self) -> bool:
@@ -479,6 +485,7 @@ class StrategyState:
                 entry_bar=bar,
                 entry_price=leg.entry_price,
                 comment="ledger_seed",
+                entry_phase="intrabar_unknown",
                 liq_price=(
                     liquidation_price(
                         entry_price=leg.entry_price,
@@ -664,6 +671,7 @@ class StrategyState:
         comment: str,
         event_action: Literal["entry", "fill"],
         enforce_margin: bool = True,
+        fill_phase: FillPhase = "bar_close",
     ) -> Trade | None:
         """마진 게이트 후 청산가를 계산해 Trade를 생성하는 유일한 관문.
 
@@ -713,6 +721,7 @@ class StrategyState:
             comment=comment,
             liq_price=liq_price,
             margin_used=margin_used,
+            entry_phase=fill_phase,
         )
         self.open_trades[trade_id] = trade
         # BL-460 — 진입 leg 비용은 체결 즉시 net 에서 뺀다. 청산 때 몰아서 빼면 포지션을
@@ -811,25 +820,25 @@ class StrategyState:
                             )
                             continue
                     qty = self.compute_qty(fill_price=open_, equity_override=equity)
-                trade = self.entry(
+                self.entry(
                     intent.trade_id,
                     intent.direction,
                     qty=qty,
                     bar=bar,
                     fill_price=open_,
                     comment=intent.comment,
+                    fill_phase="bar_open",
                 )
-                if trade is not None:
-                    trade.entry_at_bar_open = True
             elif intent.kind == "close":
                 self.close(
                     intent.trade_id,
                     bar=bar,
                     fill_price=open_,
                     comment=intent.comment,
+                    fill_phase="bar_open",
                 )
             else:
-                self.close_all(bar=bar, fill_price=open_)
+                self.close_all(bar=bar, fill_price=open_, fill_phase="bar_open")
 
     # ---- 주문 접수 --------------------------------------------------
 
@@ -840,6 +849,7 @@ class StrategyState:
         bar: int,
         fill_price: float,
         broker_filled: bool = False,
+        fill_phase: FillPhase = "bar_close",
     ) -> None:
         """opposite-direction auto-flip 근사: 신규 direction 과 반대편 open 을 전부 close.
 
@@ -860,7 +870,13 @@ class StrategyState:
         opposite: Direction = "short" if new_direction == "long" else "long"
         ids_to_flip = [tid for tid, tr in self.open_trades.items() if tr.direction == opposite]
         for tid in ids_to_flip:
-            self.close(tid, bar=bar, fill_price=fill_price, broker_filled=broker_filled)
+            self.close(
+                tid,
+                bar=bar,
+                fill_price=fill_price,
+                broker_filled=broker_filled,
+                fill_phase=fill_phase,
+            )
 
     def entry(
         self,
@@ -874,6 +890,7 @@ class StrategyState:
         stop: float | None = None,
         limit: float | None = None,
         unsupported_kwargs: list[str] | None = None,
+        fill_phase: FillPhase = "bar_close",
     ) -> Trade | None:
         """시장가 · stop · limit 주문 진입.
 
@@ -953,9 +970,11 @@ class StrategyState:
             return None
 
         # 시장가: opposite direction 전부 flip (Pine 표준) → 중복 id 청산 → 신규 entry
-        self._flip_opposite_positions(direction, bar=bar, fill_price=fill_price)
+        self._flip_opposite_positions(
+            direction, bar=bar, fill_price=fill_price, fill_phase=fill_phase
+        )
         if trade_id in self.open_trades:
-            self.close(trade_id, bar=bar, fill_price=fill_price)
+            self.close(trade_id, bar=bar, fill_price=fill_price, fill_phase=fill_phase)
 
         # BL-104 — pyramiding cap (gated). 같은 방향 open 수가 한도 도달 시 skip.
         # None 이면 무효 → 기존 무제한 중첩 byte-identical.
@@ -978,6 +997,7 @@ class StrategyState:
             fill_price=fill_price,
             comment=comment,
             event_action="entry",
+            fill_phase=fill_phase,
         )
 
     def close(
@@ -988,6 +1008,7 @@ class StrategyState:
         fill_price: float,
         comment: str = "",
         broker_filled: bool = False,
+        fill_phase: FillPhase = "bar_close",
     ) -> Trade | None:
         """id 기준 포지션 청산. open 없으면 None.
 
@@ -1003,6 +1024,7 @@ class StrategyState:
         self.pending_exits.pop(trade_id, None)
         trade.exit_bar = bar
         trade.exit_price = fill_price
+        trade.exit_phase = fill_phase
         if comment:
             trade.comment = f"{trade.comment};{comment}" if trade.comment else comment
         # PnL: long이면 (exit - entry) * qty, short면 반대
@@ -1029,12 +1051,14 @@ class StrategyState:
         )
         return trade
 
-    def close_all(self, *, bar: int, fill_price: float) -> list[Trade]:
+    def close_all(
+        self, *, bar: int, fill_price: float, fill_phase: FillPhase = "bar_close"
+    ) -> list[Trade]:
         """모든 open 포지션 청산."""
         ids = list(self.open_trades.keys())
         closed: list[Trade] = []
         for tid in ids:
-            t = self.close(tid, bar=bar, fill_price=fill_price)
+            t = self.close(tid, bar=bar, fill_price=fill_price, fill_phase=fill_phase)
             if t is not None:
                 closed.append(t)
         # pending 주문도 취소
@@ -1187,10 +1211,20 @@ class StrategyState:
             # (실측 2.60건/h · 청산 시도의 46.2%). `broker_filled` 로 표시해 라이브
             # dispatch 에서만 뺀다 — 원장은 그대로다.
             self._flip_opposite_positions(
-                order.direction, bar=bar, fill_price=fill_price, broker_filled=True
+                order.direction,
+                bar=bar,
+                fill_price=fill_price,
+                broker_filled=True,
+                fill_phase="intrabar_unknown",
             )
             if order_id in self.open_trades:
-                self.close(order_id, bar=bar, fill_price=fill_price, broker_filled=True)
+                self.close(
+                    order_id,
+                    bar=bar,
+                    fill_price=fill_price,
+                    broker_filled=True,
+                    fill_phase="intrabar_unknown",
+                )
             trade = self._open_trade(
                 trade_id=order_id,
                 direction=order.direction,
@@ -1203,6 +1237,7 @@ class StrategyState:
                 #   우회만으로는 절반이다. `_open_trade` 가 **또 하나의 게이트**를 갖고 있고,
                 #   거기서 막히면 엔진만 그 포지션을 모르는 상태가 그대로 남는다.
                 enforce_margin=conditional_fill_authority is None,
+                fill_phase="intrabar_unknown",
             )
             to_remove.append(order_id)
             if trade is not None:
@@ -1245,6 +1280,7 @@ class StrategyState:
                 bar=bar,
                 fill_price=fill_price,
                 comment="liquidation",
+                fill_phase="intrabar_unknown",
             )
             if closed is not None:
                 closed.liquidated = True
@@ -1382,7 +1418,13 @@ class StrategyState:
             # intrabar path 미상 → SL 우선 = 실거래 최악가정 일치.
             candidates.sort(key=lambda c: SAME_BAR_FILL_PRIORITY.index(c[0].kind))
             leg, fill_price = candidates[0]
-            trade = self.close(entry_id, bar=bar, fill_price=fill_price, comment=leg.comment)
+            trade = self.close(
+                entry_id,
+                bar=bar,
+                fill_price=fill_price,
+                comment=leg.comment,
+                fill_phase="intrabar_unknown",
+            )
             if trade is not None:
                 trade.exit_kind = leg.kind
                 filled.append(trade)
