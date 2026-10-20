@@ -71,6 +71,8 @@ export function ParseResultPanel({
             indicatorCode={indicatorCode}
             onConverted={onConverted}
           />
+        ) : result.status === "error" ? (
+          <SyntaxErrorBody result={result} />
         ) : (
           <UnsupportedBody result={result} />
         )}
@@ -112,7 +114,7 @@ function EmptyHint() {
     <StateBox
       testId="parse-empty"
       title="아직 파싱 결과가 없습니다."
-      body="왼쪽에 Pine 스크립트를 붙여넣으면 지원 여부를 여기서 판정합니다."
+      body="편집기에 Pine 스크립트를 붙여넣으면 지원 여부를 여기서 판정합니다."
     />
   );
 }
@@ -234,7 +236,45 @@ function SupportedBody({
   );
 }
 
-// 파싱이 미지원(unsupported) 또는 오류(error) 판정을 낸 상태. 200 판정이므로 HTTP 코드는 없다.
+// 서버가 보고한 구조화된 위치만 사용하고 원본 진단 문자열에서 줄번호를 추측하지 않는다.
+function SyntaxErrorBody({ result }: { result: ParsePreviewResponse }) {
+  const lines = [
+    ...new Set(result.errors.map((error) => error.line).filter((line) => line !== null)),
+  ];
+
+  return (
+    <StateBox
+      tone="failed"
+      testId="parse-error"
+      icon={<AlertTriangleIcon />}
+      title="Pine 구문을 확인해 주세요."
+      body="괄호와 들여쓰기, Pine 버전 선언(//@version)을 확인한 뒤 원문을 수정하고 파싱 검사를 다시 실행해 주세요."
+    >
+      {lines.length > 0 ? (
+        <p className="state-body">
+          서버가 보고한 위치: {lines.map((line) => `${line}행`).join(", ")}.
+        </p>
+      ) : null}
+      {result.errors.length > 0 ? (
+        <details>
+          <summary>서버 진단 보기 ({result.errors.length}건)</summary>
+          <ul className="unsupported">
+            {result.errors.map((error) => (
+              <li key={`${error.code}-${error.line ?? "unknown"}-${error.message}`}>
+                <span className="mono">
+                  {error.line != null ? `L${error.line} · ${error.code}` : error.code}
+                </span>
+                <span>{error.message}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </StateBox>
+  );
+}
+
+// 파싱이 미지원(unsupported) 판정을 낸 상태. 200 판정이므로 HTTP 코드는 없다.
 function UnsupportedBody({ result }: { result: ParsePreviewResponse }) {
   const label = PARSE_STATUS_LABEL[result.status].label;
   const hasUnsupported = result.unsupported_builtins.length > 0;

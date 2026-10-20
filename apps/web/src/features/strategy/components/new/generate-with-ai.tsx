@@ -44,7 +44,7 @@ export function GenerateWithAI({
       </label>
       <textarea
         id="generate-prompt"
-        className="input"
+        className="textarea"
         rows={3}
         // ★서버 계약이 `Field(min_length=10, max_length=2000)` 이다. 상한을 화면이 막지 않으면
         //   사용자는 422 를 받고 「잠시 후 다시 시도」라는, 절대 통하지 않는 조언을 듣는다.

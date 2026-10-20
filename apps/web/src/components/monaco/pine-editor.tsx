@@ -4,6 +4,7 @@
 // ⌘+Enter / Ctrl+Enter 커맨드 등록 → 상위 onTriggerParse delegate.
 
 import dynamic from "next/dynamic";
+import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
 import type { BeforeMount, OnMount } from "@monaco-editor/react";
 import { ibmPlexMono } from "@/lib/fonts";
@@ -24,6 +25,12 @@ export interface PineEditorProps {
 }
 
 export function PineEditor(props: PineEditorProps) {
+  const parseRef = useRef(props.onTriggerParse);
+  // H-3: render 중 ref 를 쓰지 않고 commit 마다 최신 callback 을 동기화한다.
+  useEffect(() => {
+    parseRef.current = props.onTriggerParse;
+  });
+
   // 앱 테마(next-themes)에 맞춰 Monaco 테마 선택. resolvedTheme 는 SSR/초기 렌더에서
   // undefined 일 수 있으므로 "dark" 일 때만 pine-dark, 그 외(undefined 포함)는 pine-light 로 fallback.
   // useTheme 객체 자체를 effect dep 으로 쓰지 않고 string 으로 파생 (LESSON H-1).
@@ -38,7 +45,7 @@ export function PineEditor(props: PineEditorProps) {
   const handleMount: OnMount = (editor, monaco) => {
     // ⌘+Enter / Ctrl+Enter → 상위로 파싱 트리거 delegate.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      props.onTriggerParse?.();
+      parseRef.current?.();
     });
   };
 

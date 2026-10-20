@@ -50,8 +50,7 @@ vi.mock("@/features/strategy/hooks", () => ({
     isError: false,
   }),
   useCreateStrategy: () => ({ mutate: vi.fn(), isPending: false }),
-  useParseStrategy: () => ({ mutate: vi.fn(), data: null, isPending: false, error: null }),
-  usePreviewParse: () => ({ data: null, isFetching: false, error: null }),
+  useCurrentSourceParse: () => ({ parse: vi.fn(), result: null, loading: false, error: null }),
 }));
 
 vi.mock("@/features/strategy/draft", () => ({
@@ -88,6 +87,36 @@ describe("NewStrategyWizard — 04 진단 구획", () => {
     expect(grid!.querySelectorAll(".card.diag")).toHaveLength(2);
     expect(within(section).getByLabelText("지원 함수 사전")).toBeTruthy();
     expect(within(section).getByLabelText("저장된 초안")).toBeTruthy();
+    expect(within(section).getByRole("heading", { name: "지원 함수와 저장된 초안" })).toBeVisible();
+    expect(within(section).getByText(/지원 함수의 의미를 찾아보고/)).toHaveTextContent(
+      "이 브라우저에 저장된 초안을 이어서 작성",
+    );
+  });
+
+  it("원문과 판정 영역을 native 링크로 왕복하고 편집기 Tab 이동 방법을 확인할 수 있다", () => {
+    renderWizard();
+    fireEvent.change(screen.getByTestId("pine-editor"), {
+      target: { value: "strategy('navigation')" },
+    });
+    const source = screen.getByLabelText("Pine 소스");
+    const result = screen.getByLabelText("파싱 결과");
+    expect(source).toHaveAttribute("id", "strategy-pine-source");
+    expect(source).toHaveAttribute("tabindex", "-1");
+    expect(result).toHaveAttribute("id", "strategy-parse-result");
+    expect(result).toHaveAttribute("tabindex", "-1");
+    expect(within(source).getByRole("link", { name: "판정 결과 보기" })).toHaveAttribute(
+      "href",
+      "#strategy-parse-result",
+    );
+    expect(within(result).getByRole("link", { name: "원문 다시 보기" })).toHaveAttribute(
+      "href",
+      "#strategy-pine-source",
+    );
+    expect(
+      within(source).getByText(
+        "키보드로 나가기: Mac Ctrl+Shift+M / Windows·Linux Ctrl+M 후 Tab을 누르세요.",
+      ),
+    ).toBeVisible();
   });
 
   it("지원 함수 사전은 pine-lexicon 전체 항목을 .lexicon-list 로 렌더한다 (backed)", () => {

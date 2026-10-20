@@ -1,7 +1,7 @@
 // 파싱 결과 패널(C 이식 screen-07 §03) 시맨틱 구조 테스트 — 상태 4종 + backed 값만 렌더 확인.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { ParseResultPanel } from "@/features/strategy/components/new/parse-result-panel";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
@@ -81,6 +81,68 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
 
     expect(screen.getByText(/L12/)).toBeTruthy();
     expect(screen.getByText(/우회안: ta\.sma\(\) 또는 ta\.ema\(\)로 바꾸세요/)).toBeTruthy();
+    expect(screen.queryByText("Pine 구문을 확인해 주세요.")).toBeNull();
+    expect(screen.queryByText(/서버 진단 보기/)).toBeNull();
+  });
+
+  it("구문 오류는 한국어 복구 안내와 구조화된 위치를 보이고 원본 진단은 접어 보존한다", () => {
+    const messages = ["SyntaxError: no viable alternative", "unexpected token 'end'"];
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          status: "error",
+          errors: [
+            { code: "SYNTAX_ERROR", message: messages[0]!, line: 2 },
+            { code: "UNEXPECTED_TOKEN", message: messages[1]!, line: 7 },
+          ],
+        })}
+        loading={false}
+        canSave
+      />,
+    );
+    expect(screen.getByText("Pine 구문을 확인해 주세요.")).toBeVisible();
+    expect(screen.getByText(/괄호와 들여쓰기, Pine 버전 선언/)).toHaveTextContent(
+      "파싱 검사를 다시 실행",
+    );
+    expect(screen.getByText("서버가 보고한 위치: 2행, 7행.")).toBeVisible();
+    const summary = screen.getByText("서버 진단 보기 (2건)");
+    const details = summary.closest("details")!;
+    expect(details).not.toHaveAttribute("open");
+    expect(within(details).getAllByRole("listitem", { hidden: true })).toHaveLength(2);
+    for (const message of messages) {
+      expect(within(details).getByText(message)).not.toBeVisible();
+    }
+    fireEvent.click(summary);
+    for (const message of messages) {
+      expect(within(details).getByText(message)).toBeVisible();
+    }
+    expect(within(details).getByText("L2 · SYNTAX_ERROR")).toBeVisible();
+    expect(within(details).getByText("L7 · UNEXPECTED_TOKEN")).toBeVisible();
+    expect(screen.queryByTestId("parse-save")).toBeNull();
+    expect(screen.queryByText(/부분 실행 없이 전체를 지원되지 않음으로 처리/)).toBeNull();
+  });
+
+  it("구조화된 위치가 없으면 서버 문자열의 line 숫자를 추출하지 않는다", () => {
+    const message = 'SyntaxError: File "<unknown>", line 98';
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          status: "error",
+          errors: [{ code: "SYNTAX_ERROR", message, line: null }],
+        })}
+        loading={false}
+      />,
+    );
+    expect(screen.queryByText(/서버가 보고한 위치/)).toBeNull();
+    expect(screen.getByText(message)).toHaveTextContent(message);
+    expect(screen.getByText("서버 진단 보기 (1건)").closest("details")).not.toHaveAttribute("open");
+  });
+
+  it("세부 진단이 없는 오류도 복구 안내를 유지하고 저장하지 못한다", () => {
+    render(<ParseResultPanel result={makeResult({ status: "error" })} loading={false} canSave />);
+    expect(screen.getByText("Pine 구문을 확인해 주세요.")).toBeVisible();
+    expect(screen.queryByText(/서버 진단 보기/)).toBeNull();
+    expect(screen.queryByTestId("parse-save")).toBeNull();
   });
 
   it("로딩: .sk 스켈레톤", () => {

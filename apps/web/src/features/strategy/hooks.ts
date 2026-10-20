@@ -38,6 +38,7 @@ import {
   updateStrategySettings,
 } from "./api";
 import { strategyKeys } from "./query-keys";
+import { useDebouncedValue } from "./utils";
 import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
@@ -335,4 +336,35 @@ export function usePreviewParse(pineSource: string): UseQueryResult<ParsePreview
     gcTime: 5 * 60 * 1000,
     retry: false,
   });
+}
+
+/** 현재 원문의 응답만 판정에 사용한다. 이전 요청은 완료되어도 새 원문을 덮지 못한다. */
+export function useCurrentSourceParse(pineSource: string) {
+  const debounced = useDebouncedValue(pineSource, 300);
+  const autoParse = usePreviewParse(debounced);
+  const manualParse = useParseStrategy();
+  const trimmed = pineSource.trim();
+  const manualIsCurrent = trimmed.length > 0 && manualParse.variables?.trim() === trimmed;
+  const autoIsCurrent = trimmed.length > 0 && debounced.trim() === trimmed;
+  const manualHasResult = manualIsCurrent && manualParse.data !== undefined;
+  const manualIsSettled = manualIsCurrent && (manualParse.isSuccess || manualParse.isError);
+
+  return {
+    result:
+      (manualIsCurrent ? manualParse.data : null) ??
+      (autoIsCurrent ? autoParse.data : null) ??
+      null,
+    loading:
+      trimmed.length > 0 &&
+      ((manualIsCurrent && manualParse.isPending) ||
+        (!manualIsSettled && (!autoIsCurrent || autoParse.isFetching))),
+    error:
+      (
+        (manualIsCurrent ? manualParse.error : null) ??
+        (autoIsCurrent && !manualHasResult ? autoParse.error : null)
+      )?.message ?? null,
+    parse: () => {
+      if (trimmed) manualParse.mutate(pineSource);
+    },
+  };
 }

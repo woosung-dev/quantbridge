@@ -2369,6 +2369,20 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
 }
 .create-col { min-width: 0; }
 .create-col > .section:first-child { margin-top: 0; }
+.strategy-create .eyebrow { font-size: 0.6875rem; }
+
+/* 보조 AI 도구를 펼치기 전에도 원문 검사와 판정 이동은 바로 사용할 수 있다. */
+.create-ai-tools { margin-top: 16px; border-top: 1px solid var(--line); }
+.strategy-create details > summary {
+  min-height: 44px;
+  padding: 12px 0;
+  color: var(--ink-2);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.strategy-create details > summary::marker { color: var(--ink-3); }
+#strategy-parse-result, #strategy-pine-source { scroll-margin-top: calc(var(--topbar-h) + 20px); }
 
 /* 기본 정보 폼 */
 .field-grid {
@@ -2467,6 +2481,7 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
 @media (max-width: 768px) {
   .field-grid { grid-template-columns: 1fr; }
   .diag-2 { grid-template-columns: 1fr; }
+  .strategy-create :is(.btn, .input, .select) { min-height: 44px; }
 }
 
 /* ==========================================================================
