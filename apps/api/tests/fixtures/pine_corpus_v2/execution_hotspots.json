@@ -194,7 +194,7 @@
       {
         "function": "run_historical",
         "file": "src/strategy/pine_v2/event_loop.py",
-        "line": 74,
+        "line": 78,
         "call_count": 1,
         "cumulative_seconds": 2.637591708,
         "tottime_seconds": 0.02754515
@@ -202,7 +202,7 @@
       {
         "function": "current",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 170,
+        "line": 225,
         "call_count": 87407,
         "cumulative_seconds": 1.857612169,
         "tottime_seconds": 0.071366565
@@ -218,7 +218,7 @@
       {
         "function": "execute",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 358,
+        "line": 423,
         "call_count": 4368,
         "cumulative_seconds": 1.5299222840000002,
         "tottime_seconds": 0.008203923
@@ -226,7 +226,7 @@
       {
         "function": "_exec_stmt",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 365,
+        "line": 430,
         "call_count": 48048,
         "cumulative_seconds": 1.5211969220000001,
         "tottime_seconds": 0.025409504000000003
@@ -242,7 +242,7 @@
       {
         "function": "_exec_assign",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 401,
+        "line": 466,
         "call_count": 26208,
         "cumulative_seconds": 1.4155671250000001,
         "tottime_seconds": 0.049349016
@@ -250,7 +250,7 @@
       {
         "function": "_eval_expr",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 699,
+        "line": 771,
         "call_count": 48095,
         "cumulative_seconds": 1.2967385020000002,
         "tottime_seconds": 0.064857816
@@ -258,7 +258,7 @@
       {
         "function": "_eval_call",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 952,
+        "line": 1022,
         "call_count": 39359,
         "cumulative_seconds": 1.2163681370000001,
         "tottime_seconds": 0.078079151
@@ -5850,112 +5850,112 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:108:sharpe_ratio": {
+    "src/backtest/engine/metrics.py:121:sharpe_ratio": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:134:<genexpr>": {
+    "src/backtest/engine/metrics.py:147:<genexpr>": {
       "s3_rsid": 7,
       "s5_ema_trend": 7,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:147:calmar_ratio": {
+    "src/backtest/engine/metrics.py:160:calmar_ratio": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:160:_bar_hours": {
+    "src/backtest/engine/metrics.py:173:_bar_hours": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:174:_to_days": {
+    "src/backtest/engine/metrics.py:187:_to_days": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:180:_drawdown_episodes": {
+    "src/backtest/engine/metrics.py:193:_drawdown_episodes": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:215:_runup_episodes": {
+    "src/backtest/engine/metrics.py:228:_runup_episodes": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:248:compute_excursion_stats": {
+    "src/backtest/engine/metrics.py:261:compute_excursion_stats": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:270:<lambda>": {
+    "src/backtest/engine/metrics.py:283:<lambda>": {
       "s3_rsid": 6,
       "s5_ema_trend": 10,
       "ratio": 0.6
     },
-    "src/backtest/engine/metrics.py:273:<genexpr>": {
+    "src/backtest/engine/metrics.py:286:<genexpr>": {
       "s3_rsid": 7,
       "s5_ema_trend": 11,
       "ratio": 0.6363636363636364
     },
-    "src/backtest/engine/metrics.py:274:<genexpr>": {
+    "src/backtest/engine/metrics.py:287:<genexpr>": {
       "s3_rsid": 7,
       "s5_ema_trend": 11,
       "ratio": 0.6363636363636364
     },
-    "src/backtest/engine/metrics.py:281:<genexpr>": {
+    "src/backtest/engine/metrics.py:294:<genexpr>": {
       "s3_rsid": 25,
       "s5_ema_trend": 41,
       "ratio": 0.6097560975609756
     },
-    "src/backtest/engine/metrics.py:282:<genexpr>": {
+    "src/backtest/engine/metrics.py:295:<genexpr>": {
       "s3_rsid": 25,
       "s5_ema_trend": 41,
       "ratio": 0.6097560975609756
     },
-    "src/backtest/engine/metrics.py:283:<lambda>": {
+    "src/backtest/engine/metrics.py:296:<lambda>": {
       "s3_rsid": 24,
       "s5_ema_trend": 40,
       "ratio": 0.6
     },
-    "src/backtest/engine/metrics.py:332:_side_metrics": {
+    "src/backtest/engine/metrics.py:345:_side_metrics": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:335:<genexpr>": {
+    "src/backtest/engine/metrics.py:348:<genexpr>": {
       "s3_rsid": 66,
       "s5_ema_trend": 24,
       "ratio": 2.75
     },
-    "src/backtest/engine/metrics.py:336:<genexpr>": {
+    "src/backtest/engine/metrics.py:349:<genexpr>": {
       "s3_rsid": 32,
       "s5_ema_trend": 9,
       "ratio": 3.5555555555555554
     },
-    "src/backtest/engine/metrics.py:337:<genexpr>": {
+    "src/backtest/engine/metrics.py:350:<genexpr>": {
       "s3_rsid": 35,
       "s5_ema_trend": 16,
       "ratio": 2.1875
     },
-    "src/backtest/engine/metrics.py:347:compute_side_metrics": {
+    "src/backtest/engine/metrics.py:360:compute_side_metrics": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:37:_has_nonpositive_equity": {
+    "src/backtest/engine/metrics.py:50:_has_nonpositive_equity": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:49:_periodic_returns": {
+    "src/backtest/engine/metrics.py:62:_periodic_returns": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "src/backtest/engine/metrics.py:86:sortino_ratio": {
+    "src/backtest/engine/metrics.py:99:sortino_ratio": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
@@ -5965,102 +5965,102 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1001:_v2_avg_holding_hours": {
+    "src/backtest/engine/v2_adapter.py:1015:_v2_avg_holding_hours": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1018:_v2_streaks": {
+    "src/backtest/engine/v2_adapter.py:1032:_v2_streaks": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1044:_v2_side_win_rate": {
+    "src/backtest/engine/v2_adapter.py:1058:_v2_side_win_rate": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1049:<genexpr>": {
+    "src/backtest/engine/v2_adapter.py:1063:<genexpr>": {
       "s3_rsid": 32,
       "s5_ema_trend": 9,
       "ratio": 3.5555555555555554
     },
-    "src/backtest/engine/v2_adapter.py:1053:_v2_monthly_returns": {
+    "src/backtest/engine/v2_adapter.py:1067:_v2_monthly_returns": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1068:<lambda>": {
+    "src/backtest/engine/v2_adapter.py:1082:<lambda>": {
       "s3_rsid": 6,
       "s5_ema_trend": 6,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1082:_v2_drawdown_extract": {
+    "src/backtest/engine/v2_adapter.py:1096:_v2_drawdown_extract": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1127:_v2_annual_return": {
+    "src/backtest/engine/v2_adapter.py:1141:_v2_annual_return": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1157:_v2_trade_returns_stats": {
+    "src/backtest/engine/v2_adapter.py:1171:_v2_trade_returns_stats": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1172:_as_float_series": {
+    "src/backtest/engine/v2_adapter.py:1186:_as_float_series": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1179:_max_drawdown": {
+    "src/backtest/engine/v2_adapter.py:1193:_max_drawdown": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1190:_mean": {
+    "src/backtest/engine/v2_adapter.py:1204:_mean": {
       "s3_rsid": 7,
       "s5_ema_trend": 7,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1199:_stub_parse_outcome": {
+    "src/backtest/engine/v2_adapter.py:1213:_stub_parse_outcome": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:1231:_detect_version": {
+    "src/backtest/engine/v2_adapter.py:1245:_detect_version": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:234:_extract_state_and_errors": {
+    "src/backtest/engine/v2_adapter.py:246:_extract_state_and_errors": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:247:_leg_cost": {
+    "src/backtest/engine/v2_adapter.py:259:_leg_cost": {
       "s3_rsid": 4982,
       "s5_ema_trend": 4465,
       "ratio": 1.1157894736842104
     },
-    "src/backtest/engine/v2_adapter.py:276:_trade_excursion": {
+    "src/backtest/engine/v2_adapter.py:288:_trade_excursion": {
       "s3_rsid": 65,
       "s5_ema_trend": 24,
       "ratio": 2.7083333333333335
     },
-    "src/backtest/engine/v2_adapter.py:305:_build_raw_trades": {
+    "src/backtest/engine/v2_adapter.py:317:_build_raw_trades": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:325:<lambda>": {
+    "src/backtest/engine/v2_adapter.py:337:<lambda>": {
       "s3_rsid": 65,
       "s5_ema_trend": 24,
       "ratio": 2.7083333333333335
     },
-    "src/backtest/engine/v2_adapter.py:489:_compute_equity_curve": {
+    "src/backtest/engine/v2_adapter.py:503:_compute_equity_curve": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
@@ -6070,62 +6070,62 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:579:_compute_equity_extremes": {
+    "src/backtest/engine/v2_adapter.py:593:_compute_equity_extremes": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:648:_compute_metrics": {
+    "src/backtest/engine/v2_adapter.py:662:_compute_metrics": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:714:<genexpr>": {
+    "src/backtest/engine/v2_adapter.py:728:<genexpr>": {
       "s3_rsid": 32,
       "s5_ema_trend": 9,
       "ratio": 3.5555555555555554
     },
-    "src/backtest/engine/v2_adapter.py:717:<genexpr>": {
+    "src/backtest/engine/v2_adapter.py:731:<genexpr>": {
       "s3_rsid": 66,
       "s5_ema_trend": 24,
       "ratio": 2.75
     },
-    "src/backtest/engine/v2_adapter.py:718:<genexpr>": {
+    "src/backtest/engine/v2_adapter.py:732:<genexpr>": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:725:<genexpr>": {
+    "src/backtest/engine/v2_adapter.py:739:<genexpr>": {
       "s3_rsid": 32,
       "s5_ema_trend": 9,
       "ratio": 3.5555555555555554
     },
-    "src/backtest/engine/v2_adapter.py:726:<genexpr>": {
+    "src/backtest/engine/v2_adapter.py:740:<genexpr>": {
       "s3_rsid": 35,
       "s5_ema_trend": 16,
       "ratio": 2.1875
     },
-    "src/backtest/engine/v2_adapter.py:754:<genexpr>": {
+    "src/backtest/engine/v2_adapter.py:768:<genexpr>": {
       "s3_rsid": 66,
       "s5_ema_trend": 24,
       "ratio": 2.75
     },
-    "src/backtest/engine/v2_adapter.py:755:<genexpr>": {
+    "src/backtest/engine/v2_adapter.py:769:<genexpr>": {
       "s3_rsid": 32,
       "s5_ema_trend": 9,
       "ratio": 3.5555555555555554
     },
-    "src/backtest/engine/v2_adapter.py:756:<genexpr>": {
+    "src/backtest/engine/v2_adapter.py:770:<genexpr>": {
       "s3_rsid": 35,
       "s5_ema_trend": 16,
       "ratio": 2.1875
     },
-    "src/backtest/engine/v2_adapter.py:938:_freq_to_hours_v2": {
+    "src/backtest/engine/v2_adapter.py:952:_freq_to_hours_v2": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/backtest/engine/v2_adapter.py:943:_v2_buy_and_hold_curve": {
+    "src/backtest/engine/v2_adapter.py:957:_v2_buy_and_hold_curve": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
@@ -6175,72 +6175,72 @@
       "s5_ema_trend": 165,
       "ratio": 7.551515151515152
     },
-    "src/strategy/pine_v2/ast_extractor.py:125:_stringify": {
+    "src/strategy/pine_v2/ast_extractor.py:128:_stringify": {
       "s3_rsid": 100,
       "s5_ema_trend": 30,
       "ratio": 3.3333333333333335
     },
-    "src/strategy/pine_v2/ast_extractor.py:155:_call_name": {
+    "src/strategy/pine_v2/ast_extractor.py:158:_call_name": {
       "s3_rsid": 170,
       "s5_ema_trend": 36,
       "ratio": 4.722222222222222
     },
-    "src/strategy/pine_v2/ast_extractor.py:174:_extract_args": {
+    "src/strategy/pine_v2/ast_extractor.py:177:_extract_args": {
       "s3_rsid": 38,
       "s5_ema_trend": 10,
       "ratio": 3.8
     },
-    "src/strategy/pine_v2/ast_extractor.py:186:_get_arg": {
+    "src/strategy/pine_v2/ast_extractor.py:189:_get_arg": {
       "s3_rsid": 62,
       "s5_ema_trend": 10,
       "ratio": 6.2
     },
-    "src/strategy/pine_v2/ast_extractor.py:202:_get_kwarg": {
+    "src/strategy/pine_v2/ast_extractor.py:205:_get_kwarg": {
       "s3_rsid": 6,
       "s5_ema_trend": 6,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/ast_extractor.py:210:_strip_string_quotes": {
+    "src/strategy/pine_v2/ast_extractor.py:213:_strip_string_quotes": {
       "s3_rsid": 32,
       "s5_ema_trend": 6,
       "ratio": 5.333333333333333
     },
-    "src/strategy/pine_v2/ast_extractor.py:222:_walk": {
+    "src/strategy/pine_v2/ast_extractor.py:225:_walk": {
       "s3_rsid": 7476,
       "s5_ema_trend": 990,
       "ratio": 7.551515151515152
     },
-    "src/strategy/pine_v2/ast_extractor.py:228:_detect_var_kind": {
+    "src/strategy/pine_v2/ast_extractor.py:231:_detect_var_kind": {
       "s3_rsid": 86,
       "s5_ema_trend": 12,
       "ratio": 7.166666666666667
     },
-    "src/strategy/pine_v2/ast_extractor.py:242:_extract_declaration": {
+    "src/strategy/pine_v2/ast_extractor.py:245:_extract_declaration": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/ast_extractor.py:286:_extract_inputs": {
+    "src/strategy/pine_v2/ast_extractor.py:289:_extract_inputs": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/ast_extractor.py:312:<genexpr>": {
+    "src/strategy/pine_v2/ast_extractor.py:315:<genexpr>": {
       "s3_rsid": 60,
       "s5_ema_trend": 8,
       "ratio": 7.5
     },
-    "src/strategy/pine_v2/ast_extractor.py:335:_extract_var_declarations": {
+    "src/strategy/pine_v2/ast_extractor.py:338:_extract_var_declarations": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/ast_extractor.py:370:_extract_strategy_calls": {
+    "src/strategy/pine_v2/ast_extractor.py:373:_extract_strategy_calls": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/ast_extractor.py:382:extract_content": {
+    "src/strategy/pine_v2/ast_extractor.py:391:extract_content": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
@@ -6250,132 +6250,132 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/event_loop.py:238:_validate_ohlcv": {
+    "src/strategy/pine_v2/event_loop.py:255:_validate_ohlcv": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/event_loop.py:74:run_historical": {
+    "src/strategy/pine_v2/event_loop.py:78:run_historical": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:1289:_resolve_name": {
+    "src/strategy/pine_v2/interpreter.py:1450:_resolve_name": {
       "s3_rsid": 272204,
       "s5_ema_trend": 43680,
       "ratio": 6.231776556776556
     },
-    "src/strategy/pine_v2/interpreter.py:1337:_eval_attribute": {
+    "src/strategy/pine_v2/interpreter.py:1516:_eval_attribute": {
       "s3_rsid": 34944,
       "s5_ema_trend": 24,
       "ratio": 1456.0
     },
-    "src/strategy/pine_v2/interpreter.py:1443:_exec_strategy_call": {
+    "src/strategy/pine_v2/interpreter.py:1622:_exec_strategy_call": {
       "s3_rsid": 13104,
       "s5_ema_trend": 47,
       "ratio": 278.8085106382979
     },
-    "src/strategy/pine_v2/interpreter.py:1531:_price_arg": {
+    "src/strategy/pine_v2/interpreter.py:1710:_price_arg": {
       "s3_rsid": 130,
       "s5_ema_trend": 48,
       "ratio": 2.7083333333333335
     },
-    "src/strategy/pine_v2/interpreter.py:165:advance": {
+    "src/strategy/pine_v2/interpreter.py:220:advance": {
       "s3_rsid": 4369,
       "s5_ema_trend": 4369,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:1690:_detect_var_kind": {
+    "src/strategy/pine_v2/interpreter.py:1869:_detect_var_kind": {
       "s3_rsid": 192146,
       "s5_ema_trend": 26208,
       "ratio": 7.3315781440781445
     },
-    "src/strategy/pine_v2/interpreter.py:1700:_truthy": {
+    "src/strategy/pine_v2/interpreter.py:1879:_truthy": {
       "s3_rsid": 147366,
       "s5_ema_trend": 8736,
       "ratio": 16.868818681318682
     },
-    "src/strategy/pine_v2/interpreter.py:170:current": {
+    "src/strategy/pine_v2/interpreter.py:225:current": {
       "s3_rsid": 216952,
       "s5_ema_trend": 87407,
       "ratio": 2.482089535163088
     },
-    "src/strategy/pine_v2/interpreter.py:1713:_is_na": {
+    "src/strategy/pine_v2/interpreter.py:1892:_is_na": {
       "s3_rsid": 368870,
       "s5_ema_trend": 8736,
       "ratio": 42.22413003663004
     },
-    "src/strategy/pine_v2/interpreter.py:1729:_attr_chain": {
+    "src/strategy/pine_v2/interpreter.py:1908:_attr_chain": {
       "s3_rsid": 61152,
       "s5_ema_trend": 26279,
       "ratio": 2.3270291868031507
     },
-    "src/strategy/pine_v2/interpreter.py:1741:_call_chain_name": {
+    "src/strategy/pine_v2/interpreter.py:1920:_call_chain_name": {
       "s3_rsid": 253804,
       "s5_ema_trend": 39359,
       "ratio": 6.44843618994385
     },
-    "src/strategy/pine_v2/interpreter.py:182:current_timestamp": {
+    "src/strategy/pine_v2/interpreter.py:237:current_timestamp": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:289:__init__": {
+    "src/strategy/pine_v2/interpreter.py:349:__init__": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:326:reset_transient": {
+    "src/strategy/pine_v2/interpreter.py:391:reset_transient": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:329:begin_bar_snapshot": {
+    "src/strategy/pine_v2/interpreter.py:394:begin_bar_snapshot": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:338:append_var_series": {
+    "src/strategy/pine_v2/interpreter.py:403:append_var_series": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:358:execute": {
+    "src/strategy/pine_v2/interpreter.py:423:execute": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:365:_exec_stmt": {
+    "src/strategy/pine_v2/interpreter.py:430:_exec_stmt": {
       "s3_rsid": 257712,
       "s5_ema_trend": 48048,
       "ratio": 5.363636363636363
     },
-    "src/strategy/pine_v2/interpreter.py:401:_exec_assign": {
+    "src/strategy/pine_v2/interpreter.py:466:_exec_assign": {
       "s3_rsid": 183456,
       "s5_ema_trend": 26208,
       "ratio": 7.0
     },
-    "src/strategy/pine_v2/interpreter.py:435:<genexpr>": {
+    "src/strategy/pine_v2/interpreter.py:500:<genexpr>": {
       "s3_rsid": 384292,
       "s5_ema_trend": 52416,
       "ratio": 7.3315781440781445
     },
-    "src/strategy/pine_v2/interpreter.py:699:_eval_expr": {
+    "src/strategy/pine_v2/interpreter.py:771:_eval_expr": {
       "s3_rsid": 253344,
       "s5_ema_trend": 48095,
       "ratio": 5.267574591953426
     },
-    "src/strategy/pine_v2/interpreter.py:906:_resolve_name_if_declared": {
+    "src/strategy/pine_v2/interpreter.py:976:_resolve_name_if_declared": {
       "s3_rsid": 13104,
       "s5_ema_trend": 8736,
       "ratio": 1.5
     },
-    "src/strategy/pine_v2/interpreter.py:913:_collect_args": {
+    "src/strategy/pine_v2/interpreter.py:983:_collect_args": {
       "s3_rsid": 65520,
       "s5_ema_trend": 8736,
       "ratio": 7.5
     },
-    "src/strategy/pine_v2/interpreter.py:952:_eval_call": {
+    "src/strategy/pine_v2/interpreter.py:1022:_eval_call": {
       "s3_rsid": 216446,
       "s5_ema_trend": 39359,
       "ratio": 5.499275896237201
@@ -6395,7 +6395,7 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/rendering.py:73:__init__": {
+    "src/strategy/pine_v2/rendering.py:74:__init__": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0

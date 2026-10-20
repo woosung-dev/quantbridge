@@ -14,6 +14,7 @@ v1 정책:
 
 H2+ 이연: trail_points / qty_percent / pyramiding / stop/limit 쌍 복합 exit (ADR-011 §13).
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -34,7 +35,7 @@ from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.pine_v2.rendering import RenderingRegistry
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.signal_trace import SignalObservation
-from src.strategy.pine_v2.strategy_state import StrategyState
+from src.strategy.pine_v2.strategy_state import MarketIntent, StrategyState
 
 ActionKind = Literal["entry", "close"]
 
@@ -83,7 +84,8 @@ class VirtualStrategyWrapper:
 
     - interpreter.execute(tree) 직후 `process_bar(bar_idx)` 호출.
     - 각 AlertHook.condition_ast를 `_eval_expr`로 평가 → truthy 여부 판정.
-    - edge-trigger: False→True 전이에서만 signal 발행 (alert freq_once_per_bar 근사).
+    - bar_close는 기존 False→True edge 동작을 유지한다.
+    - next_bar_open은 실제 호출의 모든 true 사건을 단일 포지션 큐로 전달한다.
     - discrepancy=True alert은 최초 발견 시 1회 warning 기록.
     - LONG/SHORT 반대 포지션이 존재하면 자동 reverse (기존 청산 → 신규 진입).
     """
@@ -107,6 +109,7 @@ class VirtualStrategyWrapper:
         self, bar_idx: int, observations: list[SignalObservation] | None = None
     ) -> None:
         """현재 봉 관찰값 또는 기존 조건 재평가로 strategy action을 디스패치한다."""
+        next_open_actions: list[VirtualAction] = []
         for hook in self.alerts:
             if observations is None and hook.condition_ast is None:
                 # condition AST가 없는 alert는 재평가 불가 — 무시
@@ -133,8 +136,9 @@ class VirtualStrategyWrapper:
                 cur = self.interp._truthy(raw)
             prev = self._prev[hook.index]
             self._prev[hook.index] = cur
-            # False→True 전이에서만 발행
-            if not (cur and not prev):
+            # 기존 즉시 체결은 edge 동작을 유지한다. 다음 봉 원장은 원본의 모든
+            # true 사건을 읽고, 같은 방향 추가 진입은 아래 포지션 검사로 생략한다.
+            if not cur or (prev and self.interp.strategy.fill_timing != "next_bar_open"):
                 continue
 
             if hook.discrepancy and hook.index not in self._discrepancy_logged:
@@ -151,6 +155,9 @@ class VirtualStrategyWrapper:
 
             fill_price = self.interp.bar.current("close")
             state = self.interp.strategy
+            if state.fill_timing == "next_bar_open":
+                next_open_actions.append(action)
+                continue
             if action.kind == "entry":
                 # BL-188 v3 entry placement gate (Track A) — disallowed session 이면
                 # silent skip → equity/state 영향 0. interpreter `_exec_strategy_call`
@@ -159,9 +166,8 @@ class VirtualStrategyWrapper:
                     bar_ts = self.interp.bar.current_timestamp()
                     if bar_ts is not None:
                         from src.strategy.trading_sessions import is_allowed
-                        if not is_allowed(
-                            list(state.sessions_allowed), bar_ts.to_pydatetime()
-                        ):
+
+                        if not is_allowed(list(state.sessions_allowed), bar_ts.to_pydatetime()):
                             continue
 
                 # 반대 포지션 자동 reverse
@@ -180,6 +186,36 @@ class VirtualStrategyWrapper:
                 )
             else:  # close
                 state.close(action.trade_id, bar=bar_idx, fill_price=fill_price)
+
+        if len({action.direction for action in next_open_actions if action.kind == "entry"}) > 1:
+            raise PineRuntimeError("동일 봉 매수·매도 신호가 충돌합니다")
+        # 단일 포지션 신호 원장과 같이 명시 청산을 먼저 처리하고 같은 방향 추가
+        # 진입은 생략한다. 실제 체결·반전·수량 계산은 다음 봉의 공통 큐가 담당한다.
+        closing_ids = {action.trade_id for action in next_open_actions if action.kind == "close"}
+        for action in sorted(
+            dict.fromkeys(next_open_actions), key=lambda item: item.kind == "entry"
+        ):
+            state = self.interp.strategy
+            if action.kind == "entry":
+                if action.trade_id in state.open_trades and action.trade_id not in closing_ids:
+                    continue
+                if state.sessions_allowed:
+                    from src.strategy.trading_sessions import is_allowed
+
+                    bar_ts = self.interp.bar.current_timestamp()
+                    if bar_ts is not None and not is_allowed(
+                        list(state.sessions_allowed), bar_ts.to_pydatetime()
+                    ):
+                        continue
+                assert action.direction is not None
+            state.queue_market_intent(
+                MarketIntent(
+                    kind=action.kind,
+                    trade_id=action.trade_id,
+                    direction=action.direction or "long",
+                    placed_bar=bar_idx,
+                )
+            )
 
 
 def run_virtual_strategy(
@@ -201,8 +237,10 @@ def run_virtual_strategy(
 ) -> VirtualRunResult:
     """indicator + alertcondition Pine 스크립트를 가상 strategy로 실행.
 
-    - 매 bar interpreter.execute(tree) 실행 후 VirtualStrategyWrapper가
-      alert condition을 재평가해 strategy.entry/close를 발행.
+    - 매 bar interpreter.execute(tree) 실행 후 VirtualStrategyWrapper가 실제 alert
+      관찰값 또는 기존 조건 재평가로 strategy.entry/close를 발행한다.
+    - next_bar_open이면 시장가 인텐트를 다음 봉 시작에 체결한다. bar_close는
+      기존 즉시 체결을 유지하며 마지막 봉의 next_bar_open 인텐트는 미체결로 남는다.
 
     BL-185 spot-equivalent: initial_capital 지정 시 configure_sizing 호출.
     process_bar 가 state.compute_qty(fill_price) 로 entry qty 계산.
@@ -228,8 +266,9 @@ def run_virtual_strategy(
         pine_version=pine_version_from_ast(tree),
     )
     # Sprint 51 BL-220 — input_overrides 주입 (Param Stability grid sweep cell 단위).
+    observe_signals = capture_signals or fill_timing == "next_bar_open"
     interp = Interpreter(
-        bar, store, input_overrides=input_overrides, capture_signals=capture_signals
+        bar, store, input_overrides=input_overrides, capture_signals=observe_signals
     )
     if initial_capital is not None:
         interp.strategy.configure_sizing(
@@ -241,13 +280,7 @@ def run_virtual_strategy(
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
     interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).
-    # TV parity — Track A(가상 strategy) 는 wrapper 가 state.entry 직접 호출 경로라
-    # next_bar_open 미지원. 정직 고지 후 bar_close 로 실행 (Surface Trust).
-    if fill_timing == "next_bar_open":
-        interp.strategy.warnings.append(
-            "fill_timing=next_bar_open 은 Track A(indicator+alert 가상 strategy) 미지원 — "
-            "bar_close 로 실행됨"
-        )
+    interp.strategy.fill_timing = fill_timing
     wrapper = VirtualStrategyWrapper(alerts, interp, strict=strict)
 
     errors: list[tuple[int, str]] = []
@@ -259,6 +292,11 @@ def run_virtual_strategy(
         # BL-188 v3 — fill gate: bar_ts 전달 → check_pending_fills 가 disallowed
         # session 시 fill skip + carry-over.
         bar_ts = bar.current_timestamp()
+        interp.strategy.process_market_intents(
+            bar=bar.bar_index,
+            open_=bar.current("open"),
+            bar_ts=bar_ts.to_pydatetime() if bar_ts is not None else None,
+        )
         interp.strategy.check_pending_fills(
             bar=bar.bar_index,
             open_=bar.current("open"),
@@ -277,13 +315,16 @@ def run_virtual_strategy(
             interp.execute(tree)
             wrapper.process_bar(
                 bar.bar_index,
-                observations=interp.signal_trace[trace_start:] if capture_signals else None,
+                observations=interp.signal_trace[trace_start:] if observe_signals else None,
             )
         except PineRuntimeError as exc:
             if strict:
                 store.commit_bar()
                 raise
             errors.append((bar.bar_index, str(exc)))
+        if not capture_signals:
+            # 내부 dispatch의 관찰값만 필요하면 봉마다 비워 전체 history를 보관하지 않는다.
+            interp.signal_trace.clear()
         store.commit_bar()
         interp.append_var_series()
         bars_processed += 1
@@ -296,5 +337,5 @@ def run_virtual_strategy(
         warnings=wrapper.warnings,
         errors=errors,
         signal_trace=interp.signal_trace,
-        degraded_calls_seen=interp.degraded_calls_seen,
+        degraded_calls_seen=interp.degraded_calls_seen if capture_signals else [],
     )

@@ -228,6 +228,36 @@ def kivanc_supertrend(
     return np.where(trend == 1, lower, upper), trend
 
 
+def legacy_supertrend(
+    ohlcv: pd.DataFrame, factor: float = 3, atr_period: int = 10
+) -> tuple[np.ndarray, np.ndarray]:
+    """Rajandran v2 원문: 이전 NA 밴드를 보존하고 상승 조건을 먼저 판정한다."""
+    close = ohlcv["close"].to_numpy(dtype=float)
+    centers = source_values(ohlcv, "hl2")
+    ranges = atr(ohlcv, atr_period)
+    lower, upper = np.full(len(close), np.nan), np.full(len(close), np.nan)
+    trend = np.ones(len(close), dtype=int)
+    for index, price in enumerate(close):
+        raw_lower = centers[index] - factor * ranges[index]
+        raw_upper = centers[index] + factor * ranges[index]
+        previous_lower = lower[index - 1] if index else np.nan
+        previous_upper = upper[index - 1] if index else np.nan
+        previous_close = close[index - 1] if index else np.nan
+        lower[index] = (
+            np.maximum(raw_lower, previous_lower) if previous_close > previous_lower else raw_lower
+        )
+        upper[index] = (
+            np.minimum(raw_upper, previous_upper) if previous_close < previous_upper else raw_upper
+        )
+        if price > previous_upper:
+            trend[index] = 1
+        elif price < previous_lower:
+            trend[index] = -1
+        else:
+            trend[index] = trend[index - 1] if index else 1
+    return np.where(trend == 1, lower, upper), trend
+
+
 def events_from_conditions(
     ohlcv: pd.DataFrame, buy: Sequence[bool], sell: Sequence[bool]
 ) -> list[SignalEvent]:
@@ -295,6 +325,61 @@ def kivanc_supertrend_signals(ohlcv: pd.DataFrame, params: Mapping[str, Any]) ->
     return events_from_conditions(ohlcv, changes > 0, changes < 0)
 
 
+def supertrend_cloud_signals(ohlcv: pd.DataFrame, params: Mapping[str, Any]) -> list[SignalEvent]:
+    """Cloud의 두 Tsl 교차 plotshape 4개. 동봉·동방향 두 표식도 각각 보존한다."""
+    close = source_values(ohlcv)
+    events = []
+    for factor, period in (
+        (params.get("factor", 3), params.get("atr_period", 10)),
+        (params.get("factor_2", 6), params.get("atr_period_2", 10)),
+    ):
+        line, _ = legacy_supertrend(ohlcv, factor, period)
+        events.extend(
+            events_from_conditions(ohlcv, crossover(close, line), crossunder(close, line))
+        )
+    return sorted(events, key=lambda event: event.bar_time)
+
+
+def supertrend_v1_signals(ohlcv: pd.DataFrame, params: Mapping[str, Any]) -> list[SignalEvent]:
+    """V1의 golong/goshort alertcondition 2개. Tsl 교차 plotshape와 구분한다."""
+    _, trend = legacy_supertrend(ohlcv, params.get("factor", 3), params.get("atr_period", 7))
+    changes = np.diff(trend, prepend=trend[0]) if len(trend) else trend
+    return events_from_conditions(ohlcv, changes > 0, changes < 0)
+
+
+def multi_sma_cross(ohlcv: pd.DataFrame, params: Mapping[str, Any]) -> list[SignalEvent]:
+    """1A3oMBZ0 원문의 고정 20/200·50/200 교차 alert 4개. 7봉 표식 유지와 다르다."""
+    close = source_values(ohlcv)
+    slow = sma(close, 200)
+    events = []
+    for length in (20, 50):
+        fast = sma(close, length)
+        events.extend(events_from_conditions(ohlcv, crossover(fast, slow), crossunder(fast, slow)))
+    return sorted(events, key=lambda event: event.bar_time)
+
+
+def pucci_trend(ohlcv: pd.DataFrame, params: Mapping[str, Any]) -> list[SignalEvent]:
+    """Pucci 원문의 /1000 허용폭·high/low OR 필터·마지막 신호 상태를 보존한다."""
+    close = source_values(ohlcv)
+    period = params.get("period", 50)
+    fast, slow = ema(close, period), sma(close, period)
+    tolerance = params.get("tolerance", 15) / 1000.0
+    buy, sell = fast > slow * (1 + tolerance), slow > fast * (1 + tolerance)
+    if params.get("use_price_filter", True):
+        high, low = (source_values(ohlcv, name) for name in ("high", "low"))
+        buy &= (high < fast) | (low < fast)
+        sell &= (high > fast) | (low > fast)
+    state = 0
+    for index in range(len(close)):
+        if buy[index]:
+            buy[index] = state != 1
+            state = 1
+        if sell[index]:
+            sell[index] = state != 2
+            state = 2
+    return events_from_conditions(ohlcv, buy, sell)
+
+
 ORACLES: dict[str, Callable[[pd.DataFrame, Mapping[str, Any]], list[SignalEvent]]] = {
     "ema_cross": ema_cross,
     "sma_cross": sma_cross,
@@ -302,6 +387,10 @@ ORACLES: dict[str, Callable[[pd.DataFrame, Mapping[str, Any]], list[SignalEvent]
     "supertrend": supertrend_signals,
     "utbot": utbot_signals,
     "kivanc_supertrend": kivanc_supertrend_signals,
+    "supertrend_cloud": supertrend_cloud_signals,
+    "supertrend_v1": supertrend_v1_signals,
+    "multi_sma_cross": multi_sma_cross,
+    "pucci_trend": pucci_trend,
 }
 
 

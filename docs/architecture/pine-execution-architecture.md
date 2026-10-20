@@ -29,7 +29,16 @@ flowchart LR
 | **A** | `indicator()` 또는 `library` + alert     | `VirtualStrategyWrapper`가 전략 이벤트로 투영 |
 | **M** | `indicator()` 또는 `library`, alert 없음 | 지표 pass-through로 `run_historical` 실행     |
 
-분류 규칙의 정본은 `ast_classifier._classify_track`, 외부 진입점은 `compat.parse_and_run_v2`다. Track A는 `next_bar_open`을 그대로 재현하지 못할 때 경고를 남기고 bar-close로 실행한다.
+분류 규칙의 정본은 `ast_classifier._classify_track`, 외부 진입점은 `compat.parse_and_run_v2`다.
+Track A의 `next_bar_open`은 실제 alert 호출값을 시장가 인텐트로 등록하고 다음 봉 시작에 체결한다.
+명시 청산을 진입보다 먼저 처리하며, 같은 방향 추가 진입은 생략하고 동봉 양방향 진입은 거부한다.
+마지막 봉 인텐트는 미체결로 남는다. 기본 `bar_close`의 기존 edge-trigger 동작은 유지한다.
+앱의 `BacktestConfig.freq`도 Pine 봉 context로 전달한다.
+
+Pine v5 이하의 `and`/`or`는 모든 항을 평가하며 v6부터 단축 평가한다
+([공식 버전 이전 계약](https://www.tradingview.com/pine-script-docs/migration-guides/to-pine-version-6/#lazy-evaluation-of-conditions)).
+이 구분은 논리식 안의 `ta.*` 호출 이력에도 적용한다. 종료 거래의 손익은 Decimal 진입가·청산가·수량으로
+계산한다. float 공간에서 뺀 손익을 Decimal로 포장하지 않는다.
 
 ### 파스 캐시 2층 (BL-832)
 

@@ -756,6 +756,13 @@ class Interpreter:
             return None
         if op == "size":
             return len(arr)
+        if op == "avg":
+            values = [value for value in arr if not _is_na(value)]
+            if any(
+                isinstance(value, bool) or not isinstance(value, (int, float)) for value in values
+            ):
+                raise PineRuntimeError("array.avg: elements must be int or float")
+            return sum(values) / len(values) if values else float("nan")
 
         raise PineRuntimeError(f"array function not supported: {name}")
 
@@ -862,23 +869,21 @@ class Interpreter:
         raise PineRuntimeError(f"Unsupported UnaryOp: {op_name}")
 
     def _eval_boolop(self, node: Any) -> Any:
-        """And/Or — Python 단축평가 채택 (Pine도 동일)."""
+        """Pine v5 이하는 모든 항을 평가하고, v6부터 단축 평가한다."""
         op_name = type(node.op).__name__
-        values = node.values
+        values: Iterator[Any] = (self._eval_expr(value) for value in node.values)
+        if self.bar.pine_version < 6:
+            values = iter(list(values))
         if op_name == "And":
             result: Any = True
-            for v in values:
-                cur = self._eval_expr(v)
+            for cur in values:
                 if not self._truthy(cur):
                     return cur  # 첫 falsy 반환
                 result = cur
             return result
         if op_name == "Or":
-            if not values:
-                return False
             last: Any = False
-            for v in values:
-                last = self._eval_expr(v)
+            for last in values:
                 if self._truthy(last):
                     return last  # 첫 truthy 반환
             return last  # 모두 falsy면 마지막 값 반환 (Pine 단축평가 관례)
@@ -1175,8 +1180,7 @@ class Interpreter:
             if len(node.args) != 3:
                 raise PineRuntimeError(f"iff expects 3 args, got {len(node.args)}")
             cond_val, then_val, else_val = (
-                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
-                for a in node.args
+                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
             )
             return then_val if self._truthy(cond_val) else else_val
 
@@ -1210,7 +1214,11 @@ class Interpreter:
                 return self._exec_rendering_method(handle, tail, node)
 
         if self.capture_signals and name in {
-            "plotshape", "plotchar", "plotarrow", "alertcondition", "alert"
+            "plotshape",
+            "plotchar",
+            "plotarrow",
+            "alertcondition",
+            "alert",
         }:
             self._capture_signal_call(cast(SignalFunction, name), node)
             return None
@@ -1336,7 +1344,8 @@ class Interpreter:
             arg_name = getattr(arg, "name", None)
             value_node = arg.value if isinstance(arg, pyne_ast.Arg) else arg
             is_first = (arg_name is None and positional_index == 0) or arg_name in {
-                "series", "condition"
+                "series",
+                "condition",
             }
             is_offset = arg_name == "offset" or (
                 arg_name is None and positional_index == offset_index
@@ -1487,6 +1496,19 @@ class Interpreter:
             return self.store.get(key)
         if name in self._transient:
             return self._transient[name]
+        # 수집한 v2/v3 원본의 표시·입력 상수다. v4부터는 namespace를 사용한다.
+        if self.bar.pine_version < 4:
+            if name in {"green", "red", "aqua", "lime"}:
+                return float("nan")  # color.*와 같은 표시 전용 NOP다.
+            legacy_constants = {
+                "line": "line",
+                "cross": "cross",
+                "integer": "integer",
+                "source": "source",
+                "bool": "bool",
+            }
+            if name in legacy_constants:
+                return legacy_constants[name]
         raise PineRuntimeError(f"Undefined name: {name}")
 
     # ---- Attribute 해석 (`strategy.long` 등 built-in 상수) -----------

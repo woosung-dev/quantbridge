@@ -7,6 +7,7 @@ import pytest
 
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.event_loop import run_historical
+from src.strategy.pine_v2.interpreter import PineRuntimeError
 
 
 def _candles() -> pd.DataFrame:
@@ -114,3 +115,31 @@ def test_previous_label_delete_ignores_first_bar_na_only():
     source = '//@version=4\nstudy("previous label")\nitem = label.new(bar_index, close)\nlabel.delete(item[1])\n'
     result = run_historical(source, _candles())
     assert [label.deleted for label in result.var_series["item"]] == [True, True, True, False]
+
+
+@pytest.mark.parametrize("version", [2, 3])
+def test_collected_legacy_display_and_input_constants_preserve_signal(version):
+    source = f'''//@version={version}
+study("legacy constants")
+n = input(2, type=integer)
+src = input(close, type=source)
+enabled = input(true, type=bool)
+shade = close > open ? green : red
+plot(src, color=shade, style=line)
+plotshape(enabled and cross(src, open), color=aqua, textcolor=lime)
+'''
+    result = run_historical(source, _candles(), capture_signals=True)
+    assert result.var_series["n"] == [2] * 4
+    assert result.var_series["src"] == [9.0, 11.0, 9.0, 11.0]
+    assert [event.value for event in result.signal_trace] == [False, True, True, True]
+
+
+def test_legacy_constant_does_not_replace_a_user_variable():
+    source = '//@version=3\nstudy("shadow")\ngreen = close\nx = green\n'
+    assert run_historical(source, _candles()).var_series["x"] == [9.0, 11.0, 9.0, 11.0]
+
+
+@pytest.mark.parametrize("version,name", [(4, "green"), (5, "line"), (3, "unknown_color")])
+def test_legacy_constants_do_not_enable_modern_or_unknown_names(version, name):
+    with pytest.raises(PineRuntimeError, match=f"Undefined name: {name}"):
+        run_historical(f'//@version={version}\nstudy("invalid")\nx = {name}\n', _candles())

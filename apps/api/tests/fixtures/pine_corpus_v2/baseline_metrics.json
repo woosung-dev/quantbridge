@@ -83,14 +83,14 @@
         "liquidation_count": null
       },
       "metrics_list_digests": {
-        "monthly_returns": "sha256:6d28db03c6fe4f80e49ebc111639b3eff38adade2c02d4c0073de3dda887c5e6",
-        "drawdown_curve": "sha256:9f91dd59363253534e38009ac306e3cbeedd9c64d332b4475f80d77d95dd524c",
+        "monthly_returns": "sha256:3a451729f9f97554d5b3eada4bcb2cd43ce8f000d902edc5e3eff7e6b6adce25",
+        "drawdown_curve": "sha256:71a8ddc216299ee23607a875bf33179c5149735abc00736a50acd0c583ce993d",
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:868bb760d0cacb4cf9ce9073c7bf7d140b06b907573e8c0d2526242c75e8e6f7",
-      "trades_digest": "sha256:0579746777da02fe9d2d3af5847ca8180000a22d1c411980c4aac34f97ff9f72",
+      "trades_digest": "sha256:0912887eb9ded4964d0f23cbd01471a36b8988242d9f7c907f2a009fe970a491",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-07T14:29:51Z"
+      "updated_at": "2026-10-20T15:13:37Z"
     },
     "s2_utbot": {
       "metrics": {
@@ -167,98 +167,98 @@
         "liquidation_count": null
       },
       "metrics_list_digests": {
-        "monthly_returns": "sha256:42f8d75fa266b1a6403213e8f4f49c11d2aa38bc619c5102a36d7a540676e1f2",
-        "drawdown_curve": "sha256:c35dea149128ed4ebec5bd0115d52a597cbd096328fe391ed54919e536efb54a",
+        "monthly_returns": "sha256:e327927de8ac0bf35a70351a93db87d1e0897ce94dc8615e01a79379bcaf84fa",
+        "drawdown_curve": "sha256:3086ad871538060ee95566a7088b19a95e57b4d9094444580ad553e7e4c4305e",
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:092002513c6d641ed29c22e3b8f5d7aa8f5c904e7aba006469ecf89b3c098ec3",
-      "trades_digest": "sha256:405b7e128e4ac40466815c1b7253989549a0d8b6bb73e058634b6c674acd3a60",
+      "trades_digest": "sha256:b3ac7f6957eec04d1e0b8068040edf8205e70b93fba3fbc3100ed1a32083fd35",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-07T14:30:11Z"
+      "updated_at": "2026-10-20T15:13:45Z"
     },
     "s3_rsid": {
       "metrics": {
-        "total_return": "0.18394417",
-        "sharpe_ratio": "0.29728813",
-        "max_drawdown": "-0.81715099",
-        "win_rate": "0.47692308",
-        "num_trades": 65,
-        "sortino_ratio": "0.54995168",
-        "calmar_ratio": "0.49373887",
-        "profit_factor": "1.02190595",
-        "avg_win": "0.02381557",
-        "avg_loss": "-0.01930495",
-        "long_count": 65,
+        "total_return": "-0.91443840",
+        "sharpe_ratio": "0.00000000",
+        "max_drawdown": "-1.19674968",
+        "win_rate": "0.47368421",
+        "num_trades": 76,
+        "sortino_ratio": null,
+        "calmar_ratio": "-0.82958862",
+        "profit_factor": "0.90699200",
+        "avg_win": "0.02136561",
+        "avg_loss": "-0.01924983",
+        "long_count": 76,
         "short_count": 0,
-        "avg_holding_hours": "895.75384615",
-        "consecutive_wins_max": 5,
-        "consecutive_losses_max": 6,
-        "long_win_rate_pct": "0.47692308",
+        "avg_holding_hours": "905.36842105",
+        "consecutive_wins_max": 4,
+        "consecutive_losses_max": 4,
+        "long_win_rate_pct": "0.47368421",
         "short_win_rate_pct": null,
-        "drawdown_duration": 2607,
-        "annual_return_pct": "0.40345921",
-        "total_trades": 65,
-        "avg_trade_pct": "0.00126022",
-        "best_trade_pct": "0.07060510",
-        "worst_trade_pct": "-0.07636045",
+        "drawdown_duration": 2609,
+        "annual_return_pct": "-0.99280992",
+        "total_trades": 76,
+        "avg_trade_pct": "-0.00001093",
+        "best_trade_pct": "0.07110213",
+        "worst_trade_pct": "-0.07647796",
         "mdd_unit": "equity_ratio",
-        "mdd_exceeds_capital": false,
-        "total_fees": "8601.48850000",
-        "total_slippage": "2189.46980000",
+        "mdd_exceeds_capital": true,
+        "total_fees": "9962.48000000",
+        "total_slippage": "2535.90400000",
         "funding_data_incomplete": null,
         "total_funding": null,
-        "net_profit_abs": "1839.44170000",
-        "gross_profit_abs": "85809.38060200",
-        "gross_loss_abs": "83969.93890200",
+        "net_profit_abs": "-9144.38400000",
+        "gross_profit_abs": "89173.87117600",
+        "gross_loss_abs": "98318.25517600",
         "open_pnl": "0.00000000",
-        "largest_win_abs": "8858.03105000",
-        "largest_loss_abs": "-10390.53487400",
-        "avg_trade_abs": "28.29910308",
-        "avg_win_abs": "2768.04453555",
-        "avg_loss_abs": "-2469.70408535",
-        "ratio_avg_win_loss": "1.12080008",
+        "largest_win_abs": "8920.38799400",
+        "largest_loss_abs": "-10406.52383400",
+        "avg_trade_abs": "-120.32084211",
+        "avg_win_abs": "2477.05197711",
+        "avg_loss_abs": "-2457.95637940",
+        "ratio_avg_win_loss": "1.00776889",
         "total_open_trades": 0,
-        "avg_bars_in_trade": "37.32307692",
-        "avg_bars_in_winning_trades": "37.19354839",
-        "avg_bars_in_losing_trades": "37.44117647",
-        "per_side.long.net_profit_abs": "1839.44170000",
-        "per_side.long.gross_profit_abs": "85809.38060200",
-        "per_side.long.gross_loss_abs": "83969.93890200",
-        "per_side.long.profit_factor": "1.02190595",
-        "per_side.long.avg_trade_abs": "28.29910308",
+        "avg_bars_in_trade": "37.72368421",
+        "avg_bars_in_winning_trades": "25.88888889",
+        "avg_bars_in_losing_trades": "48.37500000",
+        "per_side.long.net_profit_abs": "-9144.38400000",
+        "per_side.long.gross_profit_abs": "89173.87117600",
+        "per_side.long.gross_loss_abs": "98318.25517600",
+        "per_side.long.profit_factor": "0.90699200",
+        "per_side.long.avg_trade_abs": "-120.32084211",
         "per_side.short.net_profit_abs": null,
         "per_side.short.gross_profit_abs": null,
         "per_side.short.gross_loss_abs": null,
         "per_side.short.profit_factor": null,
         "per_side.short.avg_trade_abs": null,
-        "excursion_stats.max_runup_abs": "32518.85998800",
-        "excursion_stats.max_runup_pct": "3.78019173",
-        "excursion_stats.avg_runup_abs": "6642.24417900",
-        "excursion_stats.avg_runup_duration_bars": "701.50000000",
-        "excursion_stats.avg_runup_duration_days": "29.22916667",
-        "excursion_stats.avg_drawdown_abs": "2780.05497183",
-        "excursion_stats.avg_drawdown_duration_bars": "155.41666667",
-        "excursion_stats.avg_drawdown_duration_days": "6.47569444",
-        "excursion_stats.max_drawdown_abs": "33602.30820800",
+        "excursion_stats.max_runup_abs": "26813.99647400",
+        "excursion_stats.max_runup_pct": "6.74151567",
+        "excursion_stats.avg_runup_abs": "4892.42730825",
+        "excursion_stats.avg_runup_duration_bars": "536.25000000",
+        "excursion_stats.avg_runup_duration_days": "22.34375000",
+        "excursion_stats.avg_drawdown_abs": "3582.33623619",
+        "excursion_stats.avg_drawdown_duration_bars": "194.19047619",
+        "excursion_stats.avg_drawdown_duration_days": "8.09126984",
+        "excursion_stats.max_drawdown_abs": "36849.64578600",
         "excursion_stats.max_drawdown_recovery_bars": null,
         "excursion_stats.max_drawdown_recovery_days": null,
-        "excursion_stats.max_runup_intrabar_abs": "34052.45998800",
-        "excursion_stats.max_runup_intrabar_pct": "4.17809462",
-        "excursion_stats.max_drawdown_intrabar_abs": "36623.90820800",
-        "excursion_stats.max_drawdown_intrabar_pct": "0.86780967",
-        "sharpe_convention": "tv_monthly_rfr2",
+        "excursion_stats.max_runup_intrabar_abs": "32447.11193400",
+        "excursion_stats.max_runup_intrabar_pct": null,
+        "excursion_stats.max_drawdown_intrabar_abs": "40431.16124600",
+        "excursion_stats.max_drawdown_intrabar_pct": "1.24661506",
+        "sharpe_convention": "unavailable_nonpositive_equity",
         "liquidation_occurred": null,
         "liquidation_count": null
       },
       "metrics_list_digests": {
-        "monthly_returns": "sha256:902db825a848174573936a5d0b1b35c60548348c51af90ebaa865574539e7eab",
-        "drawdown_curve": "sha256:e2eb337379692dc1cd7f0e43e992abbeaed4f4edd8b9e22a35c6a1b4ac587069",
+        "monthly_returns": "sha256:b0bc05b7993186f4e6a7d8cc08b1661571075d4c0c6c6a5d3ae1d84db7403b85",
+        "drawdown_curve": "sha256:e3bfa039c86b02fab91cb1fb775d46eaa3a5b17cc54f974d2a45c0a557a89e60",
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
-      "var_series_digest": "sha256:2e43209dc6ce7416c1bbd1ce1c9ef56fe029ac52b97663a2072498041cadb9c0",
-      "trades_digest": "sha256:9e8bdbaac928af67345d80b0bdadd63f273b87820a91cce2937be06d7683ca15",
+      "var_series_digest": "sha256:bcd47328db3c68cc0eb18a89014c75a11926361e57a6dfdb799c170cccb6af56",
+      "trades_digest": "sha256:418a73fb0c0532105c22a42f8cc48d33e0bc065a2c29550c68d5c27bf4b3aa28",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-07T14:30:30Z"
+      "updated_at": "2026-10-20T15:12:00Z"
     },
     "i1_utbot": {
       "metrics": {
@@ -335,14 +335,14 @@
         "liquidation_count": null
       },
       "metrics_list_digests": {
-        "monthly_returns": "sha256:42f8d75fa266b1a6403213e8f4f49c11d2aa38bc619c5102a36d7a540676e1f2",
-        "drawdown_curve": "sha256:c35dea149128ed4ebec5bd0115d52a597cbd096328fe391ed54919e536efb54a",
+        "monthly_returns": "sha256:e327927de8ac0bf35a70351a93db87d1e0897ce94dc8615e01a79379bcaf84fa",
+        "drawdown_curve": "sha256:3086ad871538060ee95566a7088b19a95e57b4d9094444580ad553e7e4c4305e",
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-      "trades_digest": "sha256:405b7e128e4ac40466815c1b7253989549a0d8b6bb73e058634b6c674acd3a60",
+      "trades_digest": "sha256:b3ac7f6957eec04d1e0b8068040edf8205e70b93fba3fbc3100ed1a32083fd35",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-07T14:30:33Z"
+      "updated_at": "2026-10-20T15:13:52Z"
     },
     "i2_luxalgo": {
       "metrics": {
@@ -430,7 +430,11 @@
     },
     "i3_drfx": {
       "note": "Skipped \u2014 is_runnable=false per Y1 Coverage Analyzer",
-      "unsupported": ["ta.supertrend", "tostring", "request.security"]
+      "unsupported": [
+        "ta.supertrend",
+        "tostring",
+        "request.security"
+      ]
     },
     "s4_hma_curvature": {
       "metrics": {
@@ -507,14 +511,14 @@
         "liquidation_count": null
       },
       "metrics_list_digests": {
-        "monthly_returns": "sha256:d0a4626bf4e7e6230b8fa672eb1d3cd354713a41962434952cbd3b684e5343ba",
-        "drawdown_curve": "sha256:7c277f80dc76a27bcca0877afa6c5d8641edb5055fe8049dd98581d106413a86",
+        "monthly_returns": "sha256:55d43ef4fee6ba0ced8e24749d0db4a4f1d63138110be74b1ce6c63d714ca615",
+        "drawdown_curve": "sha256:a21925d045ca339d789b84f8da7849856440b6e3502b8ad8fcedcd8476001ade",
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:fe75653c6f4b87338ba434a30e480455be5b0eac18d40a482c79b35bb29501bb",
-      "trades_digest": "sha256:02fd1eb539596eafd55b24ea1ebd64bb1ac7049ffda6ca9021def3ac9a1620e5",
+      "trades_digest": "sha256:c6244a7d8433fb51aa85c1dc11e3b07abd36c7bc905b811491f812e76fdacea7",
       "warnings_digest": "sha256:9ba2cdb07efc5e38d0934242497ca965a5c3afd0cbb599d9546e3ab51035b9b1",
-      "updated_at": "2026-08-07T14:30:45Z"
+      "updated_at": "2026-10-20T15:13:56Z"
     },
     "s5_ema_trend": {
       "metrics": {
@@ -591,14 +595,14 @@
         "liquidation_count": null
       },
       "metrics_list_digests": {
-        "monthly_returns": "sha256:e5448a35195d3e012657535e3d0a3ea6dda679d38c39154971427f501bf74811",
-        "drawdown_curve": "sha256:d11d348c9c96bc02be264e9376c6eef4549fdd17f0950b8792055b2b5bc09394",
+        "monthly_returns": "sha256:439fc5d9535a101aec19564086a9b94be0a5578fe5dd7f01659dab3ae2a81dbb",
+        "drawdown_curve": "sha256:2730ae44be48d4f6f0c61e1921cd5b64ccaa6dcf2c25635b94124ae57d48fce9",
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
       "var_series_digest": "sha256:c7f0b50a8c21928672fbc5f408fdd83fc82ab54fd4cb2832a97c269444fdad71",
-      "trades_digest": "sha256:e4ae6339fdff762937541d4af3bd3ad54329c7dcccea3076dc1d25ebf02d8f2f",
+      "trades_digest": "sha256:099f5c5e465210a35f8ee21df8f0068333ff14c39c1ebf8fa8b671e14dabb951",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-07T14:30:46Z"
+      "updated_at": "2026-10-20T15:14:00Z"
     }
   }
 }

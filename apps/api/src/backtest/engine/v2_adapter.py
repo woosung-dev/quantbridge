@@ -66,6 +66,17 @@ def run_backtest_v2(
     - classify 가 unknown track 반환 (`ValueError` 에 포함) → status="error"
     """
     cfg = config if config is not None else BacktestConfig()
+    # config_mapper의 pandas freq를 실제 Pine 봉 context로 전달한다. 기존에 사용한
+    # 비표준 freq는 context 없이 실행하던 호환 동작을 유지한다.
+    timeframe = None
+    frequency = re.fullmatch(r"([1-9]\d*)?(min|[sSmhHdDwWM])", cfg.freq)
+    if frequency is not None:
+        count, unit = frequency.groups()
+        if unit == "min":
+            unit = "m"
+        elif unit != "M":
+            unit = unit.lower()
+        timeframe = f"{count or '1'}{unit}"
 
     # Sprint 38 BL-188 v3 A2 — tz-naive sessions-only fail-closed (422).
     # sessions 비어있으면 reject 안 함 (회귀 0). DatetimeIndex 아님 또는 tz=None 시 reject.
@@ -116,6 +127,7 @@ def run_backtest_v2(
             input_overrides=cfg.input_overrides,
             # TV parity — 시장가 체결 타이밍 (기본 bar_close = 회귀 0).
             fill_timing=cfg.fill_timing,
+            timeframe=timeframe,
         )
     except PineRuntimeError as exc:
         logger.info("v2_adapter_runtime_error: %s", exc)
@@ -367,11 +379,13 @@ def _build_raw_trades(
         fees_total = entry_fee + exit_fee + entry_slip + exit_slip
 
         # PnL (수수료 차감 전 원시값 → 수수료 차감)
-        if t.pnl is not None:
-            gross_pnl = Decimal(str(t.pnl))
-        elif exit_price is not None:
+        if exit_price is not None:
+            # Trade.pnl은 float 공간의 차감 결과다. 종료된 거래는 원래 가격·수량을
+            # Decimal로 바꾼 뒤 계산해야 100.3 - 100.1이 정확히 0.2가 된다.
             direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
             gross_pnl = (exit_price - entry_price) * qty * direction_sign
+        elif t.pnl is not None:
+            gross_pnl = Decimal(str(t.pnl))
         else:
             gross_pnl = Decimal("0")
         net_pnl = gross_pnl - fees_total
