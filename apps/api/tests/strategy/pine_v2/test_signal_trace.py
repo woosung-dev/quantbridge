@@ -140,14 +140,16 @@ def test_dispatcher_forwards_trace_and_timeframe_to_each_track(track: str) -> No
     assert run.signal_trace[0].value is True
 
 
-def test_virtual_trace_does_not_reevaluate_stateful_alert_condition() -> None:
-    source = """//@version=5
+@pytest.mark.parametrize("version,first", [(5, None), (6, False)])
+def test_virtual_trace_does_not_reevaluate_stateful_alert_condition(version, first) -> None:
+    source = f"""//@version={version}
 indicator("t")
 alertcondition(ta.change(close) > 0, "", "BUY")
 """
     result = parse_and_run_v2(source, _ohlcv([10.0, 11.0, 13.0]), capture_signals=True)
     assert result.virtual is not None
-    assert [item.value for item in result.virtual.signal_trace] == [False, True, True]
+    # v5의 첫 change 비교는 NA(None trace), v6의 bool 결과는 false다.
+    assert [item.value for item in result.virtual.signal_trace] == [first, True, True]
 
 
 @pytest.mark.parametrize(

@@ -202,28 +202,35 @@ def ta_rsi(state: IndicatorState, node_id: int, source: float, length: int) -> f
 # -------- crossover / crossunder ---------------------------------------
 
 
-def ta_crossover(state: IndicatorState, node_id: int, a: float, b: float) -> bool:
+def ta_crossover(
+    state: IndicatorState, node_id: int, a: float, b: float, *, pine_version: int = 6
+) -> bool | float:
     """a가 b를 상향 돌파 이번 bar: 이전에는 a <= b, 지금은 a > b."""
     slot = state.buffers.setdefault(node_id, {"prev_a": float("nan"), "prev_b": float("nan")})
     prev_a = slot["prev_a"]
     prev_b = slot["prev_b"]
     slot["prev_a"] = a
     slot["prev_b"] = b
-    # na 피연산자(워밍업 첫 bar 등) → concrete false (bool 은 절대 na 아님, TV 정합). BL-405 참조.
-    if _is_na(prev_a) or _is_na(prev_b) or _is_na(a) or _is_na(b):
+    # v4/v5는 현재 값이 미상이면 NA, 현재 값이 유효하고 과거만 없으면 false다.
+    if _is_na(a) or _is_na(b):
+        return float("nan") if pine_version < 6 else False
+    if _is_na(prev_a) or _is_na(prev_b):
         return False
     return prev_a <= prev_b and a > b
 
 
-def ta_crossunder(state: IndicatorState, node_id: int, a: float, b: float) -> bool:
+def ta_crossunder(
+    state: IndicatorState, node_id: int, a: float, b: float, *, pine_version: int = 6
+) -> bool | float:
     """a가 b를 하향 돌파: 이전에는 a >= b, 지금은 a < b."""
     slot = state.buffers.setdefault(node_id, {"prev_a": float("nan"), "prev_b": float("nan")})
     prev_a = slot["prev_a"]
     prev_b = slot["prev_b"]
     slot["prev_a"] = a
     slot["prev_b"] = b
-    # na 피연산자 → concrete false (bool 은 절대 na 아님, TV 정합). BL-405 참조.
-    if _is_na(prev_a) or _is_na(prev_b) or _is_na(a) or _is_na(b):
+    if _is_na(a) or _is_na(b):
+        return float("nan") if pine_version < 6 else False
+    if _is_na(prev_a) or _is_na(prev_b):
         return False
     return prev_a >= prev_b and a < b
 
@@ -595,13 +602,16 @@ def ta_wma(state: IndicatorState, node_id: int, source: float, length: int) -> f
     return sum((i + 1) * v for i, v in enumerate(buf)) / denom
 
 
-def ta_cross(state: IndicatorState, node_id: int, a: float, b: float) -> bool:
+def ta_cross(
+    state: IndicatorState, node_id: int, a: float, b: float, *, pine_version: int = 6
+) -> bool | float:
     """True when a crosses b in either direction (crossover or crossunder)."""
     slot = state.buffers.setdefault(node_id, {"prev_a": float("nan"), "prev_b": float("nan")})
     prev_a, prev_b = slot["prev_a"], slot["prev_b"]
     slot["prev_a"], slot["prev_b"] = a, b
-    # na 피연산자 → concrete false (bool 은 절대 na 아님, TV 정합). BL-405 참조.
-    if _is_na(prev_a) or _is_na(prev_b) or _is_na(a) or _is_na(b):
+    if _is_na(a) or _is_na(b):
+        return float("nan") if pine_version < 6 else False
+    if _is_na(prev_a) or _is_na(prev_b):
         return False
     return (prev_a <= prev_b and a > b) or (prev_a >= prev_b and a < b)
 
@@ -757,6 +767,7 @@ class StdlibDispatcher:
         high: float = float("nan"),
         low: float = float("nan"),
         close_prev: float = float("nan"),
+        pine_version: int = 6,
     ) -> Any:
         """func_name이 ta.* 또는 na/nz이면 호출, 아니면 KeyError.
 
@@ -776,9 +787,9 @@ class StdlibDispatcher:
         if func_name == "ta.rsi":
             return ta_rsi(self.state, scoped_id, *args)
         if func_name == "ta.crossover":
-            return ta_crossover(self.state, scoped_id, *args)
+            return ta_crossover(self.state, scoped_id, *args, pine_version=pine_version)
         if func_name == "ta.crossunder":
-            return ta_crossunder(self.state, scoped_id, *args)
+            return ta_crossunder(self.state, scoped_id, *args, pine_version=pine_version)
         if func_name == "ta.highest":
             return ta_highest(self.state, scoped_id, *args)
         if func_name == "ta.lowest":
@@ -847,7 +858,7 @@ class StdlibDispatcher:
         if func_name == "ta.wma":
             return ta_wma(self.state, scoped_id, *args)
         if func_name == "ta.cross":
-            return ta_cross(self.state, scoped_id, *args)
+            return ta_cross(self.state, scoped_id, *args, pine_version=pine_version)
         if func_name == "ta.mom":
             return ta_mom(self.state, scoped_id, *args)
         if func_name == "fixnan":

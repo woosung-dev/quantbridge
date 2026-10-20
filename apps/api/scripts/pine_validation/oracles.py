@@ -287,6 +287,72 @@ def ema_cross(ohlcv: pd.DataFrame, params: Mapping[str, Any]) -> list[SignalEven
     return _moving_average_cross(ohlcv, params, ema)
 
 
+def emax2_cross_conditions(
+    ohlcv: pd.DataFrame, params: Mapping[str, Any]
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """VEYurpfO v4 원문의 weak/strong 네 flag. NA 비교와 not를 생략하지 않는다."""
+    enabled = params.get("filter", True)
+    if type(enabled) is not bool:
+        raise ValueError("EMAx2 filter 입력은 bool이어야 합니다")
+    close, opening = source_values(ohlcv), source_values(ohlcv, "open")
+    source = source_values(ohlcv, params.get("source", "close"))
+    fast, slow = ema(source, params.get("fast", 9)), ema(source, params.get("slow", 30))
+    basis = sma(close, 20)
+    width = np.full(len(close), np.nan)
+    for i in range(19, len(close)):
+        dev = 2 * np.std(close[i - 19 : i + 1])
+        width[i] = abs((basis[i] + dev) - (basis[i] - dev))
+    filter_length = _period(params.get("filter_length", 10))
+    width_average = np.full(len(close), np.nan)
+    for i in range(len(close)):
+        # 원문의 push(width[i])/shift 루프 뒤 배열은 최근 width 표본들이다.
+        samples = width[max(0, i - filter_length + 1) : i + 1]
+        samples = samples[~np.isnan(samples)]
+        if len(samples):
+            width_average[i] = samples.mean()
+
+    def cross_at(index: int, upward: bool) -> bool | None:
+        if np.isnan(fast[index]) or np.isnan(slow[index]):
+            return None
+        if not index or np.isnan(fast[index - 1]) or np.isnan(slow[index - 1]):
+            return False
+        return bool(
+            (fast[index] > slow[index] and fast[index - 1] <= slow[index - 1])
+            if upward
+            else (fast[index] < slow[index] and fast[index - 1] >= slow[index - 1])
+        )
+
+    def less(left: float, right: float) -> bool | None:
+        return None if np.isnan(left) or np.isnan(right) else bool(left < right)
+
+    def weak_flag(crossed: bool | None, strong: bool) -> bool:
+        # native v4: NA == False → NA, not NA → True. and는 NA를 불발로 읽는다.
+        equal = None if crossed is None else crossed == strong
+        return not equal
+
+    weak_up, weak_down, strong_up, strong_down = (
+        np.zeros(len(close), dtype=bool) for _ in range(4)
+    )
+    for i in range(len(close)):
+        up, down = cross_at(i, True), cross_at(i, False)
+        price = min(close[i], opening[i])
+        width_ok = less(width_average[i], width[i])
+        strong_up[i] = bool(less(slow[i], price)) and bool(up) and (not enabled or bool(width_ok))
+        strong_down[i] = (
+            bool(less(price, slow[i])) and bool(down) and (not enabled or bool(width_ok))
+        )
+        weak_up[i] = weak_flag(up, bool(strong_up[i]))
+        weak_down[i] = weak_flag(down, bool(strong_down[i]))
+    return weak_up, weak_down, strong_up, strong_down
+
+
+def emax2_cross(ohlcv: pd.DataFrame, params: Mapping[str, Any]) -> list[SignalEvent]:
+    weak_up, weak_down, strong_up, strong_down = emax2_cross_conditions(ohlcv, params)
+    events = events_from_conditions(ohlcv, weak_up, weak_down)
+    events.extend(events_from_conditions(ohlcv, strong_up, strong_down))
+    return sorted(events, key=lambda event: event.bar_time)
+
+
 def sma_cross(ohlcv: pd.DataFrame, params: Mapping[str, Any]) -> list[SignalEvent]:
     return _moving_average_cross(ohlcv, params, sma)
 
@@ -386,6 +452,7 @@ def pucci_trend(ohlcv: pd.DataFrame, params: Mapping[str, Any]) -> list[SignalEv
 
 ORACLES: dict[str, Callable[[pd.DataFrame, Mapping[str, Any]], list[SignalEvent]]] = {
     "ema_cross": ema_cross,
+    "emax2_cross": emax2_cross,
     "sma_cross": sma_cross,
     "rsi_threshold": rsi_threshold,
     "supertrend": supertrend_signals,

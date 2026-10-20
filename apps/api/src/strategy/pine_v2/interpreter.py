@@ -874,7 +874,8 @@ class Interpreter:
         op_name = type(node.op).__name__
         values: Iterator[Any] = (self._eval_expr(value) for value in node.values)
         if self.bar.pine_version < 6:
-            values = iter(list(values))
+            # legacy 논리는 NA를 false로 소비하되, 모든 항의 평가 이력은 보존한다.
+            values = iter([self._truthy(value) for value in values])
         if op_name == "And":
             result: Any = True
             for cur in values:
@@ -900,13 +901,8 @@ class Interpreter:
             if fn is None:
                 raise PineRuntimeError(f"Unsupported compare: {op_name}")
             if _is_na(left) or _is_na(right):
-                # Pine: 비교 연산은 na 피연산자에 concrete **false** 반환 (na 전파 아님).
-                # TV type-system: "The ==, != operators, and all other comparison operators
-                # always return `false` if at least one of the operands is na" + "values of
-                # the 'bool' type are never na". 산술(_eval_binop)만 na 전파. 이 false 반환이
-                # TV 정답 — BL-405("na→False 실체화 버그") 는 오라클 전제 오류로 재분류(not-a-bug).
-                # 회귀 잠금: tests/strategy/pine_v2/test_na_bool_tv_parity.py.
-                return False
+                # v4/v5 native의 비교 결과는 NA를 보존한다. bool 2값은 v6 계약이다.
+                return float("nan") if self.bar.pine_version < 6 else False
             if not fn(left, right):
                 return False
             left = right
@@ -1193,6 +1189,7 @@ class Interpreter:
                 high=self.bar.current("high"),
                 low=self.bar.current("low"),
                 close_prev=self._prev_close,
+                pine_version=self.bar.pine_version,
             )
 
         # strategy.* 실행 핸들러
@@ -1581,6 +1578,7 @@ class Interpreter:
                 "ta.obv",
                 id(node),
                 [close_val, vol_val, self._prev_close],
+                pine_version=self.bar.pine_version,
             )
         # ta.tr — built-in series: True Range = max(high-low, |high-prev_close|, |low-prev_close|)
         # 첫 bar 는 prev_close 가 nan → high-low 만 (Pine 동작과 동일)

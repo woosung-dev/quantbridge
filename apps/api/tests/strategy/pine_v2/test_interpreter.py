@@ -52,8 +52,8 @@ def test_comparison_operators() -> None:
     assert result.final_state == {"gt": True, "lt": False, "eq": True, "neq": True}
 
 
-def test_bool_short_circuit_and_or() -> None:
-    # and 단축: 첫 falsy 반환; or 단축: 첫 truthy 반환
+def test_legacy_logical_operators_return_bool_after_numeric_cast() -> None:
+    # v5는 숫자 피연산자를 bool로 변환하며 논리 연산의 반환값도 bool이다.
     source = """//@version=5
 indicator("t")
 a = true and 42
@@ -62,7 +62,7 @@ c = false or 99
 d = true or 99
 """
     result = run_historical(source, _make_ohlcv([10.0]))
-    assert result.final_state == {"a": 42, "b": False, "c": 99, "d": True}
+    assert result.final_state == {"a": True, "b": False, "c": True, "d": True}
 
 
 def test_unary_not_and_neg() -> None:

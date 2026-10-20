@@ -18,6 +18,8 @@ PRD §5의 결과·가정 공개와 ADR-040/042의 결정론 판정 경계를 �
    `supertrend_cloud`는 두 밴드의 네 교차 표식을 중복 보존하고, `supertrend_v1`은 추세 전환 alert만 읽는다.
    `multi_sma_cross`는 20/200·50/200 교차 alert를 사용하며 7봉 동안 유지되는 화면 표식과 구분한다.
    `pucci_trend`는 원문 분모 1000·가격 필터·마지막 방향 상태를 그대로 계산한다.
+   `emax2_cross`는 검토한 v4 EMAx2 원문의 일반/강한 신호 네 호출과 filter·NA 비교·`not`을 계산한다.
+   slow EMA 준비 전 양방향 신호도 원문 결과이며 일반 `ema_cross`에 같은 초기 신호를 넣지 않는다.
 
 독립 EMA는 실제 TradingView v4/v5에서 초기 제어 수열을 실행해 확인한 비NA `length`개 SMA seed를 사용한다.
 같은 평가창의 OHLCV만 같아도 이전 계산 이력이 다르면 EMA와 경계 신호가 달라질 수 있다. 비교에는 초기 이력도

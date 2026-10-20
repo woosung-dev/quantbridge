@@ -1,335 +1,1515 @@
 {
   "s3_rsid": {
-    "total_seconds": 22.693650708009955,
+    "total_seconds": 81.87596241699066,
     "hotspots": [
       {
         "function": "run_backtest_v2",
         "file": "src/backtest/engine/v2_adapter.py",
         "line": 53,
         "call_count": 1,
-        "cumulative_seconds": 22.643393708,
-        "tottime_seconds": 0.00021304
+        "cumulative_seconds": 81.70841075,
+        "tottime_seconds": 0.000228251
       },
       {
         "function": "parse_and_run_v2",
         "file": "src/strategy/pine_v2/compat.py",
         "line": 42,
         "call_count": 1,
-        "cumulative_seconds": 22.167329209000002,
-        "tottime_seconds": 4.0585000000000005e-05
+        "cumulative_seconds": 81.19800154100001,
+        "tottime_seconds": 3.2000000000000005e-05
       },
       {
-        "function": "invoke",
-        "file": "src/strategy/pine_v2/track_runner.py",
-        "line": 55,
+        "function": "classify_script",
+        "file": "src/strategy/pine_v2/ast_classifier.py",
+        "line": 133,
         "call_count": 1,
-        "cumulative_seconds": 22.137043000000002,
-        "tottime_seconds": 0.000148958
+        "cumulative_seconds": 60.205538958000005,
+        "tottime_seconds": 0.00038034500000000003
       },
       {
-        "function": "run_historical",
-        "file": "src/strategy/pine_v2/event_loop.py",
-        "line": 78,
+        "function": "parse_to_ast",
+        "file": "src/strategy/pine_v2/parser_adapter.py",
+        "line": 114,
         "call_count": 1,
-        "cumulative_seconds": 22.136888459,
-        "tottime_seconds": 0.07690986000000001
+        "cumulative_seconds": 60.201120916,
+        "tottime_seconds": 7.457000000000001e-06
       },
       {
-        "function": "execute",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 424,
-        "call_count": 4368,
-        "cumulative_seconds": 19.983955570000003,
-        "tottime_seconds": 0.06637058500000001
+        "function": "parse",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
+        "line": 164,
+        "call_count": 1,
+        "cumulative_seconds": 60.201110292,
+        "tottime_seconds": 2.583e-06
       },
       {
-        "function": "_exec_stmt",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 431,
-        "call_count": 257712,
-        "cumulative_seconds": 19.913463020000002,
-        "tottime_seconds": 0.24294104500000002
+        "function": "_parse_inputstream",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
+        "line": 143,
+        "call_count": 1,
+        "cumulative_seconds": 60.201107709000006,
+        "tottime_seconds": 2.2251e-05
       },
       {
-        "function": "_eval_expr",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 772,
-        "call_count": 253344,
-        "cumulative_seconds": 17.51856446,
-        "tottime_seconds": 1.711243276
+        "function": "_parse",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
+        "line": 82,
+        "call_count": 1,
+        "cumulative_seconds": 60.200316042000004,
+        "tottime_seconds": 8.2921e-05
       },
       {
-        "function": "_exec_assign",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 467,
-        "call_count": 183456,
-        "cumulative_seconds": 14.912171735000001,
-        "tottime_seconds": 0.655166035
+        "function": "start_script",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
+        "line": 694,
+        "call_count": 1,
+        "cumulative_seconds": 60.158175542,
+        "tottime_seconds": 3.2501e-05
       },
       {
-        "function": "_eval_call",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 1023,
-        "call_count": 225672,
-        "cumulative_seconds": 14.881882198000001,
-        "tottime_seconds": 0.975394203
+        "function": "statements",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
+        "line": 932,
+        "call_count": 1,
+        "cumulative_seconds": 60.13429016600001,
+        "tottime_seconds": 0.000175618
       },
       {
-        "function": "current",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 226,
-        "call_count": 248952,
-        "cumulative_seconds": 9.797617475000001,
-        "tottime_seconds": 0.41818007900000004
+        "function": "statement",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
+        "line": 995,
+        "call_count": 59,
+        "cumulative_seconds": 60.083810501,
+        "tottime_seconds": 0.00035600700000000004
       },
       {
-        "function": "__getitem__",
-        "file": ".venv/lib/python3.12/site-packages/pandas/core/indexing.py",
-        "line": 1177,
-        "call_count": 310081,
-        "cumulative_seconds": 9.298382473,
-        "tottime_seconds": 0.44842563500000004
+        "function": "adaptivePredict",
+        "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
+        "line": 294,
+        "call_count": 3672,
+        "cumulative_seconds": 59.86117521600001,
+        "tottime_seconds": 0.183492878
       },
       {
-        "function": "_getitem_axis",
-        "file": ".venv/lib/python3.12/site-packages/pandas/core/indexing.py",
-        "line": 1720,
-        "call_count": 310081,
-        "cumulative_seconds": 8.327235114,
-        "tottime_seconds": 0.660143856
+        "function": "simple_statements",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
+        "line": 1163,
+        "call_count": 60,
+        "cumulative_seconds": 58.628578666,
+        "tottime_seconds": 0.00036454200000000003
       },
       {
-        "function": "_eval_boolop",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 872,
-        "call_count": 52416,
-        "cumulative_seconds": 6.633765653,
-        "tottime_seconds": 0.20232744000000003
+        "function": "simple_statement",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
+        "line": 1251,
+        "call_count": 60,
+        "cumulative_seconds": 58.62331154500001,
+        "tottime_seconds": 0.00030872
       },
       {
-        "function": "<genexpr>",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 875,
-        "call_count": 200928,
-        "cumulative_seconds": 6.4165789150000005,
-        "tottime_seconds": 0.08341416600000001
+        "function": "closure",
+        "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
+        "line": 1097,
+        "call_count": 3949,
+        "cumulative_seconds": 58.281147666,
+        "tottime_seconds": 0.0027261810000000003
       },
       {
-        "function": "_eval_compare",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 893,
-        "call_count": 122304,
-        "cumulative_seconds": 6.043085974,
-        "tottime_seconds": 0.347403139
+        "function": "closureCheckingStopState",
+        "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
+        "line": 1103,
+        "call_count": 3949,
+        "cumulative_seconds": 58.278421485,
+        "tottime_seconds": 3.105629421
       },
       {
-        "function": "_ixs",
-        "file": ".venv/lib/python3.12/site-packages/pandas/core/frame.py",
-        "line": 3994,
-        "call_count": 288243,
-        "cumulative_seconds": 5.4580970650000005,
-        "tottime_seconds": 0.8058430320000001
+        "function": "closure_",
+        "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
+        "line": 1145,
+        "call_count": 3949,
+        "cumulative_seconds": 58.275285393000004,
+        "tottime_seconds": 7.650273093000001
       },
       {
-        "function": "<built-in method builtins.isinstance>",
-        "file": "~",
-        "line": 0,
-        "call_count": 20039102,
-        "cumulative_seconds": 3.095177682,
-        "tottime_seconds": 2.33365475
+        "function": "expression",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
+        "line": 4229,
+        "call_count": 60,
+        "cumulative_seconds": 57.657211919000005,
+        "tottime_seconds": 0.0009678330000000001
       },
       {
-        "function": "_call_user_function",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 1377,
-        "call_count": 17472,
-        "cumulative_seconds": 2.6671440960000004,
-        "tottime_seconds": 0.14850727400000002
+        "function": "conditional_expression",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
+        "line": 4329,
+        "call_count": 60,
+        "cumulative_seconds": 57.656658997,
+        "tottime_seconds": 0.0013637060000000001
       },
       {
-        "function": "_exec_strategy_call",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 1622,
-        "call_count": 13104,
-        "cumulative_seconds": 2.294669663,
-        "tottime_seconds": 0.073467525
+        "function": "execATN",
+        "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
+        "line": 386,
+        "call_count": 3672,
+        "cumulative_seconds": 57.143204109,
+        "tottime_seconds": 0.015853419
       },
       {
-        "function": "_collect_args",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 984,
-        "call_count": 139776,
-        "cumulative_seconds": 1.957830675,
-        "tottime_seconds": 0.483648968
+        "function": "computeReachSet",
+        "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
+        "line": 661,
+        "call_count": 1867,
+        "cumulative_seconds": 55.840555631,
+        "tottime_seconds": 0.046029636000000006
       }
     ]
   },
   "s5_ema_trend": {
-    "total_seconds": 5.419083416054491,
+    "total_seconds": 6.699732541048434,
     "hotspots": [
       {
         "function": "run_backtest_v2",
         "file": "src/backtest/engine/v2_adapter.py",
         "line": 53,
         "call_count": 1,
-        "cumulative_seconds": 5.415431667,
-        "tottime_seconds": 0.00025445700000000003
+        "cumulative_seconds": 6.695719166000001,
+        "tottime_seconds": 0.000130917
       },
       {
         "function": "parse_and_run_v2",
         "file": "src/strategy/pine_v2/compat.py",
         "line": 42,
         "call_count": 1,
-        "cumulative_seconds": 4.955464958,
-        "tottime_seconds": 1.2917e-05
+        "cumulative_seconds": 6.231500542,
+        "tottime_seconds": 1.9166000000000003e-05
       },
       {
         "function": "invoke",
         "file": "src/strategy/pine_v2/track_runner.py",
         "line": 55,
         "call_count": 1,
-        "cumulative_seconds": 4.949595958000001,
-        "tottime_seconds": 3.4416000000000004e-05
+        "cumulative_seconds": 4.710913209,
+        "tottime_seconds": 3.3542000000000005e-05
       },
       {
         "function": "run_historical",
         "file": "src/strategy/pine_v2/event_loop.py",
         "line": 78,
         "call_count": 1,
-        "cumulative_seconds": 4.949558041,
-        "tottime_seconds": 0.05812320000000001
+        "cumulative_seconds": 4.710876292,
+        "tottime_seconds": 0.05140824
       },
       {
         "function": "current",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 226,
         "call_count": 87407,
-        "cumulative_seconds": 3.2753384060000004,
-        "tottime_seconds": 0.132598146
+        "cumulative_seconds": 3.121145476,
+        "tottime_seconds": 0.125124001
       },
       {
         "function": "__getitem__",
         "file": ".venv/lib/python3.12/site-packages/pandas/core/indexing.py",
         "line": 1177,
         "call_count": 113619,
-        "cumulative_seconds": 3.0058164720000002,
-        "tottime_seconds": 0.150131966
+        "cumulative_seconds": 2.865985573,
+        "tottime_seconds": 0.147042302
       },
       {
         "function": "execute",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 424,
         "call_count": 4368,
-        "cumulative_seconds": 2.957082117,
-        "tottime_seconds": 0.015477547000000001
+        "cumulative_seconds": 2.826679984,
+        "tottime_seconds": 0.014877533
       },
       {
         "function": "_exec_stmt",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 431,
         "call_count": 48048,
-        "cumulative_seconds": 2.940497069,
-        "tottime_seconds": 0.048141095
+        "cumulative_seconds": 2.810874992,
+        "tottime_seconds": 0.043003147000000005
       },
       {
         "function": "_getitem_axis",
         "file": ".venv/lib/python3.12/site-packages/pandas/core/indexing.py",
         "line": 1720,
         "call_count": 113619,
-        "cumulative_seconds": 2.6718222860000003,
-        "tottime_seconds": 0.224769622
+        "cumulative_seconds": 2.5353343880000003,
+        "tottime_seconds": 0.21866320900000003
       },
       {
         "function": "_eval_expr",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 772,
         "call_count": 48095,
-        "cumulative_seconds": 2.532731756,
-        "tottime_seconds": 0.14887951000000002
+        "cumulative_seconds": 2.4295372680000002,
+        "tottime_seconds": 0.14851298500000001
       },
       {
         "function": "_exec_assign",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 467,
         "call_count": 26208,
-        "cumulative_seconds": 2.527712443,
-        "tottime_seconds": 0.09656890900000001
+        "cumulative_seconds": 2.411529556,
+        "tottime_seconds": 0.087011194
       },
       {
         "function": "_eval_call",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 1023,
+        "line": 1019,
         "call_count": 39359,
-        "cumulative_seconds": 2.397828227,
-        "tottime_seconds": 0.162046684
+        "cumulative_seconds": 2.2940625700000004,
+        "tottime_seconds": 0.150995391
       },
       {
         "function": "_ixs",
         "file": ".venv/lib/python3.12/site-packages/pandas/core/frame.py",
         "line": 3994,
         "call_count": 91778,
-        "cumulative_seconds": 1.667665254,
-        "tottime_seconds": 0.24819428200000002
+        "cumulative_seconds": 1.584596028,
+        "tottime_seconds": 0.23869506000000001
       },
       {
-        "function": "<built-in method builtins.isinstance>",
-        "file": "~",
-        "line": 0,
-        "call_count": 3664935,
-        "cumulative_seconds": 0.767425164,
-        "tottime_seconds": 0.487870617
-      },
-      {
-        "function": "__getitem__",
-        "file": ".venv/lib/python3.12/site-packages/pandas/core/series.py",
-        "line": 1107,
-        "call_count": 91778,
-        "cumulative_seconds": 0.521214562,
-        "tottime_seconds": 0.127787689
-      },
-      {
-        "function": "fast_xs",
-        "file": ".venv/lib/python3.12/site-packages/pandas/core/internals/managers.py",
-        "line": 977,
-        "call_count": 91774,
-        "cumulative_seconds": 0.455303534,
-        "tottime_seconds": 0.199804272
-      },
-      {
-        "function": "_constructor_sliced_from_mgr",
-        "file": ".venv/lib/python3.12/site-packages/pandas/core/frame.py",
-        "line": 682,
-        "call_count": 91778,
-        "cumulative_seconds": 0.421928854,
-        "tottime_seconds": 0.073819153
-      },
-      {
-        "function": "_resolve_name",
-        "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 1450,
-        "call_count": 52416,
-        "cumulative_seconds": 0.412164827,
-        "tottime_seconds": 0.04376619
-      },
-      {
-        "function": "is_bool_indexer",
-        "file": ".venv/lib/python3.12/site-packages/pandas/core/common.py",
-        "line": 97,
-        "call_count": 113632,
-        "cumulative_seconds": 0.35296139800000004,
-        "tottime_seconds": 0.055665205
-      },
-      {
-        "function": "_compute_equity_extremes",
-        "file": "src/backtest/engine/v2_adapter.py",
-        "line": 612,
+        "function": "classify_script",
+        "file": "src/strategy/pine_v2/ast_classifier.py",
+        "line": 133,
         "call_count": 1,
-        "cumulative_seconds": 0.3047035,
-        "tottime_seconds": 0.042946990000000004
+        "cumulative_seconds": 1.517200292,
+        "tottime_seconds": 6.97e-05
+      },
+      {
+        "function": "parse_to_ast",
+        "file": "src/strategy/pine_v2/parser_adapter.py",
+        "line": 114,
+        "call_count": 1,
+        "cumulative_seconds": 1.516587291,
+        "tottime_seconds": 3.041e-06
+      },
+      {
+        "function": "parse",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
+        "line": 164,
+        "call_count": 1,
+        "cumulative_seconds": 1.516580625,
+        "tottime_seconds": 1.0000000000000002e-06
+      },
+      {
+        "function": "_parse_inputstream",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
+        "line": 143,
+        "call_count": 1,
+        "cumulative_seconds": 1.516579625,
+        "tottime_seconds": 4.916e-06
+      },
+      {
+        "function": "_parse",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
+        "line": 82,
+        "call_count": 1,
+        "cumulative_seconds": 1.5164205830000002,
+        "tottime_seconds": 4.3748e-05
+      },
+      {
+        "function": "start_script",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
+        "line": 694,
+        "call_count": 1,
+        "cumulative_seconds": 1.5107435,
+        "tottime_seconds": 2.0455e-05
+      },
+      {
+        "function": "statements",
+        "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
+        "line": 932,
+        "call_count": 1,
+        "cumulative_seconds": 1.498948917,
+        "tottime_seconds": 4.7543e-05
       }
     ]
   },
   "call_count_ratio": {
+    ".venv/lib/python3.12/site-packages/_pytest/logging.py:134:format": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/_pytest/logging.py:205:format": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/_pytest/logging.py:381:emit": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:109:sync": {
+      "s3_rsid": 32817,
+      "s5_ema_trend": 3809,
+      "ratio": 8.615647151483328
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:120:fetch": {
+      "s3_rsid": 1786,
+      "s5_ema_trend": 226,
+      "ratio": 7.902654867256637
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:149:LA": {
+      "s3_rsid": 20744,
+      "s5_ema_trend": 2679,
+      "ratio": 7.743187756625606
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:185:lazyInit": {
+      "s3_rsid": 39351,
+      "s5_ema_trend": 5200,
+      "ratio": 7.5675
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:189:setup": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:205:nextTokenOnChannel": {
+      "s3_rsid": 15224,
+      "s5_ema_trend": 1932,
+      "ratio": 7.87991718426501
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:221:previousTokenOnChannel": {
+      "s3_rsid": 6938,
+      "s5_ema_trend": 922,
+      "ratio": 7.5249457700650755
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:32:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:65:mark": {
+      "s3_rsid": 3672,
+      "s5_ema_trend": 511,
+      "ratio": 7.185909980430528
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:68:release": {
+      "s3_rsid": 3672,
+      "s5_ema_trend": 511,
+      "ratio": 7.185909980430528
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:75:seek": {
+      "s3_rsid": 3913,
+      "s5_ema_trend": 536,
+      "ratio": 7.300373134328358
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/BufferedTokenStream.py:83:consume": {
+      "s3_rsid": 11310,
+      "s5_ema_trend": 1395,
+      "ratio": 8.10752688172043
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/CommonTokenFactory.py:46:create": {
+      "s3_rsid": 1784,
+      "s5_ema_trend": 222,
+      "ratio": 8.036036036036036
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/CommonTokenStream.py:40:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/CommonTokenStream.py:44:adjustSeekIndex": {
+      "s3_rsid": 15224,
+      "s5_ema_trend": 1932,
+      "ratio": 7.87991718426501
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/CommonTokenStream.py:47:LB": {
+      "s3_rsid": 6938,
+      "s5_ema_trend": 922,
+      "ratio": 7.5249457700650755
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/CommonTokenStream.py:61:LT": {
+      "s3_rsid": 35438,
+      "s5_ema_trend": 4664,
+      "ratio": 7.59819897084048
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:17:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:22:_loadString": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:27:index": {
+      "s3_rsid": 11707,
+      "s5_ema_trend": 1758,
+      "ratio": 6.659271899886234
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:31:size": {
+      "s3_rsid": 2803,
+      "s5_ema_trend": 409,
+      "ratio": 6.853300733496333
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:42:consume": {
+      "s3_rsid": 6555,
+      "s5_ema_trend": 1165,
+      "ratio": 5.626609442060086
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:48:LA": {
+      "s3_rsid": 16676,
+      "s5_ema_trend": 2772,
+      "ratio": 6.015873015873016
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:62:mark": {
+      "s3_rsid": 3567,
+      "s5_ema_trend": 443,
+      "ratio": 8.051918735891649
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:65:release": {
+      "s3_rsid": 3567,
+      "s5_ema_trend": 443,
+      "ratio": 8.051918735891649
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:71:seek": {
+      "s3_rsid": 1783,
+      "s5_ema_trend": 221,
+      "ratio": 8.06787330316742
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/InputStream.py:78:getText": {
+      "s3_rsid": 2803,
+      "s5_ema_trend": 409,
+      "ratio": 6.853300733496333
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/IntervalSet.py:16:__init__": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 3,
+      "ratio": 20.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/IntervalSet.py:35:addOne": {
+      "s3_rsid": 20,
+      "s5_ema_trend": 1,
+      "ratio": 20.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/IntervalSet.py:38:addRange": {
+      "s3_rsid": 6239,
+      "s5_ema_trend": 10,
+      "ratio": 623.9
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/IntervalSet.py:63:addSet": {
+      "s3_rsid": 3254,
+      "s5_ema_trend": 9,
+      "ratio": 361.55555555555554
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/IntervalSet.py:69:reduce": {
+      "s3_rsid": 5911,
+      "s5_ema_trend": 3,
+      "ratio": 1970.3333333333333
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/IntervalSet.py:89:__contains__": {
+      "s3_rsid": 18117,
+      "s5_ema_trend": 1243,
+      "ratio": 14.575221238938052
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/IntervalSet.py:93:<genexpr>": {
+      "s3_rsid": 79033,
+      "s5_ema_trend": 6845,
+      "ratio": 11.54609203798393
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/LL1Analyzer.py:110:_LOOK": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 3,
+      "ratio": 20.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/LL1Analyzer.py:24:__init__": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 3,
+      "ratio": 20.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/LL1Analyzer.py:73:LOOK": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 3,
+      "ratio": 20.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Lexer.py:114:nextToken": {
+      "s3_rsid": 1784,
+      "s5_ema_trend": 222,
+      "ratio": 8.036036036036036
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Lexer.py:211:emitToken": {
+      "s3_rsid": 1784,
+      "s5_ema_trend": 222,
+      "ratio": 8.036036036036036
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Lexer.py:220:emit": {
+      "s3_rsid": 1783,
+      "s5_ema_trend": 221,
+      "ratio": 8.06787330316742
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Lexer.py:226:emitEOF": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Lexer.py:242:line": {
+      "s3_rsid": 1787,
+      "s5_ema_trend": 227,
+      "ratio": 7.872246696035242
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Lexer.py:250:column": {
+      "s3_rsid": 1787,
+      "s5_ema_trend": 227,
+      "ratio": 7.872246696035242
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Lexer.py:259:getCharIndex": {
+      "s3_rsid": 1783,
+      "s5_ema_trend": 221,
+      "ratio": 8.06787330316742
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Lexer.py:46:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:120:match": {
+      "s3_rsid": 791,
+      "s5_ema_trend": 118,
+      "ratio": 6.703389830508475
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:208:removeParseListener": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:294:getInputStream": {
+      "s3_rsid": 1250,
+      "s5_ema_trend": 177,
+      "ratio": 7.062146892655368
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:297:setInputStream": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:300:getTokenStream": {
+      "s3_rsid": 6348,
+      "s5_ema_trend": 878,
+      "ratio": 7.230068337129841
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:304:setTokenStream": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:312:getCurrentToken": {
+      "s3_rsid": 2043,
+      "s5_ema_trend": 297,
+      "ratio": 6.878787878787879
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:345:consume": {
+      "s3_rsid": 1252,
+      "s5_ema_trend": 179,
+      "ratio": 6.994413407821229
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:363:addContextToParseTree": {
+      "s3_rsid": 4617,
+      "s5_ema_trend": 634,
+      "ratio": 7.282334384858044
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:371:enterRule": {
+      "s3_rsid": 4617,
+      "s5_ema_trend": 634,
+      "ratio": 7.282334384858044
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:380:exitRule": {
+      "s3_rsid": 4617,
+      "s5_ema_trend": 634,
+      "ratio": 7.282334384858044
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:388:enterOuterAlt": {
+      "s3_rsid": 5713,
+      "s5_ema_trend": 766,
+      "ratio": 7.45822454308094
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:403:getPrecedence": {
+      "s3_rsid": 1228,
+      "s5_ema_trend": 156,
+      "ratio": 7.871794871794871
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:409:enterRecursionRule": {
+      "s3_rsid": 1096,
+      "s5_ema_trend": 132,
+      "ratio": 8.303030303030303
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:420:pushNewRecursionContext": {
+      "s3_rsid": 129,
+      "s5_ema_trend": 24,
+      "ratio": 5.375
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:434:unrollRecursionContexts": {
+      "s3_rsid": 1096,
+      "s5_ema_trend": 132,
+      "ratio": 8.303030303030303
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:462:precpred": {
+      "s3_rsid": 301,
+      "s5_ema_trend": 48,
+      "ratio": 6.270833333333333
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:572:setTrace": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:60:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Parser.py:91:reset": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:102:addTokenNode": {
+      "s3_rsid": 1252,
+      "s5_ema_trend": 179,
+      "ratio": 6.994413407821229
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:114:getChild": {
+      "s3_rsid": 6888,
+      "s5_ema_trend": 927,
+      "ratio": 7.43042071197411
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:126:getChildren": {
+      "s3_rsid": 10831,
+      "s5_ema_trend": 1475,
+      "ratio": 7.3430508474576275
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:133:getToken": {
+      "s3_rsid": 53,
+      "s5_ema_trend": 1,
+      "ratio": 53.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:156:getTypedRuleContext": {
+      "s3_rsid": 3900,
+      "s5_ema_trend": 530,
+      "ratio": 7.3584905660377355
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:159:getTypedRuleContexts": {
+      "s3_rsid": 206,
+      "s5_ema_trend": 26,
+      "ratio": 7.923076923076923
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:170:getChildCount": {
+      "s3_rsid": 3446,
+      "s5_ema_trend": 464,
+      "ratio": 7.426724137931035
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:38:__init__": {
+      "s3_rsid": 6332,
+      "s5_ema_trend": 858,
+      "ratio": 7.37995337995338
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:63:copyFrom": {
+      "s3_rsid": 490,
+      "s5_ema_trend": 68,
+      "ratio": 7.205882352941177
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/ParserRuleContext.py:88:addChild": {
+      "s3_rsid": 7092,
+      "s5_ema_trend": 967,
+      "ratio": 7.334022750775595
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:101:get": {
+      "s3_rsid": 49969,
+      "s5_ema_trend": 1129,
+      "ratio": 44.25952170062002
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:110:create": {
+      "s3_rsid": 2427996,
+      "s5_ema_trend": 59261,
+      "ratio": 40.971228970149
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:118:__init__": {
+      "s3_rsid": 2427996,
+      "s5_ema_trend": 59261,
+      "ratio": 40.971228970149
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:124:__len__": {
+      "s3_rsid": 42816,
+      "s5_ema_trend": 1238,
+      "ratio": 34.58481421647819
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:127:getParent": {
+      "s3_rsid": 50635,
+      "s5_ema_trend": 1144,
+      "ratio": 44.26136363636363
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:130:getReturnState": {
+      "s3_rsid": 27243,
+      "s5_ema_trend": 941,
+      "ratio": 28.951115834218918
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:133:__eq__": {
+      "s3_rsid": 3338608,
+      "s5_ema_trend": 82940,
+      "ratio": 40.253291536050156
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:143:__hash__": {
+      "s3_rsid": 10538344,
+      "s5_ema_trend": 280894,
+      "ratio": 37.51715593782708
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:162:isEmpty": {
+      "s3_rsid": 10150,
+      "s5_ema_trend": 326,
+      "ratio": 31.134969325153374
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:165:__eq__": {
+      "s3_rsid": 1895886,
+      "s5_ema_trend": 46828,
+      "ratio": 40.486162125224226
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:168:__hash__": {
+      "s3_rsid": 165390,
+      "s5_ema_trend": 2209,
+      "ratio": 74.87098234495247
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:182:__init__": {
+      "s3_rsid": 914816,
+      "s5_ema_trend": 29190,
+      "ratio": 31.340047961630695
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:187:isEmpty": {
+      "s3_rsid": 16794,
+      "s5_ema_trend": 422,
+      "ratio": 39.796208530805686
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:192:__len__": {
+      "s3_rsid": 15018,
+      "s5_ema_trend": 388,
+      "ratio": 38.70618556701031
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:195:getParent": {
+      "s3_rsid": 29937,
+      "s5_ema_trend": 826,
+      "ratio": 36.243341404358354
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:198:getReturnState": {
+      "s3_rsid": 19834,
+      "s5_ema_trend": 420,
+      "ratio": 47.22380952380952
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:201:__eq__": {
+      "s3_rsid": 4521845,
+      "s5_ema_trend": 127019,
+      "ratio": 35.599752792889255
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:231:__hash__": {
+      "s3_rsid": 6829042,
+      "s5_ema_trend": 210631,
+      "ratio": 32.42182774615323
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:239:PredictionContextFromRuleContext": {
+      "s3_rsid": 52,
+      "s5_ema_trend": 2,
+      "ratio": 26.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:255:merge": {
+      "s3_rsid": 850654,
+      "s5_ema_trend": 19872,
+      "ratio": 42.80666264090177
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:307:mergeSingletons": {
+      "s3_rsid": 820251,
+      "s5_ema_trend": 19568,
+      "ratio": 41.917978331970566
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:404:mergeRoot": {
+      "s3_rsid": 841136,
+      "s5_ema_trend": 22591,
+      "ratio": 37.23323447390554
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:443:mergeArrays": {
+      "s3_rsid": 244153,
+      "s5_ema_trend": 6289,
+      "ratio": 38.822229289235175
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:51:__init__": {
+      "s3_rsid": 3342812,
+      "s5_ema_trend": 88451,
+      "ratio": 37.79281183932347
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:541:combineCommonParents": {
+      "s3_rsid": 336157,
+      "s5_ema_trend": 11506,
+      "ratio": 29.21580045193812
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:552:getCachedPredictionContext": {
+      "s3_rsid": 33752,
+      "s5_ema_trend": 661,
+      "ratio": 51.062027231467475
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:58:isEmpty": {
+      "s3_rsid": 67369,
+      "s5_ema_trend": 1399,
+      "ratio": 48.15511079342387
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:61:hasEmptyPath": {
+      "s3_rsid": 6505,
+      "s5_ema_trend": 412,
+      "ratio": 15.78883495145631
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:70:calculateHashCode": {
+      "s3_rsid": 3887748,
+      "s5_ema_trend": 106657,
+      "ratio": 36.45094086651603
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:73:calculateListsHashCode": {
+      "s3_rsid": 914816,
+      "s5_ema_trend": 29190,
+      "ratio": 31.340047961630695
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:85:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/PredictionContext.py:92:add": {
+      "s3_rsid": 19556,
+      "s5_ema_trend": 444,
+      "ratio": 44.04504504504504
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Recognizer.py:132:state": {
+      "s3_rsid": 10810,
+      "s5_ema_trend": 1466,
+      "ratio": 7.373806275579809
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Recognizer.py:143:state": {
+      "s3_rsid": 22519,
+      "s5_ema_trend": 3067,
+      "ratio": 7.342354091946528
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Recognizer.py:19:__init__": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Recognizer.py:24:extractVersion": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Recognizer.py:36:checkVersion": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Recognizer.py:43:addErrorListener": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Recognizer.py:49:removeErrorListeners": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/RuleContext.py:105:setAltNumber": {
+      "s3_rsid": 5713,
+      "s5_ema_trend": 766,
+      "ratio": 7.45822454308094
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/RuleContext.py:39:__init__": {
+      "s3_rsid": 6332,
+      "s5_ema_trend": 858,
+      "ratio": 7.37995337995338
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/RuleContext.py:80:getText": {
+      "s3_rsid": 574,
+      "s5_ema_trend": 81,
+      "ratio": 7.08641975308642
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Token.py:102:clone": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 4,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Token.py:110:text": {
+      "s3_rsid": 2805,
+      "s5_ema_trend": 417,
+      "ratio": 6.726618705035971
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Token.py:123:text": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 8,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Token.py:36:__init__": {
+      "s3_rsid": 1786,
+      "s5_ema_trend": 226,
+      "ratio": 7.902654867256637
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Token.py:67:getInputStream": {
+      "s3_rsid": 2803,
+      "s5_ema_trend": 409,
+      "ratio": 6.853300733496333
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/Token.py:76:__init__": {
+      "s3_rsid": 1786,
+      "s5_ema_trend": 226,
+      "ratio": 7.902654867256637
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATN.py:54:nextTokensInContext": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 3,
+      "ratio": 20.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATN.py:62:nextTokensNoContext": {
+      "s3_rsid": 5097,
+      "s5_ema_trend": 700,
+      "ratio": 7.281428571428571
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATN.py:69:nextTokens": {
+      "s3_rsid": 5097,
+      "s5_ema_trend": 700,
+      "ratio": 7.281428571428571
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:119:__init__": {
+      "s3_rsid": 6677,
+      "s5_ema_trend": 1555,
+      "ratio": 4.293890675241157
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:129:__hash__": {
+      "s3_rsid": 3195,
+      "s5_ema_trend": 658,
+      "ratio": 4.855623100303951
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:134:__eq__": {
+      "s3_rsid": 905,
+      "s5_ema_trend": 320,
+      "ratio": 2.828125
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:147:hashCodeForConfigSet": {
+      "s3_rsid": 1367,
+      "s5_ema_trend": 326,
+      "ratio": 4.193251533742331
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:157:checkNonGreedyDecision": {
+      "s3_rsid": 6615,
+      "s5_ema_trend": 1555,
+      "ratio": 4.254019292604502
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:29:__init__": {
+      "s3_rsid": 5412540,
+      "s5_ema_trend": 126864,
+      "ratio": 42.66411275066213
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:66:__eq__": {
+      "s3_rsid": 21948,
+      "s5_ema_trend": 976,
+      "ratio": 22.487704918032787
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:78:__hash__": {
+      "s3_rsid": 150776,
+      "s5_ema_trend": 2682,
+      "ratio": 56.21774794929157
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:81:hashCodeForConfigSet": {
+      "s3_rsid": 910264,
+      "s5_ema_trend": 21189,
+      "ratio": 42.95927132002454
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:84:equalsForConfigSet": {
+      "s3_rsid": 850653,
+      "s5_ema_trend": 19872,
+      "ratio": 42.80661231884058
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:102:getOrAdd": {
+      "s3_rsid": 911631,
+      "s5_ema_trend": 21515,
+      "ratio": 42.37188008366256
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:106:<genexpr>": {
+      "s3_rsid": 1701308,
+      "s5_ema_trend": 39744,
+      "ratio": 42.80666264090177
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:125:optimizeConfigs": {
+      "s3_rsid": 1216,
+      "s5_ema_trend": 27,
+      "ratio": 45.03703703703704
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:138:__eq__": {
+      "s3_rsid": 7322,
+      "s5_ema_trend": 1322,
+      "ratio": 5.53857791225416
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:154:__hash__": {
+      "s3_rsid": 3352,
+      "s5_ema_trend": 215,
+      "ratio": 15.590697674418605
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:161:hashConfigs": {
+      "s3_rsid": 3352,
+      "s5_ema_trend": 215,
+      "ratio": 15.590697674418605
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:162:<lambda>": {
+      "s3_rsid": 87500,
+      "s5_ema_trend": 2230,
+      "ratio": 39.237668161434975
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:164:__len__": {
+      "s3_rsid": 4243,
+      "s5_ema_trend": 238,
+      "ratio": 17.827731092436974
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:188:setReadonly": {
+      "s3_rsid": 1295,
+      "s5_ema_trend": 29,
+      "ratio": 44.6551724137931
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:211:__init__": {
+      "s3_rsid": 510,
+      "s5_ema_trend": 154,
+      "ratio": 3.311688311688312
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:36:__init__": {
+      "s3_rsid": 4031,
+      "s5_ema_trend": 234,
+      "ratio": 17.226495726495727
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:65:__iter__": {
+      "s3_rsid": 11012,
+      "s5_ema_trend": 528,
+      "ratio": 20.856060606060606
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:77:add": {
+      "s3_rsid": 911631,
+      "s5_ema_trend": 21515,
+      "ratio": 42.37188008366256
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNSimulator.py:39:__init__": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNSimulator.py:43:getCachedContext": {
+      "s3_rsid": 33752,
+      "s5_ema_trend": 661,
+      "ratio": 51.062027231467475
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ATNState.py:124:__eq__": {
+      "s3_rsid": 19262,
+      "s5_ema_trend": 38,
+      "ratio": 506.89473684210526
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:137:execATN": {
+      "s3_rsid": 1783,
+      "s5_ema_trend": 221,
+      "ratio": 8.06787330316742
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:206:getExistingTargetState": {
+      "s3_rsid": 8338,
+      "s5_ema_trend": 1386,
+      "ratio": 6.015873015873016
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:226:computeTargetState": {
+      "s3_rsid": 509,
+      "s5_ema_trend": 154,
+      "ratio": 3.3051948051948052
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:245:failOrAccept": {
+      "s3_rsid": 1783,
+      "s5_ema_trend": 221,
+      "ratio": 8.06787330316742
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:259:getReachableConfigSet": {
+      "s3_rsid": 509,
+      "s5_ema_trend": 154,
+      "ratio": 3.3051948051948052
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:285:accept": {
+      "s3_rsid": 1783,
+      "s5_ema_trend": 221,
+      "ratio": 8.06787330316742
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:297:getReachableTarget": {
+      "s3_rsid": 5514,
+      "s5_ema_trend": 217,
+      "ratio": 25.410138248847925
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:320:closure": {
+      "s3_rsid": 672,
+      "s5_ema_trend": 155,
+      "ratio": 4.335483870967742
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:364:getEpsilonTarget": {
+      "s3_rsid": 6375,
+      "s5_ema_trend": 1542,
+      "ratio": 4.134241245136187
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:39:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:42:reset": {
+      "s3_rsid": 1784,
+      "s5_ema_trend": 222,
+      "ratio": 8.036036036036036
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:472:captureSimState": {
+      "s3_rsid": 5933,
+      "s5_ema_trend": 1051,
+      "ratio": 5.645099904852521
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:478:addDFAEdge": {
+      "s3_rsid": 509,
+      "s5_ema_trend": 154,
+      "ratio": 3.3051948051948052
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:521:addDFAState": {
+      "s3_rsid": 322,
+      "s5_ema_trend": 142,
+      "ratio": 2.267605633802817
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:524:<genexpr>": {
+      "s3_rsid": 569,
+      "s5_ema_trend": 278,
+      "ratio": 2.0467625899280577
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:552:consume": {
+      "s3_rsid": 6555,
+      "s5_ema_trend": 1165,
+      "ratio": 5.626609442060086
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:66:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerATNSimulator.py:94:match": {
+      "s3_rsid": 1783,
+      "s5_ema_trend": 221,
+      "ratio": 8.06787330316742
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerAction.py:238:execute": {
+      "s3_rsid": 423,
+      "s5_ema_trend": 42,
+      "ratio": 10.071428571428571
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerAction.py:252:__str__": {
+      "s3_rsid": 71,
+      "s5_ema_trend": 126,
+      "ratio": 0.5634920634920635
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerActionExecutor.py:113:execute": {
+      "s3_rsid": 423,
+      "s5_ema_trend": 42,
+      "ratio": 10.071428571428571
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerActionExecutor.py:131:__hash__": {
+      "s3_rsid": 145,
+      "s5_ema_trend": 252,
+      "ratio": 0.5753968253968254
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerActionExecutor.py:134:__eq__": {
+      "s3_rsid": 68,
+      "s5_ema_trend": 126,
+      "ratio": 0.5396825396825397
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerActionExecutor.py:25:__init__": {
+      "s3_rsid": 71,
+      "s5_ema_trend": 126,
+      "ratio": 0.5634920634920635
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/LexerActionExecutor.py:45:append": {
+      "s3_rsid": 71,
+      "s5_ema_trend": 126,
+      "ratio": 0.5634920634920635
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1069:evalSemanticContext": {
+      "s3_rsid": 121,
+      "s5_ema_trend": 24,
+      "ratio": 5.041666666666667
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1097:closure": {
+      "s3_rsid": 3949,
+      "s5_ema_trend": 84,
+      "ratio": 47.01190476190476
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1103:closureCheckingStopState": {
+      "s3_rsid": 3949,
+      "s5_ema_trend": 84,
+      "ratio": 47.01190476190476
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1145:closure_": {
+      "s3_rsid": 3949,
+      "s5_ema_trend": 84,
+      "ratio": 47.01190476190476
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1285:canDropLoopEntryEdgeInLeftRecursiveRule": {
+      "s3_rsid": 5358044,
+      "s5_ema_trend": 124722,
+      "ratio": 42.95989480604865
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1357:<lambda>": {
+      "s3_rsid": 1817019,
+      "s5_ema_trend": 42435,
+      "ratio": 42.818875927889714
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1359:<lambda>": {
+      "s3_rsid": 9186,
+      "s5_ema_trend": 170,
+      "ratio": 54.03529411764706
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1363:<lambda>": {
+      "s3_rsid": 276617,
+      "s5_ema_trend": 6336,
+      "ratio": 43.657986111111114
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1365:<lambda>": {
+      "s3_rsid": 3245835,
+      "s5_ema_trend": 75597,
+      "ratio": 42.936029207508234
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1367:<lambda>": {
+      "s3_rsid": 586412,
+      "s5_ema_trend": 13647,
+      "ratio": 42.970030043232946
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1371:<lambda>": {
+      "s3_rsid": 319078,
+      "s5_ema_trend": 7452,
+      "ratio": 42.817767042404725
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1374:getEpsilonTarget": {
+      "s3_rsid": 6254147,
+      "s5_ema_trend": 145637,
+      "ratio": 42.9433935057712
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1381:actionTransition": {
+      "s3_rsid": 276617,
+      "s5_ema_trend": 6336,
+      "ratio": 43.657986111111114
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1386:precedenceTransition": {
+      "s3_rsid": 9186,
+      "s5_ema_trend": 170,
+      "ratio": 54.03529411764706
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1446:ruleTransition": {
+      "s3_rsid": 1817019,
+      "s5_ema_trend": 42435,
+      "ratio": 42.818875927889714
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1539:getUniqueAlt": {
+      "s3_rsid": 3575,
+      "s5_ema_trend": 82,
+      "ratio": 43.59756097560975
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1568:addDFAEdge": {
+      "s3_rsid": 1712,
+      "s5_ema_trend": 42,
+      "ratio": 40.76190476190476
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:1604:addDFAState": {
+      "s3_rsid": 1735,
+      "s5_ema_trend": 44,
+      "ratio": 39.43181818181818
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:269:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:291:reset": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:294:adaptivePredict": {
+      "s3_rsid": 3672,
+      "s5_ema_trend": 511,
+      "ratio": 7.185909980430528
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:386:execATN": {
+      "s3_rsid": 3672,
+      "s5_ema_trend": 511,
+      "ratio": 7.185909980430528
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:481:getExistingTargetState": {
+      "s3_rsid": 13606,
+      "s5_ema_trend": 1729,
+      "ratio": 7.869288606130711
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:500:computeTargetState": {
+      "s3_rsid": 1712,
+      "s5_ema_trend": 42,
+      "ratio": 40.76190476190476
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:661:computeReachSet": {
+      "s3_rsid": 1867,
+      "s5_ema_trend": 42,
+      "ratio": 44.45238095238095
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:809:computeStartState": {
+      "s3_rsid": 52,
+      "s5_ema_trend": 2,
+      "ratio": 26.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py:918:getReachableTarget": {
+      "s3_rsid": 67370,
+      "s5_ema_trend": 1340,
+      "ratio": 50.276119402985074
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/PredictionMode.py:175:hasSLLConflictTerminatingPrediction": {
+      "s3_rsid": 1473,
+      "s5_ema_trend": 36,
+      "ratio": 40.916666666666664
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/PredictionMode.py:223:allConfigsInRuleStopStates": {
+      "s3_rsid": 1473,
+      "s5_ema_trend": 36,
+      "ratio": 40.916666666666664
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/PredictionMode.py:225:<genexpr>": {
+      "s3_rsid": 2946,
+      "s5_ema_trend": 72,
+      "ratio": 40.916666666666664
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/PredictionMode.py:404:hasConflictingAltSet": {
+      "s3_rsid": 1473,
+      "s5_ema_trend": 36,
+      "ratio": 40.916666666666664
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/PredictionMode.py:406:<genexpr>": {
+      "s3_rsid": 51093,
+      "s5_ema_trend": 1226,
+      "ratio": 41.674551386623165
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/PredictionMode.py:456:getConflictingAltSubsets": {
+      "s3_rsid": 1635,
+      "s5_ema_trend": 36,
+      "ratio": 45.416666666666664
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/SemanticContext.py:133:eval": {
+      "s3_rsid": 166,
+      "s5_ema_trend": 24,
+      "ratio": 6.916666666666667
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/Transition.py:197:matches": {
+      "s3_rsid": 11707,
+      "s5_ema_trend": 383,
+      "ratio": 30.566579634464752
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/Transition.py:209:matches": {
+      "s3_rsid": 134,
+      "s5_ema_trend": 132,
+      "ratio": 1.0151515151515151
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/atn/Transition.py:84:matches": {
+      "s3_rsid": 61126,
+      "s5_ema_trend": 1174,
+      "ratio": 52.066439522998294
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/dfa/DFA.py:110:states": {
+      "s3_rsid": 4647,
+      "s5_ema_trend": 244,
+      "ratio": 19.045081967213115
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/dfa/DFA.py:48:getPrecedenceStartState": {
+      "s3_rsid": 1225,
+      "s5_ema_trend": 156,
+      "ratio": 7.852564102564102
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/dfa/DFAState.py:106:__eq__": {
+      "s3_rsid": 9105,
+      "s5_ema_trend": 1543,
+      "ratio": 5.900842514581983
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/dfa/DFAState.py:53:__init__": {
+      "s3_rsid": 2057,
+      "s5_ema_trend": 186,
+      "ratio": 11.059139784946236
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/dfa/DFAState.py:92:__hash__": {
+      "s3_rsid": 3352,
+      "s5_ema_trend": 215,
+      "ratio": 15.590697674418605
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/error/ErrorStrategy.py:204:sync": {
+      "s3_rsid": 5097,
+      "s5_ema_trend": 700,
+      "ratio": 7.281428571428571
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/error/ErrorStrategy.py:43:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/error/ErrorStrategy.py:66:reset": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/error/ErrorStrategy.py:78:inErrorRecoveryMode": {
+      "s3_rsid": 6349,
+      "s5_ema_trend": 879,
+      "ratio": 7.2229806598407285
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/error/ErrorStrategy.py:87:endErrorCondition": {
+      "s3_rsid": 1254,
+      "s5_ema_trend": 181,
+      "ratio": 6.928176795580111
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/error/ErrorStrategy.py:97:reportMatch": {
+      "s3_rsid": 1252,
+      "s5_ema_trend": 179,
+      "ratio": 6.994413407821229
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/tree/Tree.py:115:getText": {
+      "s3_rsid": 574,
+      "s5_ema_trend": 81,
+      "ratio": 7.08641975308642
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/tree/Tree.py:33:visit": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/tree/Tree.py:36:visitChildren": {
+      "s3_rsid": 59,
+      "s5_ema_trend": 11,
+      "ratio": 5.363636363636363
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/tree/Tree.py:55:defaultResult": {
+      "s3_rsid": 2872,
+      "s5_ema_trend": 383,
+      "ratio": 7.4986945169712795
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/tree/Tree.py:58:aggregateResult": {
+      "s3_rsid": 2872,
+      "s5_ema_trend": 383,
+      "ratio": 7.4986945169712795
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/tree/Tree.py:61:shouldVisitNextChild": {
+      "s3_rsid": 2872,
+      "s5_ema_trend": 383,
+      "ratio": 7.4986945169712795
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/tree/Tree.py:85:__init__": {
+      "s3_rsid": 1252,
+      "s5_ema_trend": 179,
+      "ratio": 6.994413407821229
+    },
+    ".venv/lib/python3.12/site-packages/antlr4/tree/Tree.py:88:__setattr__": {
+      "s3_rsid": 3756,
+      "s5_ema_trend": 537,
+      "ratio": 6.994413407821229
+    },
     ".venv/lib/python3.12/site-packages/dateutil/parser/_parser.py:1056:_could_be_tzname": {
       "s3_rsid": 1,
       "s5_ema_trend": 3,
@@ -2995,6 +4175,1101 @@
       "s5_ema_trend": 3,
       "ratio": 0.3333333333333333
     },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:1042:visitName": {
+      "s3_rsid": 434,
+      "s5_ema_trend": 60,
+      "ratio": 7.233333333333333
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:1046:visitName_load": {
+      "s3_rsid": 277,
+      "s5_ema_trend": 41,
+      "ratio": 6.7560975609756095
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:1055:visitName_store": {
+      "s3_rsid": 156,
+      "s5_ema_trend": 19,
+      "ratio": 8.210526315789474
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:1064:visitStart_comments": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:1069:visitComments": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:1074:visitComment": {
+      "s3_rsid": 35,
+      "s5_ema_trend": 8,
+      "ratio": 4.375
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:143:visitStart_script": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:160:visitStatements": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:166:visitStatement": {
+      "s3_rsid": 59,
+      "s5_ema_trend": 11,
+      "ratio": 5.363636363636363
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:222:visitSimple_name_initialization": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:270:visitVariable_declaration": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:37:_getLocations": {
+      "s3_rsid": 1064,
+      "s5_ema_trend": 156,
+      "ratio": 6.82051282051282
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:54:_setLocations": {
+      "s3_rsid": 1064,
+      "s5_ema_trend": 156,
+      "ratio": 6.82051282051282
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:624:visitIndented_local_block": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:630:visitSimple_statements": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 11,
+      "ratio": 5.454545454545454
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:635:visitExpression_statement": {
+      "s3_rsid": 16,
+      "s5_ema_trend": 5,
+      "ratio": 3.2
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:70:_parseComment": {
+      "s3_rsid": 35,
+      "s5_ema_trend": 8,
+      "ratio": 4.375
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:729:visitAdditive_expression": {
+      "s3_rsid": 102,
+      "s5_ema_trend": 13,
+      "ratio": 7.846153846153846
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:754:visitMultiplicative_expression": {
+      "s3_rsid": 102,
+      "s5_ema_trend": 13,
+      "ratio": 7.846153846153846
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:779:visitUnary_expression": {
+      "s3_rsid": 105,
+      "s5_ema_trend": 13,
+      "ratio": 8.076923076923077
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:806:visitPrimary_expression_call": {
+      "s3_rsid": 54,
+      "s5_ema_trend": 11,
+      "ratio": 4.909090909090909
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:829:visitPrimary_expression_attribute": {
+      "s3_rsid": 30,
+      "s5_ema_trend": 13,
+      "ratio": 2.3076923076923075
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:842:visitArgument_list": {
+      "s3_rsid": 54,
+      "s5_ema_trend": 11,
+      "ratio": 4.909090909090909
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:847:visitArgument_definition": {
+      "s3_rsid": 172,
+      "s5_ema_trend": 29,
+      "ratio": 5.931034482758621
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:874:visitLiteral_expression": {
+      "s3_rsid": 116,
+      "s5_ema_trend": 14,
+      "ratio": 8.285714285714286
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:885:visitLiteral_number": {
+      "s3_rsid": 54,
+      "s5_ema_trend": 4,
+      "ratio": 13.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:893:visitLiteral_string": {
+      "s3_rsid": 49,
+      "s5_ema_trend": 9,
+      "ratio": 5.444444444444445
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:898:visitLiteral_bool": {
+      "s3_rsid": 11,
+      "s5_ema_trend": 1,
+      "ratio": 11.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/builder.py:908:visitGrouped_expression": {
+      "s3_rsid": 5,
+      "s5_ema_trend": 2,
+      "ratio": 2.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/collector.py:35:visit_Script": {
+      "s3_rsid": 62,
+      "s5_ema_trend": 14,
+      "ratio": 4.428571428571429
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/collector.py:54:visit_Assign": {
+      "s3_rsid": 86,
+      "s5_ema_trend": 12,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/collector.py:72:visit_Expr": {
+      "s3_rsid": 32,
+      "s5_ema_trend": 12,
+      "ratio": 2.6666666666666665
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexer.py:364:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:111:nextToken": {
+      "s3_rsid": 1786,
+      "s5_ema_trend": 226,
+      "ratio": 7.902654867256637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:115:_checkNextToken": {
+      "s3_rsid": 1786,
+      "s5_ema_trend": 226,
+      "ratio": 7.902654867256637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:142:_reachedEndOfFile": {
+      "s3_rsid": 1786,
+      "s5_ema_trend": 226,
+      "ratio": 7.902654867256637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:145:_setNextInternalTokens": {
+      "s3_rsid": 1784,
+      "s5_ema_trend": 222,
+      "ratio": 8.036036036036036
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:149:_handleStartOfInputIfNecessary": {
+      "s3_rsid": 1771,
+      "s5_ema_trend": 204,
+      "ratio": 8.681372549019608
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:164:_checkLeadingIndentIfAny": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:172:_getIndentationLength": {
+      "s3_rsid": 3,
+      "s5_ema_trend": 2,
+      "ratio": 1.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:184:_createAndAddPendingToken": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 4,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:192:_addPendingToken": {
+      "s3_rsid": 1786,
+      "s5_ema_trend": 226,
+      "ratio": 7.902654867256637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:198:_hideAndAddPendingToken": {
+      "s3_rsid": 147,
+      "s5_ema_trend": 14,
+      "ratio": 10.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:202:_popPendingToken": {
+      "s3_rsid": 1786,
+      "s5_ema_trend": 226,
+      "ratio": 7.902654867256637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:205:_handle_NEWLINE_token": {
+      "s3_rsid": 203,
+      "s5_ema_trend": 19,
+      "ratio": 10.68421052631579
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:238:_isValidIndent": {
+      "s3_rsid": 3,
+      "s5_ema_trend": 2,
+      "ratio": 1.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:241:_insertIndentOrDedentToken": {
+      "s3_rsid": 62,
+      "s5_ema_trend": 14,
+      "ratio": 4.428571428571429
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:259:_handle_STRING_token": {
+      "s3_rsid": 49,
+      "s5_ema_trend": 9,
+      "ratio": 5.444444444444445
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:271:_insertTrailingTokens": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:279:_handle_EOF_token": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptLexerBase.py:51:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1028:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1063:accept": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1072:compound_statement": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1123:__init__": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 11,
+      "ratio": 5.454545454545454
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1127:simple_statement": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 11,
+      "ratio": 5.454545454545454
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1154:accept": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 11,
+      "ratio": 5.454545454545454
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1163:simple_statements": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 11,
+      "ratio": 5.454545454545454
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1207:__init__": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 11,
+      "ratio": 5.454545454545454
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1242:accept": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 11,
+      "ratio": 5.454545454545454
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:1251:simple_statement": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 11,
+      "ratio": 5.454545454545454
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3648:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3671:accept": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3680:local_block": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3713:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3723:statements": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3741:accept": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3750:indented_local_block": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3824:__init__": {
+      "s3_rsid": 44,
+      "s5_ema_trend": 6,
+      "ratio": 7.333333333333333
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3851:accept": {
+      "s3_rsid": 44,
+      "s5_ema_trend": 6,
+      "ratio": 7.333333333333333
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3860:simple_assignment": {
+      "s3_rsid": 44,
+      "s5_ema_trend": 6,
+      "ratio": 7.333333333333333
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3899:__init__": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3922:accept": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3931:simple_variable_initialization": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3964:__init__": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3968:variable_declaration": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3975:expression": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3990:accept": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:3999:simple_name_initialization": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4201:__init__": {
+      "s3_rsid": 318,
+      "s5_ema_trend": 44,
+      "ratio": 7.2272727272727275
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4220:accept": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 13,
+      "ratio": 4.615384615384615
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4229:expression": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 13,
+      "ratio": 4.615384615384615
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4249:__init__": {
+      "s3_rsid": 16,
+      "s5_ema_trend": 5,
+      "ratio": 3.2
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4253:expression": {
+      "s3_rsid": 16,
+      "s5_ema_trend": 5,
+      "ratio": 3.2
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4268:accept": {
+      "s3_rsid": 16,
+      "s5_ema_trend": 5,
+      "ratio": 3.2
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4277:expression_statement": {
+      "s3_rsid": 16,
+      "s5_ema_trend": 5,
+      "ratio": 3.2
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4297:__init__": {
+      "s3_rsid": 318,
+      "s5_ema_trend": 44,
+      "ratio": 7.2272727272727275
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4320:accept": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 13,
+      "ratio": 4.615384615384615
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4329:conditional_expression": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 13,
+      "ratio": 4.615384615384615
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4431:__init__": {
+      "s3_rsid": 318,
+      "s5_ema_trend": 44,
+      "ratio": 7.2272727272727275
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4454:accept": {
+      "s3_rsid": 70,
+      "s5_ema_trend": 13,
+      "ratio": 5.384615384615385
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4463:disjunction_expression": {
+      "s3_rsid": 70,
+      "s5_ema_trend": 13,
+      "ratio": 5.384615384615385
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4568:__init__": {
+      "s3_rsid": 321,
+      "s5_ema_trend": 44,
+      "ratio": 7.295454545454546
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4591:accept": {
+      "s3_rsid": 72,
+      "s5_ema_trend": 13,
+      "ratio": 5.538461538461538
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4600:conjunction_expression": {
+      "s3_rsid": 72,
+      "s5_ema_trend": 13,
+      "ratio": 5.538461538461538
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4705:__init__": {
+      "s3_rsid": 342,
+      "s5_ema_trend": 44,
+      "ratio": 7.7727272727272725
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4728:accept": {
+      "s3_rsid": 89,
+      "s5_ema_trend": 13,
+      "ratio": 6.846153846153846
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:4737:equality_expression": {
+      "s3_rsid": 89,
+      "s5_ema_trend": 13,
+      "ratio": 6.846153846153846
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5009:__init__": {
+      "s3_rsid": 348,
+      "s5_ema_trend": 44,
+      "ratio": 7.909090909090909
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5032:accept": {
+      "s3_rsid": 91,
+      "s5_ema_trend": 13,
+      "ratio": 7.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5041:inequality_expression": {
+      "s3_rsid": 91,
+      "s5_ema_trend": 13,
+      "ratio": 7.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5437:__init__": {
+      "s3_rsid": 366,
+      "s5_ema_trend": 44,
+      "ratio": 8.318181818181818
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5441:multiplicative_expression": {
+      "s3_rsid": 366,
+      "s5_ema_trend": 44,
+      "ratio": 8.318181818181818
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5449:additive_op": {
+      "s3_rsid": 371,
+      "s5_ema_trend": 44,
+      "ratio": 8.431818181818182
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5464:accept": {
+      "s3_rsid": 102,
+      "s5_ema_trend": 13,
+      "ratio": 7.846153846153846
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5472:additive_expression": {
+      "s3_rsid": 102,
+      "s5_ema_trend": 13,
+      "ratio": 7.846153846153846
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5574:__init__": {
+      "s3_rsid": 369,
+      "s5_ema_trend": 44,
+      "ratio": 8.386363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5578:unary_expression": {
+      "s3_rsid": 369,
+      "s5_ema_trend": 44,
+      "ratio": 8.386363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5586:multiplicative_op": {
+      "s3_rsid": 372,
+      "s5_ema_trend": 44,
+      "ratio": 8.454545454545455
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5601:accept": {
+      "s3_rsid": 102,
+      "s5_ema_trend": 13,
+      "ratio": 7.846153846153846
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5609:multiplicative_expression": {
+      "s3_rsid": 102,
+      "s5_ema_trend": 13,
+      "ratio": 7.846153846153846
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5714:__init__": {
+      "s3_rsid": 377,
+      "s5_ema_trend": 44,
+      "ratio": 8.568181818181818
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5718:unary_op": {
+      "s3_rsid": 385,
+      "s5_ema_trend": 44,
+      "ratio": 8.75
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5726:primary_expression": {
+      "s3_rsid": 369,
+      "s5_ema_trend": 44,
+      "ratio": 8.386363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5741:accept": {
+      "s3_rsid": 105,
+      "s5_ema_trend": 13,
+      "ratio": 8.076923076923077
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5750:unary_expression": {
+      "s3_rsid": 105,
+      "s5_ema_trend": 13,
+      "ratio": 8.076923076923077
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5844:__init__": {
+      "s3_rsid": 980,
+      "s5_ema_trend": 136,
+      "ratio": 7.205882352941177
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5853:copyFrom": {
+      "s3_rsid": 490,
+      "s5_ema_trend": 68,
+      "ratio": 7.205882352941177
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5859:__init__": {
+      "s3_rsid": 30,
+      "s5_ema_trend": 13,
+      "ratio": 2.3076923076923075
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5863:primary_expression": {
+      "s3_rsid": 30,
+      "s5_ema_trend": 13,
+      "ratio": 2.3076923076923075
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5868:name_load": {
+      "s3_rsid": 30,
+      "s5_ema_trend": 13,
+      "ratio": 2.3076923076923075
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5880:accept": {
+      "s3_rsid": 30,
+      "s5_ema_trend": 13,
+      "ratio": 2.3076923076923075
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5889:__init__": {
+      "s3_rsid": 62,
+      "s5_ema_trend": 11,
+      "ratio": 5.636363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5893:primary_expression": {
+      "s3_rsid": 62,
+      "s5_ema_trend": 11,
+      "ratio": 5.636363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5900:template_spec_suffix": {
+      "s3_rsid": 62,
+      "s5_ema_trend": 11,
+      "ratio": 5.636363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5903:argument_list": {
+      "s3_rsid": 62,
+      "s5_ema_trend": 11,
+      "ratio": 5.636363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5915:accept": {
+      "s3_rsid": 54,
+      "s5_ema_trend": 11,
+      "ratio": 4.909090909090909
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5924:__init__": {
+      "s3_rsid": 369,
+      "s5_ema_trend": 44,
+      "ratio": 8.386363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5940:accept": {
+      "s3_rsid": 350,
+      "s5_ema_trend": 42,
+      "ratio": 8.333333333333334
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:5980:primary_expression": {
+      "s3_rsid": 105,
+      "s5_ema_trend": 13,
+      "ratio": 8.076923076923077
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:603:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6082:__init__": {
+      "s3_rsid": 62,
+      "s5_ema_trend": 11,
+      "ratio": 5.636363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6086:argument_definition": {
+      "s3_rsid": 62,
+      "s5_ema_trend": 11,
+      "ratio": 5.636363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6110:accept": {
+      "s3_rsid": 54,
+      "s5_ema_trend": 11,
+      "ratio": 4.909090909090909
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6119:argument_list": {
+      "s3_rsid": 54,
+      "s5_ema_trend": 11,
+      "ratio": 4.909090909090909
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6161:__init__": {
+      "s3_rsid": 187,
+      "s5_ema_trend": 29,
+      "ratio": 6.448275862068965
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6165:expression": {
+      "s3_rsid": 187,
+      "s5_ema_trend": 29,
+      "ratio": 6.448275862068965
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6169:name_store": {
+      "s3_rsid": 187,
+      "s5_ema_trend": 29,
+      "ratio": 6.448275862068965
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6187:accept": {
+      "s3_rsid": 172,
+      "s5_ema_trend": 29,
+      "ratio": 5.931034482758621
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6196:argument_definition": {
+      "s3_rsid": 172,
+      "s5_ema_trend": 29,
+      "ratio": 5.931034482758621
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6305:__init__": {
+      "s3_rsid": 369,
+      "s5_ema_trend": 44,
+      "ratio": 8.386363636363637
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6336:accept": {
+      "s3_rsid": 350,
+      "s5_ema_trend": 42,
+      "ratio": 8.333333333333334
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6345:atomic_expression": {
+      "s3_rsid": 350,
+      "s5_ema_trend": 42,
+      "ratio": 8.333333333333334
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6388:__init__": {
+      "s3_rsid": 116,
+      "s5_ema_trend": 14,
+      "ratio": 8.285714285714286
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6404:literal_color": {
+      "s3_rsid": 116,
+      "s5_ema_trend": 14,
+      "ratio": 8.285714285714286
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6419:accept": {
+      "s3_rsid": 116,
+      "s5_ema_trend": 14,
+      "ratio": 8.285714285714286
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6428:literal_expression": {
+      "s3_rsid": 116,
+      "s5_ema_trend": 14,
+      "ratio": 8.285714285714286
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6471:__init__": {
+      "s3_rsid": 54,
+      "s5_ema_trend": 4,
+      "ratio": 13.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6489:accept": {
+      "s3_rsid": 54,
+      "s5_ema_trend": 4,
+      "ratio": 13.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6498:literal_number": {
+      "s3_rsid": 54,
+      "s5_ema_trend": 4,
+      "ratio": 13.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6518:__init__": {
+      "s3_rsid": 49,
+      "s5_ema_trend": 9,
+      "ratio": 5.444444444444445
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6536:accept": {
+      "s3_rsid": 49,
+      "s5_ema_trend": 9,
+      "ratio": 5.444444444444445
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6545:literal_string": {
+      "s3_rsid": 49,
+      "s5_ema_trend": 9,
+      "ratio": 5.444444444444445
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6565:__init__": {
+      "s3_rsid": 11,
+      "s5_ema_trend": 1,
+      "ratio": 11.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6569:TRUE": {
+      "s3_rsid": 11,
+      "s5_ema_trend": 1,
+      "ratio": 11.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6586:accept": {
+      "s3_rsid": 11,
+      "s5_ema_trend": 1,
+      "ratio": 11.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6595:literal_bool": {
+      "s3_rsid": 11,
+      "s5_ema_trend": 1,
+      "ratio": 11.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:663:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6668:__init__": {
+      "s3_rsid": 5,
+      "s5_ema_trend": 2,
+      "ratio": 2.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6675:expression": {
+      "s3_rsid": 5,
+      "s5_ema_trend": 2,
+      "ratio": 2.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6693:accept": {
+      "s3_rsid": 5,
+      "s5_ema_trend": 2,
+      "ratio": 2.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6702:grouped_expression": {
+      "s3_rsid": 5,
+      "s5_ema_trend": 2,
+      "ratio": 2.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:670:statements": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:685:accept": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:694:start_script": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:6997:__init__": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:7001:name_store": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:7005:declaration_mode": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:7009:type_specification": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:7024:accept": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:7033:variable_declaration": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:788:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:795:comments": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8007:__init__": {
+      "s3_rsid": 434,
+      "s5_ema_trend": 60,
+      "ratio": 7.233333333333333
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8046:accept": {
+      "s3_rsid": 434,
+      "s5_ema_trend": 60,
+      "ratio": 7.233333333333333
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8055:name": {
+      "s3_rsid": 434,
+      "s5_ema_trend": 60,
+      "ratio": 7.233333333333333
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8081:__init__": {
+      "s3_rsid": 277,
+      "s5_ema_trend": 41,
+      "ratio": 6.7560975609756095
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8085:name": {
+      "s3_rsid": 277,
+      "s5_ema_trend": 41,
+      "ratio": 6.7560975609756095
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8100:accept": {
+      "s3_rsid": 277,
+      "s5_ema_trend": 41,
+      "ratio": 6.7560975609756095
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8109:name_load": {
+      "s3_rsid": 277,
+      "s5_ema_trend": 41,
+      "ratio": 6.7560975609756095
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:810:accept": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8129:__init__": {
+      "s3_rsid": 156,
+      "s5_ema_trend": 19,
+      "ratio": 8.210526315789474
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8133:name": {
+      "s3_rsid": 156,
+      "s5_ema_trend": 19,
+      "ratio": 8.210526315789474
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8148:accept": {
+      "s3_rsid": 156,
+      "s5_ema_trend": 19,
+      "ratio": 8.210526315789474
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8157:name_store": {
+      "s3_rsid": 156,
+      "s5_ema_trend": 19,
+      "ratio": 8.210526315789474
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8177:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8181:comment": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8199:accept": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:819:start_comments": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8208:comments": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8239:__init__": {
+      "s3_rsid": 35,
+      "s5_ema_trend": 8,
+      "ratio": 4.375
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8257:accept": {
+      "s3_rsid": 35,
+      "s5_ema_trend": 8,
+      "ratio": 4.375
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:8266:comment": {
+      "s3_rsid": 35,
+      "s5_ema_trend": 8,
+      "ratio": 4.375
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:901:__init__": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 3,
+      "ratio": 0.6666666666666666
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:905:statement": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 3,
+      "ratio": 0.6666666666666666
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:923:accept": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:932:statements": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:963:__init__": {
+      "s3_rsid": 61,
+      "s5_ema_trend": 13,
+      "ratio": 4.6923076923076925
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:967:compound_statement": {
+      "s3_rsid": 61,
+      "s5_ema_trend": 13,
+      "ratio": 4.6923076923076925
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:971:simple_statements": {
+      "s3_rsid": 61,
+      "s5_ema_trend": 13,
+      "ratio": 4.6923076923076925
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:986:accept": {
+      "s3_rsid": 59,
+      "s5_ema_trend": 11,
+      "ratio": 5.363636363636363
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:995:statement": {
+      "s3_rsid": 59,
+      "s5_ema_trend": 11,
+      "ratio": 5.363636363636363
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserBase.py:30:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:233:visitLocal_block": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:248:visitSimple_assignment": {
+      "s3_rsid": 44,
+      "s5_ema_trend": 6,
+      "ratio": 7.333333333333333
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:253:visitSimple_variable_initialization": {
+      "s3_rsid": 43,
+      "s5_ema_trend": 6,
+      "ratio": 7.166666666666667
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:278:visitExpression": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 13,
+      "ratio": 4.615384615384615
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:288:visitConditional_expression": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 13,
+      "ratio": 4.615384615384615
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:298:visitDisjunction_expression": {
+      "s3_rsid": 70,
+      "s5_ema_trend": 13,
+      "ratio": 5.384615384615385
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:308:visitConjunction_expression": {
+      "s3_rsid": 72,
+      "s5_ema_trend": 13,
+      "ratio": 5.538461538461538
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:318:visitEquality_expression": {
+      "s3_rsid": 89,
+      "s5_ema_trend": 13,
+      "ratio": 6.846153846153846
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:343:visitInequality_expression": {
+      "s3_rsid": 91,
+      "s5_ema_trend": 13,
+      "ratio": 7.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:418:visitPrimary_expression_fallback": {
+      "s3_rsid": 350,
+      "s5_ema_trend": 42,
+      "ratio": 8.333333333333334
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:443:visitAtomic_expression": {
+      "s3_rsid": 350,
+      "s5_ema_trend": 42,
+      "ratio": 8.333333333333334
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:48:visitCompound_statement": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParserVisitor.py:58:visitSimple_statement": {
+      "s3_rsid": 60,
+      "s5_ema_trend": 11,
+      "ratio": 5.454545454545454
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py:133:_get_absolute_path": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py:143:_parse_inputstream": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py:164:parse": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
     ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py:258:iter_fields": {
       "s3_rsid": 1228176,
       "s5_ema_trend": 160288,
@@ -3004,6 +5279,36 @@
       "s3_rsid": 620465,
       "s5_ema_trend": 80949,
       "ratio": 7.66488776884211
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py:45:_add_annotations": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py:47:<lambda>": {
+      "s3_rsid": 96,
+      "s5_ema_trend": 21,
+      "ratio": 4.571428571428571
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py:49:<lambda>": {
+      "s3_rsid": 96,
+      "s5_ema_trend": 21,
+      "ratio": 4.571428571428571
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py:82:_parse": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/ast/visitor.py:24:visit": {
+      "s3_rsid": 62,
+      "s5_ema_trend": 16,
+      "ratio": 3.875
+    },
+    ".venv/lib/python3.12/site-packages/pynescript/util/itertools.py:22:grouper": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
     },
     ".venv/lib/python3.12/site-packages/pytz/__init__.py:240:utcoffset": {
       "s3_rsid": 2,
@@ -3035,6 +5340,21 @@
       "s5_ema_trend": 9,
       "ratio": 0.3333333333333333
     },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/ast.py:34:parse": {
+      "s3_rsid": 103,
+      "s5_ema_trend": 13,
+      "ratio": 7.923076923076923
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/ast.py:56:literal_eval": {
+      "s3_rsid": 103,
+      "s5_ema_trend": 13,
+      "ratio": 7.923076923076923
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/ast.py:86:_convert": {
+      "s3_rsid": 103,
+      "s5_ema_trend": 13,
+      "ratio": 7.923076923076923
+    },
     "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/collections/__init__.py:595:__init__": {
       "s3_rsid": 3,
       "s5_ema_trend": 3,
@@ -3050,186 +5370,6 @@
       "s5_ema_trend": 3,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:440:__init__": {
-      "s3_rsid": 9,
-      "s5_ema_trend": 9,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:443:__enter__": {
-      "s3_rsid": 9,
-      "s5_ema_trend": 9,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:446:__exit__": {
-      "s3_rsid": 9,
-      "s5_ema_trend": 9,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/__init__.py:31:message_from_string": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/_policybase.py:289:_sanitize_header": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/_policybase.py:301:header_source_parse": {
-      "s3_rsid": 22,
-      "s5_ema_trend": 22,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/_policybase.py:319:header_fetch_parse": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:100:push": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:121:pushlines": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:124:__iter__": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:127:__next__": {
-      "s3_rsid": 307,
-      "s5_ema_trend": 307,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:137:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:171:feed": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:176:_call_parse": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:182:close": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:195:_new_message": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:208:_pop_message": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:216:_parsegen": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:469:_parse_headers": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:52:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:69:close": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/feedparser.py:77:readline": {
-      "s3_rsid": 307,
-      "s5_ema_trend": 307,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:150:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:211:is_multipart": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:243:get_payload": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:335:set_payload": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:414:__getitem__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:498:get": {
-      "s3_rsid": 6,
-      "s5_ema_trend": 6,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:515:set_raw": {
-      "s3_rsid": 22,
-      "s5_ema_trend": 22,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:600:get_content_type": {
-      "s3_rsid": 4,
-      "s5_ema_trend": 4,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:624:get_content_maintype": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/message.py:642:get_default_type": {
-      "s3_rsid": 4,
-      "s5_ema_trend": 4,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/parser.py:17:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/parser.py:41:parse": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/parser.py:56:parsestr": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/email/utils.py:52:_has_surrogates": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
     "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/enum.py:1291:value": {
       "s3_rsid": 4,
       "s5_ema_trend": 1,
@@ -3239,196 +5379,6 @@
       "s3_rsid": 4,
       "s5_ema_trend": 1,
       "ratio": 4.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:347:__new__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:383:from_name": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:401:discover": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:415:<genexpr>": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:428:_discover_resolvers": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:431:<genexpr>": {
-      "s3_rsid": 6,
-      "s5_ema_trend": 6,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:436:metadata": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:464:version": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:634:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:637:path": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:672:__init__": {
-      "s3_rsid": 6,
-      "s5_ema_trend": 6,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:678:children": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:685:zip_children": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:692:search": {
-      "s3_rsid": 6,
-      "s5_ema_trend": 6,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:695:mtime": {
-      "s3_rsid": 6,
-      "s5_ema_trend": 6,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:701:lookup": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:707:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:728:search": {
-      "s3_rsid": 6,
-      "s5_ema_trend": 6,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:750:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:757:normalize": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:764:legacy_normalize": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:772:__bool__": {
-      "s3_rsid": 12,
-      "s5_ema_trend": 12,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:777:find_distributions": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:790:_search_paths": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:794:<genexpr>": {
-      "s3_rsid": 7,
-      "s5_ema_trend": 7,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:804:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:811:read_text": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:856:distribution": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/__init__.py:882:version": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/_adapters.py:41:__new__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/_adapters.py:46:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/_adapters.py:53:__getitem__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/_adapters.py:63:_repair_headers": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/_adapters.py:64:redent": {
-      "s3_rsid": 22,
-      "s5_ema_trend": 22,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/_collections.py:20:__missing__": {
-      "s3_rsid": 11,
-      "s5_ema_trend": 11,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/_collections.py:23:freeze": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/metadata/_collections.py:24:<lambda>": {
-      "s3_rsid": 11,
-      "s5_ema_trend": 11,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/inspect.py:748:getmro": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
     },
     "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/locale.py:381:normalize": {
       "s3_rsid": 3,
@@ -3445,7 +5395,62 @@
       "s5_ema_trend": 9,
       "ratio": 0.3333333333333333
     },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1011:handle": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1137:flush": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1148:emit": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1266:emit": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:129:getLevelName": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
     "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1529:info": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1611:findCaller": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1645:makeRecord": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1660:_log": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1686:handle": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:170:<lambda>": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:1746:callHandlers": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
@@ -3455,97 +5460,87 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:1005:open": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:200:_is_internal_frame": {
+      "s3_rsid": 3,
+      "s5_ema_trend": 3,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:1015:read_bytes": {
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:2295:handle": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:1022:read_text": {
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:298:__init__": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:1157:__init__": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:383:getMessage": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:1164:__new__": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:447:usesTime": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:358:__init__": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:380:with_segments": {
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:455:_format": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:387:_parse_path": {
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:462:format": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:407:_load_parts": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:429:_format_parsed_parts": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:437:__str__": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:447:__fspath__": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:551:drive": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:560:root": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:569:_tail": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:711:joinpath": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:719:__truediv__": {
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:622:formatTime": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:835:stat": {
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:668:usesTime": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:674:formatMessage": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:690:format": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:831:filter": {
+      "s3_rsid": 5,
+      "s5_ema_trend": 5,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:968:acquire": {
+      "s3_rsid": 8,
+      "s5_ema_trend": 8,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:975:release": {
+      "s3_rsid": 8,
+      "s5_ema_trend": 8,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/logging/__init__.py:988:format": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/multiprocessing/process.py:189:name": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:886:is_file": {
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/multiprocessing/process.py:37:current_process": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
@@ -3556,9 +5551,9 @@
       "ratio": 1.0
     },
     "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/re/__init__.py:179:sub": {
-      "s3_rsid": 13,
-      "s5_ema_trend": 1,
-      "ratio": 13.0
+      "s3_rsid": 110,
+      "s5_ema_trend": 18,
+      "ratio": 6.111111111111111
     },
     "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/re/__init__.py:226:compile": {
       "s3_rsid": 4,
@@ -3566,14 +5561,24 @@
       "ratio": 4.0
     },
     "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/re/__init__.py:280:_compile": {
-      "s3_rsid": 20,
-      "s5_ema_trend": 5,
-      "ratio": 4.0
+      "s3_rsid": 117,
+      "s5_ema_trend": 22,
+      "ratio": 5.318181818181818
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py:1182:name": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py:1485:current_thread": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
     },
     "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/typing.py:2187:cast": {
-      "s3_rsid": 4434,
-      "s5_ema_trend": 4467,
-      "ratio": 0.9926124916051041
+      "s3_rsid": 4436,
+      "s5_ema_trend": 4466,
+      "ratio": 0.9932825794894761
     },
     "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/warnings.py:133:filterwarnings": {
       "s3_rsid": 1,
@@ -3605,84 +5610,39 @@
       "s5_ema_trend": 6,
       "ratio": 1.0
     },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1313:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1964:__del__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1968:close": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:742:_check_compression": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/zipfile/_path/__init__.py:145:make": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/zipfile/_path/__init__.py:272:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "/Users/woosung/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/zipfile/_path/__init__.py:87:__init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
     "<frozen abc>:117:__instancecheck__": {
-      "s3_rsid": 21,
-      "s5_ema_trend": 25,
-      "ratio": 0.84
+      "s3_rsid": 20,
+      "s5_ema_trend": 24,
+      "ratio": 0.8333333333333334
     },
     "<frozen abc>:121:__subclasscheck__": {
-      "s3_rsid": 10,
+      "s3_rsid": 9,
       "s5_ema_trend": 1,
-      "ratio": 10.0
+      "ratio": 9.0
     },
-    "<frozen codecs>:260:__init__": {
+    "<frozen codecs>:276:reset": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "<frozen codecs>:309:__init__": {
+    "<frozen codecs>:327:reset": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "<frozen codecs>:319:decode": {
+    "<frozen genericpath>:133:_splitext": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
     "<frozen importlib._bootstrap>:1390:_handle_fromlist": {
       "s3_rsid": 5,
-      "s5_ema_trend": 9,
-      "ratio": 0.5555555555555556
+      "s5_ema_trend": 8,
+      "ratio": 0.625
     },
-    "<frozen importlib._bootstrap_external>:1548:find_distributions": {
+    "<frozen posixpath>:117:splitext": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "<frozen posixpath>:131:splitdrive": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "<frozen posixpath>:138:splitroot": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
       "ratio": 1.0
     },
     "<frozen posixpath>:169:basename": {
@@ -3691,14 +5651,14 @@
       "ratio": 1.0
     },
     "<frozen posixpath>:41:_get_sep": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
+      "s3_rsid": 10,
+      "s5_ema_trend": 1,
+      "ratio": 10.0
     },
-    "<frozen posixpath>:71:join": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
+    "<frozen posixpath>:52:normcase": {
+      "s3_rsid": 15,
+      "s5_ema_trend": 3,
+      "ratio": 5.0
     },
     "<string>:2:__init__": {
       "s3_rsid": 1,
@@ -3990,6 +5950,26 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
+    "src/common/logging_config.py:120:<genexpr>": {
+      "s3_rsid": 4,
+      "s5_ema_trend": 4,
+      "ratio": 1.0
+    },
+    "src/common/logging_config.py:126:formatMessage": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "src/common/logging_config.py:67:_render_value": {
+      "s3_rsid": 3,
+      "s5_ema_trend": 3,
+      "ratio": 1.0
+    },
+    "src/common/logging_config.py:92:_render_extras": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
     "src/strategy/pine_v2/ast_classifier.py:108:_detect_declaration": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
@@ -4100,22 +6080,22 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:1023:_eval_call": {
+    "src/strategy/pine_v2/interpreter.py:1019:_eval_call": {
       "s3_rsid": 225672,
       "s5_ema_trend": 39359,
       "ratio": 5.733682258187454
     },
-    "src/strategy/pine_v2/interpreter.py:1450:_resolve_name": {
+    "src/strategy/pine_v2/interpreter.py:1447:_resolve_name": {
       "s3_rsid": 566376,
       "s5_ema_trend": 52416,
       "ratio": 10.80540293040293
     },
-    "src/strategy/pine_v2/interpreter.py:1516:_eval_attribute": {
+    "src/strategy/pine_v2/interpreter.py:1513:_eval_attribute": {
       "s3_rsid": 104832,
       "s5_ema_trend": 17496,
       "ratio": 5.991769547325103
     },
-    "src/strategy/pine_v2/interpreter.py:1622:_exec_strategy_call": {
+    "src/strategy/pine_v2/interpreter.py:1620:_exec_strategy_call": {
       "s3_rsid": 13104,
       "s5_ema_trend": 47,
       "ratio": 278.8085106382979
@@ -4125,32 +6105,32 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:1710:_price_arg": {
+    "src/strategy/pine_v2/interpreter.py:1708:_price_arg": {
       "s3_rsid": 152,
       "s5_ema_trend": 48,
       "ratio": 3.1666666666666665
     },
-    "src/strategy/pine_v2/interpreter.py:1869:_detect_var_kind": {
+    "src/strategy/pine_v2/interpreter.py:1867:_detect_var_kind": {
       "s3_rsid": 200928,
       "s5_ema_trend": 26208,
       "ratio": 7.666666666666667
     },
-    "src/strategy/pine_v2/interpreter.py:1879:_truthy": {
-      "s3_rsid": 216271,
+    "src/strategy/pine_v2/interpreter.py:1877:_truthy": {
+      "s3_rsid": 408463,
       "s5_ema_trend": 8736,
-      "ratio": 24.75629578754579
+      "ratio": 46.75629578754579
     },
-    "src/strategy/pine_v2/interpreter.py:1892:_is_na": {
-      "s3_rsid": 551027,
+    "src/strategy/pine_v2/interpreter.py:1890:_is_na": {
+      "s3_rsid": 743219,
       "s5_ema_trend": 8736,
-      "ratio": 63.07543498168498
+      "ratio": 85.07543498168498
     },
-    "src/strategy/pine_v2/interpreter.py:1908:_attr_chain": {
+    "src/strategy/pine_v2/interpreter.py:1906:_attr_chain": {
       "s3_rsid": 131040,
       "s5_ema_trend": 43751,
       "ratio": 2.995131539850518
     },
-    "src/strategy/pine_v2/interpreter.py:1920:_call_chain_name": {
+    "src/strategy/pine_v2/interpreter.py:1918:_call_chain_name": {
       "s3_rsid": 276624,
       "s5_ema_trend": 39359,
       "ratio": 7.028227343174369
@@ -4220,12 +6200,12 @@
       "s5_ema_trend": 48095,
       "ratio": 5.267574591953426
     },
-    "src/strategy/pine_v2/interpreter.py:977:_resolve_name_if_declared": {
+    "src/strategy/pine_v2/interpreter.py:973:_resolve_name_if_declared": {
       "s3_rsid": 13104,
       "s5_ema_trend": 8736,
       "ratio": 1.5
     },
-    "src/strategy/pine_v2/interpreter.py:984:_collect_args": {
+    "src/strategy/pine_v2/interpreter.py:980:_collect_args": {
       "s3_rsid": 139776,
       "s5_ema_trend": 21840,
       "ratio": 6.4
@@ -4240,22 +6220,7 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/parser_adapter.py:41:_pynescript_version": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "src/strategy/pine_v2/parser_adapter.py:48:_cache_key": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
     "src/strategy/pine_v2/parser_adapter.py:54:_cache_dir": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "src/strategy/pine_v2/parser_adapter.py:62:_load": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
@@ -4305,32 +6270,32 @@
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/stdlib.py:218:ta_crossunder": {
+    "src/strategy/pine_v2/stdlib.py:222:ta_crossunder": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
     "src/strategy/pine_v2/stdlib.py:37:_is_na": {
-      "s3_rsid": 119452,
-      "s5_ema_trend": 51984,
-      "ratio": 2.2978608802708527
+      "s3_rsid": 119455,
+      "s5_ema_trend": 51990,
+      "ratio": 2.2976533948836315
     },
     "src/strategy/pine_v2/stdlib.py:41:_coerce_length": {
       "s3_rsid": 21840,
       "s5_ema_trend": 8736,
       "ratio": 2.5
     },
-    "src/strategy/pine_v2/stdlib.py:728:__post_init__": {
+    "src/strategy/pine_v2/stdlib.py:738:__post_init__": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/stdlib.py:740:_scoped_node_id": {
+    "src/strategy/pine_v2/stdlib.py:750:_scoped_node_id": {
       "s3_rsid": 85896,
       "s5_ema_trend": 17472,
       "ratio": 4.916208791208791
     },
-    "src/strategy/pine_v2/stdlib.py:751:call": {
+    "src/strategy/pine_v2/stdlib.py:761:call": {
       "s3_rsid": 85896,
       "s5_ema_trend": 17472,
       "ratio": 4.916208791208791
@@ -4420,40 +6385,30 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "~:0:<built-in method __new__ of type object at 0x102c12058>": {
-      "s3_rsid": 288292,
-      "s5_ema_trend": 91856,
-      "ratio": 3.1385211635603554
+    "~:0:<built-in method __new__ of type object at 0x1031e2058>": {
+      "s3_rsid": 288300,
+      "s5_ema_trend": 91851,
+      "ratio": 3.1387791096449686
     },
     "~:0:<built-in method _abc._abc_instancecheck>": {
-      "s3_rsid": 21,
-      "s5_ema_trend": 25,
-      "ratio": 0.84
+      "s3_rsid": 20,
+      "s5_ema_trend": 24,
+      "ratio": 0.8333333333333334
     },
     "~:0:<built-in method _abc._abc_subclasscheck>": {
-      "s3_rsid": 10,
+      "s3_rsid": 9,
       "s5_ema_trend": 1,
-      "ratio": 10.0
+      "ratio": 9.0
     },
-    "~:0:<built-in method _codecs.utf_8_decode>": {
+    "~:0:<built-in method _asyncio.current_task>": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "~:0:<built-in method _hashlib.openssl_sha256>": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "~:0:<built-in method _io.open>": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
-    "~:0:<built-in method _io.text_encoding>": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
+    "~:0:<built-in method _functools.reduce>": {
+      "s3_rsid": 3352,
+      "s5_ema_trend": 215,
+      "ratio": 15.590697674418605
     },
     "~:0:<built-in method _locale.setlocale>": {
       "s3_rsid": 3,
@@ -4485,15 +6440,10 @@
       "s5_ema_trend": 3,
       "ratio": 1.0
     },
-    "~:0:<built-in method _pickle.loads>": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "~:0:<built-in method _stat.S_ISREG>": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
+    "~:0:<built-in method _thread.get_ident>": {
+      "s3_rsid": 8,
+      "s5_ema_trend": 2,
+      "ratio": 4.0
     },
     "~:0:<built-in method _warnings._filters_mutated>": {
       "s3_rsid": 18,
@@ -4506,34 +6456,39 @@
       "ratio": 181.42857142857142
     },
     "~:0:<built-in method builtins.all>": {
-      "s3_rsid": 40,
-      "s5_ema_trend": 40,
-      "ratio": 1.0
+      "s3_rsid": 1513,
+      "s5_ema_trend": 76,
+      "ratio": 19.907894736842106
     },
     "~:0:<built-in method builtins.any>": {
-      "s3_rsid": 11650,
-      "s5_ema_trend": 9,
-      "ratio": 1294.4444444444443
+      "s3_rsid": 31263,
+      "s5_ema_trend": 1288,
+      "ratio": 24.27251552795031
     },
     "~:0:<built-in method builtins.callable>": {
       "s3_rsid": 925887,
       "s5_ema_trend": 336502,
       "ratio": 2.7515051916481923
     },
+    "~:0:<built-in method builtins.compile>": {
+      "s3_rsid": 103,
+      "s5_ema_trend": 13,
+      "ratio": 7.923076923076923
+    },
     "~:0:<built-in method builtins.getattr>": {
-      "s3_rsid": 3517671,
-      "s5_ema_trend": 745546,
-      "ratio": 4.718248102732763
+      "s3_rsid": 3517627,
+      "s5_ema_trend": 745450,
+      "ratio": 4.718796699979878
     },
     "~:0:<built-in method builtins.hasattr>": {
-      "s3_rsid": 88,
-      "s5_ema_trend": 118,
-      "ratio": 0.7457627118644068
+      "s3_rsid": 5935,
+      "s5_ema_trend": 910,
+      "ratio": 6.521978021978022
     },
     "~:0:<built-in method builtins.hash>": {
-      "s3_rsid": 52495,
-      "s5_ema_trend": 35034,
-      "ratio": 1.498401552777302
+      "s3_rsid": 14525435,
+      "s5_ema_trend": 441990,
+      "ratio": 32.86371863616824
     },
     "~:0:<built-in method builtins.id>": {
       "s3_rsid": 85896,
@@ -4541,39 +6496,44 @@
       "ratio": 4.916208791208791
     },
     "~:0:<built-in method builtins.isinstance>": {
-      "s3_rsid": 20039102,
-      "s5_ema_trend": 3664935,
-      "ratio": 5.46779192536839
+      "s3_rsid": 58856441,
+      "s5_ema_trend": 4579428,
+      "ratio": 12.852356451504424
     },
     "~:0:<built-in method builtins.issubclass>": {
-      "s3_rsid": 103,
-      "s5_ema_trend": 120,
-      "ratio": 0.8583333333333333
+      "s3_rsid": 100,
+      "s5_ema_trend": 117,
+      "ratio": 0.8547008547008547
     },
     "~:0:<built-in method builtins.iter>": {
-      "s3_rsid": 74260,
-      "s5_ema_trend": 4,
-      "ratio": 18565.0
+      "s3_rsid": 74283,
+      "s5_ema_trend": 5,
+      "ratio": 14856.6
     },
     "~:0:<built-in method builtins.len>": {
-      "s3_rsid": 1084557,
-      "s5_ema_trend": 306617,
-      "ratio": 3.5371717810819363
+      "s3_rsid": 6052814,
+      "s5_ema_trend": 478455,
+      "ratio": 12.6507487642516
     },
     "~:0:<built-in method builtins.max>": {
-      "s3_rsid": 29519,
-      "s5_ema_trend": 8866,
-      "ratio": 3.329460861718926
+      "s3_rsid": 886086,
+      "s5_ema_trend": 28741,
+      "ratio": 30.830033749695556
     },
     "~:0:<built-in method builtins.min>": {
-      "s3_rsid": 8958,
-      "s5_ema_trend": 8765,
-      "ratio": 1.0220193953223047
+      "s3_rsid": 16803,
+      "s5_ema_trend": 8792,
+      "ratio": 1.911169244767971
     },
     "~:0:<built-in method builtins.next>": {
-      "s3_rsid": 205327,
-      "s5_ema_trend": 26213,
-      "ratio": 7.833021783084729
+      "s3_rsid": 1056324,
+      "s5_ema_trend": 46226,
+      "ratio": 22.85129580755419
+    },
+    "~:0:<built-in method builtins.ord>": {
+      "s3_rsid": 13251,
+      "s5_ema_trend": 2330,
+      "ratio": 5.6871244635193134
     },
     "~:0:<built-in method builtins.repr>": {
       "s3_rsid": 48,
@@ -4581,24 +6541,19 @@
       "ratio": 3.4285714285714284
     },
     "~:0:<built-in method builtins.setattr>": {
-      "s3_rsid": 14,
-      "s5_ema_trend": 36,
-      "ratio": 0.3888888888888889
+      "s3_rsid": 4271,
+      "s5_ema_trend": 660,
+      "ratio": 6.471212121212122
+    },
+    "~:0:<built-in method builtins.sorted>": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
     },
     "~:0:<built-in method builtins.sum>": {
       "s3_rsid": 20534,
       "s5_ema_trend": 8817,
       "ratio": 2.328910060111149
-    },
-    "~:0:<built-in method builtins.vars>": {
-      "s3_rsid": 9,
-      "s5_ema_trend": 9,
-      "ratio": 1.0
-    },
-    "~:0:<built-in method from_iterable>": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
     },
     "~:0:<built-in method math.isfinite>": {
       "s3_rsid": 30815,
@@ -4606,9 +6561,9 @@
       "ratio": 1.752545071944492
     },
     "~:0:<built-in method math.isnan>": {
-      "s3_rsid": 187872,
-      "s5_ema_trend": 51984,
-      "ratio": 3.6140350877192984
+      "s3_rsid": 189555,
+      "s5_ema_trend": 52180,
+      "ratio": 3.632713683403603
     },
     "~:0:<built-in method numpy._core._multiarray_umath._make_extobj>": {
       "s3_rsid": 14,
@@ -4656,29 +6611,39 @@
       "ratio": 0.3333333333333333
     },
     "~:0:<built-in method posix.fspath>": {
-      "s3_rsid": 15,
-      "s5_ema_trend": 9,
-      "ratio": 1.6666666666666667
+      "s3_rsid": 59,
+      "s5_ema_trend": 5,
+      "ratio": 11.8
     },
-    "~:0:<built-in method posix.listdir>": {
+    "~:0:<built-in method posix.getpid>": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "~:0:<built-in method posix.stat>": {
-      "s3_rsid": 16,
-      "s5_ema_trend": 7,
-      "ratio": 2.2857142857142856
+    "~:0:<built-in method sys._getframe>": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
     },
-    "~:0:<built-in method sys.intern>": {
-      "s3_rsid": 16,
-      "s5_ema_trend": 16,
+    "~:0:<built-in method time.localtime>": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "~:0:<built-in method time.strftime>": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "~:0:<built-in method time.time>": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
       "ratio": 1.0
     },
     "~:0:<method '__exit__' of '_io._IOBase' objects>": {
-      "s3_rsid": 4,
-      "s5_ema_trend": 2,
-      "ratio": 2.0
+      "s3_rsid": 577,
+      "s5_ema_trend": 81,
+      "ratio": 7.1234567901234565
     },
     "~:0:<method '__exit__' of '_thread.lock' objects>": {
       "s3_rsid": 3,
@@ -4689,6 +6654,16 @@
       "s3_rsid": 2,
       "s5_ema_trend": 2,
       "ratio": 1.0
+    },
+    "~:0:<method 'acquire' of '_thread.RLock' objects>": {
+      "s3_rsid": 9,
+      "s5_ema_trend": 8,
+      "ratio": 1.125
+    },
+    "~:0:<method 'add' of 'set' objects>": {
+      "s3_rsid": 95160,
+      "s5_ema_trend": 1577,
+      "ratio": 60.3424223208624
     },
     "~:0:<method 'any' of 'numpy.generic' objects>": {
       "s3_rsid": 2,
@@ -4701,14 +6676,14 @@
       "ratio": 0.75
     },
     "~:0:<method 'append' of 'collections.deque' objects>": {
-      "s3_rsid": 183456,
-      "s5_ema_trend": 26208,
-      "ratio": 7.0
+      "s3_rsid": 183458,
+      "s5_ema_trend": 26211,
+      "ratio": 6.999275113501965
     },
     "~:0:<method 'append' of 'list' objects>": {
-      "s3_rsid": 639922,
-      "s5_ema_trend": 167057,
-      "ratio": 3.8305608265442332
+      "s3_rsid": 713020,
+      "s5_ema_trend": 169993,
+      "ratio": 4.194408005035501
     },
     "~:0:<method 'argmax' of 'numpy.ndarray' objects>": {
       "s3_rsid": 1,
@@ -4725,11 +6700,6 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "~:0:<method 'cache_clear' of 'functools._lru_cache_wrapper' objects>": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
     "~:0:<method 'clear' of 'dict' objects>": {
       "s3_rsid": 2,
       "s5_ema_trend": 2,
@@ -4740,39 +6710,44 @@
       "s5_ema_trend": 11,
       "ratio": 1.0
     },
+    "~:0:<method 'count' of 'str' objects>": {
+      "s3_rsid": 1064,
+      "s5_ema_trend": 156,
+      "ratio": 6.82051282051282
+    },
     "~:0:<method 'disable' of '_lsprof.Profiler' objects>": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "~:0:<method 'encode' of 'str' objects>": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
     "~:0:<method 'endswith' of 'str' objects>": {
-      "s3_rsid": 8,
-      "s5_ema_trend": 6,
-      "ratio": 1.3333333333333333
-    },
-    "~:0:<method 'extend' of 'collections.deque' objects>": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
+      "s3_rsid": 10,
+      "s5_ema_trend": 1,
+      "ratio": 10.0
     },
     "~:0:<method 'extend' of 'list' objects>": {
-      "s3_rsid": 4378,
-      "s5_ema_trend": 4370,
-      "ratio": 1.0018306636155607
+      "s3_rsid": 4386,
+      "s5_ema_trend": 4368,
+      "ratio": 1.004120879120879
     },
     "~:0:<method 'find' of 'str' objects>": {
-      "s3_rsid": 22,
-      "s5_ema_trend": 22,
+      "s3_rsid": 12,
+      "s5_ema_trend": 12,
       "ratio": 1.0
     },
     "~:0:<method 'flatten' of 'numpy.ndarray' objects>": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "~:0:<method 'flush' of '_io.TextIOWrapper' objects>": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
+      "ratio": 1.0
+    },
+    "~:0:<method 'flush' of '_io._IOBase' objects>": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
       "ratio": 1.0
     },
     "~:0:<method 'format' of 'str' objects>": {
@@ -4786,13 +6761,18 @@
       "ratio": 1.0
     },
     "~:0:<method 'get' of 'dict' objects>": {
-      "s3_rsid": 271275,
-      "s5_ema_trend": 39499,
-      "ratio": 6.867895389756702
+      "s3_rsid": 11381160,
+      "s5_ema_trend": 313657,
+      "ratio": 36.285369049630646
+    },
+    "~:0:<method 'getvalue' of '_io.StringIO' objects>": {
+      "s3_rsid": 574,
+      "s5_ema_trend": 81,
+      "ratio": 7.08641975308642
     },
     "~:0:<method 'group' of 're.Match' objects>": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
+      "s3_rsid": 3,
+      "s5_ema_trend": 3,
       "ratio": 1.0
     },
     "~:0:<method 'groups' of 're.Match' objects>": {
@@ -4800,15 +6780,10 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "~:0:<method 'hexdigest' of '_hashlib.HASH' objects>": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
     "~:0:<method 'insert' of 'list' objects>": {
-      "s3_rsid": 6,
-      "s5_ema_trend": 6,
-      "ratio": 1.0
+      "s3_rsid": 205,
+      "s5_ema_trend": 8,
+      "ratio": 25.625
     },
     "~:0:<method 'intersection' of 'frozenset' objects>": {
       "s3_rsid": 1,
@@ -4836,29 +6811,29 @@
       "ratio": 0.3333333333333333
     },
     "~:0:<method 'items' of 'dict' objects>": {
-      "s3_rsid": 26295,
-      "s5_ema_trend": 26236,
-      "ratio": 1.0022488184174416
+      "s3_rsid": 27362,
+      "s5_ema_trend": 26393,
+      "ratio": 1.0367142803015952
     },
     "~:0:<method 'join' of 'str' objects>": {
-      "s3_rsid": 148583,
-      "s5_ema_trend": 43813,
-      "ratio": 3.3912993860269784
+      "s3_rsid": 148641,
+      "s5_ema_trend": 43914,
+      "ratio": 3.384820330646263
     },
     "~:0:<method 'lower' of 'str' objects>": {
-      "s3_rsid": 135,
-      "s5_ema_trend": 149,
-      "ratio": 0.9060402684563759
+      "s3_rsid": 12,
+      "s5_ema_trend": 26,
+      "ratio": 0.46153846153846156
     },
     "~:0:<method 'lstrip' of 'str' objects>": {
-      "s3_rsid": 22,
-      "s5_ema_trend": 22,
-      "ratio": 1.0
+      "s3_rsid": 103,
+      "s5_ema_trend": 13,
+      "ratio": 7.923076923076923
     },
     "~:0:<method 'match' of 're.Pattern' objects>": {
-      "s3_rsid": 27,
-      "s5_ema_trend": 33,
-      "ratio": 0.8181818181818182
+      "s3_rsid": 146,
+      "s5_ema_trend": 38,
+      "ratio": 3.8421052631578947
     },
     "~:0:<method 'max' of 'numpy.ndarray' objects>": {
       "s3_rsid": 1,
@@ -4880,20 +6855,20 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
+    "~:0:<method 'pop' of 'collections.deque' objects>": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 2,
+      "ratio": 0.5
+    },
     "~:0:<method 'pop' of 'dict' objects>": {
-      "s3_rsid": 163,
-      "s5_ema_trend": 48,
-      "ratio": 3.3958333333333335
+      "s3_rsid": 169,
+      "s5_ema_trend": 47,
+      "ratio": 3.595744680851064
     },
     "~:0:<method 'pop' of 'list' objects>": {
-      "s3_rsid": 235878,
-      "s5_ema_trend": 26210,
-      "ratio": 8.999542159481114
-    },
-    "~:0:<method 'popleft' of 'collections.deque' objects>": {
-      "s3_rsid": 304,
-      "s5_ema_trend": 304,
-      "ratio": 1.0
+      "s3_rsid": 238788,
+      "s5_ema_trend": 26566,
+      "ratio": 8.98848151772943
     },
     "~:0:<method 'prod' of 'numpy.ndarray' objects>": {
       "s3_rsid": 6,
@@ -4905,45 +6880,35 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "~:0:<method 'read' of '_io.BufferedReader' objects>": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 1,
-      "ratio": 3.0
-    },
     "~:0:<method 'read' of '_io.StringIO' objects>": {
-      "s3_rsid": 10,
-      "s5_ema_trend": 24,
-      "ratio": 0.4166666666666667
-    },
-    "~:0:<method 'read' of '_io.TextIOWrapper' objects>": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "~:0:<method 'readlines' of '_io._IOBase' objects>": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
+      "s3_rsid": 7,
+      "s5_ema_trend": 21,
+      "ratio": 0.3333333333333333
     },
     "~:0:<method 'reduce' of 'numpy.ufunc' objects>": {
       "s3_rsid": 21,
       "s5_ema_trend": 26,
       "ratio": 0.8076923076923077
     },
+    "~:0:<method 'release' of '_thread.RLock' objects>": {
+      "s3_rsid": 9,
+      "s5_ema_trend": 8,
+      "ratio": 1.125
+    },
     "~:0:<method 'remove' of 'list' objects>": {
-      "s3_rsid": 8,
+      "s3_rsid": 9,
       "s5_ema_trend": 6,
-      "ratio": 1.3333333333333333
+      "ratio": 1.5
+    },
+    "~:0:<method 'remove' of 'set' objects>": {
+      "s3_rsid": 6612,
+      "s5_ema_trend": 11,
+      "ratio": 601.0909090909091
     },
     "~:0:<method 'repeat' of 'numpy.ndarray' objects>": {
       "s3_rsid": 1,
       "s5_ema_trend": 3,
       "ratio": 0.3333333333333333
-    },
-    "~:0:<method 'replace' of 'str' objects>": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
     },
     "~:0:<method 'reset' of '_contextvars.ContextVar' objects>": {
       "s3_rsid": 14,
@@ -4956,28 +6921,18 @@
       "ratio": 1.0
     },
     "~:0:<method 'rfind' of 'str' objects>": {
-      "s3_rsid": 5,
-      "s5_ema_trend": 1,
-      "ratio": 5.0
+      "s3_rsid": 1082,
+      "s5_ema_trend": 159,
+      "ratio": 6.80503144654088
     },
     "~:0:<method 'rpartition' of 'str' objects>": {
-      "s3_rsid": 13115,
+      "s3_rsid": 13122,
       "s5_ema_trend": 8736,
-      "ratio": 1.5012591575091576
-    },
-    "~:0:<method 'rstrip' of 'str' objects>": {
-      "s3_rsid": 52,
-      "s5_ema_trend": 22,
-      "ratio": 2.3636363636363638
+      "ratio": 1.5020604395604396
     },
     "~:0:<method 'search' of 're.Pattern' objects>": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "~:0:<method 'seek' of '_io.StringIO' objects>": {
-      "s3_rsid": 6,
-      "s5_ema_trend": 6,
+      "s3_rsid": 3,
+      "s5_ema_trend": 3,
       "ratio": 1.0
     },
     "~:0:<method 'set' of '_contextvars.ContextVar' objects>": {
@@ -4996,24 +6951,24 @@
       "ratio": 1.0
     },
     "~:0:<method 'split' of 'str' objects>": {
-      "s3_rsid": 4423,
-      "s5_ema_trend": 4434,
-      "ratio": 0.9975191700496165
+      "s3_rsid": 4408,
+      "s5_ema_trend": 4407,
+      "ratio": 1.0002269117313365
     },
     "~:0:<method 'startswith' of 'str' objects>": {
-      "s3_rsid": 716438,
-      "s5_ema_trend": 135559,
-      "ratio": 5.285064068044172
+      "s3_rsid": 716500,
+      "s5_ema_trend": 135544,
+      "ratio": 5.286106356607449
     },
     "~:0:<method 'strip' of 'str' objects>": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
       "ratio": 1.0
     },
     "~:0:<method 'sub' of 're.Pattern' objects>": {
-      "s3_rsid": 13,
-      "s5_ema_trend": 1,
-      "ratio": 13.0
+      "s3_rsid": 113,
+      "s5_ema_trend": 21,
+      "ratio": 5.380952380952381
     },
     "~:0:<method 'sum' of 'numpy.ndarray' objects>": {
       "s3_rsid": 1,
@@ -5025,20 +6980,10 @@
       "s5_ema_trend": 9,
       "ratio": 0.5555555555555556
     },
-    "~:0:<method 'truncate' of '_io.StringIO' objects>": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
-      "ratio": 1.0
-    },
-    "~:0:<method 'update' of 'dict' objects>": {
-      "s3_rsid": 2,
-      "s5_ema_trend": 2,
-      "ratio": 1.0
-    },
     "~:0:<method 'values' of 'dict' objects>": {
-      "s3_rsid": 17494,
-      "s5_ema_trend": 7,
-      "ratio": 2499.1428571428573
+      "s3_rsid": 19152,
+      "s5_ema_trend": 43,
+      "ratio": 445.3953488372093
     },
     "~:0:<method 'view' of 'numpy.generic' objects>": {
       "s3_rsid": 4374,
@@ -5051,8 +6996,13 @@
       "ratio": 0.48148148148148145
     },
     "~:0:<method 'write' of '_io.StringIO' objects>": {
-      "s3_rsid": 3,
-      "s5_ema_trend": 3,
+      "s3_rsid": 576,
+      "s5_ema_trend": 83,
+      "ratio": 6.9397590361445785
+    },
+    "~:0:<method 'write' of '_io.TextIOWrapper' objects>": {
+      "s3_rsid": 2,
+      "s5_ema_trend": 2,
       "ratio": 1.0
     }
   }

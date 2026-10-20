@@ -43,6 +43,14 @@ Pine v5 이하의 `and`/`or`는 모든 항을 평가하며 v6부터 단축 평�
 이 구분은 논리식 안의 `ta.*` 호출 이력에도 적용한다. 종료 거래의 손익은 Decimal 진입가·청산가·수량으로
 계산한다. float 공간에서 뺀 손익을 Decimal로 포장하지 않는다.
 
+비교 결과의 NA는 v5 이하에서 보존하고 v6에서는 false로 반환한다
+([bool 버전 경계](https://www.tradingview.com/pine-script-docs/migration-guides/to-pine-version-6/#boolean-values-cannot-be-na)).
+`crossover`·`crossunder`·`cross`도 현재 피연산자가 NA이면 같은 버전 계약을 따르지만,
+현재 값은 유효하고 이전 값만 없으면 교차를 확인할 수 없으므로 false다.
+v5 이하의 `and`·`or`는 NA를 false로 소비하여 bool을 반환하며, `not NA`는 true다.
+버전은 compiler annotation에서 읽은 `BarContext.pine_version`을 표준 함수 호출까지 전달한다.
+EMA의 초기값은 비NA 표본 length개의 SMA이며, bool 경계와 별개다.
+
 `timestamp`의 UTC 달력 인자는 음수 월·월말 초과 일자를 정규화한다
 ([공식 달력 계산 예시](https://www.tradingview.com/pine-script-docs/faq/times-dates-and-sessions/#how-can-i-plot-a-value-starting-n-months-or-years-back)).
 날짜 문자열·비UTC 시간대와 지원 달력 범위 밖 값은 추측해 계산하지 않고 명시 오류를 반환한다.
