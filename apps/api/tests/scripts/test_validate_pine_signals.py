@@ -157,6 +157,40 @@ def fake_oracle(name, frame, params):
 def offline(monkeypatch):
     monkeypatch.setattr(V, "execute_pine", fake_execute)
     monkeypatch.setattr(V, "compute_oracle", fake_oracle)
+    monkeypatch.setattr(V, "compare_app_backtest", lambda *args, **kwargs: {"status": "exact_match"})
+
+
+def test_app_backtest_mismatch_blocks_validation(tmp_path, offline, monkeypatch):
+    path = fixture_manifest(tmp_path)
+    monkeypatch.setattr(V, "compare_app_backtest", lambda *args, **kwargs: {"status": "mismatch"})
+    report = V.run_validation(path)
+    assert report["app_backtest_exact_pairs"] == 0
+    assert all(row["status"] == "app_mismatch" for row in report["results"])
+    assert all("app_mismatch" in row["failures"] for row in report["results"])
+
+
+def test_app_backtest_receives_whole_warmup_history(tmp_path, offline, monkeypatch):
+    path = fixture_manifest(tmp_path)
+    for timeframe, seconds in V.TIMEFRAMES.items():
+        filename = tmp_path / f"{timeframe}.csv"
+        frame = pd.read_csv(filename)
+        warmup = frame.iloc[[0]].copy()
+        warmup["time"] = (pd.Timestamp(frame.iloc[0]["time"]) - pd.Timedelta(seconds=seconds)).isoformat()
+        pd.concat([warmup, frame]).to_csv(filename, index=False)
+    observed = []
+
+    def compare(source, frame, inputs, timeframe, events, *, window_start, window_end):
+        assert "strategy(" in source
+        assert inputs == {}
+        assert frame.index[0] < window_start
+        assert events[0].bar_time == frame.index[0]
+        observed.append(timeframe)
+        return {"status": "exact_match"}
+
+    monkeypatch.setattr(V, "compare_app_backtest", compare)
+    report = V.run_validation(path)
+    assert observed == list(V.TIMEFRAMES)
+    assert report["app_backtest_exact_pairs"] == 3
 
 
 def test_ten_indicators_and_all_three_timeframes_are_required(tmp_path, offline):

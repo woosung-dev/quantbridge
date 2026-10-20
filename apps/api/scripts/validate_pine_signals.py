@@ -23,6 +23,11 @@ from scripts.pine_validation.compare import compare_events  # noqa: E402
 from scripts.pine_validation.futures import compare_futures, simulate_futures  # noqa: E402
 from scripts.pine_validation.models import SignalEvent, coerce_events, utc_time  # noqa: E402
 from scripts.pine_validation.oracles import compute_oracle  # noqa: E402
+from scripts.pine_validation.strategy_adapter import (  # noqa: E402
+    StrategyAdapterError,
+    adapt_strategy,
+    compare_app_backtest,
+)
 
 RUNS_DIR = _BACKEND_DIR.parents[1] / "runs"
 TIMEFRAMES = {"1h": 3600, "4h": 14400, "1d": 86400}
@@ -254,21 +259,20 @@ def validate_cell(
             ):
                 return {**row, "status": "unreviewed_degraded_branch"}
             row["unexecuted_degraded_calls"] = blocking_degraded
-        pine = _window_events(
-            bind_events(result.signal_trace, item["signal_bindings"], timeframe), frame, start, end
-        )
+        pine_full = bind_events(result.signal_trace, item["signal_bindings"], timeframe)
+        pine = _window_events(pine_full, frame, start, end)
     except Exception as exc:
         return {**row, "status": "pine_execution_failed", "detail": str(exc)}
     row["pine_events"] = [event.to_dict() for event in pine]
     oracle_name = item.get("oracle")
     python = None
+    python_full = None
     if not oracle_name:
         row["failures"].append("missing_python_adapter")
     else:
         try:
-            python = _window_events(
-                compute_oracle(oracle_name, frame, item.get("params", {})), frame, start, end
-            )
+            python_full = compute_oracle(oracle_name, frame, item.get("params", {}))
+            python = _window_events(python_full, frame, start, end)
             row["python_events"] = [event.to_dict() for event in python]
         except Exception as exc:
             row["failures"].append("python_adapter_failed")
@@ -340,6 +344,27 @@ def validate_cell(
         except ValueError as exc:
             row["failures"].append("futures_failed")
             row["futures_error"] = str(exc)
+    if python_full is not None:
+        try:
+            adaptation = adapt_strategy(source, item["signal_bindings"])
+            row["strategy_adaptation"] = adaptation.to_dict()
+            row["app_backtest"] = compare_app_backtest(
+                adaptation.strategy_source,
+                frame,
+                item.get("inputs", {}),
+                timeframe,
+                python_full,
+                window_start=start,
+                window_end=end,
+            )
+            if row["app_backtest"]["status"] != "exact_match":
+                row["failures"].append(f"app_{row['app_backtest']['status']}")
+        except StrategyAdapterError as exc:
+            row["failures"].append("strategy_adapter_failed")
+            row["app_backtest"] = {"status": exc.code, "detail": str(exc)}
+        except (ValueError, TypeError) as exc:
+            row["failures"].append("app_backtest_failed")
+            row["app_backtest"] = {"status": "app_backtest_failed", "detail": str(exc)}
     if not {"long", "short"} <= {event.direction for event in pine}:
         row["failures"].append("one_sided_signal" if pine else "no_signal")
     row["failures"] = list(dict.fromkeys(row["failures"]))
@@ -402,6 +427,15 @@ def run_validation(manifest_path: Path, *, limit: int = 10) -> dict[str, Any]:
         "expected_pairs": expected,
         "evaluated_pairs": len(rows),
         "exact_pairs": exact,
+        "pine_python_exact_pairs": sum(
+            row.get("pine_python", {}).get("status") == "exact_match" for row in rows
+        ),
+        "futures_exact_pairs": sum(
+            row.get("futures", {}).get("status") == "exact_match" for row in rows
+        ),
+        "app_backtest_exact_pairs": sum(
+            row.get("app_backtest", {}).get("status") == "exact_match" for row in rows
+        ),
         "indicators": selected,
         "results": rows,
     }
@@ -429,13 +463,19 @@ def main(argv: list[str] | None = None) -> int:
     if "results" in report:
         lines += [
             f"전체 {report['expected_pairs']}개 중 일치 {report['exact_pairs']}개",
+            f"Pine↔Python {report['pine_python_exact_pairs']}개 · "
+            f"선물 원장 {report['futures_exact_pairs']}개 · "
+            f"앱 백테스트 {report['app_backtest_exact_pairs']}개 일치",
             f"완료 조건 미충족: {', '.join(report['completion_failures']) or '없음'}",
             "",
-            "| 지표 | TF | 판정 |",
-            "| --- | --- | --- |",
+            "| 지표 | TF | Pine↔Python | 선물 원장 | 앱 백테스트 | 전체 판정 |",
+            "| --- | --- | --- | --- | --- | --- |",
         ]
         lines += [
-            f"| {row['indicator_id']} | {row['timeframe']} | {row['status']} |"
+            f"| {row['indicator_id']} | {row['timeframe']} | "
+            f"{row.get('pine_python', {}).get('status', '—')} | "
+            f"{row.get('futures', {}).get('status', '—')} | "
+            f"{row.get('app_backtest', {}).get('status', '—')} | {row['status']} |"
             for row in report["results"]
         ]
     else:

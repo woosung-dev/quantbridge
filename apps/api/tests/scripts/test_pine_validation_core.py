@@ -204,7 +204,9 @@ def test_pine_smoothing_seeds_and_na_are_independent_hand_oracles() -> None:
     np.testing.assert_allclose(
         rma(values, 3), [np.nan, np.nan, np.nan, np.nan, 2, 10 / 3], equal_nan=True
     )
-    np.testing.assert_allclose(ema(values[:5], 3), [np.nan, 1, 1.5, 1.5, 2.25], equal_nan=True)
+    np.testing.assert_allclose(
+        ema(values, 3), [np.nan, np.nan, np.nan, np.nan, 2, 4], equal_nan=True
+    )
     np.testing.assert_allclose(
         rsi([1, 2, 3, 2, 1], 2), [np.nan, np.nan, 100, 50, 25], equal_nan=True
     )
@@ -218,6 +220,17 @@ def test_crossing_requires_valid_previous_values_and_does_not_repeat_levels() ->
     with pytest.raises(ValueError, match="양의 정수"):
         rma([1, 2], 0)
     assert events_from_conditions(candles([1, 2]), [np.nan, True], [False, False]) == [event(1)]
+
+
+def test_ema_initialization_matches_native_v4_v5_control_series() -> None:
+    # 실제 TV native의 bar_index=0부터 10,20,30,40인 제어식 결과. 첫 src seed 예시와 다르다.
+    np.testing.assert_allclose(ema([10, 20, 30, 40], 3), [np.nan, np.nan, 20, 30], equal_nan=True)
+    # NA source는 누적 상태를 초기화하지 않는다. 다음 유효 표본50은 이전20에서35가 된다.
+    np.testing.assert_allclose(
+        ema([np.nan, 10, 20, 30, np.nan, 50], 3),
+        [np.nan, np.nan, np.nan, 20, 20, 35],
+        equal_nan=True,
+    )
 
 
 def test_supertrend_and_utbot_reversals_hand_oracle() -> None:
@@ -234,7 +247,6 @@ def test_supertrend_and_utbot_reversals_hand_oracle() -> None:
 def test_registry_emits_original_condition_bars_without_filling_orders() -> None:
     result = compute_oracle("ema_cross", candles([2, 1, 3, 1]), {"fast": 1, "slow": 2})
     assert [(row.bar_time, row.direction) for row in result] == [
-        (at(1), "short"),
         (at(2), "long"),
         (at(3), "short"),
     ]
@@ -245,7 +257,7 @@ def test_registry_emits_original_condition_bars_without_filling_orders() -> None
     offset = compute_oracle(
         "ema_cross", candles([2, 1, 3, 1]), {"fast": 1, "slow": 2, "marker_offsets": {"long": -2}}
     )
-    assert offset[1].display_time == at(0)
+    assert offset[0].display_time == at(0)
     with pytest.raises(ValueError, match="oracle이 없습니다"):
         compute_oracle("unreviewed", candles([1, 2]))
     data = candles([1, 2])

@@ -6465,82 +6465,82 @@
       "s5_ema_trend": 17472,
       "ratio": 4.13816391941392
     },
-    "src/strategy/pine_v2/strategy_state.py:1075:check_pending_fills": {
+    "src/strategy/pine_v2/strategy_state.py:1104:check_pending_fills": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/strategy_state.py:1185:check_liquidations": {
+    "src/strategy/pine_v2/strategy_state.py:1214:check_liquidations": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/strategy_state.py:1310:check_exit_fills": {
+    "src/strategy/pine_v2/strategy_state.py:1343:check_exit_fills": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/strategy_state.py:212:is_open": {
+    "src/strategy/pine_v2/strategy_state.py:215:is_open": {
       "s3_rsid": 65,
       "s5_ema_trend": 24,
       "ratio": 2.7083333333333335
     },
-    "src/strategy/pine_v2/strategy_state.py:502:configure_sizing": {
+    "src/strategy/pine_v2/strategy_state.py:505:configure_sizing": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/strategy_state.py:526:compute_qty": {
+    "src/strategy/pine_v2/strategy_state.py:529:compute_qty": {
       "s3_rsid": 65,
       "s5_ema_trend": 24,
       "ratio": 2.7083333333333335
     },
-    "src/strategy/pine_v2/strategy_state.py:556:_next_sequence_no": {
+    "src/strategy/pine_v2/strategy_state.py:557:_next_sequence_no": {
       "s3_rsid": 130,
       "s5_ema_trend": 47,
       "ratio": 2.765957446808511
     },
-    "src/strategy/pine_v2/strategy_state.py:558:<genexpr>": {
+    "src/strategy/pine_v2/strategy_state.py:559:<genexpr>": {
       "s3_rsid": 163,
       "s5_ema_trend": 47,
       "ratio": 3.4680851063829787
     },
-    "src/strategy/pine_v2/strategy_state.py:560:_record_event": {
+    "src/strategy/pine_v2/strategy_state.py:561:_record_event": {
       "s3_rsid": 130,
       "s5_ema_trend": 47,
       "ratio": 2.765957446808511
     },
-    "src/strategy/pine_v2/strategy_state.py:594:_leg_cost": {
+    "src/strategy/pine_v2/strategy_state.py:595:_leg_cost": {
       "s3_rsid": 130,
       "s5_ema_trend": 47,
       "ratio": 2.765957446808511
     },
-    "src/strategy/pine_v2/strategy_state.py:609:_can_afford_entry": {
+    "src/strategy/pine_v2/strategy_state.py:610:_can_afford_entry": {
       "s3_rsid": 65,
       "s5_ema_trend": 24,
       "ratio": 2.7083333333333335
     },
-    "src/strategy/pine_v2/strategy_state.py:655:_open_trade": {
+    "src/strategy/pine_v2/strategy_state.py:656:_open_trade": {
       "s3_rsid": 65,
       "s5_ema_trend": 24,
       "ratio": 2.7083333333333335
     },
-    "src/strategy/pine_v2/strategy_state.py:762:process_market_intents": {
+    "src/strategy/pine_v2/strategy_state.py:763:process_market_intents": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/strategy_state.py:807:_flip_opposite_positions": {
+    "src/strategy/pine_v2/strategy_state.py:836:_flip_opposite_positions": {
       "s3_rsid": 65,
       "s5_ema_trend": 24,
       "ratio": 2.7083333333333335
     },
-    "src/strategy/pine_v2/strategy_state.py:836:entry": {
+    "src/strategy/pine_v2/strategy_state.py:865:entry": {
       "s3_rsid": 65,
       "s5_ema_trend": 24,
       "ratio": 2.7083333333333335
     },
-    "src/strategy/pine_v2/strategy_state.py:954:close": {
+    "src/strategy/pine_v2/strategy_state.py:983:close": {
       "s3_rsid": 65,
       "s5_ema_trend": 23,
       "ratio": 2.8260869565217392

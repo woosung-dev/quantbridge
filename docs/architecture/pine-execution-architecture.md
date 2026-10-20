@@ -34,6 +34,9 @@ Track A의 `next_bar_open`은 실제 alert 호출값을 시장가 인텐트로 �
 명시 청산을 진입보다 먼저 처리하며, 같은 방향 추가 진입은 생략하고 동봉 양방향 진입은 거부한다.
 마지막 봉 인텐트는 미체결로 남는다. 기본 `bar_close`의 기존 edge-trigger 동작은 유지한다.
 앱의 `BacktestConfig.freq`도 Pine 봉 context로 전달한다.
+다음 봉 시장가 반전의 자본 비례 수량은 기존 포지션의 실현 후 gross 자본으로 계산한다. 증거금 사전 검사에서
+거부되면 기존 포지션을 보존한다. 봉 시가에 체결한 시장가 진입은 같은 봉의 고저가로 청산 여부를 검사하며,
+체결 전 고저가의 순서를 알 수 없는 종가·stop/limit 진입은 기존 진입 봉 청산 제외를 유지한다.
 
 Pine v5 이하의 `and`/`or`는 모든 항을 평가하며 v6부터 단축 평가한다
 ([공식 버전 이전 계약](https://www.tradingview.com/pine-script-docs/migration-guides/to-pine-version-6/#lazy-evaluation-of-conditions)).

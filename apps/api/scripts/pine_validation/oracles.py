@@ -43,15 +43,19 @@ def sma(source: Values, length: int) -> np.ndarray:
 
 
 def ema(source: Values, length: int) -> np.ndarray:
-    """첫 비NA 표본으로 seed한다. pandas의 기본 warmup을 사용하지 않는다."""
+    """TV v4/v5 native 제어식으로 확인한 비NA length개 SMA seed 후 EMA다."""
     length = _period(length)
     alpha, previous = 2.0 / (length + 1), np.nan
+    seed: list[float] = []
     output = np.full(len(source), np.nan)
     for index, value in enumerate(np.asarray(source, dtype=float)):
         if not np.isnan(value):
-            previous = (
-                float(value) if np.isnan(previous) else alpha * value + (1 - alpha) * previous
-            )
+            if np.isnan(previous):
+                seed.append(float(value))
+                if len(seed) == length:
+                    previous = sum(seed) / length
+            else:
+                previous = alpha * value + (1 - alpha) * previous
         output[index] = previous
     return output
 

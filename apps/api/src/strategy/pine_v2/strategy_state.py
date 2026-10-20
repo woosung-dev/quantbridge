@@ -208,6 +208,9 @@ class Trade:
     liq_price: float | None = None
     # BL-186a — 격리 증거금. 가용 증거금은 open trade 합계에서 파생한다.
     margin_used: float | None = None
+    # 다음 봉 시장가 큐에서 시가에 체결됐을 때만 True다. stop/limit·종가 진입은
+    # 해당 봉의 고저가가 체결 전인지 모르므로 기존 진입봉 청산 제외를 유지한다.
+    entry_at_bar_open: bool = False
 
     @property
     def is_open(self) -> bool:
@@ -523,7 +526,7 @@ class StrategyState:
         self.taker_cost_rate = float(taker_cost_rate)
         self.gate_equity = float(initial_capital)
 
-    def compute_qty(self, *, fill_price: float) -> float:
+    def compute_qty(self, *, fill_price: float, equity_override: float | None = None) -> float:
         """default_qty_type/value 기반 entry qty 계산.
 
         - configure_sizing 미호출 또는 default_qty_type=None → 1.0 (기존 qty=1 호환)
@@ -532,19 +535,17 @@ class StrategyState:
         - fixed → value (fill_price 무관)
         - fill_price <= 0 시 percent_of_equity / cash 는 0.0 (DivisionByZero 차단)
         - 미지원 default_qty_type 문자열 → 1.0 (silent drift 방지 + warning 미발행 unit-level)
+        - equity_override는 다음 봉 반전의 실현 후 gross 자본을 부작용 없이 적용한다.
         """
-        if (
-            self.default_qty_type is None
-            or self.default_qty_value is None
-            or self.running_equity is None
-        ):
+        equity = self.running_equity if equity_override is None else equity_override
+        if self.default_qty_type is None or self.default_qty_value is None or equity is None:
             return 1.0
         qt = self.default_qty_type
         qv = self.default_qty_value
         if qt == "strategy.percent_of_equity":
             if fill_price <= 0:
                 return 0.0
-            return self.running_equity * qv / 100.0 / fill_price
+            return equity * qv / 100.0 / fill_price
         if qt == "strategy.cash":
             if fill_price <= 0:
                 return 0.0
@@ -783,8 +784,34 @@ class StrategyState:
         self.pending_market_intents = []
         for intent in intents:
             if intent.kind == "entry":
-                qty = intent.qty if intent.qty is not None else self.compute_qty(fill_price=open_)
-                self.entry(
+                if intent.qty is not None:
+                    qty = intent.qty
+                else:
+                    equity = self.running_equity
+                    if (
+                        self.default_qty_type == "strategy.percent_of_equity"
+                        and self.default_qty_value is not None
+                        and equity is not None
+                    ):
+                        # entry()가 반전·동일 id 교체로 닫을 포지션의 손익을 먼저 반영한다.
+                        # 실제 청산은 entry의 증거금 사전 검사 뒤에 둬 거부 시 원장을 보존한다.
+                        equity += sum(
+                            (open_ - trade.entry_price)
+                            * trade.qty
+                            * (1.0 if trade.direction == "long" else -1.0)
+                            for tid, trade in self.open_trades.items()
+                            if trade.direction != intent.direction or tid == intent.trade_id
+                        )
+                        if equity <= 0:
+                            self.warnings.append(
+                                f"strategy.entry({intent.trade_id!r}): 반전 후 자본이 0 이하 → 진입 skip"
+                            )
+                            self._record_entry_skip(
+                                bar=bar, reason="non_positive_equity", trade_id=intent.trade_id
+                            )
+                            continue
+                    qty = self.compute_qty(fill_price=open_, equity_override=equity)
+                trade = self.entry(
                     intent.trade_id,
                     intent.direction,
                     qty=qty,
@@ -792,6 +819,8 @@ class StrategyState:
                     fill_price=open_,
                     comment=intent.comment,
                 )
+                if trade is not None:
+                    trade.entry_at_bar_open = True
             elif intent.kind == "close":
                 self.close(
                     intent.trade_id,
@@ -1197,7 +1226,11 @@ class StrategyState:
         liquidated: list[Trade] = []
         for trade_id, trade in list(self.open_trades.items()):
             liq_price = trade.liq_price
-            if liq_price is None or trade.entry_bar >= bar:
+            if (
+                liq_price is None
+                or trade.entry_bar > bar
+                or (trade.entry_bar == bar and not trade.entry_at_bar_open)
+            ):
                 continue
             if trade.direction == "long":
                 if low > liq_price:
