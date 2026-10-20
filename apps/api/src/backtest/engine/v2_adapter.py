@@ -194,7 +194,12 @@ def run_backtest_v2(
         # TV parity — intrabar equity 극값 근사 (별도 pass, close 커브 무변경).
         extremes = (
             _compute_equity_extremes(
-                trades, ohlcv, cfg, funding_rates=funding_rates, funding_costs=funding_costs
+                trades,
+                ohlcv,
+                cfg,
+                close_equity=equity,
+                funding_costs=funding_costs,
+                warnings=state.warnings,
             )
             if trades
             else None
@@ -608,68 +613,79 @@ def _compute_equity_extremes(
     trades: list[RawTrade],
     ohlcv: pd.DataFrame,
     cfg: BacktestConfig,
-    funding_rates: pd.Series | None = None,
+    *,
+    close_equity: pd.Series,
     funding_costs: list[Decimal] | None = None,
+    warnings: list[str] | None = None,
 ) -> tuple[list[Decimal], list[Decimal]]:
-    """bar-by-bar intrabar equity 극값 근사 (equity_high, equity_low).
+    """확실한 시가·종가 equity와 전체 보유 봉의 고저가로 계산하는 근사.
 
-    `_compute_equity_curve` 와 동일 구조(실현 누적 + funding + MTM - entry 비용)
-    를 미러하되, 활성 포지션 MTM 가격만 favorable/adverse (long=high/low,
-    short=low/high) 로 치환. 복수 포지션의 동일 bar 극값 동시성은 미보장
-    (낙관 근사 — ExcursionStats docstring "TV 근사"). close 커브는 무변경
-    (별도 pass — golden equity byte-parity 리스크 0).
+    미상 체결이 노출을 바꾼 봉은 wick을 합성하지 않는다. 고저가의 실제 발생
+    순서는 복원하지 않으며, 펀딩은 기존처럼 봉 총액을 모든 후보에 선차감한다.
+    따라서 정산과 고저가의 선후관계까지 재현한 equity 경로는 아니다.
     """
     n = len(ohlcv)
-    init_cash = cfg.init_cash
     taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
-
-    funding_by_bar = funding_costs
-    if funding_by_bar is None and funding_rates is not None:
-        funding_by_bar = _funding_cost_by_bar(trades, ohlcv, funding_rates, freq=cfg.freq)[0]
+    positions = []
     exits_by_bar: dict[int, list[RawTrade]] = {}
+    uncertain_bars: set[int] = set()
     for t in trades:
+        period = HoldingPeriod(t.entry_bar_index, t.exit_bar_index, t.entry_phase, t.exit_phase)
+        entry_fee, entry_slip = _leg_cost(
+            t.entry_price * t.size,
+            fill_type="taker",
+            taker_fee=taker_fee,
+            slippage=slip_rate,
+        )
+        signed_qty = t.size if t.direction == "long" else -t.size
+        positions.append((t, period.full_bars(n - 1), signed_qty, entry_fee + entry_slip))
+        if t.entry_phase == "intrabar_unknown":
+            uncertain_bars.add(t.entry_bar_index)
         if t.exit_bar_index is not None:
             exits_by_bar.setdefault(t.exit_bar_index, []).append(t)
+            if t.exit_phase == "intrabar_unknown":
+                uncertain_bars.add(t.exit_bar_index)
+    if uncertain_bars and warnings is not None:
+        warnings.append(
+            "봉 내부 체결 시각을 알 수 없는 봉은 확실한 가격점만 반영해 "
+            "봉내 상승·하락 근사를 계산했습니다."
+        )
 
     highs_out: list[Decimal] = []
     lows_out: list[Decimal] = []
     realized_cum = Decimal("0")
     funding_cum = Decimal("0")
     for bar_idx in range(n):
-        for t in exits_by_bar.get(bar_idx, []):
-            realized_cum += t.pnl
-        if funding_by_bar is not None:
-            funding_cum += funding_by_bar[bar_idx]
+        if funding_costs is not None:
+            funding_cum += funding_costs[bar_idx]
+        base = cfg.init_cash + realized_cum - funding_cum
+        open_px = Decimal(str(ohlcv["open"].iloc[bar_idx]))
         high_px = Decimal(str(ohlcv["high"].iloc[bar_idx]))
         low_px = Decimal(str(ohlcv["low"].iloc[bar_idx]))
-
-        unrealized_high = Decimal("0")
-        unrealized_low = Decimal("0")
-        for t in trades:
-            if t.entry_bar_index > bar_idx:
-                continue
-            if (
-                t.status == "closed"
-                and t.exit_bar_index is not None
-                and t.exit_bar_index <= bar_idx
+        # 시가 주문을 처리하기 전의 기존 보유 평가: 갭과 청산 직전 비용을 보존한다.
+        before_open = base
+        open_exits = sum(
+            (t.pnl for t in exits_by_bar.get(bar_idx, []) if t.exit_phase == "bar_open"),
+            start=Decimal("0"),
+        )
+        at_high = at_low = base + open_exits
+        for t, full_bars, signed_qty, entry_cost in positions:
+            if t.entry_bar_index < bar_idx and (
+                t.exit_bar_index is None or t.exit_bar_index >= bar_idx
             ):
-                continue
-            direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
-            fav_px = high_px if t.direction == "long" else low_px
-            adv_px = low_px if t.direction == "long" else high_px
-            entry_fee, entry_slip = _leg_cost(
-                t.entry_price * t.size,
-                fill_type="taker",
-                taker_fee=taker_fee,
-                slippage=slip_rate,
-            )
-            entry_cost = entry_fee + entry_slip
-            unrealized_high += (fav_px - t.entry_price) * t.size * direction_sign - entry_cost
-            unrealized_low += (adv_px - t.entry_price) * t.size * direction_sign - entry_cost
-        base = init_cash + realized_cum - funding_cum
-        highs_out.append(base + unrealized_high)
-        lows_out.append(base + unrealized_low)
+                before_open += (open_px - t.entry_price) * signed_qty - entry_cost
+            if bar_idx in full_bars:
+                # 같은 가격에서 평가한다. 서로 다른 포지션의 유리한 극값을 더하지 않는다.
+                at_high += (high_px - t.entry_price) * signed_qty - entry_cost
+                at_low += (low_px - t.entry_price) * signed_qty - entry_cost
+        candidates = [before_open, close_equity.iloc[bar_idx]]
+        if bar_idx not in uncertain_bars:
+            candidates.extend((at_high, at_low))
+        highs_out.append(max(candidates))
+        lows_out.append(min(candidates))
+        # 종가/미상 청산의 실현손익은 현재 봉 wick에 소급하지 않는다.
+        realized_cum += sum((t.pnl for t in exits_by_bar.get(bar_idx, [])), start=Decimal("0"))
     return highs_out, lows_out
 
 

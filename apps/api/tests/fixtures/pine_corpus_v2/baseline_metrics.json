@@ -74,8 +74,8 @@
         "excursion_stats.max_drawdown_abs": "20729.18608280",
         "excursion_stats.max_drawdown_recovery_bars": null,
         "excursion_stats.max_drawdown_recovery_days": null,
-        "excursion_stats.max_runup_intrabar_abs": "19267.89479680",
-        "excursion_stats.max_runup_intrabar_pct": "13.91347472",
+        "excursion_stats.max_runup_intrabar_abs": "18826.29479680",
+        "excursion_stats.max_runup_intrabar_pct": "10.30766166",
         "excursion_stats.max_drawdown_intrabar_abs": "22484.65219720",
         "excursion_stats.max_drawdown_intrabar_pct": "1.08870112",
         "sharpe_convention": "unavailable_nonpositive_equity",
@@ -90,7 +90,7 @@
       "var_series_digest": "sha256:868bb760d0cacb4cf9ce9073c7bf7d140b06b907573e8c0d2526242c75e8e6f7",
       "trades_digest": "sha256:0a2fabd884e3e95047ebba3e68dc2587c46c5a762cec2627fcd7681fb4a4e226",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-10-20T16:47:16Z"
+      "updated_at": "2026-10-20T17:27:18Z"
     },
     "s2_utbot": {
       "metrics": {
@@ -158,10 +158,10 @@
         "excursion_stats.max_drawdown_abs": "38035.44479000",
         "excursion_stats.max_drawdown_recovery_bars": null,
         "excursion_stats.max_drawdown_recovery_days": null,
-        "excursion_stats.max_runup_intrabar_abs": "15719.07530000",
-        "excursion_stats.max_runup_intrabar_pct": "15.46239398",
-        "excursion_stats.max_drawdown_intrabar_abs": "39059.79157600",
-        "excursion_stats.max_drawdown_intrabar_pct": "2.33392379",
+        "excursion_stats.max_runup_intrabar_abs": "15680.47922600",
+        "excursion_stats.max_runup_intrabar_pct": "14.86024659",
+        "excursion_stats.max_drawdown_intrabar_abs": "38716.39157600",
+        "excursion_stats.max_drawdown_intrabar_pct": "2.31340475",
         "sharpe_convention": "unavailable_nonpositive_equity",
         "liquidation_occurred": null,
         "liquidation_count": null
@@ -174,7 +174,7 @@
       "var_series_digest": "sha256:092002513c6d641ed29c22e3b8f5d7aa8f5c904e7aba006469ecf89b3c098ec3",
       "trades_digest": "sha256:e6cba82861b291b424c471965790c1f72af32240eee0b69cc8bf0dd8fa9a2dee",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-10-20T16:47:25Z"
+      "updated_at": "2026-10-20T17:27:29Z"
     },
     "s3_rsid": {
       "metrics": {
@@ -326,10 +326,10 @@
         "excursion_stats.max_drawdown_abs": "38035.44479000",
         "excursion_stats.max_drawdown_recovery_bars": null,
         "excursion_stats.max_drawdown_recovery_days": null,
-        "excursion_stats.max_runup_intrabar_abs": "15719.07530000",
-        "excursion_stats.max_runup_intrabar_pct": "15.46239398",
-        "excursion_stats.max_drawdown_intrabar_abs": "39059.79157600",
-        "excursion_stats.max_drawdown_intrabar_pct": "2.33392379",
+        "excursion_stats.max_runup_intrabar_abs": "15680.47922600",
+        "excursion_stats.max_runup_intrabar_pct": "14.86024659",
+        "excursion_stats.max_drawdown_intrabar_abs": "38716.39157600",
+        "excursion_stats.max_drawdown_intrabar_pct": "2.31340475",
         "sharpe_convention": "unavailable_nonpositive_equity",
         "liquidation_occurred": null,
         "liquidation_count": null
@@ -342,7 +342,7 @@
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:e6cba82861b291b424c471965790c1f72af32240eee0b69cc8bf0dd8fa9a2dee",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-10-20T16:47:45Z"
+      "updated_at": "2026-10-20T17:27:38Z"
     },
     "i2_luxalgo": {
       "metrics": {
@@ -502,10 +502,10 @@
         "excursion_stats.max_drawdown_abs": "6737.22679529",
         "excursion_stats.max_drawdown_recovery_bars": null,
         "excursion_stats.max_drawdown_recovery_days": null,
-        "excursion_stats.max_runup_intrabar_abs": "346.48300324",
-        "excursion_stats.max_runup_intrabar_pct": "0.03565391",
-        "excursion_stats.max_drawdown_intrabar_abs": "6805.12256047",
-        "excursion_stats.max_drawdown_intrabar_pct": "0.67615533",
+        "excursion_stats.max_runup_intrabar_abs": "99.78838298",
+        "excursion_stats.max_runup_intrabar_pct": "0.01128764",
+        "excursion_stats.max_drawdown_intrabar_abs": "6745.64051254",
+        "excursion_stats.max_drawdown_intrabar_pct": "0.67369566",
         "sharpe_convention": "tv_monthly_rfr2",
         "liquidation_occurred": null,
         "liquidation_count": null
@@ -518,7 +518,7 @@
       "var_series_digest": "sha256:fe75653c6f4b87338ba434a30e480455be5b0eac18d40a482c79b35bb29501bb",
       "trades_digest": "sha256:ce065199ad2d8b2c1e92040b95495ffc5070dc61029e8a31d138179cdb92cce3",
       "warnings_digest": "sha256:9ba2cdb07efc5e38d0934242497ca965a5c3afd0cbb599d9546e3ab51035b9b1",
-      "updated_at": "2026-10-20T16:47:50Z"
+      "updated_at": "2026-10-20T17:27:44Z"
     },
     "s5_ema_trend": {
       "metrics": {

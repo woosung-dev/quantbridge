@@ -138,11 +138,14 @@ describe("AssumptionsCard — C14 정직성 (총비용 + 가설적 고지 + 체�
     expect(screen.getByTestId("backtest-honesty-note")).toHaveTextContent("시장가는 신호 봉 종가");
   });
 
-  it("총 펀딩 tooltip 은 고정 8시간 주기를 주장하지 않고 지급·수취를 구분한다", () => {
+  it("총 펀딩 tooltip 은 관측 정산 근사와 완전성 한계를 밝히고 지급·수취를 구분한다", () => {
     render(<AssumptionsCard initialCapital={10000} totalFunding={-5.6} />);
     const title = screen.getByText("총 펀딩").parentElement?.title;
-    expect(title).toContain("종목별 실제 정산 시각");
+    expect(title).toContain("관측 정산 시각");
+    expect(title).toContain("근사한 펀딩 순액");
+    expect(title).toContain("양수 = 지급");
     expect(title).toContain("음수 = 수취");
+    expect(title).toContain("데이터 완전성은 별도 확인");
     expect(title).not.toContain("8시간");
   });
 

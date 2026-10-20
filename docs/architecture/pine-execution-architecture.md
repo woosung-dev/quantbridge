@@ -53,17 +53,24 @@ Pine v5 이하의 `and`/`or`는 모든 항을 평가하며 v6부터 단축 평�
 시가 시장가 체결과 봉 내부의 조건부 체결을 같은 시각으로 간주하지 않는다. 이 위상은 내부 `RawTrade`까지
 보존하며 공개 거래 응답이나 DB 컬럼을 늘리지 않는다.
 
-`backtest/engine/holding_period.py`의 순수 `HoldingPeriod`가 거래별 MFE/MAE와 펀딩 보유 여부를 함께 판정한다.
+`backtest/engine/holding_period.py`의 순수 `HoldingPeriod`가 거래별 MFE/MAE, equity 극값 근사와 펀딩 보유 여부를 함께 판정한다.
 시가 진입봉은 보유하고 시가 청산봉의 이후 wick은 제외한다. 종가 진입봉의 이전 wick도 제외한다.
 MFE/MAE는 확실히 전부 보유한 봉과 실제 진입·청산 가격으로 계산한다. 조건부 체결봉의 고저가 순서를
-알 수 없으면 해당 wick을 보유 성과로 만들지 않는다. 별도 intrabar equity 극값 근사의 모든 경우까지
-검증했다는 의미는 아니다.
+알 수 없으면 해당 wick을 보유 성과로 만들지 않는다.
+
+별도 equity 극값 근사는 주문 전 시가, 확실히 전부 보유한 봉의 공통 high/low 가격점,
+실제 종가 equity를 후보로 사용한다. 종가 진입 이전 wick은 제외하고 종가 청산 이전 wick은 포함한다.
+봉 내부 체결로 노출이 변한 봉은 전체 포지션의 wick 조합을 제외하고 확인된 가격점만 사용하며 경고한다.
+실제 종가 equity를 재사용하므로 이 근사로 종가 곡선·헤드라인 MDD를 다시 계산하지 않는다.
+같은 봉의 high/low 선후는 알 수 없으므로 상승·하락 통계는 양방향 범위 근사다. 펀딩 봉 총액도 후보에
+선차감하는 기존 근사를 유지한다. 정산과 wick의 실제 선후나 TradingView의 봉 내부 경로를 재현한 값은 아니다.
 
 ```mermaid
 flowchart LR
     T[Trade 체결 위상] --> R[RawTrade 내부 메타데이터]
     R --> H[HoldingPeriod]
     H --> E[거래별 MFE · MAE]
+    H --> I[equity 극값의 전체 보유 봉]
     H --> F[관측 정산의 펀딩 보유 판정]
     F --> C[같은 비용 배열을 equity · metrics에 공유]
 ```
