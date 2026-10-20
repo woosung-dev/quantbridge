@@ -170,10 +170,8 @@ caption = {name}(close, request.security(syminfo.tickerid, "60", "#.##"))
     assert result.final_state["caption"] == "2.0"
 
 
-@pytest.mark.parametrize("capture,expected", [(True, [2, 4]), (False, [1, 2])])
-def test_string_value_and_format_are_evaluated_once_with_legacy_capture_off_behavior(
-    capture: bool, expected: list[int]
-) -> None:
+@pytest.mark.parametrize("capture", [True, False])
+def test_string_value_and_format_are_evaluated_once_independently_of_capture(capture: bool) -> None:
     source = '''//@version=5
 indicator("t")
 var counts = array.new_int(1, 0)
@@ -184,5 +182,5 @@ caption = str.tostring(bump(close), bump("#.##"))
 calls = array.get(counts, 0)
 '''
     result = run_historical(source, _ohlcv(), capture_signals=capture)
-    assert result.var_series["calls"] == expected
+    assert result.var_series["calls"] == [2, 4]
     assert result.final_state["caption"] == "2.0"

@@ -87,6 +87,16 @@ def test_unknown_display_constants_remain_unsupported(constant):
     assert analyze_coverage(source).unsupported_attributes == (constant,)
 
 
+@pytest.mark.parametrize("capture", [False, True])
+def test_hline_dotted_arguments_are_evaluated_with_or_without_capture(capture):
+    source = '//@version=4\nstudy("hline")\nhline(50, linestyle=hline.style_dotted)\n'
+    assert analyze_coverage(source).is_runnable
+    assert run_historical(source, _candles(), capture_signals=capture).bars_processed == 4
+    unknown = '//@version=4\nstudy("hline")\nx = hline.style_unknown\n'
+    with pytest.raises(PineRuntimeError, match=r"Attribute access not supported: hline\.style_unknown"):
+        run_historical(unknown, _candles(), capture_signals=capture)
+
+
 def test_bare_stdev_reuses_population_standard_deviation():
     source = '//@version=4\nstudy("stdev")\nx = stdev(close, 2)\n'
     assert analyze_coverage(source).is_runnable

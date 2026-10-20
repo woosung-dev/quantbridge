@@ -38,6 +38,25 @@ def test_timestamp_uses_actual_utc_calendar(expression: str, expected: int) -> N
     assert _run(expression) == expected
 
 
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("timestamp(2026, -2, 1, 0, 0)", datetime(2025, 10, 1, tzinfo=UTC)),
+        ("timestamp(2026, 0, 1)", datetime(2025, 12, 1, tzinfo=UTC)),
+        ("timestamp(2026, 13, 1)", datetime(2027, 1, 1, tzinfo=UTC)),
+        ("timestamp(2026, 1, 0)", datetime(2025, 12, 31, tzinfo=UTC)),
+        ("timestamp(2026, 1, 32)", datetime(2026, 2, 1, tzinfo=UTC)),
+        ("timestamp(2025, 2, 29)", datetime(2025, 3, 1, tzinfo=UTC)),
+        ("timestamp(2024, 2, 30)", datetime(2024, 3, 1, tzinfo=UTC)),
+        ("timestamp(2026, 1, 1, -1, 60, 60)", datetime(2026, 1, 1, 0, 1, tzinfo=UTC)),
+        ('timestamp("UTC", 2026, -2, 32)', datetime(2025, 11, 1, tzinfo=UTC)),
+        ("timestamp(year=2026, month=-2, day=1)", datetime(2025, 10, 1, tzinfo=UTC)),
+    ],
+)
+def test_timestamp_normalizes_calendar_overflow(expression: str, expected: datetime) -> None:
+    assert _run(expression) == int(expected.timestamp() * 1000)
+
+
 def test_date_filter_changes_only_at_requested_start_on_dated_bars() -> None:
     frame = pd.DataFrame(
         {
@@ -73,10 +92,12 @@ def test_non_finite_timestamp_input_is_na(expression: str) -> None:
     [
         'timestamp("10 Jan 2026")',
         'timestamp("America/New_York", 2026, 1, 10)',
-        "timestamp(2025, 2, 29)",
+        "timestamp(10000, 1, 1)",
+        "timestamp(9999, 12, 32)",
+        "timestamp(2026, 1, 1000000000000000000)",
         "timestamp(2026, 1)",
     ],
 )
-def test_unsupported_timestamp_overloads_and_invalid_dates_fail_closed(expression: str) -> None:
+def test_unsupported_timestamp_overloads_and_calendar_range_fail_closed(expression: str) -> None:
     with pytest.raises(PineRuntimeError, match="timestamp:"):
         _run(expression)

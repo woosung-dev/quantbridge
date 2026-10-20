@@ -135,6 +135,7 @@ _DISPLAY_CONSTANTS: frozenset[str] = frozenset(
         "plot.style_linebr",
         "plot.style_circles",
         "plot.style_cross",
+        "hline.style_dotted",
     }
 )
 

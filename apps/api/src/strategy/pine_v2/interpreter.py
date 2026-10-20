@@ -33,7 +33,7 @@ import re
 from collections import deque
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import pandas as pd
@@ -100,6 +100,7 @@ _ATTR_CONSTANTS: dict[str, str] = {
     "plot.style_linebr": "linebr",
     "plot.style_circles": "circles",
     "plot.style_cross": "cross",
+    "hline.style_dotted": "dotted",
     "strategy.long": "long",
     "strategy.short": "short",
     # Sprint 37 BL-185: Pine strategy(default_qty_type=...) 3종 — interpreter 가
@@ -1117,15 +1118,11 @@ class Interpreter:
         if name in ("tostring", "str.tostring"):
             if not node.args:
                 return ""
-            if self.capture_signals:
-                # format을 표시에서 무시하더라도 그 인자 내부의 실제 호출은 관측해야 한다.
-                values = [
-                    self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
-                    for a in node.args
-                ]
-                val = values[0]
-            else:
-                val = _first_arg()
+            # 표시 format을 무시해도 모든 인자는 원본 순서로 한 번씩 평가한다.
+            values = [
+                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
+            ]
+            val = values[0]
             if isinstance(val, float) and math.isnan(val):
                 return "NaN"
             return str(val)
@@ -1291,9 +1288,8 @@ class Interpreter:
                 if pos_args:
                     return pos_args[0]
                 return None
-            if self.capture_signals:
-                # NOP를 분기 미실행으로 오인하지 않도록 검증 모드에서는 인자도 평가한다.
-                self._collect_args(node)
+            # 렌더링을 생략해도 인자의 상태 변경은 실행 의미의 일부다.
+            self._collect_args(node)
             return None
 
         # NOTE (Sprint 21 P1 #1 + #4): user-defined function dispatch 는 _eval_call
@@ -1328,9 +1324,13 @@ class Interpreter:
             return float("nan")
         year, month, day, hour, minute, second = parts
         try:
-            stamp = datetime(year, month, day, hour, minute, second, tzinfo=UTC)
-        except ValueError as exc:
-            raise PineRuntimeError("timestamp: 유효하지 않은 UTC 날짜입니다") from exc
+            # Pine은 음수 월·월말 초과 일자도 달력 경계를 넘어 정규화한다.
+            year, month_index = divmod(year * 12 + month - 1, 12)
+            stamp = datetime(year, month_index + 1, 1, tzinfo=UTC) + timedelta(
+                days=day - 1, hours=hour, minutes=minute, seconds=second
+            )
+        except (ValueError, OverflowError) as exc:
+            raise PineRuntimeError("timestamp: 지원하는 UTC 달력 범위를 벗어났습니다") from exc
         delta = stamp - datetime(1970, 1, 1, tzinfo=UTC)
         return delta.days * 86_400_000 + delta.seconds * 1000
 

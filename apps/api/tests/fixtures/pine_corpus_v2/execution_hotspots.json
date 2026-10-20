@@ -202,7 +202,7 @@
       {
         "function": "current",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 225,
+        "line": 226,
         "call_count": 87407,
         "cumulative_seconds": 1.857612169,
         "tottime_seconds": 0.071366565
@@ -218,7 +218,7 @@
       {
         "function": "execute",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 423,
+        "line": 424,
         "call_count": 4368,
         "cumulative_seconds": 1.5299222840000002,
         "tottime_seconds": 0.008203923
@@ -226,7 +226,7 @@
       {
         "function": "_exec_stmt",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 430,
+        "line": 431,
         "call_count": 48048,
         "cumulative_seconds": 1.5211969220000001,
         "tottime_seconds": 0.025409504000000003
@@ -242,7 +242,7 @@
       {
         "function": "_exec_assign",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 466,
+        "line": 467,
         "call_count": 26208,
         "cumulative_seconds": 1.4155671250000001,
         "tottime_seconds": 0.049349016
@@ -250,7 +250,7 @@
       {
         "function": "_eval_expr",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 771,
+        "line": 772,
         "call_count": 48095,
         "cumulative_seconds": 1.2967385020000002,
         "tottime_seconds": 0.064857816
@@ -258,7 +258,7 @@
       {
         "function": "_eval_call",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 1022,
+        "line": 1023,
         "call_count": 39359,
         "cumulative_seconds": 1.2163681370000001,
         "tottime_seconds": 0.078079151
@@ -6280,7 +6280,7 @@
       "s5_ema_trend": 48,
       "ratio": 2.7083333333333335
     },
-    "src/strategy/pine_v2/interpreter.py:220:advance": {
+    "src/strategy/pine_v2/interpreter.py:221:advance": {
       "s3_rsid": 4369,
       "s5_ema_trend": 4369,
       "ratio": 1.0
@@ -6295,7 +6295,7 @@
       "s5_ema_trend": 8736,
       "ratio": 16.868818681318682
     },
-    "src/strategy/pine_v2/interpreter.py:225:current": {
+    "src/strategy/pine_v2/interpreter.py:226:current": {
       "s3_rsid": 216952,
       "s5_ema_trend": 87407,
       "ratio": 2.482089535163088
@@ -6315,67 +6315,67 @@
       "s5_ema_trend": 39359,
       "ratio": 6.44843618994385
     },
-    "src/strategy/pine_v2/interpreter.py:237:current_timestamp": {
+    "src/strategy/pine_v2/interpreter.py:238:current_timestamp": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:349:__init__": {
+    "src/strategy/pine_v2/interpreter.py:350:__init__": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:391:reset_transient": {
+    "src/strategy/pine_v2/interpreter.py:392:reset_transient": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:394:begin_bar_snapshot": {
+    "src/strategy/pine_v2/interpreter.py:395:begin_bar_snapshot": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:403:append_var_series": {
+    "src/strategy/pine_v2/interpreter.py:404:append_var_series": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:423:execute": {
+    "src/strategy/pine_v2/interpreter.py:424:execute": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:430:_exec_stmt": {
+    "src/strategy/pine_v2/interpreter.py:431:_exec_stmt": {
       "s3_rsid": 257712,
       "s5_ema_trend": 48048,
       "ratio": 5.363636363636363
     },
-    "src/strategy/pine_v2/interpreter.py:466:_exec_assign": {
+    "src/strategy/pine_v2/interpreter.py:467:_exec_assign": {
       "s3_rsid": 183456,
       "s5_ema_trend": 26208,
       "ratio": 7.0
     },
-    "src/strategy/pine_v2/interpreter.py:500:<genexpr>": {
+    "src/strategy/pine_v2/interpreter.py:501:<genexpr>": {
       "s3_rsid": 384292,
       "s5_ema_trend": 52416,
       "ratio": 7.3315781440781445
     },
-    "src/strategy/pine_v2/interpreter.py:771:_eval_expr": {
+    "src/strategy/pine_v2/interpreter.py:772:_eval_expr": {
       "s3_rsid": 253344,
       "s5_ema_trend": 48095,
       "ratio": 5.267574591953426
     },
-    "src/strategy/pine_v2/interpreter.py:976:_resolve_name_if_declared": {
+    "src/strategy/pine_v2/interpreter.py:977:_resolve_name_if_declared": {
       "s3_rsid": 13104,
       "s5_ema_trend": 8736,
       "ratio": 1.5
     },
-    "src/strategy/pine_v2/interpreter.py:983:_collect_args": {
+    "src/strategy/pine_v2/interpreter.py:984:_collect_args": {
       "s3_rsid": 65520,
       "s5_ema_trend": 8736,
       "ratio": 7.5
     },
-    "src/strategy/pine_v2/interpreter.py:1022:_eval_call": {
+    "src/strategy/pine_v2/interpreter.py:1023:_eval_call": {
       "s3_rsid": 216446,
       "s5_ema_trend": 39359,
       "ratio": 5.499275896237201

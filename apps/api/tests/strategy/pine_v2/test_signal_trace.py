@@ -9,6 +9,7 @@ import pytest
 
 from src.strategy.pine_v2.compat import parse_and_run_v2
 from src.strategy.pine_v2.event_loop import run_historical
+from src.strategy.pine_v2.interpreter import PineRuntimeError
 
 
 def _ohlcv(closes: list[float], *, dated: bool = True) -> pd.DataFrame:
@@ -26,9 +27,45 @@ def _ohlcv(closes: list[float], *, dated: bool = True) -> pd.DataFrame:
     return frame
 
 
-def test_trace_is_opt_in_and_keeps_legacy_nop_behavior() -> None:
-    source = '//@version=5\nindicator("t")\nplotshape(undefined_name)\n'
+def test_trace_is_opt_in() -> None:
+    source = '//@version=5\nindicator("t")\nplotshape(true)\n'
     assert run_historical(source, _ohlcv([10.0])).signal_trace == []
+
+
+@pytest.mark.parametrize("capture", [False, True])
+def test_rendering_arguments_are_evaluated_without_requiring_trace(capture: bool) -> None:
+    source = '//@version=5\nindicator("t")\nplotshape(undefined_name)\n'
+    with pytest.raises(PineRuntimeError, match="Undefined name: undefined_name"):
+        run_historical(source, _ohlcv([10.0]), capture_signals=capture)
+
+
+@pytest.mark.parametrize("capture", [False, True])
+@pytest.mark.parametrize(
+    "rendering_call",
+    ["plot(bump(close))", "plotshape(bump(close) > 0)", "caption = str.tostring(bump(close))"],
+)
+def test_trace_preserves_rendering_argument_side_effects_and_strategy_orders(
+    capture: bool, rendering_call: str
+) -> None:
+    # 배열을 변경하는 호출도 원본의 실행 의미다. 관측 여부로 주문이 달라지면 안 된다.
+    source = f"""//@version=5
+strategy("t")
+var counts = array.new_int(1, 0)
+bump(value) =>
+    array.set(counts, 0, array.get(counts, 0) + 1)
+    value
+{rendering_call}
+if array.get(counts, 0) == 1
+    strategy.entry("L", strategy.long, qty=1)
+observed = array.get(counts, 0)
+"""
+    result = run_historical(source, _ohlcv([10.0, 11.0]), capture_signals=capture)
+    assert result.var_series["observed"] == [1, 2]
+    assert result.strategy_state.position_size == 1
+    assert result.strategy_state.open_trades["L"].entry_bar == 0
+    assert len(result.signal_trace) == (
+        2 if capture and rendering_call.startswith("plotshape") else 0
+    )
 
 
 def test_trace_uses_actual_scope_call_order_and_values_before_reassignment() -> None:

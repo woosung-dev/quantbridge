@@ -43,6 +43,10 @@ Pine v5 이하의 `and`/`or`는 모든 항을 평가하며 v6부터 단축 평�
 이 구분은 논리식 안의 `ta.*` 호출 이력에도 적용한다. 종료 거래의 손익은 Decimal 진입가·청산가·수량으로
 계산한다. float 공간에서 뺀 손익을 Decimal로 포장하지 않는다.
 
+`timestamp`의 UTC 달력 인자는 음수 월·월말 초과 일자를 정규화한다
+([공식 달력 계산 예시](https://www.tradingview.com/pine-script-docs/faq/times-dates-and-sessions/#how-can-i-plot-a-value-starting-n-months-or-years-back)).
+날짜 문자열·비UTC 시간대와 지원 달력 범위 밖 값은 추측해 계산하지 않고 명시 오류를 반환한다.
+
 ### 파스 캐시 2층 (BL-832)
 
 파싱 진입점은 `parser_adapter.parse_to_ast` **하나**다(n13 이 직접 `pynescript.ast.parse` 를 부르던 3곳을 여기로 모았다). 그 위에 캐시가 2층이다.
