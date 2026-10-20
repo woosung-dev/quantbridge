@@ -233,6 +233,7 @@ sequenceDiagram
 
     Backtest->>TP: get_ohlcv(symbol, tf, start, end)
     TP->>Repo: acquire_fetch_lock(symbol, tf, start, end)
+    Repo->>TS: SET LOCAL lock_timeout = '10s'
     Repo->>TS: SELECT pg_advisory_xact_lock(hashtext(key))
     Note over Repo,TS: 동시 fetch 직렬화 — tx commit 시 자동 해제
 
@@ -248,12 +249,13 @@ sequenceDiagram
             TP->>Repo: insert_bulk(rows) — ON CONFLICT DO NOTHING
             Repo->>TS: INSERT idempotent
         end
-        TP->>Repo: commit() → advisory lock 해제
     end
 
     TP->>Repo: get_range(symbol, tf, start, end)
     Repo->>TS: SELECT ... WHERE time BETWEEN ... ORDER BY time
     TS-->>Repo: list[OHLCV]
+    TP->>TP: ORM 값을 DataFrame으로 materialize
+    TP->>Repo: commit() → advisory lock 해제 (cache hit/gap 공통)
     TP-->>Backtest: pd.DataFrame[time index, open/high/low/close/volume float]
 ```
 
@@ -262,7 +264,8 @@ sequenceDiagram
 - **on-demand cache-first** — Backtest 실행 시점에 필요한 구간만 fetch. 별도 동기화 task 없음.
 - **gap 계산은 Postgres가 책임** — `generate_series + EXCEPT + ROW_NUMBER` island grouping (FE/BE 가공 없음).
 - **idempotent insert** — `ON CONFLICT DO NOTHING`. UPDATE 안 함 (CCXT 데이터는 immutable past data).
-- **동시 fetch race** — `pg_advisory_xact_lock(hashtext(key))`. 같은 (symbol, tf, period) lock 보유 중인 타 트랜잭션은 대기. tx commit 시 해제.
+- **동시 fetch race** — 기존 `pg_advisory_xact_lock(hashtext(key))`로 같은 (symbol, tf, period)를 직렬화한다. Repository가 직전 `SET LOCAL lock_timeout = '10s'`를 적용한다. 이는 트랜잭션 내 락 대기 제한이며 CCXT 총 실행 시간 제한이 아니다.
+- **트랜잭션 반환 경계** — cache hit/gap 모두 최종 cache 조회와 DataFrame 생성에 성공한 뒤 provider가 commit하고 반환한다. ORM 값은 commit 전에 읽어 엔진으로 분리하며, 예외에는 commit하지 않는다. 락 설정·획득 SQL의 `DBAPIError`는 Repository가 즉시 rollback 후 원래 예외를 전파해 caller의 실패 상태 기록을 허용한다. 이후 조회·삽입 등 다른 단계의 예외 복구는 기존 caller 경계에 남는다. LOCAL timeout은 commit/rollback 시 끝난다. 종전 cache hit은 optimizer/stress의 엔진 실행까지 락을 유지할 수 있었지만 일반 BacktestService는 원래 엔진 전에 commit했다. 부분 데이터의 실제 구간 라벨 문제([BL-842] ⑴)는 별개로 남는다.
 - **closed bar filter** — CCXTProvider가 `last_closed_ts = (now // tf_sec) * tf_sec - tf_sec` 이하만 반환 (진행 중 캔들 제외).
 - **provider lifecycle** — HTTP는 FastAPI lifespan singleton, Worker는 prefork-safe lazy + worker_shutdown close ([`system-architecture.md`](./system-architecture.md) §lifecycle 참조).
 

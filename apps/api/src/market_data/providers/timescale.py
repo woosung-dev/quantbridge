@@ -72,12 +72,12 @@ class TimescaleProvider:
             rows = self._to_db_rows(raw, symbol, timeframe)
             await self.repo.insert_bulk(rows)
 
-        if gaps:
-            await self.repo.commit()
-
         # 4. 최종 cache 조회 → DataFrame
         cached = await self.repo.get_range(symbol, timeframe, period_start, period_end)
-        return self._to_dataframe(cached)
+        frame = self._to_dataframe(cached)
+        # cache hit도 성공 반환 전에 트랜잭션 락을 해제한다.
+        await self.repo.commit()
+        return frame
 
     def _to_db_rows(
         self, raw: list[list[Any]], symbol: str, timeframe: str

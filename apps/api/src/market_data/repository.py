@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.market_data.models import OHLCV
@@ -105,15 +106,23 @@ class OHLCVRepository:
         period_start: datetime,
         period_end: datetime,
     ) -> None:
-        """동시 fetch race 방지 — pg_advisory_xact_lock (트랜잭션 종료 시 자동 해제)."""
+        """동시 fetch 직렬화 — 락 대기 10초 제한, 트랜잭션 종료 시 자동 해제.
+
+        설정/락 SQL의 DB 오류는 rollback 후 전파해 caller의 실패 기록을 허용한다.
+        """
         key = (
             f"ohlcv:{symbol}:{timeframe}:"
             f"{period_start.isoformat()}:{period_end.isoformat()}"
         )
-        await self.session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
-            {"key": key},
-        )
+        try:
+            await self.session.execute(text("SET LOCAL lock_timeout = '10s'"))
+            await self.session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": key},
+            )
+        except DBAPIError:
+            await self.session.rollback()
+            raise
 
     async def commit(self) -> None:
         await self.session.commit()

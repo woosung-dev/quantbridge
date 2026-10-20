@@ -153,3 +153,66 @@ async def test_acquire_fetch_lock_exclusion(_test_engine: AsyncEngine) -> None:
         after_repo = OHLCVRepository(after)
         await after_repo.acquire_fetch_lock(symbol, timeframe, base, period_end)
         await after_repo.commit()
+
+
+@pytest.mark.asyncio
+async def test_acquire_fetch_lock_bounds_wait_in_current_transaction() -> None:
+    """공개 acquire 호출은 기존 key의 xact lock 전에 10초 LOCAL 제한을 보낸다."""
+    from unittest.mock import AsyncMock
+
+    session = AsyncMock(spec=AsyncSession)
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    end = base + timedelta(hours=1)
+
+    await OHLCVRepository(session).acquire_fetch_lock("BTC/USDT:USDT", "1h", base, end)
+
+    calls = session.execute.await_args_list
+    assert [str(call.args[0]) for call in calls] == [
+        "SET LOCAL lock_timeout = '10s'",
+        "SELECT pg_advisory_xact_lock(hashtext(:key))",
+    ]
+    assert calls[1].args[1] == {"key": _lock_key("BTC/USDT:USDT", "1h", base, end)}
+    session.commit.assert_not_awaited()
+    session.rollback.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_stage", ["set_local", "lock"])
+async def test_acquire_fetch_lock_rolls_back_before_propagating_db_error(
+    failure_stage: str,
+) -> None:
+    """설정/락 SQL 실패는 rollback 후 같은 예외를 전파해 실패 기록을 허용한다."""
+    from unittest.mock import AsyncMock
+
+    from sqlalchemy.exc import OperationalError
+
+    session = AsyncMock(spec=AsyncSession)
+    error = OperationalError("lock wait", {}, RuntimeError("lock timeout"))
+    session.execute.side_effect = [error] if failure_stage == "set_local" else [None, error]
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+
+    with pytest.raises(OperationalError) as caught:
+        await OHLCVRepository(session).acquire_fetch_lock("BTC/USDT", "1h", base, base)
+
+    assert caught.value is error
+    session.commit.assert_not_awaited()
+    session.rollback.assert_awaited_once()
+    assert session.execute.await_count == (1 if failure_stage == "set_local" else 2)
+
+
+@pytest.mark.asyncio
+async def test_acquire_fetch_lock_does_not_handle_non_database_error() -> None:
+    """일반 예외를 DB 거래 실패로 간주해 rollback하지 않는다."""
+    from unittest.mock import AsyncMock
+
+    session = AsyncMock(spec=AsyncSession)
+    error = RuntimeError("fixture operation failed")
+    session.execute.side_effect = error
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+
+    with pytest.raises(RuntimeError) as caught:
+        await OHLCVRepository(session).acquire_fetch_lock("BTC/USDT", "1h", base, base)
+
+    assert caught.value is error
+    session.commit.assert_not_awaited()
+    session.rollback.assert_not_awaited()
