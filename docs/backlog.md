@@ -386,10 +386,10 @@
 
 **남은 증상:** ⑴ 거래소가 갭을 못 채우면 짧은 시리즈를 반환하지만 결과에는 요청 기간이 적힌다. 「채운 실제 구간」을 결과에 싣는 수리는 미완이다.
 
-~~⑵ cache hit의 fetch 트랜잭션 락이 optimizer/stress 엔진까지 남고 호출별 대기 제한이 없음.~~ → 성공 시 최종 ORM 조회·DataFrame 생성 뒤 항상 commit한다. 갭 수집도 같은 경계이며, 예외에는 commit하지 않는다. Repository가 기존 xact lock 전에 `SET LOCAL lock_timeout = '10s'`를 설정한다. 일반 BacktestService는 원래 엔진 전 commit했으므로 전체 엔진 락 문제로 일반화하지 않는다.
+~~⑵ cache hit의 fetch 트랜잭션 락이 optimizer/stress 엔진까지 남고 호출별 대기 제한이 없음.~~ → 성공 시 최종 ORM 조회·DataFrame 생성 뒤 항상 commit한다. 갭 수집도 같은 경계이며, 예외에는 commit하지 않는다. Repository가 기존 timeout을 보관하고 xact lock 획득에만 10초를 적용한 뒤 기존 값을 복원한다. 일반 BacktestService는 원래 엔진 전 commit했으므로 전체 엔진 락 문제로 일반화하지 않는다.
 ~~⑶ 빈 결과가 RangeIndex.~~ → `DatetimeIndex([], name="time", tz=UTC)`로 통일(PR #873). 빈 결과 회귀 유지.
 
-**상태:** 🟡 PARTIAL — ⑴ 미수리. ⑵ 반환 전 락 해제·대기 제한, ⑶ index 수리. 락 timeout은 CCXT 총 실행 제한이 아니다. 락 설정·획득 SQL의 DB 오류는 Repository가 rollback 후 전파한다. 이후 단계의 예외 복구는 기존 caller 경계에 남는다.
+**상태:** 🟡 PARTIAL — ⑴ 미수리. ⑵ 반환 전 락 해제·대기 제한, ⑶ index 수리. 락 timeout은 CCXT 총 실행 제한이 아니다. timeout 조회·적용·복원 및 락 획득 SQL의 DB 오류는 Repository가 rollback 후 전파한다. 이후 단계의 예외 복구는 기존 caller 경계에 남는다.
 **트리거 판정:** 도래
 
 ---
