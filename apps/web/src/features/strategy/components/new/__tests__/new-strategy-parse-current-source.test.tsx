@@ -12,15 +12,28 @@ vi.mock("next/link", () => ({
   ),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/monaco/pine-editor", () => ({
-  PineEditor: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
-    <textarea
-      data-testid="pine-editor"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  ),
+const editorHandle = vi.hoisted(() => ({
+  revealLine1: vi.fn((_line: number) => true),
 }));
+vi.mock("@/components/monaco/pine-editor", async () => {
+  const React = await import("react");
+  type Handle = { revealLine1: (line: number) => boolean };
+  type Props = { value: string; onChange: (value: string) => void };
+  const PineEditorMock = React.forwardRef<Handle, Props>(function PineEditorMock(
+    { value, onChange },
+    ref,
+  ) {
+    React.useImperativeHandle(ref, () => editorHandle, []);
+    return (
+      <textarea
+        data-testid="pine-editor"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    );
+  });
+  return { PineEditor: PineEditorMock };
+});
 vi.mock("@/features/strategy/components/new/generate-with-ai", () => ({
   GenerateWithAI: () => null,
 }));
@@ -29,14 +42,27 @@ vi.mock("@/features/strategy/components/new/parse-result-panel", () => ({
     result,
     error,
     canSave,
+    onRevealLine,
   }: {
     result: ParsePreviewResponse | null;
     error: string | null;
     canSave: boolean;
+    onRevealLine?: (line: number) => void;
   }) => (
     <>
       <output data-testid="parse-status">{result?.status ?? "none"}</output>
       <output data-testid="parse-error">{error ?? ""}</output>
+      {result?.errors.map((parseIssue) =>
+        parseIssue.line !== null ? (
+          <button
+            key={`${parseIssue.code}-${parseIssue.line}`}
+            type="button"
+            onClick={() => onRevealLine?.(parseIssue.line!)}
+          >
+            {parseIssue.line}행으로 이동
+          </button>
+        ) : null,
+      )}
       <button type="button" disabled={!canSave}>
         판정 저장
       </button>
@@ -53,6 +79,8 @@ const parseMock = vi.mocked(parseStrategy);
 const valid = ParsePreviewResponseSchema.parse({ status: "ok", pine_version: "v5" });
 const invalid = ParsePreviewResponseSchema.parse({ status: "error", pine_version: "v5" });
 let queryClient: QueryClient;
+let originalScrollIntoView: PropertyDescriptor | undefined;
+const scrollIntoView = vi.fn();
 
 async function tick(ms = 1) {
   await act(async () => {
@@ -73,12 +101,24 @@ function deferred() {
 }
 beforeEach(() => {
   vi.useFakeTimers();
+  editorHandle.revealLine1.mockReset().mockReturnValue(true);
+  scrollIntoView.mockReset();
+  originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView,
+  });
   parseMock.mockReset();
   localStorage.clear();
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 afterEach(() => {
   cleanup();
+  if (originalScrollIntoView) {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+  } else {
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  }
   queryClient.clear();
   vi.useRealTimers();
   localStorage.clear();
@@ -93,6 +133,96 @@ function renderWizard() {
 }
 
 describe("새 전략 — 현재 원문에 대한 파싱 판정", () => {
+  it("leading blank line을 포함한 실제 요청 원문의 서버 행으로 이동한다", async () => {
+    parseMock.mockImplementation(async (source) => {
+      const line = source.split("\n").indexOf("bad token") + 1;
+      return ParsePreviewResponseSchema.parse({
+        status: "error",
+        pine_version: "v5",
+        errors: [{ code: "SYNTAX_ERROR", message: "bad token", line }],
+      });
+    });
+    renderWizard();
+    const source = "\n\nfirst line\nbad token";
+    await input(source);
+
+    expect(parseMock).toHaveBeenLastCalledWith(source, "test-token");
+    fireEvent.click(screen.getByRole("button", { name: "4행으로 이동" }));
+    expect(editorHandle.revealLine1).toHaveBeenCalledWith(4);
+  });
+
+  it("같은 trim 결과라도 공백 원문 변경은 이전 판정과 늦은 좌표를 무효화한다", async () => {
+    const initial = deferred();
+    const nextResult = ParsePreviewResponseSchema.parse({
+      status: "error",
+      pine_version: "v5",
+      errors: [{ code: "SYNTAX_ERROR", message: "bad token", line: 3 }],
+    });
+    parseMock.mockImplementation((source) =>
+      source === "bad token" ? initial.promise : Promise.resolve(nextResult),
+    );
+    renderWizard();
+    fireEvent.change(screen.getByTestId("pine-editor"), { target: { value: "bad token" } });
+    await tick(350);
+    expect(parseMock).toHaveBeenLastCalledWith("bad token", "test-token");
+
+    fireEvent.change(screen.getByTestId("pine-editor"), {
+      target: { value: "\n\nbad token" },
+    });
+    expect(screen.getByRole("button", { name: "판정 저장" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "1행으로 이동" })).toBeNull();
+    await tick(350);
+    expect(parseMock).toHaveBeenLastCalledWith("\n\nbad token", "test-token");
+    await tick();
+    await act(async () => initial.resolve(valid));
+    await tick();
+    expect(screen.getByRole("button", { name: "3행으로 이동" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "1행으로 이동" })).toBeNull();
+  });
+
+  it("구조화된 서버 행으로 이동하고 editor에 맡긴다", async () => {
+    const locatedError = ParsePreviewResponseSchema.parse({
+      status: "error",
+      pine_version: "v5",
+      errors: [{ code: "SYNTAX_ERROR", message: "bad token", line: 7 }],
+    });
+    parseMock.mockResolvedValue(locatedError);
+    renderWizard();
+    await input("line one\nline two\nline three\nline four\nline five\nline six\nline seven");
+
+    fireEvent.click(screen.getByRole("button", { name: "7행으로 이동" }));
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+    expect(editorHandle.revealLine1).toHaveBeenCalledOnce();
+    expect(editorHandle.revealLine1).toHaveBeenCalledWith(7);
+    expect(editorHandle.revealLine1.mock.invocationCallOrder[0]).toBeLessThan(
+      scrollIntoView.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("editor가 마운트되지 않았거나 모델이 없으면 Pine 소스 section에 focus한다", async () => {
+    const locatedError = ParsePreviewResponseSchema.parse({
+      status: "error",
+      pine_version: "v5",
+      errors: [{ code: "SYNTAX_ERROR", message: "bad token", line: 3 }],
+    });
+    editorHandle.revealLine1.mockReturnValue(false);
+    parseMock.mockResolvedValue(locatedError);
+    renderWizard();
+    await input("line one\nline two\nline three");
+    const sourceSection = screen.getByLabelText("Pine 소스");
+    const focus = vi.spyOn(sourceSection, "focus");
+
+    fireEvent.click(screen.getByRole("button", { name: "3행으로 이동" }));
+
+    expect(sourceSection).toHaveFocus();
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+    expect(focus.mock.invocationCallOrder[0]).toBeLessThan(
+      scrollIntoView.mock.invocationCallOrder[0]!,
+    );
+  });
+
   it("같은 원문의 자동 검사 실패 뒤 수동 재검사가 성공하면 이전 오류를 지운다", async () => {
     parseMock.mockRejectedValueOnce(new Error("자동 검사 일시 실패")).mockResolvedValue(valid);
     renderWizard();

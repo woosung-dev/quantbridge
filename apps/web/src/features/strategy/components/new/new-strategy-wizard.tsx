@@ -5,7 +5,7 @@
 // 초기 자본 필드는 CreateStrategyRequest 에 대응 필드가 0건이라 렌더하지 않는다(§4.9).
 // draft(localStorage) 복원과 create/parse 훅은 그대로 보존한다.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { PineEditor } from "@/components/monaco/pine-editor";
+import { PineEditor, type PineEditorHandle } from "@/components/monaco/pine-editor";
 import { StateBox } from "@/components/state-box";
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import { formatDateTime } from "@/features/backtest/utils";
@@ -55,6 +55,15 @@ export function NewStrategyWizard() {
   const [timeframe, setTimeframe] = useState<string>(TIMEFRAME_OPTIONS[1]);
   const [description, setDescription] = useState("");
   const [pineSource, setPineSource] = useState("");
+  const pineEditorRef = useRef<PineEditorHandle>(null);
+  const pineSourceSectionRef = useRef<HTMLElement>(null);
+
+  const handleRevealLine = useCallback((line: number) => {
+    const sourceSection = pineSourceSectionRef.current;
+    const revealed = pineEditorRef.current?.revealLine1(line) ?? false;
+    if (!revealed) sourceSection?.focus({ preventScroll: true });
+    sourceSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // 파일 열기(로컬 파일 선택 → 소스 주입) + 예제 불러오기(정적 자산 fetch → 소스 주입).
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -318,6 +327,7 @@ export function NewStrategyWizard() {
             id="strategy-pine-source"
             aria-label="Pine 소스"
             tabIndex={-1}
+            ref={pineSourceSectionRef}
           >
             <header className="section-head">
               <p className="eyebrow">
@@ -378,6 +388,7 @@ export function NewStrategyWizard() {
               <div className="card-body">
                 <div className="editor-shell">
                   <PineEditor
+                    ref={pineEditorRef}
                     value={pineSource}
                     onChange={applyPineSource}
                     onTriggerParse={parse}
@@ -435,6 +446,7 @@ export function NewStrategyWizard() {
               saving={create.isPending}
               canSave={canSave}
               indicatorCode={pineSource}
+              onRevealLine={handleRevealLine}
               onConverted={(result) => {
                 applyPineSource(result.converted_code);
                 if (result.warnings.length > 0) {

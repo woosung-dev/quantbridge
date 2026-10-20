@@ -22,6 +22,7 @@ interface ParseResultPanelProps {
   error?: string | null;
   /** 전략 저장 트리거. 파싱이 지원됨이고 이름이 채워졌을 때만 활성화된다. */
   onSave?: () => void;
+  onRevealLine?: (line: number) => void;
   saving?: boolean;
   canSave?: boolean;
   indicatorCode?: string;
@@ -33,6 +34,7 @@ export function ParseResultPanel({
   loading,
   error = null,
   onSave,
+  onRevealLine,
   saving = false,
   canSave = false,
   indicatorCode,
@@ -72,7 +74,7 @@ export function ParseResultPanel({
             onConverted={onConverted}
           />
         ) : result.status === "error" ? (
-          <SyntaxErrorBody result={result} />
+          <SyntaxErrorBody result={result} onRevealLine={onRevealLine} />
         ) : (
           <UnsupportedBody result={result} />
         )}
@@ -237,10 +239,19 @@ function SupportedBody({
 }
 
 // 서버가 보고한 구조화된 위치만 사용하고 원본 진단 문자열에서 줄번호를 추측하지 않는다.
-function SyntaxErrorBody({ result }: { result: ParsePreviewResponse }) {
+function SyntaxErrorBody({
+  result,
+  onRevealLine,
+}: {
+  result: ParsePreviewResponse;
+  onRevealLine?: (line: number) => void;
+}) {
   const lines = [
     ...new Set(result.errors.map((error) => error.line).filter((line) => line !== null)),
   ];
+  const navigableLines = onRevealLine
+    ? [...new Set(result.errors.map((error) => error.line).filter(isPositiveSafeLine))]
+    : [];
 
   return (
     <StateBox
@@ -254,6 +265,23 @@ function SyntaxErrorBody({ result }: { result: ParsePreviewResponse }) {
         <p className="state-body">
           서버가 보고한 위치: {lines.map((line) => `${line}행`).join(", ")}.
         </p>
+      ) : null}
+      {navigableLines.length > 0 ? (
+        <fieldset
+          className="mt-2 flex flex-wrap gap-2 border-0 p-0"
+          aria-label="서버 오류 행으로 이동"
+        >
+          {navigableLines.map((line) => (
+            <button
+              className="btn btn-ghost min-h-[44px]"
+              type="button"
+              key={line}
+              onClick={() => onRevealLine?.(line)}
+            >
+              {line}행으로 이동
+            </button>
+          ))}
+        </fieldset>
       ) : null}
       {result.errors.length > 0 ? (
         <details>
@@ -272,6 +300,10 @@ function SyntaxErrorBody({ result }: { result: ParsePreviewResponse }) {
       ) : null}
     </StateBox>
   );
+}
+
+function isPositiveSafeLine(line: number | null): line is number {
+  return line !== null && Number.isSafeInteger(line) && line > 0;
 }
 
 // 파싱이 미지원(unsupported) 판정을 낸 상태. 200 판정이므로 HTTP 코드는 없다.

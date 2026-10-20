@@ -172,7 +172,7 @@ describe("strategy hooks", () => {
     expect(String(url)).not.toContain("parse_status=undefined");
   });
 
-  it("usePreviewParse skips blank source and parses the trimmed source", async () => {
+  it("usePreviewParse skips blank source and preserves the exact source for parsing and cache identity", async () => {
     authMockState.userId = "strategy-user";
     const preview: ParsePreviewResponse = {
       status: "ok",
@@ -203,9 +203,9 @@ describe("strategy hooks", () => {
 
     await waitFor(() => expect(result.current.data).toEqual(preview));
     expect(parseStrategyMock).toHaveBeenCalledTimes(1);
-    expect(parseStrategyMock).toHaveBeenCalledWith("indicator('core')", "test-token");
+    expect(parseStrategyMock).toHaveBeenCalledWith("  indicator('core')  ", "test-token");
     expect(
-      queryClient.getQueryData(strategyKeys.parsePreview("strategy-user", "indicator('core')")),
+      queryClient.getQueryData(strategyKeys.parsePreview("strategy-user", "  indicator('core')  ")),
     ).toEqual(preview);
   });
 

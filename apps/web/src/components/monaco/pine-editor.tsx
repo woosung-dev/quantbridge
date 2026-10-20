@@ -4,7 +4,7 @@
 // ⌘+Enter / Ctrl+Enter 커맨드 등록 → 상위 onTriggerParse delegate.
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { useTheme } from "next-themes";
 import type { BeforeMount, OnMount } from "@monaco-editor/react";
 import { ibmPlexMono } from "@/lib/fonts";
@@ -16,7 +16,12 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react").then((m) => m.
   loading: () => <div className="h-full animate-pulse rounded-md bg-muted" />,
 });
 
+export interface PineEditorHandle {
+  revealLine1: (line: number) => boolean;
+}
+
 export interface PineEditorProps {
+  ref?: Ref<PineEditorHandle>;
   value: string;
   onChange: (value: string) => void;
   height?: string | number;
@@ -24,12 +29,41 @@ export interface PineEditorProps {
   onTriggerParse?: () => void;
 }
 
+type MonacoEditorInstance = Parameters<OnMount>[0];
+type MonacoNamespace = Parameters<OnMount>[1];
+
 export function PineEditor(props: PineEditorProps) {
   const parseRef = useRef(props.onTriggerParse);
+  const mountedEditorRef = useRef<{
+    editor: MonacoEditorInstance;
+    monaco: MonacoNamespace;
+  } | null>(null);
   // H-3: render 중 ref 를 쓰지 않고 commit 마다 최신 callback 을 동기화한다.
   useEffect(() => {
     parseRef.current = props.onTriggerParse;
   });
+
+  useImperativeHandle(
+    props.ref,
+    () => ({
+      revealLine1(line) {
+        if (!Number.isSafeInteger(line) || line < 1) return false;
+
+        const mounted = mountedEditorRef.current;
+        const model = mounted?.editor.getModel();
+        if (!mounted || !model) return false;
+
+        const targetLine = Math.min(line, model.getLineCount());
+        if (targetLine < 1) return false;
+
+        mounted.editor.revealLineInCenter(targetLine);
+        mounted.editor.setSelection(new mounted.monaco.Selection(targetLine, 1, targetLine, 1));
+        mounted.editor.focus();
+        return true;
+      },
+    }),
+    [],
+  );
 
   // 앱 테마(next-themes)에 맞춰 Monaco 테마 선택. resolvedTheme 는 SSR/초기 렌더에서
   // undefined 일 수 있으므로 "dark" 일 때만 pine-dark, 그 외(undefined 포함)는 pine-light 로 fallback.
@@ -43,6 +77,7 @@ export function PineEditor(props: PineEditorProps) {
   };
 
   const handleMount: OnMount = (editor, monaco) => {
+    mountedEditorRef.current = { editor, monaco };
     // ⌘+Enter / Ctrl+Enter → 상위로 파싱 트리거 delegate.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
       parseRef.current?.();

@@ -138,6 +138,50 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
     expect(screen.getByText("서버 진단 보기 (1건)").closest("details")).not.toHaveAttribute("open");
   });
 
+  it("이동 callback이 있을 때만 양의 safe integer 서버 행에 44px 이동 버튼을 보인다", () => {
+    const onRevealLine = vi.fn();
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          status: "error",
+          errors: [
+            { code: "SYNTAX_ERROR", message: "bad token", line: 7 },
+            { code: "SYNTAX_ERROR", message: "duplicate line", line: 7 },
+            { code: "INVALID_ZERO", message: "zero", line: 0 },
+            { code: "INVALID_NEGATIVE", message: "negative", line: -1 },
+            { code: "INVALID_FRACTION", message: "fraction", line: 1.5 },
+            { code: "INVALID_UNSAFE", message: "unsafe", line: Number.MAX_SAFE_INTEGER + 1 },
+            { code: "UNKNOWN", message: "unknown", line: null },
+          ],
+        })}
+        loading={false}
+        onRevealLine={onRevealLine}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "7행으로 이동" });
+    expect(button.className).toContain("min-h-[44px]");
+    expect(screen.getAllByRole("button", { name: /행으로 이동/ })).toHaveLength(1);
+    fireEvent.click(button);
+    expect(onRevealLine).toHaveBeenCalledOnce();
+    expect(onRevealLine).toHaveBeenCalledWith(7);
+  });
+
+  it("공용 소비처에 이동 callback이 없으면 기존 위치 문구만 보인다", () => {
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          status: "error",
+          errors: [{ code: "SYNTAX_ERROR", message: "bad token", line: 3 }],
+        })}
+        loading={false}
+      />,
+    );
+
+    expect(screen.getByText("서버가 보고한 위치: 3행.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "3행으로 이동" })).toBeNull();
+  });
+
   it("세부 진단이 없는 오류도 복구 안내를 유지하고 저장하지 못한다", () => {
     render(<ParseResultPanel result={makeResult({ status: "error" })} loading={false} canSave />);
     expect(screen.getByText("Pine 구문을 확인해 주세요.")).toBeVisible();
