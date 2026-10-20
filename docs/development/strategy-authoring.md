@@ -25,6 +25,7 @@
 ## Monaco와 선택 기능
 
 - Monaco는 `next/dynamic`과 `ssr: false`로 지연 로드한다. 마운트 시 `⌘/Ctrl+Enter` 명령을 한 번 등록하고, `onTriggerParse`의 최신 콜백은 effect에서 ref에 동기화한다. 렌더 중 ref를 쓰지 않으며, 명령이 오래된 원문 핸들러를 호출하지 않게 한다.
+- Monaco의 Pine 라인 번호 색은 dark/light `BRAND_PALETTE.textMuted`를 사용해 각 gutter 배경에서 본문 텍스트 대비를 유지한다.
 - `AI 초안 작성 (선택)`은 기본 접힘이다. 펼치기만으로는 API 요청을 하지 않는다. 설명을 입력한 뒤 `AI 로 만들기`를 누르면 생성 요청을 시작한다. 결과는 저장되지 않으며, 실행 가능한 결과에서 `이 Pine 코드 쓰기`를 눌러 편집기에 넣는다. 이후 파싱 판정은 편집기의 현재 원문 기준으로 다시 수행한다.
 
 ## 이동과 작은 화면
