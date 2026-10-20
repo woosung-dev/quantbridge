@@ -153,10 +153,10 @@ describe("NewStrategyWizard — 04 진단 구획", () => {
     expect(screen.queryByTestId("draft-empty")).toBeNull();
   });
 
-  it("Pine 소스 툴바에 파일 열기·예제 불러오기 버튼이 있다", () => {
+  it("Pine 소스 툴바에 파일 열기·예제로 원문 바꾸기 버튼이 있다", () => {
     renderWizard();
     expect(screen.getByText("파일 열기")).toBeTruthy();
-    expect(screen.getByText("예제 불러오기")).toBeTruthy();
+    expect(screen.getByText("예제로 원문 바꾸기")).toBeTruthy();
     expect(screen.getByTestId("pine-file-input")).toBeTruthy();
   });
 });

@@ -344,7 +344,7 @@ export function NewStrategyWizard() {
               <div className="card-head">
                 <div>
                   <h3 className="card-title">Pine Script 원문</h3>
-                  <p className="card-sub">바 단위 이벤트 루프 · ⌘+Enter 로 즉시 파싱</p>
+                  <p className="card-sub">바 단위 이벤트 루프 · ⌘/Ctrl+Enter 로 즉시 파싱</p>
                 </div>
                 <div className="toolbar">
                   <input
@@ -366,7 +366,7 @@ export function NewStrategyWizard() {
                     disabled={exampleLoading}
                   >
                     <FileCode2Icon aria-hidden="true" />
-                    예제 불러오기
+                    예제로 원문 바꾸기
                   </button>
                   <button
                     className="btn btn-primary"
