@@ -159,20 +159,23 @@ function SupportedBody({
       </div>
 
       <div className="parse-body">
-        <div className="metric-group">
-          <p className="metric-group-title">감지된 함수</p>
-          {result.functions_used.length === 0 ? (
+        {result.functions_used.length === 0 ? (
+          <div className="metric-group">
+            <p className="metric-group-title">감지된 함수</p>
             <div className="metric">
               <span className="metric-label dim">감지된 함수가 없습니다.</span>
             </div>
-          ) : (
-            result.functions_used.map((fn) => (
+          </div>
+        ) : (
+          <details className="metric-group">
+            <summary>감지된 함수 {supportedCount}종 보기</summary>
+            {result.functions_used.map((fn) => (
               <div className="metric" key={fn}>
                 <span className="metric-label mono">{fn}</span>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </details>
+        )}
 
         <div className="metric-group">
           <p className="metric-group-title">시그널</p>
@@ -202,7 +205,7 @@ function SupportedBody({
           </div>
           {result.inputs.length > 0 ? (
             <p className="metric-note">
-              {`최적화로 스윕할 수 있는 것은 ${sweepableCount}개입니다. 나머지는 기본값으로 실행됩니다.`}
+              {`최적화에서 값을 바꿔 비교할 수 있는 설정은 ${sweepableCount}개입니다. 나머지는 기본값으로 실행됩니다.`}
             </p>
           ) : null}
         </div>

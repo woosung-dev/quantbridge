@@ -212,7 +212,7 @@ export function NewStrategyWizard() {
               <span className="chip">{symbol}</span>
               <span className="chip">{timeframe}</span>
               <span className="chip">Bybit</span>
-              <span className="chip accent">바 단위 이벤트 루프</span>
+              <span className="chip accent">봉마다 원문 실행</span>
             </div>
           </div>
           <div className="report-actions">
@@ -236,7 +236,7 @@ export function NewStrategyWizard() {
               <p className="eyebrow">
                 <span className="num">01</span> 기본 정보
               </p>
-              <h2 className="section-title">전략 메타데이터</h2>
+              <h2 className="section-title">전략 이름과 시장</h2>
               <p className="section-desc">
                 여기서 고른 심볼과 타임프레임이 백테스트와 주문에 그대로 쓰입니다.
               </p>
@@ -299,7 +299,7 @@ export function NewStrategyWizard() {
                         </option>
                       ))}
                     </select>
-                    <span className="field-hint">봉 하나가 곧 인터프리터의 한 스텝입니다.</span>
+                    <span className="field-hint">선택한 봉 주기로 전략을 검사하고 실행합니다.</span>
                   </div>
 
                   <div className="field span-2">
@@ -344,7 +344,7 @@ export function NewStrategyWizard() {
               <div className="card-head">
                 <div>
                   <h3 className="card-title">Pine Script 원문</h3>
-                  <p className="card-sub">바 단위 이벤트 루프 · ⌘/Ctrl+Enter 로 즉시 파싱</p>
+                  <p className="card-sub">봉마다 원문 실행 · ⌘/Ctrl+Enter 로 즉시 파싱</p>
                 </div>
                 <div className="toolbar">
                   <input
@@ -398,10 +398,7 @@ export function NewStrategyWizard() {
               </div>
 
               <p className="disclaimer">
-                <span>
-                  실제 판정은 서버의 지원 함수 사전으로 결정되며, 원문은 변환 없이 바 단위 이벤트
-                  루프 엔진이 그대로 실행합니다.
-                </span>
+                <span>지원 여부는 서버에서 판정하며, Pine 원문은 변환 없이 봉마다 실행됩니다.</span>
               </p>
               <p className="disclaimer">
                 키보드로 나가기: Mac Ctrl+Shift+M / Windows·Linux Ctrl+M 후 Tab을 누르세요.
@@ -476,9 +473,7 @@ export function NewStrategyWizard() {
             <div className="card-head">
               <div>
                 <h3 className="card-title">지원 함수 사전</h3>
-                <p className="card-sub">
-                  바 단위 이벤트 루프가 해석하는 함수 {LEXICON_ENTRIES.length}종
-                </p>
+                <p className="card-sub">지원 함수 {LEXICON_ENTRIES.length}종의 의미</p>
               </div>
             </div>
             <div className="card-body">

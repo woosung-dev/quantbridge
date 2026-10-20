@@ -41,6 +41,53 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
     expect(screen.getByTitle(/Pine 스크립트에는 심볼이 없습니다/)).toBeTruthy();
   });
 
+  it("지원 함수 목록은 기본 접힘이며 펼치면 모두 보이고 판정과 저장은 유지된다", () => {
+    const functions = [
+      "ta.sma",
+      "ta.ema",
+      "ta.rsi",
+      "ta.atr",
+      "ta.crossover",
+      "ta.crossunder",
+      "math.abs",
+      "math.max",
+    ];
+    const onSave = vi.fn();
+    render(
+      <ParseResultPanel
+        result={makeResult({ functions_used: functions, entry_count: 3, exit_count: 2 })}
+        loading={false}
+        canSave
+        onSave={onSave}
+      />,
+    );
+    const summary = screen.getByText("감지된 함수 8종 보기");
+    const details = summary.closest("details")!;
+    expect(details).not.toHaveAttribute("open");
+    for (const name of functions) expect(within(details).getByText(name)).not.toBeVisible();
+    expect(screen.getByText("8 / 8")).toBeVisible();
+    expect(screen.getByText("100%")).toBeVisible();
+    expect(screen.getByText("진입 시그널").parentElement).toHaveTextContent("3");
+    expect(screen.getByText("청산 시그널").parentElement).toHaveTextContent("2");
+    expect(screen.getByText("파라미터").parentElement).toHaveTextContent("0");
+    const save = screen.getByRole("button", { name: "전략으로 저장" });
+    expect(save).toBeVisible();
+    expect(save).toBeEnabled();
+    fireEvent.click(summary);
+    for (const name of functions) expect(within(details).getByText(name)).toBeVisible();
+    fireEvent.click(summary);
+    for (const name of functions) expect(within(details).getByText(name)).not.toBeVisible();
+    fireEvent.click(save);
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
+  it("지원 함수가 없으면 접기 대신 빈 안내와 판정을 유지한다", () => {
+    render(<ParseResultPanel result={makeResult({ functions_used: [] })} loading={false} />);
+    expect(screen.getByText("감지된 함수가 없습니다.")).toBeVisible();
+    expect(screen.getByText("0 / 0")).toBeVisible();
+    expect(screen.queryByText(/감지된 함수 .*종 보기/)).toBeNull();
+  });
+
   it("canSave 가 false 면 저장 버튼이 비활성화된다", () => {
     render(<ParseResultPanel result={makeResult()} loading={false} canSave={false} />);
     expect((screen.getByTestId("parse-save") as HTMLButtonElement).disabled).toBe(true);
@@ -55,7 +102,8 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
     );
     const box = screen.getByTestId("parse-unsupported");
     expect(box.className).toContain("state-box failed");
-    expect(screen.getByText("request.security")).toBeTruthy();
+    expect(screen.getByText("request.security")).toBeVisible();
+    expect(screen.getByText("request.security").closest("details")).toBeNull();
     expect(screen.getByText(/부분 실행 없이 전체를 지원되지 않음으로 처리/)).toBeTruthy();
   });
 
@@ -208,7 +256,7 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
 
   // [ADR-040] Stage 1 — 종전 이 패널은 「서버 응답에 파라미터 필드가 없어 표시하지
   // 않습니다」를 인쇄했다. `inputs` 가 열린 뒤 그 문장은 거짓이 되므로 실개수로 바꿨다.
-  it("파라미터 개수와 스윕 가능 수를 실데이터로 그린다", () => {
+  it("파라미터 개수와 최적화에서 비교할 설정 수를 실데이터로 그린다", () => {
     render(
       <ParseResultPanel
         result={makeResult({
@@ -224,6 +272,6 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
     );
     expect(screen.getByText("파라미터")).toBeTruthy();
     // 2개 중 int 하나만 최적화가 스윕할 수 있다(BE `_validate_grid_search_pre`).
-    expect(screen.getByText(/스윕할 수 있는 것은 1개/)).toBeTruthy();
+    expect(screen.getByText(/최적화에서 값을 바꿔 비교할 수 있는 설정은 1개/)).toBeVisible();
   });
 });
