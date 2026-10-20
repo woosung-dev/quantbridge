@@ -229,7 +229,9 @@ async def _parse(
                 ParseError(
                     code=type(exc).__name__,
                     message=str(exc),
-                    line=getattr(exc, "line", None),
+                    # pynescript SyntaxError는 위치를 details.lineno에 보존한다.
+                    line=getattr(exc, "line", None)
+                    or getattr(getattr(exc, "details", None), "lineno", None),
                 )
             ],
             entry_count,

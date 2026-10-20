@@ -51,6 +51,10 @@ v5 이하의 `and`·`or`는 NA를 false로 소비하여 bool을 반환하며, `n
 버전은 compiler annotation에서 읽은 `BarContext.pine_version`을 표준 함수 호출까지 전달한다.
 EMA의 초기값은 비NA 표본 length개의 SMA이며, bool 경계와 별개다.
 
+전략 파싱 프리뷰의 `errors[].line`은 파서가 제공한 구조화된 1-based 행 번호를 보존한다.
+`pynescript` 구문 오류는 `details.lineno`에서 읽으며, 메시지 문자열에서 위치를 추측하지 않는다.
+위치 정보가 없는 오류는 `null`을 유지한다.
+
 `timestamp`의 UTC 달력 인자는 음수 월·월말 초과 일자를 정규화한다
 ([공식 달력 계산 예시](https://www.tradingview.com/pine-script-docs/faq/times-dates-and-sessions/#how-can-i-plot-a-value-starting-n-months-or-years-back)).
 날짜 문자열·비UTC 시간대와 지원 달력 범위 밖 값은 추측해 계산하지 않고 명시 오류를 반환한다.
