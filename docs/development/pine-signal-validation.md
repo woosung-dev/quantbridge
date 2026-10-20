@@ -42,7 +42,8 @@ TradingView Strategy Tester의 손익을 수집하지 않았다면 그 손익까
 TradingView는 로그인된 Playwright MCP의 실제 UI로 조작한다. 원본은 공개 게시물의 **Source code**를 눌러
 발생한 응답에서 읽고 작성자·URL·관측 Boost·관측 시각·원본 SHA-256을 보존한다. 보호된 소스는 제외한다.
 사용자 차트에서 기존 지표를 삭제하지 않는다. 검증용 지표는 한 번에 하나만 활성화하고 교체한다.
-기존 지표를 잠시 숨겨야 한다면 표시 상태를 먼저 기록하고 복구한다. 검증이 끝난 임시 지표는 제거한 뒤 다음 지표를 추가한다. 새 레이아웃은 만들지 않는다. 알림·주문은 수집에 필요하지 않다.
+기존 지표를 잠시 숨겨야 한다면 표시 상태를 먼저 기록하고 복구한다. 검증이 끝난 임시 지표는 제거한 뒤
+다음 지표를 추가한다. 새 레이아웃은 만들지 않는다. 알림·주문은 수집에 필요하지 않다.
 
 Basic의 일반 차트 이력과 내보내기 제한 때문에 최근 1년 1h가 없을 수 있다. 이용 가능한
 `request.security_lower_tf`와 Pine Logs로 수집한 값은 **별도 probe 증거**다. 원본의 native 실행과
@@ -54,6 +55,12 @@ Basic의 일반 차트 이력과 내보내기 제한 때문에 최근 1년 1h가
 중복·충돌·시간 격자 누락·잘린 로그를 거부한다. 초기 warmup의 진단값 NA와 OHLCV 결측은 구분한다.
 원본 native 검증을 완료하지 않은 probe는 `native_original_verified=false`로 보존한다.
 
+`scripts/pine_validation/tv_native.py`는 UI가 요청한 원본 study의 응답을 파싱한다. 원본/실제 컴파일 소스의
+바이트 hash와 줄바꿈만 정규화한 동일성, 입력값, 심볼, 타임프레임, plot/alert 일치, 확정 봉 격자를 확인한다.
+OHLCV가 없는 응답은 데이터까지 검증한 것으로 표시하지 않는다. 원본의 초기 계산 이력과 probe의 warmup이
+다르면 같은 평가 기간에도 경계 신호가 달라질 수 있다. 동일 이력으로 재계산한 실험은 별도 결과로 보존하고,
+원래 비교의 불일치를 지우지 않는다.
+
 모든 수집물·원본·실행 결과는 gitignore된 `runs/pine-validation/` 아래에 둔다. manifest의 경로는 manifest
 기준 상대 경로다. CSV 열은 `time,open,high,low,close,volume`, time은 시간대가 명시된 ISO 문자열이다.
 
@@ -64,14 +71,17 @@ Basic의 일반 차트 이력과 내보내기 제한 때문에 최근 1년 1h가
   "window": {"start": "2025-10-20T00:00:00Z", "end": "2026-10-20T00:00:00Z"},
   "ohlcv": {"1h": "data/1h.csv", "4h": "data/4h.csv", "1d": "data/1d.csv"},
   "indicators": [{
-    "id": "publication-id", "title": "원본 제목", "url": "게시물 URL", "author": "작성자",
-    "boosts": 100, "observed_at": "2026-10-20T00:00:00Z",
-    "source_file": "sources/original.pine", "source_sha256": "원본 파일 SHA-256",
+    "id": "n8ss8BID", "title": "UT Bot Alerts",
+    "url": "https://www.tradingview.com/script/n8ss8BID-UT-Bot-Alerts/", "author": "QuantNomad",
+    "boosts": 60605, "observed_at": "2026-10-20T13:59:00Z",
+    "source_file": "sources/ut-bot-alerts.pine",
+    "source_sha256": "d17fdc1d34a20107dbb853316886ac8c27803b159f379e66c685810d7e10410c",
     "signal_bindings": [
-      {"function": "alertcondition", "line": 10, "direction": "long"},
-      {"function": "alertcondition", "line": 11, "direction": "short"}
+      {"function": "alertcondition", "line": 41, "direction": "long"},
+      {"function": "alertcondition", "line": 42, "direction": "short"}
     ],
-    "oracle": "ema_cross", "params": {"fast": 7, "slow": 21}, "inputs": {},
+    "oracle": "utbot", "params": {"key_value": 1, "atr_period": 10},
+    "inputs": {"a": 1, "c": 10, "h": false},
     "tv_events": {"1h": "tv/1h.json", "4h": "tv/4h.json", "1d": "tv/1d.json"}
   }]
 }
