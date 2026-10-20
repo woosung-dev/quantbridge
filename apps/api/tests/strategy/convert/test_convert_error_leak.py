@@ -144,7 +144,10 @@ def test_fallback_warning_carries_no_sdk_text() -> None:
 
     with patch(
         "src.strategy.convert.service.complete_json",
-        return_value=JsonCompletion(payload={"converted_code": "//ok"}, provider="gemini"),
+        return_value=JsonCompletion(
+            payload={"converted_code": 'strategy("Valid")\nstrategy.entry("L", strategy.long)'},
+            provider="gemini",
+        ),
     ):
         resp = svc.convert(
             ConvertIndicatorRequest(code='//@version=5\nindicator("T")\nplot(close)')

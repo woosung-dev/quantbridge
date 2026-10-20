@@ -71,13 +71,13 @@ def secret(value: Any) -> str:
 
 
 def provider_order(settings: Settings) -> list[str]:
-    """설정의 쉼표 목록을 파싱한다. 모르는 이름은 조용히 버린다(오타가 전체를 막지 않게)."""
+    """허용 provider 를 순서대로 파싱한다. 빈 값·오타만 있으면 외부 호출을 비활성화한다."""
     raw = getattr(settings, "llm_provider_order", "") or ""
     seen: list[str] = []
     for name in (p.strip().lower() for p in raw.split(",")):
         if name in KNOWN_PROVIDERS and name not in seen:
             seen.append(name)
-    return seen or list(KNOWN_PROVIDERS)
+    return seen
 
 
 def _key_for(settings: Settings, name: str) -> str:
@@ -233,7 +233,7 @@ def complete_json(
     if not candidates:
         raise RuntimeError(
             "사용 가능한 LLM provider 가 없습니다. "
-            "ANTHROPIC_API_KEY · OPENAI_API_KEY · GEMINI_API_KEY 중 하나를 설정하세요"
+            "LLM_PROVIDER_ORDER 및 해당 provider 의 API 키 설정을 확인하세요"
         )
 
     for name in candidates:

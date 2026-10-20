@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.strategy.pine_v2.signal_extractor import SignalExtractor
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -60,6 +62,33 @@ strategy.entry("Short", strategy.short, when=sell_sig)
 
 
 # ─── C-text Tests ─────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("mode", ["text", "ast"])
+@pytest.mark.parametrize("gate", ["expression", "scope"])
+def test_extraction_does_not_discard_original_signal_gate(mode: str, gate: str) -> None:
+    signals = (
+        "plotshape(buy and eligible)\nplotshape(sell and eligible)"
+        if gate == "expression"
+        else "if eligible\n    alertcondition(buy)\n    alertcondition(sell)"
+    )
+    source = (
+        'indicator("Gated")\nbuy = close > open\nsell = close < open\neligible = false\n' + signals
+    )
+    result = SignalExtractor().extract(source, mode=mode)
+    assert not result.is_runnable
+    assert "strategy.entry(" not in result.sliced_code
+
+
+@pytest.mark.parametrize("mode", ["text", "ast"])
+def test_extraction_does_not_move_signal_after_its_reassignment(mode: str) -> None:
+    source = (
+        'indicator("Changed")\nbuy = close > open\nsell = close < open\n'
+        "plotshape(buy)\nplotshape(sell)\nbuy := false\nsell := false"
+    )
+    result = SignalExtractor().extract(source, mode=mode)
+    assert not result.is_runnable
+    assert "strategy.entry(" not in result.sliced_code
 
 
 class TestCText:
@@ -130,3 +159,19 @@ class TestCAst:
         r = SignalExtractor().extract(_ALERTCONDITION, mode="ast")
         assert "bull" in r.signal_vars
         assert "bear" in r.signal_vars
+
+
+@pytest.mark.parametrize("mode", ["text", "ast"])
+@pytest.mark.parametrize(
+    "body",
+    [
+        "plot(close)",
+        'buy = close > open\nalertcondition(buy, title="Buy")',
+        'signal = close > open\nalertcondition(signal, title="Signal")',
+    ],
+)
+def test_missing_or_ambiguous_directions_do_not_create_orders(mode, body):
+    result = SignalExtractor().extract('indicator("Ambiguous")\n' + body, mode=mode)
+    assert not result.is_runnable
+    assert "strategy.entry(" not in result.sliced_code
+    assert "strategy.close(" not in result.sliced_code

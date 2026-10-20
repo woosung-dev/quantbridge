@@ -123,6 +123,15 @@ _INPUT_FUNCTIONS: frozenset[str] = frozenset(
     }
 )
 
+# v4의 type= 인자는 함수 호출이 아닌 상수 참조다. input.* 전체를 허용하지 않는다.
+_INPUT_CONSTANTS: frozenset[str] = frozenset(
+    {"input.integer", "input.float", "input.bool", "input.source"}
+)
+
+_DISPLAY_CONSTANTS: frozenset[str] = frozenset(
+    {"format.price", "plot.style_line", "plot.style_linebr", "plot.style_circles", "plot.style_cross"}
+)
+
 # String / format (NOP — display only)
 _STRING_FUNCTIONS: frozenset[str] = frozenset(
     {
@@ -267,6 +276,8 @@ _V4_ALIASES: frozenset[str] = frozenset(
         "lowest",
         "crossover",
         "crossunder",
+        "cross",
+        "floor",
         "change",
         "stdev",
         "variance",
@@ -320,6 +331,7 @@ _SERIES_ATTRS: frozenset[str] = frozenset(
         "barstate.isconfirmed",
         "barstate.isrealtime",  # Sprint 58 BL-242b: backtest → always False
         "ta.tr",  # Sprint X1+X3 follow-up
+        "tr",  # v4 속성 별칭 — ta.tr와 동일 계산을 공유한다.
         "ta.obv",  # Sprint 58 BL-241: On Balance Volume series
     }
 )
@@ -424,6 +436,8 @@ SUPPORTED_ATTRIBUTES: frozenset[str] = (
     | _CURRENCY_CONSTANTS
     | _STRATEGY_CONSTANTS_EXTRA
     | _TIMEFRAME_CONSTANTS
+    | _INPUT_CONSTANTS
+    | _DISPLAY_CONSTANTS
 )
 
 
@@ -463,6 +477,8 @@ _KNOWN_NAMESPACES: frozenset[str] = frozenset(
         "yloc",
         "text",
         "font",
+        "format",
+        "plot",
         "barstate",
         "session",
         "currency",

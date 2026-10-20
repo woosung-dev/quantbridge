@@ -58,7 +58,7 @@ def test_empty_or_malformed_structured_code_fails_closed(payload: dict[str, obje
 def test_sliced_runnable_code_skips_provider() -> None:
     service = ConvertService(_settings())
     extractor_result = SimpleNamespace(
-        sliced_code='//@version=5\nstrategy("Runnable")',
+        sliced_code=_CONVERTED,
         is_runnable=True,
         token_reduction_pct=42.5,
         removed_functions=[],
@@ -76,3 +76,21 @@ def test_sliced_runnable_code_skips_provider() -> None:
     complete.assert_not_called()
     assert result.input_tokens == result.output_tokens == 0
     assert result.warnings == ["AST 슬라이싱으로 직접 실행 가능한 코드 추출 (LLM 미사용)"]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        '//@version=5\nstrategy("Empty")',
+        '//@version=5\nindicator("Not a strategy")\nplot(close)',
+        '//@version=5\nstrategy("Unsupported")\nstrategy.entry("L", strategy.long)\nx=request.dividends("X")',
+        '//@version=5\nstrategy("Invalid")\nx = (',
+    ],
+)
+def test_generated_code_is_checked_before_returning_success(code: str) -> None:
+    completion = JsonCompletion(payload={"converted_code": code}, provider="gemini")
+    with (
+        patch("src.strategy.convert.service.complete_json", return_value=completion),
+        pytest.raises(ValueError),
+    ):
+        ConvertService(_settings()).convert(ConvertIndicatorRequest(code=_SOURCE))

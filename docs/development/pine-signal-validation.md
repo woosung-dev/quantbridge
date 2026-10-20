@@ -1,0 +1,105 @@
+# Pine 신호 교차 검증
+
+PRD §5의 결과·가정 공개와 ADR-040/042의 결정론 판정 경계를 따르는 **로컬 검증 도구**다.
+운영 전략 등록이나 주문을 수행하지 않는다. 외부 LLM 없이 원본 Pine 실행과 검토한 Python 계산을 대조한다.
+
+## 두 실행 경로
+
+1. **원본 Pine → `pine_v2`**: `run_historical(..., capture_signals=True, timeframe="1h")`가
+   실제 실행한 `plotshape`·`plotchar`·`plotarrow`·`alertcondition`·`alert`의 조건값과 소스 위치를 수집한다.
+   일반 history의 최근 500개 제한과 독립적이다. 방향은 원본을 검토한 manifest가 명시한다.
+   실행된 degraded 호출도 기록한다. 빈 실행 목록만으로 임의 소스의 동등성을 보증하지 않으며, 현재 분기 미실행
+   예외는 검토한 UT Bot 원본의 정확한 hash와 `h=false`에 한정한다. 운영 coverage 동의 규칙은 유지한다.
+2. **검토한 Python 계산 → 사건 → 선물 원장**: `scripts/pine_validation/oracles.py`의 정적 계산을 사용한다.
+   Pine 인터프리터·stdlib를 재사용하거나 임의 Python을 `exec/eval`하지 않는다. EMA/SMA/RSI/Supertrend/UTBot
+   계산기 이름만 같다는 이유로 특정 공개 지표와 동일하다고 판정하지 않는다. 원본 hash·입력·신호 줄을 함께 고정한다.
+
+기존 **Python View는 읽기 전용**이며 이 실행 경로와 별개다. 범용 Pine→Python 변환기는 아니다.
+기존 indicator→strategy 슬라이싱도 원본 조건식·범위를 보존할 수 없으면 성공을 반환하지 않는다.
+
+## 비교 계약
+
+| 항목 | 기준 |
+| --- | --- |
+| 시장 | `BYBIT:BTCUSDT.P` — BTC/USDT 무기한 선물 |
+| 기간 | 실행일의 최근 확정 UTC 일봉 경계까지 calendar 1년, 별도 warmup |
+| 타임프레임 | 1h·4h·1d, 누락·중복 없는 동일 OHLCV |
+| 후보 | Boost ≥100 공개 소스, 중복 id/URL 금지, 최대 100개 |
+| 사건 | 조건 평가 봉·방향·확정 시각·표시 offset 시각을 각각 비교 |
+| 선물 | 롱/숏 반전, 단일 포지션, 같은 방향 추가 진입 없음, 명시 청산 지원 |
+| 체결 가정 | 다음 봉 시가, 1배, 고정 1수량, 수수료·슬리피지·펀딩 0 |
+
+마지막 봉 신호는 미체결로 남긴다. 종료 시 강제 청산하지 않는다. 이 단순 원장은 실제 거래소 체결·
+청산·증거금 엔진을 대체하지 않는다. TV 지표의 신호를 같은 선물 규칙으로 해석하는 비교이며,
+TradingView Strategy Tester의 손익을 수집하지 않았다면 그 손익까지 검증했다고 말하지 않는다.
+
+빈 사건, 한 방향만 발생한 사건, 자료 누락, 원본 hash 불일치, 미지원 계산은 통과하지 않는다.
+`exact_match`는 개별 비교의 일치이며, 전체 `passed`는 **10개 이상 × 세 타임프레임**의 모든 검증을 요구한다.
+짧은 기간의 일치 결과도 기록하지만 전체 성공으로 승격하지 않는다.
+
+## 수집과 실행
+
+TradingView는 로그인된 Playwright MCP의 실제 UI로 조작한다. 원본은 공개 게시물의 **Source code**를 눌러
+발생한 응답에서 읽고 작성자·URL·관측 Boost·관측 시각·원본 SHA-256을 보존한다. 보호된 소스는 제외한다.
+사용자 차트에서 기존 지표를 삭제하지 않는다. 검증용 지표는 한 번에 하나만 활성화하고 교체한다.
+기존 지표를 잠시 숨겨야 한다면 표시 상태를 먼저 기록하고 복구한다. 검증이 끝난 임시 지표는 제거한 뒤 다음 지표를 추가한다. 새 레이아웃은 만들지 않는다. 알림·주문은 수집에 필요하지 않다.
+
+Basic의 일반 차트 이력과 내보내기 제한 때문에 최근 1년 1h가 없을 수 있다. 이용 가능한
+`request.security_lower_tf`와 Pine Logs로 수집한 값은 **별도 probe 증거**다. 원본의 native 실행과
+겹치는 구간에서 동등성을 입증하기 전에는 원본 검증 성공으로 취급하지 않는다. v4는 `log.info`를 지원하지
+않으므로 v5/v6 포팅도 원본 변경 내역과 검토 근거를 따로 남긴다. 한도·오류·누락을 숨기거나 우회하지 않는다.
+
+`scripts/pine_validation/tv_logs.py`는 UI에서 읽은 `QB1|epoch_ms,open,high,low,close,volume,buy,sell,stop,atr;`
+로그를 CSV와 사건 JSON으로 변환한다. 바깥 로그의 차트 시간대 대신 payload의 UTC epoch를 사용한다.
+중복·충돌·시간 격자 누락·잘린 로그를 거부한다. 초기 warmup의 진단값 NA와 OHLCV 결측은 구분한다.
+원본 native 검증을 완료하지 않은 probe는 `native_original_verified=false`로 보존한다.
+
+모든 수집물·원본·실행 결과는 gitignore된 `runs/pine-validation/` 아래에 둔다. manifest의 경로는 manifest
+기준 상대 경로다. CSV 열은 `time,open,high,low,close,volume`, time은 시간대가 명시된 ISO 문자열이다.
+
+```json
+{
+  "version": 1,
+  "symbol": "BYBIT:BTCUSDT.P",
+  "window": {"start": "2025-10-20T00:00:00Z", "end": "2026-10-20T00:00:00Z"},
+  "ohlcv": {"1h": "data/1h.csv", "4h": "data/4h.csv", "1d": "data/1d.csv"},
+  "indicators": [{
+    "id": "publication-id", "title": "원본 제목", "url": "게시물 URL", "author": "작성자",
+    "boosts": 100, "observed_at": "2026-10-20T00:00:00Z",
+    "source_file": "sources/original.pine", "source_sha256": "원본 파일 SHA-256",
+    "signal_bindings": [
+      {"function": "alertcondition", "line": 10, "direction": "long"},
+      {"function": "alertcondition", "line": 11, "direction": "short"}
+    ],
+    "oracle": "ema_cross", "params": {"fast": 7, "slow": 21}, "inputs": {},
+    "tv_events": {"1h": "tv/1h.json", "4h": "tv/4h.json", "1d": "tv/1d.json"}
+  }]
+}
+```
+
+TV 사건 JSON은 `events` 배열과 `provenance` 객체를 갖는다. provenance에는 원본 `source_sha256`,
+`symbol`, `timeframe`, `inputs`, `window`를 manifest와 동일하게 명시한다. `kind=native_original` 또는
+원본 대조를 마친 `kind=reviewed_port, native_original_verified=true`만 최종 판정에 사용한다.
+출처 없는 배열이나 미검증 probe는 차이를 계산해 보여주더라도 통과시키지 않는다. 동일 원본 hash는 중복 사례로
+표시하고 최소 10개의 독립 표본 수에 보태지 않는다. 게시물 URL의 query·slug 차이도 별도 지표로 세지 않는다.
+
+줄은 1-based, 선택적인 `column`은 0-based다. 같은 줄의 여러 호출은 column으로 구분한다.
+`when`은 `truthy`(기본), `positive`, `negative`를 지원한다. 부호가 없는 cross를 임의로 롱/숏에 연결하지 않는다.
+시각의 `source_line`은 출처 메타데이터이므로 사건·체결 동일성에 포함하지 않는다.
+
+```bash
+cd apps/api
+uv run python scripts/validate_pine_signals.py \
+  --manifest ../../runs/pine-validation/manifest.json \
+  --output ../../runs/pine-validation/result --limit 100
+```
+
+`report.json`은 원본·CSV·TV 자료 hash, 원시 사건, 세 쌍의 신호 차이, 선물 원장을 보존한다.
+`summary.md`는 지표별 판정을 보여준다. 종료 코드는 0=전체 통과, 1=미완료/불일치, 2=manifest 오류다.
+워크트리에서는 Celery 대신 이 직접 실행 도구를 사용한다. DB·서버 등록·배포는 이 명령의 범위가 아니다.
+
+## LLM 차단
+
+`LLM_PROVIDER_ORDER` 기본값은 빈 문자열이다. 키가 남아 있어도 provider 목록이 비어 있으면
+해설·생성·변환·모델 카탈로그·명시 override에서 외부 SDK를 생성하지 않는다. 필요한 경우에만 사용자가
+provider 목록을 명시적으로 설정한다. 이 검증 도구는 LLM 기능을 호출하지 않는다.

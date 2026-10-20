@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from pydantic import BaseModel, ConfigDict, SecretStr
@@ -121,11 +122,41 @@ def test_one_provider_failure_does_not_sink_the_others(monkeypatch):
     assert by["anthropic"].configured_listed is True
 
 
-def test_catalog_follows_configured_order_then_the_rest(monkeypatch):
+def test_catalog_only_queries_configured_providers_in_order(monkeypatch):
     fake_fetchers(monkeypatch)
-    got = [c.provider for c in C.catalog(settings(llm_provider_order="gemini"))]
-    assert got[0] == "gemini"
-    assert sorted(got) == sorted(C.KNOWN_PROVIDERS)
+    excluded = Mock(side_effect=AssertionError("허용 목록 밖의 provider 를 조회했습니다"))
+    monkeypatch.setitem(C._FETCHERS, "anthropic", excluded)
+    got = [c.provider for c in C.catalog(settings(llm_provider_order="gemini,openai"))]
+    assert got == ["gemini", "openai"]
+    excluded.assert_not_called()
+
+
+@pytest.mark.parametrize("order", ["", " , ", "opnai,claud"])
+def test_disabled_catalog_does_not_query_any_provider(monkeypatch, order):
+    fetcher = Mock(side_effect=AssertionError("비활성화된 provider 를 조회했습니다"))
+    for provider in C.KNOWN_PROVIDERS:
+        monkeypatch.setitem(C._FETCHERS, provider, fetcher)
+
+    st = settings(llm_provider_order=order)
+    assert C.catalog(st) == []
+    for provider in C.KNOWN_PROVIDERS:
+        result = C.fetch_provider(st, provider)
+        assert result.models == []
+        assert result.configured_listed is None
+        assert result.error == "설정에서 허용되지 않은 provider 입니다"
+    fetcher.assert_not_called()
+
+
+def test_disallowed_provider_cannot_reuse_an_allowed_catalog_cache(monkeypatch):
+    fetcher = Mock(return_value=([C.ModelInfo(id="gemini-test")], 1))
+    monkeypatch.setitem(C._FETCHERS, "gemini", fetcher)
+    assert C.fetch_provider(settings(), "gemini", now=1000.0).models
+
+    result = C.fetch_provider(settings(llm_provider_order=""), "gemini", now=1001.0)
+
+    assert result.models == []
+    assert result.error == "설정에서 허용되지 않은 provider 입니다"
+    fetcher.assert_called_once()
 
 
 # ── ⑷ 후보 필터 ─────────────────────────────────────────────────────────────
@@ -289,6 +320,27 @@ def test_unknown_provider_is_rejected(monkeypatch):
         C.resolve_override(settings(), provider="llama", model="whatever")
 
 
+@pytest.mark.parametrize(
+    ("order", "provider"),
+    [
+        ("", "openai"),
+        ("", "anthropic"),
+        ("", "gemini"),
+        ("opnai,claud", "gemini"),
+        ("gemini", "openai"),
+        ("gemini", "anthropic"),
+    ],
+)
+def test_override_cannot_enable_a_disallowed_provider(monkeypatch, order, provider):
+    fetcher = Mock(side_effect=AssertionError("허용 목록 밖의 provider 를 조회했습니다"))
+    monkeypatch.setitem(C._FETCHERS, provider, fetcher)
+
+    with pytest.raises(C.ModelNotAvailableError, match="허용되지 않은 provider"):
+        C.resolve_override(settings(llm_provider_order=order), provider=provider, model="anything")
+
+    fetcher.assert_not_called()
+
+
 def test_provider_without_key_is_rejected(monkeypatch):
     fake_fetchers(monkeypatch)
     with pytest.raises(C.ModelNotAvailableError):
@@ -369,5 +421,25 @@ def test_models_endpoint_returns_200_and_the_documented_shape(monkeypatch):
         assert by["gemini"]["models"][0]["display_name"] == "Flash Lite"
         # provider 가 안 준 필드는 **없는 게 아니라 null** 이다(`_KIT.md` §4.9 — 화면이 자리를 비운다).
         assert by["openai"]["models"][0]["display_name"] is None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_models_endpoint_disabled_has_no_providers_or_active_model(monkeypatch):
+    from uuid import uuid4
+
+    from src.strategy.narrative import router as router_mod
+
+    app, client, dep, CurrentUserCls = _client(monkeypatch)
+    monkeypatch.setattr(router_mod, "settings", settings(llm_provider_order=""))
+    fetcher = Mock(side_effect=AssertionError("비활성화된 provider 를 조회했습니다"))
+    for provider in C.KNOWN_PROVIDERS:
+        monkeypatch.setitem(C._FETCHERS, provider, fetcher)
+    app.dependency_overrides[dep] = lambda: CurrentUserCls(id=uuid4(), auth_subject="t")
+    try:
+        response = client.get("/api/v1/llm/models")
+        assert response.status_code == 200, response.text
+        assert response.json() == {"providers": [], "order": [], "active": None}
+        fetcher.assert_not_called()
     finally:
         app.dependency_overrides.clear()

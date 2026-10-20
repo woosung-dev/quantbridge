@@ -10,6 +10,7 @@ ADR-011 §2.0.4 "범위 A" 엄수:
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -151,7 +152,13 @@ class RenderingRegistry:
         label.x = x
         label.y = y
 
+    def label_set_x(self, label: LabelObject, x: float) -> None:
+        label.x = x
+
     def label_delete(self, label: LabelObject) -> None:
+        # label[1]은 첫 봉에서 na다. 지울 이전 라벨이 없는 정상 경로다.
+        if isinstance(label, float) and math.isnan(label):
+            return
         label.deleted = True
 
     # ---- table ----

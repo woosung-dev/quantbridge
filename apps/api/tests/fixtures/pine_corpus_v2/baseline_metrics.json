@@ -171,7 +171,7 @@
         "drawdown_curve": "sha256:c35dea149128ed4ebec5bd0115d52a597cbd096328fe391ed54919e536efb54a",
         "buy_and_hold_curve": "sha256:c49912a3258fd162cef43ca3a11e56592a9d7a8710911027d6be0586ec85764d"
       },
-      "var_series_digest": "sha256:e60b37b755aa304734e3d166443be51c9b276661424ecda2e18639e865559387",
+      "var_series_digest": "sha256:092002513c6d641ed29c22e3b8f5d7aa8f5c904e7aba006469ecf89b3c098ec3",
       "trades_digest": "sha256:405b7e128e4ac40466815c1b7253989549a0d8b6bb73e058634b6c674acd3a60",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "updated_at": "2026-08-07T14:30:11Z"

@@ -24,10 +24,16 @@ import pandas as pd
 
 from src.strategy.pine_v2.alert_hook import AlertHook, SignalKind, collect_alerts
 from src.strategy.pine_v2.event_loop import _validate_ohlcv
-from src.strategy.pine_v2.interpreter import BarContext, Interpreter, PineRuntimeError
+from src.strategy.pine_v2.interpreter import (
+    BarContext,
+    Interpreter,
+    PineRuntimeError,
+    pine_version_from_ast,
+)
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.pine_v2.rendering import RenderingRegistry
 from src.strategy.pine_v2.runtime import PersistentStore
+from src.strategy.pine_v2.signal_trace import SignalObservation
 from src.strategy.pine_v2.strategy_state import StrategyState
 
 ActionKind = Literal["entry", "close"]
@@ -68,6 +74,8 @@ class VirtualRunResult:
     rendering: RenderingRegistry | None = None  # line/box/label/table handle 수집
     warnings: list[str] = field(default_factory=list)
     errors: list[tuple[int, str]] = field(default_factory=list)
+    signal_trace: list[SignalObservation] = field(default_factory=list)
+    degraded_calls_seen: list[str] = field(default_factory=list)
 
 
 class VirtualStrategyWrapper:
@@ -95,22 +103,34 @@ class VirtualStrategyWrapper:
         self._prev: dict[int, bool] = {a.index: False for a in alerts}
         self._discrepancy_logged: set[int] = set()
 
-    def process_bar(self, bar_idx: int) -> None:
-        """현재 bar에서 각 alert condition을 재평가 후 strategy action 디스패치."""
+    def process_bar(
+        self, bar_idx: int, observations: list[SignalObservation] | None = None
+    ) -> None:
+        """현재 봉 관찰값 또는 기존 조건 재평가로 strategy action을 디스패치한다."""
         for hook in self.alerts:
-            if hook.condition_ast is None:
+            if observations is None and hook.condition_ast is None:
                 # condition AST가 없는 alert는 재평가 불가 — 무시
                 continue
-            try:
-                raw = self.interp._eval_expr(hook.condition_ast)
-            except PineRuntimeError as exc:
-                if self.strict:
-                    raise
-                self.warnings.append(
-                    f"bar {bar_idx}: alert#{hook.index} condition eval failed: {exc}"
+            if observations is not None:
+                # 실제 호출에서 평가한 값을 재사용해 상태형 ta.*를 두 번 호출하지 않는다.
+                cur = any(
+                    self.interp._truthy(observation.value)
+                    for observation in observations
+                    if observation.source_line == hook.source_line
+                    and observation.source_column == hook.source_column
+                    and observation.function == hook.kind
                 )
-                continue
-            cur = self.interp._truthy(raw)
+            else:
+                try:
+                    raw = self.interp._eval_expr(hook.condition_ast)
+                except PineRuntimeError as exc:
+                    if self.strict:
+                        raise
+                    self.warnings.append(
+                        f"bar {bar_idx}: alert#{hook.index} condition eval failed: {exc}"
+                    )
+                    continue
+                cur = self.interp._truthy(raw)
             prev = self._prev[hook.index]
             self._prev[hook.index] = cur
             # False→True 전이에서만 발행
@@ -176,6 +196,8 @@ def run_virtual_strategy(
     input_overrides: Mapping[str, Any] | None = None,
     pyramiding: int | None = None,
     fill_timing: str = "bar_close",
+    capture_signals: bool = False,
+    timeframe: str | None = None,
 ) -> VirtualRunResult:
     """indicator + alertcondition Pine 스크립트를 가상 strategy로 실행.
 
@@ -199,9 +221,16 @@ def run_virtual_strategy(
     )
 
     store = PersistentStore()
-    bar = BarContext(ohlcv.reset_index(drop=True), timestamps=timestamps)
+    bar = BarContext(
+        ohlcv.reset_index(drop=True),
+        timestamps=timestamps,
+        timeframe=timeframe,
+        pine_version=pine_version_from_ast(tree),
+    )
     # Sprint 51 BL-220 — input_overrides 주입 (Param Stability grid sweep cell 단위).
-    interp = Interpreter(bar, store, input_overrides=input_overrides)
+    interp = Interpreter(
+        bar, store, input_overrides=input_overrides, capture_signals=capture_signals
+    )
     if initial_capital is not None:
         interp.strategy.configure_sizing(
             initial_capital=initial_capital,
@@ -244,8 +273,12 @@ def run_virtual_strategy(
             low=bar.current("low"),
         )
         try:
+            trace_start = len(interp.signal_trace)
             interp.execute(tree)
-            wrapper.process_bar(bar.bar_index)
+            wrapper.process_bar(
+                bar.bar_index,
+                observations=interp.signal_trace[trace_start:] if capture_signals else None,
+            )
         except PineRuntimeError as exc:
             if strict:
                 store.commit_bar()
@@ -262,4 +295,6 @@ def run_virtual_strategy(
         rendering=interp.rendering,
         warnings=wrapper.warnings,
         errors=errors,
+        signal_trace=interp.signal_trace,
+        degraded_calls_seen=interp.degraded_calls_seen,
     )
