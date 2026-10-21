@@ -210,6 +210,9 @@ export function StrategyList() {
             <Link className="btn btn-primary" href="/strategies/new">
               <PlusIcon aria-hidden="true" />새 전략
             </Link>
+            <Link className="btn" href="/strategies/code">
+              코드 전략
+            </Link>
           </div>
         </div>
       </section>
