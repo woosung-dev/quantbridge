@@ -233,6 +233,61 @@ def test_parent_daily_funding_is_na_without_any_execution(tmp_path):
     no_run.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("case_id", "allowed", "eligible_units", "na_units"),
+    [
+        ("08", ("1h", "4h", "1d"), 40, 8),
+        ("21", ("1h", "4h"), 32, 16),
+        ("30", ("1h",), 16, 32),
+    ],
+)
+def test_case_timeframe_guard_preserves_48_units_without_running_incompatible_source(
+    tmp_path, case_id, allowed, eligible_units, na_units
+):
+    item, _ = artifact(tmp_path)
+    item["case_id"] = case_id
+    original = deepcopy(item)
+    window = {"start": "2026-01-01T00:00Z", "end_exclusive": "2026-01-03T00:00Z"}
+    runner = Mock(side_effect=RuntimeError("eligible execution marker; no native runtime"))
+    transport = Mock(side_effect=AssertionError("no native runtime"))
+    records = []
+    for cell in economics.cells({"historical_window": window, "execution_window": window}):
+        for scenario in stress_scenarios():
+            before = runner.call_count
+            row = economics.run_job(
+                item,
+                cell,
+                scenario,
+                data=data(),
+                data_error=None,
+                snapshot_id="snapshot",
+                runtime={},
+                warmup=0,
+                cache=tmp_path / "cache",
+                runner=runner,
+                transport_builder=transport,
+            )
+            records.append(row)
+            if cell["timeframe"] not in allowed:
+                assert row["status"] == "not_applicable"
+                assert "case_timeframe_incompatible" in row["error"]
+                assert runner.call_count == before
+                assert row["binding"]["case_timeframe_compatibility"] == {
+                    "supported_timeframes": list(allowed),
+                    "error": economics.CASE_TIMEFRAME_REASONS[case_id],
+                }
+    assert len(records) == 48
+    assert runner.call_count == eligible_units
+    assert sum(row["status"] == "not_applicable" for row in records) == na_units
+    assert item == original
+    transport.assert_not_called()
+
+
+def test_timeframe_compatibility_is_a_closed_catalogue_id_table():
+    assert set(economics.CASE_TIMEFRAMES) == {f"{number:02}" for number in range(1, 31)}
+    assert set(economics.CASE_TIMEFRAME_REASONS) == {"21", "30"}
+
+
 def test_dedup_is_per_strategy_cell_scenario_and_families_are_separate(tmp_path):
     row, _ = job(tmp_path)
     records = [

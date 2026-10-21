@@ -54,6 +54,16 @@ from src.strategy.python_runtime.protocol import validate_source_and_params  # n
 from src.strategy.python_runtime.serialization import json_value  # noqa: E402
 
 POLICY = "quality_winner_then_first_semantic_pass"
+# 카탈로그의 고정 시간봉 의미를 보존한다. 생성 소스의 문자열을 추측하지 않는다.
+CASE_TIMEFRAMES = {
+    **{f"{number:02}": ("1h", "4h", "1d") for number in range(1, 31)},
+    "21": ("1h", "4h"),
+    "30": ("1h",),
+}
+CASE_TIMEFRAME_REASONS = {
+    "21": "UTC 일중 VWAP은 일봉마다 reset되어 일중 다중 봉 정의를 보존할 수 없습니다",
+    "30": "1h EMA9/21과 직전 완료 4h regime 정의는 1h 부모 신호봉에서만 유지됩니다",
+}
 IMAGES = {
     language: f"quantbridge-{name}-runner:local"
     for language, name in (
@@ -285,6 +295,12 @@ def run_job(
     runner=run_code_backtest,
     transport_builder=native_transport,
 ) -> dict:
+    supported_timeframes = CASE_TIMEFRAMES[artifact["case_id"]]
+    timeframe_error = (
+        None
+        if cell["timeframe"] in supported_timeframes
+        else CASE_TIMEFRAME_REASONS[artifact["case_id"]]
+    )
     parent, funding, minute = data if data is not None else (None, None, None)
     config = scenario_config(cell["timeframe"], scenario)
     stressed = (
@@ -311,6 +327,10 @@ def run_job(
         "data_error": data_error,
         "risk_policy": "swing_two_bar_v1",
         "selection_policy": POLICY,
+        "case_timeframe_compatibility": {
+            "supported_timeframes": list(supported_timeframes),
+            "error": timeframe_error,
+        },
     }
     key = hash_json(binding)
     path = cache / (key + ".json")
@@ -338,6 +358,23 @@ def run_job(
         "promotable": False,
         "method_quality_score": None,
     }
+    na_reasons = []
+    if artifact["source_error"] == "no_semantic_pass":
+        na_reasons.append("no_semantic_pass")
+    if timeframe_error:
+        na_reasons.append(f"case_timeframe_incompatible: {timeframe_error}")
+    if not cell["execution"] and cell["timeframe"] == "1d":
+        na_reasons.append(
+            "historical_daily_requires_minute_execution: "
+            "24개월 일봉에는 정확한 봉 내부 펀딩·포지션 배분을 위한 1분봉이 없습니다"
+        )
+    if na_reasons:
+        return {
+            **record,
+            "status": "not_applicable",
+            "error": "; ".join(na_reasons),
+            "not_applicable_reasons": na_reasons,
+        }
     if path.exists():
         cached = json.loads(path.read_text())
         identity = cached.pop("record_sha256")
@@ -348,15 +385,6 @@ def run_job(
         ):
             raise ValueError("경제 캐시의 입력·결과 해시가 다릅니다")
         return {**cached, "record_sha256": identity, "cache_hit": True}
-    if artifact["source_error"] == "no_semantic_pass" or (
-        not cell["execution"] and cell["timeframe"] == "1d"
-    ):
-        return {
-            **record,
-            "status": "not_applicable",
-            "error": artifact["source_error"]
-            or "24개월 일봉에는 정확한 봉 내부 펀딩·포지션 배분을 위한 1분봉이 없습니다",
-        }
     if artifact["source_error"] or data_error:
         return {**record, "error": artifact["source_error"] or data_error}
     started = time.monotonic()

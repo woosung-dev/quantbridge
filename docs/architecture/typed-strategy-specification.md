@@ -76,3 +76,16 @@ fixture를 구분하고, 공개 카탈로그를 지원한다는 사실을 미지
 registry 확장, 세 backend의 검증, 타입 SDK, 격리 이미지, 공통 원장과 재시작 보호는 고정
 운영 비용이다. 이를 제외한 LLM 생성 시간만으로 전체 비용 우위를 단정하지 않는다.
 수익은 관측 시세·가격 proxy·비용 가정에 따른 별도 회고 결과이며 방법 품질 점수로 합치지 않는다.
+
+## 회고 경제 검증의 시간봉 적용 범위
+
+`sol_economics.py`는 카탈로그 ID별 닫힌 지원표를 사용하며 생성 소스에서 시간봉을 추측하지
+않는다. case 21의 UTC 일중 VWAP은 1h·4h, case 30의 1h EMA9/21과 직전 완료 4h regime은
+1h 부모 신호봉에만 적용한다. 다른 case는 현재 경제 매트릭스의 1h·4h·1d를 허용한다.
+이는 선택한 첫 semantic pass 원문을 다른 시간봉 전략으로 재해석하지 않기 위한 경계다.
+
+[공식 VWAP 설명](https://www.tradingview.com/support/solutions/43000502018-volume-weighted-average-price-vwap/)은
+한 anchor 기간 안에 여러 봉이 있어야 하며 Session anchor와 1D 봉의 조합은 매봉 reset되어
+유용하지 않다고 명시한다. UTC 일중 reset의 1d 제외는 이 제약을 적용한 프로젝트 판단이다.
+지원하지 않는 조합과 분봉 없는 24개월 일봉의 펀딩 배분은 이유가 있는 N/A로 보존하고
+native 실행을 호출하지 않는다. case별 48개 계획 셀과 실패·미지원 분모는 줄이지 않는다.
