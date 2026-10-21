@@ -483,16 +483,16 @@ def _compile_pine(spec: StrategySpec) -> str:
                 ]
             )
         elif kind == "regression":
-            mid = (n - 1) / 2
+            regression_mid = (n - 1) / 2
             den = n * (n * n - 1) / 12
             lines.extend(
                 [
                     f"{name}_mean = ta.sma({source}, {n})",
                     f"{name}_numerator = 0.0",
                     f"for qb_i = 0 to {n - 1}",
-                    f"    {name}_numerator := {name}_numerator + ({n - 1} - qb_i - {mid}) * ({source}[qb_i] - {name}_mean)",
+                    f"    {name}_numerator := {name}_numerator + ({n - 1} - qb_i - {regression_mid}) * ({source}[qb_i] - {name}_mean)",
                     f"{name}_slope = {name}_numerator / {den}" if den else f"{name}_slope = 0.0",
-                    f"{name}_intercept = {name}_mean - {name}_slope * {mid}",
+                    f"{name}_intercept = {name}_mean - {name}_slope * {regression_mid}",
                     f"{v} = {name}_intercept + {name}_slope * {n - 1}",
                     f"{name}_residual = 0.0",
                     f"for qb_i = 0 to {n - 1}",
