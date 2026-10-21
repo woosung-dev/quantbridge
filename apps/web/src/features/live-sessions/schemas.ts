@@ -73,6 +73,7 @@ export const CodeExecutionSummarySchema = z.object({
   new_entries_blocked: z.boolean(),
   failure_reason: z.string().nullable(),
   pending_reversal: z.string().nullable(),
+  unsettled_exit_quantity: z.string().optional(),
 });
 export type CodeExecutionSummary = z.infer<typeof CodeExecutionSummarySchema>;
 
@@ -84,6 +85,9 @@ export const LiveSignalStateSchema = z.object({
   last_strategy_state_report: z.record(z.string(), z.unknown()),
   total_closed_trades: z.number(),
   total_realized_pnl: z.string(),
+  pnl_complete: z.boolean().nullable().optional(),
+  pnl_scope: z.literal("known_order_subtotal").nullable().optional(),
+  unpriced_exit_orders: z.number().int().nonnegative().optional(),
   // BL-458 — 출처 소계. `total_realized_pnl` 은 여전히 둘을 합친 값이다.
   // `.optional()` — 구 응답 호환 + 부분 분할을 "0" 으로 위장하지 않기 위해.
   confirmed_realized_pnl: z.string().optional(),

@@ -35,6 +35,12 @@ export function CodeExecutionSummary({ summary }: { summary: Summary }) {
           새 진입 차단{summary.failure_reason ? ` · ${summary.failure_reason}` : ""}
         </p>
       ) : null}
+      {Number(summary.unsettled_exit_quantity ?? "0") > 0 ? (
+        <p className="mt-1 text-destructive" role="status">
+          거래소 청산 귀속 미확인 · 수량 {summary.unsettled_exit_quantity}. 같은 계정의 새 진입이
+          차단됩니다.
+        </p>
+      ) : null}
       <p className="mt-1 text-muted-foreground">
         의도 전달은 체결 완료를 뜻하지 않습니다. 손익은 실제 체결 주문을 기준으로 집계합니다. 추적
         조건은 원장의 판정이며 거래소의 실제 활성 상태를 조회해 확인한 값이 아닙니다.

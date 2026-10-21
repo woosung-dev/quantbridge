@@ -118,15 +118,13 @@ function buildDistanceSub(
   return `체결가 ${filledPrice} 대비 ${parts.join(" / ")}`;
 }
 
-const FILLED_ORDER_STATE: Order["state"] = "filled";
-
-// 자금이 실제로 움직인 주문만 손익을 노출한다. rejected/cancelled 행에 남아 있는 값은
-// close 주문 생성 시점의 pine_v2 추정치일 뿐이라 손실처럼 보이면 사용자가 오판한다.
-// 부분체결 후 cancelled 로 끝나는 청산은 현재 도달 불가 경로다. 청산이 전부 시장가라
-// Bybit PartiallyFilledCanceled → ccxt closed → 우리 filled 로 매핑된다. 그 경로가
-// 생기면 이 조건을 함께 넓혀야 한다.
+// legacy 실패 주문의 추정 손익은 감춘다. 코드 부분 체결 취소·거부는 서버가
+// 실제 체결 증거를 확인한 경우만 목록·상세·CSV에 같은 손익을 표시한다.
 export function displayRealizedPnl(o: Order): string | null {
-  return o.state === FILLED_ORDER_STATE && o.realized_pnl != null ? o.realized_pnl : null;
+  const recordedFill =
+    o.state === "filled" ||
+    ((o.state === "cancelled" || o.state === "rejected") && o.has_recorded_fill === true);
+  return recordedFill && o.realized_pnl != null ? o.realized_pnl : null;
 }
 
 // 부분체결 판정과 손익 출처 판정도 화면과 CSV 가 각자 계산하면 한쪽만 고쳐졌을 때

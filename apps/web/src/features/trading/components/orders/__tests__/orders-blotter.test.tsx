@@ -282,6 +282,28 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     expect(within(cells[6]!).queryByText("추정")).toBeNull();
   });
 
+  it.each(["cancelled", "rejected"] as const)(
+    "%s 코드 주문은 서버가 확인한 부분 체결 손익을 표시한다",
+    (state) => {
+      withOrders([
+        makeOrder({
+          id: "code-partial-pnl",
+          state,
+          quantity: "1",
+          filled_quantity: "0.5",
+          has_recorded_fill: true,
+          realized_pnl: "-2.50",
+          realized_pnl_synced_at: "2026-04-14T20:00:05Z",
+        }),
+      ]);
+      render(<OrdersBlotter />);
+      const cells = within(screen.getByTestId("order-row-code-partial-pnl")).getAllByRole("cell");
+      expect(cells[5]!).toHaveTextContent("0.5 부분");
+      expect(cells[6]!).toHaveTextContent("-2.50");
+      expect(within(cells[6]!).getByText("거래소 확정")).toBeInTheDocument();
+    },
+  );
+
   it("체결 전 주문에 미리 기록된 추정 손익도 표시하지 않는다", () => {
     // 손익은 close 주문 생성 시점(state=pending)에 이미 기록되므로 이게 가장 흔한 경우다.
     withOrders([

@@ -268,6 +268,9 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
   it("코드 체크포인트·원장 상태와 실제 체결 손익을 표시한다", async () => {
     stateMock.mockResolvedValue({
       ...STATE_NO_EQUITY,
+      pnl_complete: false,
+      pnl_scope: "known_order_subtotal",
+      unpriced_exit_orders: 2,
       code_execution: {
         version_id: SESSION.strategy_id,
         checkpoint_status: "prepared",
@@ -283,6 +286,7 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
         new_entries_blocked: true,
         failure_reason: "awaiting_protection_ack",
         pending_reversal: "short",
+        unsettled_exit_quantity: "0.25",
       },
     });
     eventsMock.mockResolvedValue({ items: [] });
@@ -294,6 +298,23 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     expect(screen.getByTestId("code-execution-summary")).toHaveTextContent("보호 ACK 대기");
     expect(screen.getByTestId("code-execution-summary")).toHaveTextContent("새 진입 차단");
     expect(screen.getByText("+12.34")).toBeInTheDocument();
+    expect(screen.getByText("알려진 주문 손익 소계")).toBeInTheDocument();
+    expect(screen.getByText(/손익 미정산/)).toHaveTextContent("정산 대기 주문 2건");
+    expect(screen.getByText(/거래소 청산 귀속 미확인/)).toHaveTextContent("수량 0.25");
+    expect(screen.getByText(/거래소 청산 귀속 미확인/)).toHaveTextContent("같은 계정의 새 진입");
+  });
+
+  it("미정산 체결이 없는 코드 소계는 미정산 경고를 표시하지 않는다", async () => {
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      pnl_complete: true,
+      pnl_scope: "known_order_subtotal",
+      unpriced_exit_orders: 0,
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+    renderWith(<LiveSessionDetail session={SESSION} />);
+    expect(await screen.findByText("알려진 주문 손익 소계")).toBeInTheDocument();
+    expect(screen.queryByText(/손익 미정산/)).not.toBeInTheDocument();
   });
 
   it("empty events — 안내 텍스트만, chart 미생성", async () => {
