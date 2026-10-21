@@ -83,3 +83,13 @@ async def test_native_history_cursor_repeat_or_budget_never_confirms_partial_res
     assert exchange.privateGetV5OrderRealtime.await_count == 2
     exchange.privateGetV5OrderHistory.assert_not_awaited()
     exchange.close.assert_awaited_once()
+
+
+async def test_native_history_network_failure_returns_no_partial_observations(exchange):
+    exchange.privateGetV5OrderRealtime.side_effect = TimeoutError("transport")
+    with pytest.raises(ProviderError, match="TimeoutError"):
+        await BybitFuturesProvider().fetch_attached_sl_orders(
+            Credentials("fake", "fake"), "BTCUSDT", since=datetime.now(UTC)
+        )
+    exchange.close.assert_awaited_once()
+    exchange.privateGetV5OrderHistory.assert_not_awaited()

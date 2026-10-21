@@ -719,3 +719,130 @@ async def test_known_partial_tp_then_native_sl_only_debits_remaining(native, db_
     assert state.exit_fills[str(tp_id)]["quantity"] == "1"
     (child,) = await child_rows(db_session)
     assert state.exit_fills[str(child.id)]["quantity"] == "1"
+
+
+@pytest.mark.parametrize("intent", ["protection", "close"])
+@pytest.mark.parametrize(
+    "error", ["native SL history page budget exhausted", "native SL history failed: TimeoutError"]
+)
+async def test_healthy_position_skips_discovery_for_protection_close_and_cancel(
+    native, intent, error, caplog
+):
+    from types import SimpleNamespace
+
+    from src.trading.exceptions import ProviderError
+    from src.trading.services.code_risk_executor import CodeRiskExecutor
+
+    repo, session, _entry, orders, risk, _handler, _raw = native
+    provider, accounts = AsyncMock(), AsyncMock()
+    accounts.get_credentials_for_order.return_value = Credentials("fake", "fake")
+    provider.fetch_order_by_client_id.return_value = _build_bybit_v5_order_status_fetch(
+        {
+            "orderId": "parent-external",
+            "orderStatus": "Filled",
+            "cumExecQty": "2",
+            "cumExecValue": "200",
+            "avgPrice": "100",
+        }
+    )
+    provider.fetch_attached_sl_orders.side_effect = ProviderError(error)
+    provider.fetch_position.return_value = SimpleNamespace(side="long", size=D(2))
+    if intent == "close":
+        # 미종결 entry 취소도 같은 drain에서 안전하게 전달할 수 있어야 한다.
+        state = await repo.get(session.id)
+        changed = type(state)(**{**state.model_dump(), "entry_terminal": False})
+        assert await repo.compare_and_swap(changed, state.revision)
+        await repo.commit()
+        provider.fetch_order_by_client_id.return_value = _build_bybit_v5_order_status_fetch(
+            {
+                "orderId": "parent-external",
+                "orderStatus": "PartiallyFilled",
+                "cumExecQty": "2",
+                "cumExecValue": "200",
+                "avgPrice": "100",
+            }
+        )
+        await risk.request_signal(session.id, 1, "close")
+    venue = BybitCodeRiskVenue(repo, orders, risk, accounts, provider)
+    venue.execute = AsyncMock(return_value={"protection": {}})
+    await CodeRiskExecutor(repo, risk, venue).drain(session.id)
+    delivered = {call.args[0].kind for call in venue.execute.await_args_list}
+    assert ({"flatten", "cancel_entry"} if intent == "close" else {"apply_protection"}) <= delivered
+    state = await repo.get(session.id)
+    assert state.position_quantity == 2 and state.unsettled_exit_quantity == 0
+    assert not state.exit_fills
+    provider.fetch_attached_sl_orders.assert_not_awaited()
+    assert "native_sl_discovery_deferred" not in caplog.text
+    provider.create_order.assert_not_awaited()
+
+
+async def test_discovery_failure_still_marks_unknown_flat_without_fake_credit(native, db_session):
+    from src.trading.exceptions import ProviderError
+
+    repo, session, _entry, orders, risk, _handler, _raw = native
+    provider, accounts = AsyncMock(), AsyncMock()
+    accounts.get_credentials_for_order.return_value = Credentials("fake", "fake")
+    provider.fetch_order_by_client_id.return_value = _build_bybit_v5_order_status_fetch(
+        {
+            "orderId": "parent-external",
+            "orderStatus": "Filled",
+            "cumExecQty": "2",
+            "cumExecValue": "200",
+            "avgPrice": "100",
+        }
+    )
+    provider.fetch_attached_sl_orders.side_effect = ProviderError("page budget")
+    provider.fetch_position.return_value = None
+    assert await BybitCodeRiskVenue(repo, orders, risk, accounts, provider).reconcile(
+        session, await repo.get(session.id)
+    )
+    state = await repo.get(session.id)
+    assert state.position_quantity == 0 and state.unsettled_exit_quantity == 2
+    assert state.new_entries_blocked and not state.exit_fills
+    assert await child_rows(db_session) == []
+    provider.create_order.assert_not_awaited()
+
+
+@pytest.mark.parametrize("position_kind", ["partial", "flat", "marker"])
+async def test_position_difference_or_unsettled_marker_triggers_only_exact_native_discovery(
+    native, db_session, position_kind
+):
+    from types import SimpleNamespace
+
+    repo, session, _entry, orders, risk, _handler, raw = native
+    provider, accounts = AsyncMock(), AsyncMock()
+    accounts.get_credentials_for_order.return_value = Credentials("fake", "fake")
+    provider.fetch_order_by_client_id.return_value = _build_bybit_v5_order_status_fetch(
+        {
+            "orderId": "parent-external",
+            "orderStatus": "Filled",
+            "cumExecQty": "2",
+            "cumExecValue": "200",
+            "avgPrice": "100",
+        }
+    )
+    filled = "1" if position_kind == "partial" else "2"
+    provider.fetch_position.return_value = (
+        SimpleNamespace(side="long", size=D(1)) if position_kind == "partial" else None
+    )
+    provider.fetch_attached_sl_orders.return_value = [
+        {
+            **{k: v for k, v in raw.items() if k != "closedPnl"},
+            "cumExecQty": filled,
+            "cumExecValue": str(D(filled) * 98),
+            "orderStatus": "PartiallyFilled" if position_kind == "partial" else "Filled",
+        }
+    ]
+    if position_kind == "marker":
+        await risk.confirm_flat_and_cancelled(
+            session.id, 1, flat=True, cancelled=True, unexplained=True
+        )
+    assert await BybitCodeRiskVenue(repo, orders, risk, accounts, provider).reconcile(
+        session, await repo.get(session.id)
+    )
+    provider.fetch_attached_sl_orders.assert_awaited_once()
+    state = await repo.get(session.id)
+    assert state.position_quantity == (1 if position_kind == "partial" else 0)
+    assert state.unsettled_exit_quantity == 0
+    (child,) = await child_rows(db_session)
+    assert child.filled_quantity == D(filled) and child.realized_pnl is None

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -9,6 +10,7 @@ from typing import Any, Literal, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from src.trading.code_price_rules import tick_price
+from src.trading.exceptions import ProviderError
 from src.trading.models import (
     CodeRiskCommand,
     LiveRiskState,
@@ -38,6 +40,8 @@ from src.trading.services.native_sl_observation_service import (
     NativeSLParentPending,
     is_native_sl,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BybitCodeRiskVenue:
@@ -72,10 +76,32 @@ class BybitCodeRiskVenue:
                 if status is not None:
                     await self._sync(order, status)
         latest = await self._repo.get(session.id)
-        if latest is not None and latest.expected_quantity > 0:
-            observations = await self._provider.fetch_attached_sl_orders(
-                creds, session.symbol, since=session.created_at
+        if latest is None:
+            return True
+        # 새 자식 검색은 잔량 차이/미정산이 있을 때만 수행한다. 정상 보호를 이력 조회로 늦추지 않는다.
+        position = await self._provider.fetch_position(creds, session.symbol)
+        latest = await self._repo.get(session.id)
+        if latest is None:
+            return True
+        needs_discovery = latest.unsettled_exit_quantity > 0 or (
+            (position is None and latest.position_quantity > 0)
+            or (
+                position is not None
+                and (position.side != latest.direction or position.size != latest.position_quantity)
             )
+        )
+        if needs_discovery:
+            try:
+                observations = await self._provider.fetch_attached_sl_orders(
+                    creds, session.symbol, since=session.created_at
+                )
+            except ProviderError as exc:
+                # 새 관측만 보류한다. 기존 보호·축소·취소와 flat 미정산 기록은 계속한다.
+                logger.warning(
+                    "native_sl_discovery_deferred",
+                    extra={"session_id": str(session.id), "error_type": type(exc).__name__},
+                )
+                observations = []
             for raw in observations:
                 if raw.get("parentOrderLinkId") != str(latest.entry_order_id):
                     continue
@@ -95,7 +121,6 @@ class BybitCodeRiskVenue:
                     await self._sync(binding[0], _build_bybit_v5_order_status_fetch(binding[1]))
             latest = await self._repo.get(session.id)
         if latest is not None and latest.entry_terminal and latest.position_quantity > 0:
-            position = await self._provider.fetch_position(creds, session.symbol)
             if position is None:
                 await self._risk.confirm_flat_and_cancelled(
                     session.id, latest.generation, flat=True, cancelled=False, unexplained=True
