@@ -183,15 +183,22 @@ class CodeRiskService:
         *,
         token: str,
         success: bool,
+        applied: dict[str, object] | None = None,
     ) -> list[RiskCommand]:
         state = await self._load(session_id, generation)
         if state is None or state.protection_desired.get("token") != token:
             return []
         if not success:
             return await self._fail(state, "protection_ack_failed")
-        if state.protection_applied == state.protection_desired:
+        if state.protection_applied.get("token") == state.protection_desired.get("token"):
             return []
+        previous_venue = state.protection_applied.get("venue", {})
         state.protection_applied = dict(state.protection_desired)
+        if applied is not None:
+            state.protection_applied["venue"] = {
+                **(previous_venue if isinstance(previous_venue, dict) else {}),
+                **applied,
+            }
         return await self._save(state)
 
     async def request_signal(
@@ -464,7 +471,9 @@ class CodeRiskService:
                     },
                 )
             )
-        elif state.position_quantity > 0 and state.protection_desired != state.protection_applied:
+        elif state.position_quantity > 0 and state.protection_desired.get(
+            "token"
+        ) != state.protection_applied.get("token"):
             commands.append(
                 RiskCommand(
                     "apply_protection",

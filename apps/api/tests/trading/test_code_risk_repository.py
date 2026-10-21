@@ -267,6 +267,12 @@ async def test_durable_venue_entry_tp_trailing_close_and_reversal_use_one_sessio
     accounts = AsyncMock()
     accounts.get_credentials_for_order.return_value = Credentials("fake", "fake")
     provider = AsyncMock()
+    provider.set_code_protection.return_value = {"accepted": True}
+    provider.get_code_market_rules.return_value = {
+        "price_tick": D("0.1"),
+        "qty_step": D("0.1"),
+        "min_qty": D("0.1"),
+    }
     statuses = {}
     position = {"size": D(0)}
     submissions = []
@@ -329,7 +335,7 @@ async def test_durable_venue_entry_tp_trailing_close_and_reversal_use_one_sessio
     await executor.drain(session.id)
     state = await repo.get(session.id)
     assert state is not None and state.fixed_r == D("2.2") and state.position_quantity == D(2)
-    assert state.protection_desired == state.protection_applied
+    assert state.protection_desired["token"] == state.protection_applied["token"]
     assert len(submissions) == 2 and submissions[0].stop_loss == D("97.8")
     tp = submissions[1]
     assert tp.reduce_only and tp.quantity == D(1) and tp.price == D("103.3")

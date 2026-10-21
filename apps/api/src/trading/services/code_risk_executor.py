@@ -105,6 +105,9 @@ class CodeRiskExecutor:
                             state.generation,
                             token=str(command.payload["token"]),
                             success=True,
+                            applied=result.get("protection")
+                            if isinstance(result.get("protection"), dict)
+                            else None,
                         )
                 await self._repo.finish_command(command.key, lease, status="applied", result=result)
                 await self._repo.commit()

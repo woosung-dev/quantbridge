@@ -18,6 +18,7 @@ import ccxt.async_support as ccxt_async
 
 from src.common.metrics import ccxt_timer, qb_closed_pnl_backfill_total
 from src.common.metrics_multiproc import _count_safely
+from src.trading.code_price_rules import protection_prices
 from src.trading.exceptions import BybitDemoOnlyError, ProviderError, TrailingContractError
 from src.trading.models import ExchangeMode, ExchangeName, OrderSide, OrderType
 from src.trading.product_policy import require_bybit_demo_account
@@ -1036,11 +1037,50 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
+    async def get_code_market_rules(self, creds: Credentials, symbol: str) -> dict[str, Decimal]:
+        """code_v1 주문의 실제 눈금·최소 수량. 사용자 코드로 넘기지 않는다."""
+        require_bybit_demo_account(creds.exchange, creds.environment)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            await exchange.load_markets()
+            if exchange.precisionMode != ccxt_async.TICK_SIZE:
+                raise ProviderError("code market rules require tick-size precision")
+            market = exchange.market(_to_bybit_linear_symbol(symbol))
+            rules = {
+                "price_tick": Decimal(str(market["precision"]["price"])),
+                "qty_step": Decimal(str(market["precision"]["amount"])),
+                "min_qty": Decimal(str(market["limits"]["amount"]["min"])),
+            }
+            if any(not value.is_finite() or value <= 0 for value in rules.values()):
+                raise ProviderError("invalid code market rules")
+            return rules
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(f"code market rules failed: {type(exc).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_code_rules_close_failed")
+
     async def set_code_protection(
         self,
         creds: Credentials,
         *,
         symbol: str,
+        direction: Literal["long", "short"],
+        entry_price: Decimal,
+        breakeven_required: bool,
         stop_loss: Decimal,
         distance: Decimal | None,
         active_price: Decimal | None,
@@ -1056,6 +1096,27 @@ class BybitFuturesProvider:
                 raise ProviderError("code protection prices must be finite and positive")
         if (distance is None) != (active_price is None):
             raise ProviderError("trailing distance and activation must be supplied together")
+        before = await self.fetch_open_positions(creds, symbol)
+        if (
+            len(before) != 1
+            or before[0].side != direction
+            or before[0].position_idx != 0
+            or before[0].entry_price is None
+        ):
+            raise ProviderError("code protection requires one matching one-way position")
+        observed_entry = before[0].entry_price
+        if (
+            not observed_entry.is_finite()
+            or observed_entry <= 0
+            or not entry_price.is_finite()
+            or entry_price <= 0
+        ):
+            raise ProviderError("code protection requires finite positive entry prices")
+        reference = (
+            max(entry_price, observed_entry)
+            if direction == "long"
+            else min(entry_price, observed_entry)
+        )
         exchange = ccxt_async.bybit(
             {
                 "apiKey": creds.api_key,
@@ -1067,20 +1128,39 @@ class BybitFuturesProvider:
         )
         _apply_bybit_env(exchange, creds.environment)
         try:
+            await exchange.load_markets()
+            if exchange.precisionMode != ccxt_async.TICK_SIZE:
+                raise ProviderError("code protection requires tick-size precision")
+            tick = Decimal(
+                str(
+                    (exchange.market(_to_bybit_linear_symbol(symbol)).get("precision") or {}).get(
+                        "price"
+                    )
+                )
+            )
+            applied = protection_prices(
+                direction=direction,
+                entry_price=reference,
+                stop_loss=stop_loss,
+                tick=tick,
+                distance=distance,
+                activation=active_price,
+                breakeven_required=breakeven_required,
+            )
             request: dict[str, Any] = {
                 "category": "linear",
                 "symbol": _to_bybit_linear_symbol(symbol).split(":")[0].replace("/", ""),
                 "positionIdx": 0,
                 "tpslMode": "Full",
-                "stopLoss": format(stop_loss, "f"),
+                "stopLoss": applied["stop_loss"],
                 "slTriggerBy": "LastPrice",
             }
             if distance is not None and active_price is not None:
                 request.update(
-                    trailingStop=format(distance, "f"), activePrice=format(active_price, "f")
+                    trailingStop=applied["trailing_distance"], activePrice=applied["active_price"]
                 )
             response = await exchange.privatePostV5PositionTradingStop(request)
-            if str(response.get("retCode", "0")) != "0":
+            if str(response.get("retCode")) != "0":
                 raise ProviderError("Bybit code protection rejected")
         except ProviderError:
             raise
@@ -1095,11 +1175,24 @@ class BybitFuturesProvider:
         if (
             len(positions) != 1
             or positions[0].position_idx != 0
-            or positions[0].stop_loss_price != stop_loss
-            or (distance is not None and positions[0].trailing_stop != distance)
+            or positions[0].side != direction
+            or positions[0].stop_loss_price != Decimal(str(applied["stop_loss"]))
+            or (
+                distance is not None
+                and positions[0].trailing_stop != Decimal(str(applied["trailing_distance"]))
+            )
         ):
             raise ProviderError("code protection acknowledgement not independently confirmed")
-        return {"accepted": True}
+        return {
+            "accepted": True,
+            **applied,
+            "entry_price_observed": str(observed_entry),
+            "verified_stop_loss": str(positions[0].stop_loss_price),
+            "verified_trailing_distance": str(positions[0].trailing_stop)
+            if positions[0].trailing_stop is not None
+            else None,
+            "active_price_readback_available": False,
+        }
 
     async def fetch_position(self, creds: Credentials, symbol: str) -> PositionInfo | None:
         """STEP B — 현재 linear 포지션 스냅샷(stale-position 가드). 무포지션이면 None.

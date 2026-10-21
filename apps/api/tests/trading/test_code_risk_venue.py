@@ -25,6 +25,9 @@ async def test_native_protection_sends_activation_and_requires_independent_confi
     exchange = MagicMock()
     exchange.privatePostV5PositionTradingStop = AsyncMock(return_value={"retCode": 0, "result": {}})
     exchange.close = AsyncMock()
+    exchange.load_markets = AsyncMock()
+    exchange.market.return_value = {"precision": {"price": "0.1"}}
+    exchange.precisionMode = 4
     monkeypatch.setattr("src.trading.providers.ccxt_async.bybit", lambda _: exchange)
     provider = BybitFuturesProvider()
     position = PositionSnapshot(
@@ -43,7 +46,14 @@ async def test_native_protection_sends_activation_and_requires_independent_confi
     provider.fetch_open_positions = AsyncMock(return_value=[position])
     creds = Credentials("fake-key", "fake-secret", ExchangeName.bybit, ExchangeMode.demo)
     await provider.set_code_protection(
-        creds, symbol="BTC/USDT", stop_loss=D("97.8"), distance=D("4.4"), active_price=D("104.4")
+        creds,
+        symbol="BTC/USDT",
+        direction="long",
+        entry_price=D(100),
+        breakeven_required=False,
+        stop_loss=D("97.8"),
+        distance=D("4.4"),
+        active_price=D("104.4"),
     )
     request = exchange.privatePostV5PositionTradingStop.await_args.args[0]
     assert request == {
@@ -57,10 +67,17 @@ async def test_native_protection_sends_activation_and_requires_independent_confi
         "activePrice": "104.4",
     }
     exchange.close.assert_awaited_once()
-    provider.fetch_open_positions.return_value = []
+    provider.fetch_open_positions.side_effect = [[position], []]
     with pytest.raises(ProviderError, match="independently confirmed"):
         await provider.set_code_protection(
-            creds, symbol="BTC/USDT", stop_loss=D("97.8"), distance=None, active_price=None
+            creds,
+            symbol="BTC/USDT",
+            direction="long",
+            entry_price=D(100),
+            breakeven_required=False,
+            stop_loss=D("97.8"),
+            distance=None,
+            active_price=None,
         )
 
 

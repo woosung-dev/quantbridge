@@ -29,6 +29,7 @@ def validate_code_snapshot(
         "policy_version": "swing_two_bar_v1",
         "execution_mode": "bybit_demo",
         "market_type": "linear",
+        "sizing_policy": "session_initial_equity_percent_v1",
     }
     if any(snapshot.get(key) != value for key, value in expected.items()):
         raise CodeSnapshotError("지원하지 않는 실행 정책입니다")
@@ -79,6 +80,7 @@ def build_code_snapshot(*, version: Any, account: Any, settings: dict[str, Any])
         "policy_version": "swing_two_bar_v1",
         "execution_mode": "bybit_demo",
         "market_type": "linear",
+        "sizing_policy": "session_initial_equity_percent_v1",
         "version_id": str(version.id),
         "language": getattr(version, "language", None),
         "source_hash": getattr(version, "source_hash", None),

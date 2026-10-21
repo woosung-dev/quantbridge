@@ -142,6 +142,12 @@ class LiveSignalSessionService:
                         version_id=req.strategy_version_id,
                         account=account,
                     )
+                if (
+                    req.interval != "1h"
+                    or _settings.leverage != 1
+                    or _settings.fill_timing != "next_bar_open"
+                ):
+                    raise CodeSnapshotError("code_v1은 1h·next_bar_open·1X 실행 설정이 필요합니다")
                 snapshot = build_code_snapshot(
                     version=version, account=account, settings=_settings.model_dump(mode="json")
                 )

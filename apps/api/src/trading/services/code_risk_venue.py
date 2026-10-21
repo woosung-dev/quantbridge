@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from src.trading.code_price_rules import tick_price
 from src.trading.models import (
     CodeRiskCommand,
     LiveRiskState,
@@ -90,7 +91,13 @@ class BybitCodeRiskVenue:
                 or entry.margin_mode not in {"cross", "isolated"}
             ):
                 raise CodeRiskError("linear 진입 주문 설정이 없습니다")
-            if entry.stop_loss != state.provisional_stop:
+            recorded = entry.risk_context.get("venue_order", {}) if entry.risk_context else {}
+            theoretical_stop = (
+                recorded.get("theoretical_stop_loss") if isinstance(recorded, dict) else None
+            )
+            if (
+                Decimal(str(theoretical_stop)) if theoretical_stop is not None else entry.stop_loss
+            ) != state.provisional_stop:
                 raise CodeRiskError("임시 보호 SL이 주문에 없습니다")
             return await self._submit(creds, entry)
         if command.kind == "cancel_entry":
@@ -129,9 +136,12 @@ class BybitCodeRiskVenue:
                 "trailing_distance" in p
                 and state.protection_applied.get("trailing_distance") != p["trailing_distance"]
             )
-            await self._provider.set_code_protection(
+            protection = await self._provider.set_code_protection(
                 creds,
                 symbol=session.symbol,
+                direction=state.direction,
+                entry_price=state.entry_vwap or state.cumulative_value / state.cumulative_quantity,
+                breakeven_required=state.trailing_active,
                 stop_loss=Decimal(str(p["stop_loss"])),
                 distance=Decimal(str(p["trailing_distance"])) if native_needed else None,
                 active_price=Decimal(str(p["trailing_activation"])) if native_needed else None,
@@ -148,7 +158,7 @@ class BybitCodeRiskVenue:
                     Decimal(str(p["tp_price"])),
                 )
                 await self._submit(creds, child)
-            return {"accepted": True, "token": p["token"]}
+            return {"accepted": True, "token": p["token"], "protection": protection}
         if command.kind == "cancel_children":
             for child in await self._repo.child_orders(session.id, state.generation):
                 await self._cancel_confirm(creds, child)
@@ -209,6 +219,32 @@ class BybitCodeRiskVenue:
         if status is None:
             if order.state not in {OrderState.pending, OrderState.submitted}:
                 return {"order_id": str(order.id), "terminal": True}
+            context = dict(order.risk_context or {})
+            if not isinstance(context.get("venue_order"), dict):
+                rules = await self._provider.get_code_market_rules(creds, order.symbol)
+                tick = rules["price_tick"]
+                if order.quantity % rules["qty_step"] != 0 or order.quantity < rules["min_qty"]:
+                    raise CodeRiskError("거래소 수량 규칙과 주문이 다릅니다")
+                theoretical_price, theoretical_stop = order.price, order.stop_loss
+                if order.reduce_only and order.price is not None:
+                    order.price = tick_price(order.price, tick, up=order.side == OrderSide.sell)
+                if order.stop_loss is not None:
+                    order.stop_loss = tick_price(
+                        order.stop_loss, tick, up=order.side == OrderSide.sell
+                    )
+                context["venue_order"] = {
+                    "tick": str(tick),
+                    "theoretical_price": str(theoretical_price)
+                    if theoretical_price is not None
+                    else None,
+                    "price": str(order.price) if order.price is not None else None,
+                    "theoretical_stop_loss": str(theoretical_stop)
+                    if theoretical_stop is not None
+                    else None,
+                    "stop_loss": str(order.stop_loss) if order.stop_loss is not None else None,
+                }
+                order.risk_context = context
+                await self._orders.save(order)
             await self._orders.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
             await self._repo.commit()
             receipt = await self._provider.create_order(

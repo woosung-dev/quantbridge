@@ -16,6 +16,7 @@
 `execution_settings`에는 서버가 동결한 레버리지·마진·포지션 비율을 저장한다.
 실제 `source_code` SHA256과 버전/스냅샷의 해시·언어·정책·파라미터·워밍업을 대조한다.
 저장 버전의 `read_code_version` 공통 검증기로 생성 이력을 포함한 전체 실행 해시도 확인한다.
+`sizing_policy=session_initial_equity_percent_v1`을 동결하며, 1h·next_bar_open·1X만 활성화한다.
 쓰기 권한이 확인된 Bybit demo 계정만 허용한다. 실행기 미주입·미완성 버전은 거부한다.
 
 ## 체결과 고정 R
@@ -33,6 +34,28 @@
 독립 포지션 조회가 SL·trailing ACK를 확인한 뒤 `protection_applied`를 갱신한다.
 그 전까지 desired/applied 차이는 대기 상태다. 실패는 새 진입 중단과 reduce-only 청산 의도를
 영속화한다. 거래소가 만든 native SL/trailing 청산도 포지션 대조로 원장에 수렴시킨다.
+
+거래소 눈금의 실제 가격은 이론 R과 별개다. SL은 long 내림/short 올림으로 최대 1tick
+추가 손실 거리를 허용한다. 절반 TP는 long 올림/short 내림으로 1.5R보다 이르게 당기지 않는다.
+`Order.risk_context.venue_order`에 이론/실제 제출 가격과 tick을, `protection_applied.venue`에
+실제 SL·trailing 거리·활성가·조회 SL/거리·손익분기 가격을 저장한다. 고정 R 자체는 바꾸지 않는다.
+
+중간 tick VWAP에서는 long 손익분기 가격을 ceil(E), short는 floor(E)로 정한다.
+native 거리를 ceil(2R)로 잡고 활성가는 long에서 `BE+거리` 이상, short에서 `BE−거리` 이하로
+맞춘다. 따라서 활성 시 초기 native stop이 E의 손실 쪽에 놓이지 않는다. 이론 2R보다
+최대 2tick 미만의 활성화 지연이 생길 수 있다. backend가 이미 2R을 관찰한 경우 SL도
+이 손익분기 눈금 이상/이하로 이동한다. 이 보장은 거래소가 ACK한 파라미터의 수치 조건이다.
+Bybit position 조회는 SL·거리만 검증하며 activePrice 읽기 검증은 제공하지 않아
+`active_price_readback_available=false`를 함께 기록한다. 실제 데모 체결 검증 완료를 뜻하지 않는다.
+
+수량은 세션 시작 equity 기준선의 동결 비율을 가격으로 나눈 뒤 `2×qty_step`에 내린다.
+각 절반이 최소 수량 이상이어야 한다. live는 시작 equity 고정, 연구 백테스트는 현재 cash의
+비율로 복리 계산하므로 여러 거래 뒤 명목 규모가 같다는 주장은 하지 않는다.
+시장가의 실제 terminal VWAP가 진입 가격 권위이며, 다음 봉 시가 체결 보장은 없다.
+
+공식 계약: [주문 가격 tick](https://bybit-exchange.github.io/docs/v5/order/create-order),
+[종목 규칙](https://bybit-exchange.github.io/docs/v5/market/instrument),
+[native 보호](https://bybit-exchange.github.io/docs/v5/position/trading-stop).
 
 ## 명령 전달과 재시작
 

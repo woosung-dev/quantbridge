@@ -67,6 +67,7 @@ def runtime():
             "leverage": 1,
             "margin_mode": "cross",
             "position_size_pct": 100,
+            "fill_timing": "next_bar_open",
         },
     )
     entry = Order(
@@ -315,6 +316,7 @@ async def test_register_builds_server_snapshot_and_rejects_unpinned_source_befor
         "leverage": 1,
         "margin_mode": "cross",
         "position_size_pct": 100,
+        "fill_timing": "next_bar_open",
     }
     strategy_repo.find_by_id_and_owner.return_value = SimpleNamespace(
         id=session.strategy_id, settings=settings, execution_policy="code_v1"
