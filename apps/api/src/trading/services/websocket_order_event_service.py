@@ -10,8 +10,8 @@ import contextlib
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from decimal import Decimal
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from src.common.alert import send_critical_alert
@@ -26,6 +26,7 @@ from src.core.config import Settings
 from src.trading.models import Order, OrderState
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.order_repository import OrderRepository
+from src.trading.services.code_risk_service import CodeRiskError, CodeRiskService, RiskCommand
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +49,17 @@ class WebSocketOrderEventService:
         settings: Settings,
         alert_sender: AlertSender | None = None,
         user_id: UUID | None = None,
+        risk_service: CodeRiskService | None = None,
     ) -> None:
         self._repo = repo
         self._settings = settings
         self._alert_sender = alert_sender or send_critical_alert
         self._user_id = user_id
+        self._risk_service = risk_service
 
-    async def handle_order_event(self, account_id: UUID, payload: dict[str, Any]) -> None:
+    async def handle_order_event(
+        self, account_id: UUID, payload: dict[str, Any]
+    ) -> list[RiskCommand] | None:
         order_link_id = payload.get("orderLinkId")
         exchange_order_id = payload.get("orderId")
 
@@ -67,16 +72,83 @@ class WebSocketOrderEventService:
 
         if order is None:
             self._discard_orphan(str(order_link_id or exchange_order_id or ""), payload, account_id)
-            return
+            return None
+
+        if order.risk_context is not None:
+            return await self._handle_code_order(order, payload, account_id)
 
         new_state = _BYBIT_TERMINAL_MAP.get(str(payload.get("orderStatus", "")))
         if new_state is None:
-            return
+            return None
 
         rowcount = await self._apply_transition(order.id, new_state, payload)
         await self._repo.commit()
         if rowcount == 1:
             await self._after_committed_winner(order, new_state, payload, account_id)
+        return None
+
+    async def _handle_code_order(
+        self, order: Order, payload: dict[str, Any], account_id: UUID
+    ) -> list[RiskCommand]:
+        """새 원장 주문만 부분 체결을 반영한다. 두 원장은 같은 commit으로 확정한다."""
+        if self._risk_service is None or order.exchange_account_id != account_id:
+            raise CodeRiskError("코드 리스크 처리기 또는 주문 계정 귀속이 올바르지 않습니다")
+        status = str(payload.get("orderStatus", ""))
+        new_state = _BYBIT_TERMINAL_MAP.get(status)
+        if status == "PartiallyFilledCanceled":
+            new_state = OrderState.cancelled
+        if new_state is None and status != "PartiallyFilled":
+            return []
+        context = order.risk_context or {}
+        try:
+            session_id = UUID(str(context["session_id"]))
+            generation = int(str(context["generation"]))
+            role = str(context["role"])
+            raw_quantity = payload.get("cumExecQty", payload.get("filled"))
+            quantity = Decimal(str(raw_quantity))
+            if not quantity.is_finite() or quantity < 0 or generation < 1:
+                raise ValueError("invalid fill")
+            raw_value = payload.get("cumExecValue")
+            if raw_value is not None:
+                value = Decimal(str(raw_value))
+            elif quantity == 0:
+                value = Decimal(0)
+            else:
+                value = quantity * Decimal(str(payload.get("avgPrice") or payload.get("average")))
+            if not value.is_finite() or value < 0:
+                raise ValueError("invalid value")
+        except (KeyError, ValueError, InvalidOperation) as exc:
+            raise CodeRiskError(
+                "코드 주문의 누적 체결 또는 리스크 귀속이 올바르지 않습니다"
+            ) from exc
+        if role == "entry":
+            commands = await self._risk_service.record_entry_fill(
+                session_id,
+                generation,
+                order.id,
+                cumulative_quantity=quantity,
+                cumulative_value=value,
+                terminal=new_state is not None,
+                commit=False,
+            )
+        elif role in ("partial_tp", "stop_loss", "trailing_stop", "close"):
+            commands = await self._risk_service.record_exit_fill(
+                session_id,
+                generation,
+                order.id,
+                role=cast(Literal["partial_tp", "stop_loss", "trailing_stop", "close"], role),
+                cumulative_quantity=quantity,
+                commit=False,
+            )
+        else:
+            raise CodeRiskError("알 수 없는 코드 주문 역할입니다")
+        rowcount = 0
+        if new_state is not None:
+            rowcount = await self._apply_transition(order.id, new_state, payload)
+        await self._repo.commit()
+        if rowcount == 1 and new_state is not None:
+            await self._after_committed_winner(order, new_state, payload, account_id)
+        return commands
 
     def _discard_orphan(self, key: str, payload: dict[str, Any], account_id: UUID) -> None:
         """로컬 행 없는 이벤트는 집계·로그만 남기고 폐기한다."""
@@ -159,7 +231,8 @@ class WebSocketOrderEventService:
                 _enqueue_trailing_if_intended,
             )
 
-            _enqueue_trailing_if_intended(order)
+            if order.risk_context is None:
+                _enqueue_trailing_if_intended(order)
             _enqueue_closed_pnl_refresh(order)
             _enqueue_conditional_reversal_measure(order)
             return

@@ -118,6 +118,7 @@ class CodeRiskService:
         cumulative_quantity: Decimal,
         cumulative_value: Decimal,
         terminal: bool,
+        commit: bool = True,
     ) -> list[RiskCommand]:
         """누적 체결은 단조 증가하며 terminal VWAP만 초기 R을 확정한다."""
         state = await self._load(session_id, generation)
@@ -147,7 +148,7 @@ class CodeRiskService:
             or (cumulative_quantity > 0 and cumulative_value <= 0)
             or (state.entry_terminal and cumulative_quantity > old_quantity)
         ):
-            return await self._fail(state, "conflicting_cumulative_entry_fill")
+            return await self._fail(state, "conflicting_cumulative_entry_fill", commit=commit)
         state.entry_terminal = state.entry_terminal or terminal
         sign = Decimal(1) if state.direction == "long" else Decimal(-1)
         if (
@@ -155,23 +156,23 @@ class CodeRiskService:
             and state.entry_vwap is not None
             and sign * (state.entry_vwap - state.provisional_stop) <= 0
         ):
-            return await self._fail(state, "partial_fill_invalid_provisional_stop")
+            return await self._fail(state, "partial_fill_invalid_provisional_stop", commit=commit)
         if state.entry_terminal and state.cumulative_quantity > 0:
             half = state.cumulative_quantity * POLICY.partial_fraction
             if half < state.min_qty or half % state.qty_step != 0:
-                return await self._fail(state, "terminal_partial_fill_cannot_split")
+                return await self._fail(state, "terminal_partial_fill_cannot_split", commit=commit)
             try:
                 plan = self._plan(state)
             except ValueError:
-                return await self._fail(state, "terminal_fill_invalid_risk_distance")
+                return await self._fail(state, "terminal_fill_invalid_risk_distance", commit=commit)
             if state.fixed_r is not None and state.fixed_r != plan.risk:
-                return await self._fail(state, "terminal_fill_changed_fixed_r")
+                return await self._fail(state, "terminal_fill_changed_fixed_r", commit=commit)
             state.fixed_r = plan.risk.quantize(PRICE_QUANTUM)
             if state.fixed_r <= 0:
-                return await self._fail(state, "terminal_fill_invalid_risk_distance")
+                return await self._fail(state, "terminal_fill_invalid_risk_distance", commit=commit)
         if state.position_quantity > 0:
             self._desire_protection(state)
-        return await self._save(state)
+        return await self._save(state, commit=commit)
 
     async def acknowledge_protection(
         self,
@@ -214,6 +215,7 @@ class CodeRiskService:
         *,
         role: Literal["partial_tp", "stop_loss", "trailing_stop", "close"],
         cumulative_quantity: Decimal,
+        commit: bool = True,
     ) -> list[RiskCommand]:
         state = await self._load(session_id, generation)
         if state is None:
@@ -229,7 +231,7 @@ class CodeRiskService:
         prior = state.exit_fills.get(str(order_id))
         prior_qty = Decimal(str(prior["quantity"])) if isinstance(prior, dict) else ZERO
         if isinstance(prior, dict) and prior.get("role") != role:
-            return await self._fail(state, "exit_order_changed_role")
+            return await self._fail(state, "exit_order_changed_role", commit=commit)
         if cumulative_quantity <= prior_qty:
             return []
         delta = cumulative_quantity - prior_qty
@@ -241,16 +243,20 @@ class CodeRiskService:
         state.position_quantity = max(ZERO, remaining - delta)
         if role == "partial_tp":
             state.tp_filled_quantity += delta
+        else:
+            state.close_requested = True
         if (
             delta > remaining
             or state.tp_filled_quantity > state.cumulative_quantity * POLICY.partial_fraction
         ):
-            return await self._fail(state, "exit_fill_exceeds_position_or_partial_target")
+            return await self._fail(
+                state, "exit_fill_exceeds_position_or_partial_target", commit=commit
+            )
         if state.position_quantity > 0:
             self._desire_protection(state)
         else:
             state.cancels_confirmed = False
-        return await self._save(state)
+        return await self._save(state, commit=commit)
 
     async def mark_price(
         self, session_id: UUID, generation: int, price: Decimal
@@ -352,10 +358,13 @@ class CodeRiskService:
                 ),
                 tp_price=str(plan.tp_price),
                 tp_quantity=str(
-                    max(
-                        ZERO,
-                        state.cumulative_quantity * POLICY.partial_fraction
-                        - state.tp_filled_quantity,
+                    min(
+                        state.position_quantity,
+                        max(
+                            ZERO,
+                            state.cumulative_quantity * POLICY.partial_fraction
+                            - state.tp_filled_quantity,
+                        ),
                     )
                 ),
                 trailing_activation=str(plan.trailing_activation),
@@ -367,19 +376,22 @@ class CodeRiskService:
         state.protection_desired = desired
         state.cancels_confirmed = False
 
-    async def _save(self, state: LiveRiskState) -> list[RiskCommand]:
+    async def _save(self, state: LiveRiskState, *, commit: bool = True) -> list[RiskCommand]:
         if not await self._repo.compare_and_swap(state, state.revision):
             raise CodeRiskError("리스크 원장 CAS 충돌: 재조회가 필요합니다")
         state.revision += 1
-        await self._repo.commit()
+        if commit:
+            await self._repo.commit()
         return self._commands(state)
 
-    async def _fail(self, state: LiveRiskState, reason: str) -> list[RiskCommand]:
+    async def _fail(
+        self, state: LiveRiskState, reason: str, *, commit: bool = True
+    ) -> list[RiskCommand]:
         state.new_entries_blocked = True
         state.failure_reason = reason
         state.close_requested = True
         state.pending_reversal = None
-        return await self._save(state)
+        return await self._save(state, commit=commit)
 
     @staticmethod
     def _commands(state: LiveRiskState) -> list[RiskCommand]:

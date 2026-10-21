@@ -1,6 +1,8 @@
 """슬롯 테스트 DB에서 한 행·CAS·주문 귀속의 실제 SQL을 검증한다."""
 
+from datetime import UTC, datetime
 from decimal import Decimal as D
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -18,7 +20,9 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.repositories.code_risk_repository import CodeRiskRepository
+from src.trading.repositories.order_repository import OrderRepository
 from src.trading.services.code_risk_service import CodeRiskService
+from src.trading.services.websocket_order_event_service import WebSocketOrderEventService
 
 
 @pytest.fixture
@@ -109,3 +113,41 @@ async def test_entry_context_and_provisional_stop_share_persisted_generation(pre
         )
         == []
     )
+
+
+@pytest.mark.asyncio
+async def test_real_ws_partial_and_terminal_fill_share_commit_and_survive_restart(
+    prepared, db_session
+):
+    repo, session, order = prepared
+    await db_session.refresh(order)
+    order_repo = OrderRepository(db_session)
+    await order_repo.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
+    await order_repo.commit()
+    order_repo.commit = AsyncMock(wraps=order_repo.commit)
+    repo.commit = AsyncMock(wraps=repo.commit)
+    handler = WebSocketOrderEventService(
+        repo=order_repo, risk_service=CodeRiskService(repo), settings=MagicMock()
+    )
+    handler._after_committed_winner = AsyncMock()
+    payload = {
+        "orderLinkId": str(order.id),
+        "orderId": "exchange-code",
+        "orderStatus": "PartiallyFilled",
+        "cumExecQty": "1",
+        "cumExecValue": "100",
+        "avgPrice": "100",
+    }
+    commands = await handler.handle_order_event(order.exchange_account_id, payload)
+    assert commands and commands[0].kind == "apply_protection"
+    repo.commit.assert_not_awaited()
+    order_repo.commit.assert_awaited_once()
+    state = await repo.get(session.id)
+    assert state is not None and state.fixed_r is None and state.position_quantity == D("1")
+    payload.update(orderStatus="Filled", cumExecQty="2", cumExecValue="204", avgPrice="102")
+    commands = await handler.handle_order_event(order.exchange_account_id, payload)
+    assert commands == await CodeRiskService(CodeRiskRepository(db_session)).recover(session.id)
+    await db_session.refresh(order)
+    assert order.state == OrderState.filled and order.filled_quantity == D("2")
+    state = await repo.get(session.id)
+    assert state is not None and state.fixed_r == D("4.4") and state.revision == 2

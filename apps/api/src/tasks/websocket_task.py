@@ -246,9 +246,11 @@ async def _stream_main(
     from src.common.redis_client import get_redis_lock_pool
     from src.trading.encryption import EncryptionService
     from src.trading.product_policy import require_bybit_demo_account
+    from src.trading.repositories.code_risk_repository import CodeRiskRepository
     from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
     from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
     from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.code_risk_service import CodeRiskService
     from src.trading.services.websocket_order_event_service import WebSocketOrderEventService
     from src.trading.services.websocket_reconciliation_service import WebSocketReconciliationService
     from src.trading.websocket import (
@@ -289,6 +291,7 @@ async def _stream_main(
                     repo=OrderRepository(session),
                     settings=settings,
                     user_id=account.user_id,
+                    risk_service=CodeRiskService(CodeRiskRepository(session)),
                 )
                 await service.handle_order_event(event_account_id, payload)
 
