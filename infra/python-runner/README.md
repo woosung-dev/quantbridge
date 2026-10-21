@@ -15,6 +15,28 @@
 5. 인증된 `/healthz` 가 `available: true` 를 반환하는지 확인한 뒤 앱에서 사용한다.
    다른 호스트에서 연결할 때는 사설 터널 또는 TLS 종단을 사용한다.
 
+## macOS 로컬 VM
+
+실측 환경은 Lima의 별도 `qb-python-research` VM이다. 공유 Docker Desktop의 runtime·context를
+바꾸지 않고 호스트 디렉터리를 마운트하지 않는다. 최초 VM 생성은 다음과 같다.
+
+```sh
+limactl start --name=qb-python-research --vm-type=vz --cpus=2 --memory=4 --disk=20 --mount-none --tty=false template:docker-rootful
+```
+
+VM 안 Docker에 [공식 gVisor 설치 절차](https://gvisor.dev/docs/user_guide/install/)로 `runsc`를 등록한다.
+이후 재기동은 `limactl start qb-python-research`다. 빌드·gateway·연구 CLI를 실행하는 셸에만
+다음 Docker endpoint를 지정한다. 앱 `.env`나 전역 Docker context에 넣지 않는다.
+
+```sh
+export DOCKER_HOST="unix://$HOME/.lima/qb-python-research/sock/docker.sock"
+sh infra/python-runner/build.sh
+apps/api/.venv/bin/python tools/research/cli.py --run-dir runs/indicator-research pilot
+```
+
+이 구성은 gVisor 격리 코드를 Linux VM에서 실행하고 제어부는 macOS에서 실행한다. 운영 예제는
+제어부까지 전용 Linux 호스트로 옮기는 형태다. VM을 종료하면 Python 실행이 차단된다.
+
 ## 전략 계약
 
 `init(params) -> dict` 는 선택이고 `on_bar(ctx, state) -> dict` 는 필수다.

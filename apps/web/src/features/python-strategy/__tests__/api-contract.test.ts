@@ -4,6 +4,9 @@ vi.mock("@/lib/api-client", () => ({ apiFetch }));
 import {
   cancelPythonRun,
   getPythonCapabilities,
+  getPythonRun,
+  listPythonRuns,
+  listPythonStrategies,
   savePythonStrategy,
   startPythonBacktest,
 } from "../api";
@@ -54,5 +57,28 @@ describe("Python API 계약", () => {
     await expect(getPythonCapabilities("token")).resolves.toMatchObject({ available: false });
     apiFetch.mockResolvedValueOnce({ available: "yes" });
     await expect(getPythonCapabilities("token")).rejects.toThrow();
+  });
+  it("전략 목록은 인증 토큰과 현재 Python 전략 경로를 사용한다", async () => {
+    apiFetch.mockResolvedValueOnce({ items: [STRATEGY] });
+    await expect(listPythonStrategies("token")).resolves.toEqual({ items: [STRATEGY] });
+    expect(apiFetch).toHaveBeenCalledWith("/api/v1/python-strategies", { token: "token" });
+  });
+  it("실행 이력과 상세는 서로 다른 식별자 경로를 사용한다", async () => {
+    const run = makeRun();
+    apiFetch.mockResolvedValueOnce({ items: [run] }).mockResolvedValueOnce(run);
+    await expect(listPythonRuns(STRATEGY.id, "token")).resolves.toEqual({ items: [run] });
+    await expect(getPythonRun(run.id, "token")).resolves.toEqual(run);
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      `/api/v1/python-strategies/${STRATEGY.id}/backtests`,
+      { token: "token" },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(2, `/api/v1/python-strategies/backtests/${run.id}`, {
+      token: "token",
+    });
+  });
+  it("잘못된 실행 상태 응답을 화면에 전달하지 않는다", async () => {
+    apiFetch.mockResolvedValueOnce({ ...makeRun(), status: "unknown" });
+    await expect(getPythonRun(makeRun().id, "token")).rejects.toThrow();
   });
 });
