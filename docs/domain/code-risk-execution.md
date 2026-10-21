@@ -19,6 +19,10 @@
 `sizing_policy=session_initial_equity_percent_v1`을 동결하며, 1h·next_bar_open·1X만 활성화한다.
 쓰기 권한이 확인된 Bybit demo 계정만 허용한다. 실행기 미주입·미완성 버전은 거부한다.
 
+라이브 코드의 30초 제한은 transport 생성부터의 deadline이다. 이전 체크포인트 검증과
+cleanup을 포함한 전체 호스트 wall time 보장은 아니며, [별도 운영 gate](../development/sol-operational-gate.md)는
+전체 재생·cleanup 확인까지 30초 이하인지 더 엄격하게 측정한다. 연구 900초 실행 통과를 이 gate의 통과로 대체하지 않는다.
+
 ## 체결과 고정 R
 
 `LiveRiskState`는 세션당 한 행이며 `revision` CAS로 갱신한다.
