@@ -2313,118 +2313,94 @@ async def _sweep_closed_pnl_with_session(
                         if order.exchange_order_id is not None
                     ],
                 )
-            # 코드 후보는 하나의 별도 예산을 공유하고 legacy SUM에는 넣지 않는다.
-            unsynced_orders = [
-                *unsynced_orders, *(o for o in code_orders if o.realized_pnl_synced_at is None)
-            ]
-            synced_orders = [
-                *synced_orders, *(o for o in code_orders if o.realized_pnl_synced_at is not None)
-            ]
-            # 모든 원격 조회를 mutation TX 앞에서 마친다. 앞 주문의 rowlock으로 다음 IO를 감싸지 않는다.
-            code_reads = {}
-            for order in [*unsynced_orders, *synced_orders]:
-                if (
-                    order.risk_context is not None
-                    and order.reduce_only
-                    and order.filled_at is not None
-                    and order.exchange_order_id is not None
-                    and order.id not in code_reads
-                ):
-                    try:
-                        code_reads[order.id] = await account_provider.fetch_code_closed_pnl(
-                            creds,
-                            account_id=account.id,
-                            order_id=order.exchange_order_id,
-                            symbol=order.symbol,
-                            side=order.side,
-                            since=min(order.created_at, order.submitted_at or order.created_at),
-                        )
-                    except ProviderError as exc:
-                        # 다음 주문 조회 실패로 앞서 관측한 다른 주문의 충돌을 버리지 않는다.
-                        logger.warning(
-                            "code_closed_pnl_read_deferred", extra={"order_id": str(order.id), "error_type": type(exc).__name__}
-                        )
-
+            # legacy 확정·계측은 코드 원격 조회를 기다리지 않고 먼저 커밋한다.
             applied = already_synced = resynced = 0
             async with sm() as session:
                 order_repo = OrderRepository(session)
                 for order in unsynced_orders:
                     if order.exchange_order_id is None:
                         continue
-                    code_evidence = None
-                    if order.risk_context is not None:
-                        read = code_reads.get(order.id)
-                        if read is None:
-                            continue
-                        await order_repo.mark_code_pnl_conflict(
-                            order.id, read.observed_hashes, invalid=read.conflict
-                        )
-                        code_evidence = read.evidence
-                        if code_evidence is None:
-                            continue
-                        realized_pnl = code_evidence.pnl
-                    else:
-                        realized_pnl = sums.get(order.exchange_order_id)
+                    realized_pnl = sums.get(order.exchange_order_id)
                     if realized_pnl is None:
                         continue
-                    if (
-                        await order_repo.backfill_exchange_realized_pnl(
-                            order.id,
-                            realized_pnl=realized_pnl,
-                            synced_at=current,
-                            **(
-                                {"code_evidence": code_evidence}
-                                if code_evidence is not None
-                                else {}
-                            ),
-                        )
-                        == 1
-                    ):
+                    if await order_repo.backfill_exchange_realized_pnl(
+                        order.id, realized_pnl=realized_pnl, synced_at=current
+                    ) == 1:
                         applied += 1
                     else:
                         already_synced += 1
                 for order in synced_orders:
                     if order.exchange_order_id is None:
                         continue
-                    code_evidence = None
-                    if order.risk_context is not None:
-                        read = code_reads.get(order.id)
-                        if read is None:
-                            continue
-                        await order_repo.mark_code_pnl_conflict(
-                            order.id, read.observed_hashes, invalid=read.conflict
-                        )
-                        code_evidence = read.evidence
-                        if code_evidence is None:
-                            continue
-                        ledger_pnl = code_evidence.pnl
-                    else:
-                        ledger_pnl = synced_sums.get(order.exchange_order_id)
+                    ledger_pnl = synced_sums.get(order.exchange_order_id)
                     if ledger_pnl is None:
                         continue
-                    if (
-                        await order_repo.resync_exchange_realized_pnl(
-                            order.id,
-                            realized_pnl=ledger_pnl,
-                            synced_at=current,
-                            **(
-                                {"code_evidence": code_evidence}
-                                if code_evidence is not None
-                                else {}
-                            ),
-                        )
-                        == 1
-                    ):
+                    if await order_repo.resync_exchange_realized_pnl(
+                        order.id, realized_pnl=ledger_pnl, synced_at=current
+                    ) == 1:
                         resynced += 1
                 await session.commit()
-            # 단일 fetch 결과가 아니라 원장 전체를 집계하므로 분할 행이 7일 창 경계에 갈려도
-            # 부분합이 CAS로 영구 고정되지 않는다.
             summary["backfilled"] += applied
             summary["resynced"] += resynced
             for _ in range(applied + resynced):
                 _count_safely(qb_closed_pnl_backfill_total, outcome="applied")
             for _ in range(already_synced):
                 _count_safely(qb_closed_pnl_backfill_total, outcome="already_synced")
+
+            # 코드는 별도 공유 예산으로 조회한다. 모든 원격 IO는 mutation TX 밖이다.
+            code_reads = {}
+            for order in code_orders:
+                if order.exchange_order_id is None or order.filled_at is None:
+                    continue
+                try:
+                    code_reads[order.id] = await account_provider.fetch_code_closed_pnl(
+                        creds,
+                        account_id=account.id,
+                        order_id=order.exchange_order_id,
+                        symbol=order.symbol,
+                        side=order.side,
+                        since=min(order.created_at, order.submitted_at or order.created_at),
+                    )
+                except ProviderError as exc:
+                    # 다음 주문 실패로 앞 주문의 관측을 버리지 않는다.
+                    logger.warning(
+                        "code_closed_pnl_read_deferred",
+                        extra={"order_id": str(order.id), "error_type": type(exc).__name__},
+                    )
+            if code_reads:
+                applied = already_synced = resynced = 0
+                async with sm() as session:
+                    order_repo = OrderRepository(session)
+                    for order in code_orders:
+                        read = code_reads.get(order.id)
+                        if read is None:
+                            continue
+                        await order_repo.mark_code_pnl_conflict(
+                            order.id, read.observed_hashes, invalid=read.conflict
+                        )
+                        evidence = read.evidence
+                        if evidence is None:
+                            continue
+                        if order.realized_pnl_synced_at is None:
+                            if await order_repo.backfill_exchange_realized_pnl(
+                                order.id, realized_pnl=evidence.pnl, synced_at=current,
+                                code_evidence=evidence,
+                            ) == 1:
+                                applied += 1
+                            else:
+                                already_synced += 1
+                        elif await order_repo.resync_exchange_realized_pnl(
+                            order.id, realized_pnl=evidence.pnl, synced_at=current,
+                            code_evidence=evidence,
+                        ) == 1:
+                            resynced += 1
+                    await session.commit()
+                summary["backfilled"] += applied
+                summary["resynced"] += resynced
+                for _ in range(applied + resynced):
+                    _count_safely(qb_closed_pnl_backfill_total, outcome="applied")
+                for _ in range(already_synced):
+                    _count_safely(qb_closed_pnl_backfill_total, outcome="already_synced")
             if await _alert_new_exchange_exits(sm, account.id, new_hashes):
                 summary["alerted"] += 1
         except Exception:
