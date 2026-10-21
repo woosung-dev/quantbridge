@@ -749,3 +749,25 @@ KITPORT 의 `.topbar` 는 **110**, `.sidebar` 는 **120** 이다 — **문서의
 
 **상태:** 🔵 ACTIVE — 2026-08-30 승격, 옵티마이저 절반 수리됨 · **stress_test 절반 미수리**
 **트리거 판정:** 도래 (Sharpe 가 판단 입력이 됐다 — 2026-08-30)
+
+---
+
+### BL-871
+
+**Title:** legacy closed-PnL 페이지 중복·불완전 조회가 확정 손익으로 저장된다
+**Category:** Trading / 정산
+**Priority:** P1
+**Trigger:** 단일 계정의 closed-PnL 페이지 조회·손익 refresh
+**상태:** ACTIVE
+**트리거 판정:** 도래 (2026-10-22 메모리 fake로 실제 메서드 재현)
+
+**증거:** `893643dc`의 `providers.py:1576`은 inclusive 경계행을 중복 반환하고
+`:333~343`은 그대로 합산한다. 동일 raw 손실 -2가 두 페이지에서 -4로 재현됐다.
+조회 한도 소진도 부분합을 반환하며 malformed 제외는 페이지 완전성을 오판시킬 수 있다.
+`tasks/trading.py:1582~1610`의 refresh는 원장 dedup 전에 이 값을 손익 CAS한다.
+BL-529의 계정 UID 거울과 다른 단일 계정 경로다. 근거는 control의
+`runs/sol-strategy-lab/native-sl-review/{reproduce.py,result.json}`이다(DB·네트워크·주문 0).
+
+**권장 접근:** 동일 raw만 dedup하고 다른 분할 행은 보존한다. 공식 cursor·조회 완료 증거로
+잘리거나 손상된 조회의 확정 CAS를 막는다. native SL의 별도 terminal-WS 손익 경로와 구분한다.
+**출처:** [Bybit Closed PnL](https://bybit-exchange.github.io/docs/v5/position/close-pnl).
