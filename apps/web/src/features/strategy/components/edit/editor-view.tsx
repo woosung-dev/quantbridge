@@ -11,7 +11,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangleIcon,
   CheckIcon,
-  CopyIcon,
   PlayIcon,
   RotateCcwIcon,
   SaveIcon,
@@ -19,22 +18,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  selectIsDirty,
-  selectPineSource,
-  selectStrategyId,
-  useEditStore,
-} from "@/features/strategy/edit-store";
+import { selectIsDirty, selectStrategyId, useEditStore } from "@/features/strategy/edit-store";
 import { useStrategy, useUpdateStrategy } from "@/features/strategy/hooks";
 import { PARSE_STATUS_LABEL } from "@/features/strategy/labels";
 import type { MarginMode } from "@/features/strategy/schemas";
-import { formatDateTime } from "@/features/strategy/utils";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 import { DeleteDialog } from "./delete-dialog";
 import { DiagnosticsStrip } from "./diagnostics-strip";
-import { EditorMonacoWrapper } from "./editor-monaco-wrapper";
+import { EditorSourceSection } from "./editor-source-section";
 import { TabMetadata } from "./tab-metadata";
 import { TabWebhook } from "./tab-webhook";
 
@@ -61,8 +54,6 @@ export function EditorView({ id }: { id: string }) {
 
   const storeStrategyId = useEditStore(selectStrategyId);
   const isDirty = useEditStore(selectIsDirty);
-  const pineSource = useEditStore(selectPineSource);
-  const setPineSource = useEditStore((s) => s.setPineSource);
   const loadServerSnapshot = useEditStore((s) => s.loadServerSnapshot);
   const markSaved = useEditStore((s) => s.markSaved);
   const resetDirty = useEditStore((s) => s.resetDirty);
@@ -114,16 +105,7 @@ export function EditorView({ id }: { id: string }) {
 
   const handleSave = () => {
     if (!isDirty || update.isPending) return;
-    update.mutate({ pine_source: pineSource });
-  };
-
-  const handleCopySource = async () => {
-    try {
-      await navigator.clipboard.writeText(pineSource);
-      toast.success("소스를 복사했습니다");
-    } catch {
-      toast.error("클립보드 복사 실패");
-    }
+    update.mutate({ pine_source: useEditStore.getState().pineSource });
   };
 
   if (isLoading) {
@@ -154,7 +136,6 @@ export function EditorView({ id }: { id: string }) {
   }
 
   const parseChip = PARSE_STATUS_LABEL[strategy.parse_status];
-  const lineCount = pineSource.length === 0 ? 0 : pineSource.split("\n").length;
   const settings = strategy.settings ?? null;
   const sessions = strategy.trading_sessions ?? [];
 
@@ -222,55 +203,7 @@ export function EditorView({ id }: { id: string }) {
         </div>
       </section>
 
-      {/* ===== 01 소스 ===== */}
-      <section className="section" aria-label="Pine 소스">
-        <header className="section-head">
-          <p className="eyebrow">
-            <span className="num">01</span> 소스
-          </p>
-          <h2 className="section-title">Pine 소스 {lineCount}줄</h2>
-          <p className="section-desc">
-            저장하면 이 소스를 다시 파싱하고, 배포된 데모 세션의 전략도 같은 소스로 교체됩니다.
-          </p>
-        </header>
-
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <h3 className="card-title">Pine Script 원문</h3>
-              <p className="card-sub">
-                마지막 저장 {formatDateTime(strategy.updated_at)} · 바 단위 이벤트 루프
-              </p>
-            </div>
-            <div className="toolbar">
-              <button
-                className="btn btn-ghost"
-                type="button"
-                onClick={handleCopySource}
-                aria-label="소스 전체 복사"
-              >
-                <CopyIcon aria-hidden="true" />
-                복사
-              </button>
-            </div>
-          </div>
-
-          <div className="card-body">
-            <EditorMonacoWrapper
-              fileName="strategy.pine"
-              versionLabel={`Pine ${strategy.pine_version}`}
-              value={pineSource}
-              onChange={setPineSource}
-              height={480}
-            />
-          </div>
-
-          <p className="code-foot">
-            Pine {strategy.pine_version} · {lineCount}줄 · UTF-8 · 편집 즉시 위 진단에서
-            재파싱됩니다.
-          </p>
-        </div>
-      </section>
+      <EditorSourceSection strategy={strategy} />
 
       {/* ===== 02 진단 ===== */}
       <section className="section" aria-label="진단">

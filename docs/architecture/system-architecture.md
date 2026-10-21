@@ -297,6 +297,22 @@ graph TB
 
 ---
 
+### 프런트엔드 구독·파생 계산 경계
+
+- 전략 편집의 원문 구독은 `EditorSourceSection`과 `DiagnosticsStrip`이 소유한다.
+  `EditorView`는 전략 ID·변경 여부만 구독하고, 저장 시 `useEditStore.getState()`로 최신 원문을 읽는다.
+  소스 영역은 `memo`로 부모의 저장·삭제 상태 변경과 분리한다.
+- 리포트의 매수 후 보유 곡선은 원본 `buy_and_hold_curve` 참조가 바뀔 때만 변환한다.
+  거래 목록 로딩 상태가 바뀌어도 차트에 같은 배열을 전달한다.
+- Recharts 래퍼 5종은 `hooks/use-chart-width.ts`의 callback ref로 실제 DOM 연결 시 너비를 측정한다.
+  너비가 0이면 `ResizeObserver`로 최초 양수 너비를 기다리고, 준비·분리 시 관찰자를 해제한다.
+  데이터가 늦게 도착해 DOM이 생기는 경우에도 측정하며, 기존 `next/dynamic` 청크 진입점은 유지한다.
+- 옵티마이저 파라미터 안정성은 파라미터별 `Map`으로 값별 합계·유효 건수를 모은 뒤 축을 정렬한다.
+  셀 N개·파라미터 P개·고유 값 V개에서 집계는 O(P×N), 정렬은 O(P×V log V)다.
+  축퇴 셀의 축 보존·유효 셀만 평균·동률이면 작은 값 우선이라는 출력 계약을 유지한다.
+
+---
+
 ## 7.5 Celery prefork-safe 패턴 (Sprint 18 BL-080 ✅)
 
 > 상세 회고: `docs/dev-log/2026-05-02-sprint18-bl080-architectural.md`. 표준 reference: [`apps/api/src/tasks/_worker_loop.py`](../../apps/api/src/tasks/_worker_loop.py) + `apps/api/src/tasks/celery_app.py:_init_worker_state_after_fork`. 위반 audit: `tests/tasks/test_no_module_level_loop_bound_state.py` (Sprint 19 BL-084).

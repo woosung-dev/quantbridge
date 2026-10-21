@@ -8,7 +8,7 @@
 // 이전 shadcn Tabs 5탭 IA 를 위 번호 섹션 구조로 재편했다.
 // trades 는 useAllBacktestTrades(200-cap 해소) 1회 로드 후 전 섹션 공유.
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { AlertTriangleIcon, ArrowRightIcon, RefreshCwIcon } from "lucide-react";
 import Link from "next/link";
 
@@ -103,11 +103,11 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
     document.getElementById(anchor)?.scrollIntoView();
   }, []);
 
-  const buyAndHoldPoints =
-    bt.metrics?.buy_and_hold_curve?.map(([timestamp, value]) => ({
-      timestamp,
-      value,
-    })) ?? null;
+  const buyAndHoldCurve = bt.metrics?.buy_and_hold_curve;
+  const buyAndHoldPoints = useMemo(
+    () => buyAndHoldCurve?.map(([timestamp, value]) => ({ timestamp, value })) ?? null,
+    [buyAndHoldCurve],
+  );
 
   if (!bt.metrics) {
     return null;

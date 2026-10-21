@@ -4,7 +4,8 @@
 // recharts PieChart(innerRadius). 데이터는 analytics.computeOutcomeCounts 파생.
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
+import { useChartWidth } from "@/hooks/use-chart-width";
 
 import type { OutcomeCounts } from "@/features/backtest/analytics";
 import { useChartTheme } from "@/lib/chart-tokens";
@@ -36,13 +37,7 @@ export function TradeOutcomeDonut({ counts }: TradeOutcomeDonutProps) {
     [counts, palette],
   );
 
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [hasWidth, setHasWidth] = useState(false);
-  useEffect(() => {
-    const node = wrapperRef.current;
-    if (node === null) return;
-    if (node.getBoundingClientRect().width > 0) setHasWidth(true);
-  }, [data]);
+  const { wrapperRef, hasWidth } = useChartWidth();
 
   if (counts.total === 0) {
     return (
