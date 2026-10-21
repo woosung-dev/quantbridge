@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections import Counter, defaultdict
 from dataclasses import replace
 from decimal import Decimal
@@ -244,9 +245,11 @@ def audit_risk(trace: list[dict[str, Any]], frame: pd.DataFrame) -> dict[str, An
 
 
 def evaluate(source: str, language: str, case_id: str) -> dict[str, Any]:
+    source_hash = hashlib.sha256(source.encode()).hexdigest()
     reason = unsupported_reason(case_id)
     if reason is not None:
         return {
+            "source_hash": source_hash,
             "status": "not_evaluable",
             "reason": reason,
             "reference_scope": "independent_signals_shared_broker",
@@ -313,6 +316,7 @@ def evaluate(source: str, language: str, case_id: str) -> dict[str, Any]:
         ledger_match = result == reference and fills == reference_fills
         safety_passed = reproducible and prefix_stable and risk["passed"]
         return {
+            "source_hash": source_hash,
             "status": "passed"
             if safety_passed
             and ledger_match
@@ -339,6 +343,7 @@ def evaluate(source: str, language: str, case_id: str) -> dict[str, Any]:
         }
     except Exception as exc:
         return {
+            "source_hash": source_hash,
             "status": "failed",
             "error_type": type(exc).__name__,
             "error": str(exc)[:1500],
@@ -362,8 +367,18 @@ def paired_summary(trials: list[dict[str, Any]]) -> dict[str, Any]:
         passed_public = trial.get("status") == "public_pass"
         integration = 10 if passed_public else 0
         # 구독 CLI의 USD 청구액은 알 수 없다. 생성 예산 효율만 동일 식으로 채점한다.
-        efficiency = 5 * max(
-            0, 1 - trial.get("generation_output_tokens", 16384) / 16384
+        unknown_usage = trial.get(
+            "unknown_output_usage_calls",
+            sum(
+                "output_tokens" not in row["generation"].get("usage", {})
+                for row in trial.get("attempts", [])
+            ),
+        )
+        # 미보고 소비량을 측정 0으로 보상하지 않는다. 관측된 latency 성분은 별도 유지한다.
+        efficiency = (
+            0
+            if unknown_usage
+            else 5 * max(0, 1 - trial.get("generation_output_tokens", 16384) / 16384)
         )
         efficiency += 5 * max(0, 1 - trial.get("generation_seconds", 180) / 180)
         if not passed_public:

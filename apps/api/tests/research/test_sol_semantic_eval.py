@@ -1,5 +1,6 @@
 """hold 편향·실패 분모·미래 참조·독립 기준의 실제 거래 비교."""
 
+import hashlib
 import sys
 from pathlib import Path
 
@@ -97,3 +98,20 @@ def test_unsupported_rule_has_no_success_score():
     result = subject.evaluate("unexecuted", "python", "22")
     assert result["status"] == "not_evaluable"
     assert "contract_points" not in result
+    assert result["source_hash"] == hashlib.sha256(b"unexecuted").hexdigest()
+
+
+def test_unreported_usage_gets_no_token_efficiency_but_preserves_observed_latency():
+    known = {
+        "arm": "B",
+        "language": "python",
+        "case_id": "01",
+        "status": "public_pass",
+        "generation_output_tokens": 0,
+        "generation_seconds": 0,
+        "semantic": {"contract_points": 40, "ledger_points": 25, "reproducibility_points": 15},
+        "attempts": [{"generation": {"usage": {"output_tokens": 0}}}],
+    }
+    unknown = {**known, "attempts": [{"generation": {"usage": {}}}]}
+    assert subject.paired_summary([known])["cell_means"]["B/python"] == 100
+    assert subject.paired_summary([unknown])["cell_means"]["B/python"] == 95

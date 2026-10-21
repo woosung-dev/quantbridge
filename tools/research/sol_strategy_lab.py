@@ -340,39 +340,57 @@ def trial(root: Path, case: dict, arm: str, language: str, repetition: int) -> d
     return result
 
 
-def semantic_trial(root: Path, job: tuple) -> dict[str, Any]:
-    """trial별 증거·캐시를 유지한다. 평가 오류도 분모에 남기는 실패 결과다."""
-    from tools.research.sol_semantic_eval import evaluate
+def semantic_result(folder: Path, result: dict) -> dict:
+    """실제로 평가한 source를 결합하며 구형 캐시에 SHA를 사후 부착하지 않는다."""
+    source = None
+    if result["status"] == "public_pass":
+        source = (folder / "source.txt").read_text()
+        if hashlib.sha256(source.encode()).hexdigest() != result["source_hash"]:
+            raise ValueError("semantic 평가 전 실행 source hash가 다릅니다")
+    path = folder / "semantic.json"
+    if path.exists():
+        semantic = json.loads(path.read_text())
+        if (
+            semantic.get("input_identity") != result["input_identity"]
+            or "source_hash" not in semantic
+            or semantic["source_hash"] != result["source_hash"]
+        ):
+            raise ValueError("독립 채점 캐시의 실행 source hash/실험 입력이 다릅니다")
+    elif source is not None:
+        from tools.research.sol_semantic_eval import evaluate
 
-    case, arm, language, repetition = job
-    folder = root / "trials" / arm / language / case["id"] / str(repetition)
-    result = json.loads((folder / "trial.json").read_text())
-    semantic_path = folder / "semantic.json"
-    if semantic_path.exists():
-        semantic = json.loads(semantic_path.read_text())
-        if semantic.get("input_identity") != result["input_identity"]:
-            raise ValueError("독립 채점 캐시의 실행 소스/실험 입력이 다릅니다")
-    elif result["status"] == "public_pass":
         try:
-            semantic = evaluate((folder / "source.txt").read_text(), language, case["id"])
+            semantic = evaluate(source, result["language"], result["case_id"])
         except Exception as exc:
             semantic = {
                 "status": "failed",
+                "source_hash": result["source_hash"],
                 "error_type": type(exc).__name__,
                 "error": str(exc)[:1500],
                 "contract_points": 0,
                 "ledger_points": 0,
                 "reproducibility_points": 0,
             }
+        if semantic.get("source_hash") != result["source_hash"]:
+            raise ValueError("독립 채점 결과의 실행 source hash가 다릅니다")
     else:
         semantic = {
             "status": "generation_or_public_failure",
+            "source_hash": result["source_hash"],
             "contract_points": 0,
             "ledger_points": 0,
             "reproducibility_points": 0,
         }
-    semantic["input_identity"] = result["input_identity"]
-    json_write(semantic_path, semantic)
+    return {**semantic, "input_identity": result["input_identity"]}
+
+
+def semantic_trial(root: Path, job: tuple) -> dict[str, Any]:
+    """trial별 독립 소스 증거·캐시를 유지한다."""
+    case, arm, language, repetition = job
+    folder = root / "trials" / arm / language / case["id"] / str(repetition)
+    result = json.loads((folder / "trial.json").read_text())
+    semantic = semantic_result(folder, result)
+    json_write(folder / "semantic.json", semantic)
     result["semantic"] = semantic
     return result
 
@@ -402,7 +420,6 @@ def evaluate_semantics(root: Path, selected: list[tuple], workers: int) -> None:
                 flush=True,
             )
     json_write(root / "semantic-summary.json", paired_summary(evaluated))
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)

@@ -1,5 +1,6 @@
 """성공 캐시가 입력 변경이나 실행 소스 손상을 숨기지 못하도록 검증한다."""
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -62,3 +63,35 @@ def test_modified_generation_payload_is_rejected(cached_trial):
     (root / "trials/A/python/D01/0/attempt-0/payload.json").write_text('{"source_code":"altered"}')
     with pytest.raises(ValueError, match="응답"):
         subject.trial(root, case, "A", "python", 0)
+
+
+@pytest.mark.parametrize("mutation", ["missing_hash", "changed_source", "changed_input"])
+def test_semantic_cache_is_bound_to_actual_source_and_cannot_be_retrocertified(
+    cached_trial, monkeypatch, mutation
+):
+    from tools.research import sol_semantic_eval
+
+    root, _, result = cached_trial
+    folder = root / "trials/A/python/D01/0"
+    calls = []
+
+    def evaluate(source, language, case_id):
+        calls.append(source)
+        return {"status": "passed", "source_hash": hashlib.sha256(source.encode()).hexdigest()}
+
+    monkeypatch.setattr(sol_semantic_eval, "evaluate", evaluate)
+    semantic = subject.semantic_result(folder, result)
+    (folder / "semantic.json").write_text(json.dumps(semantic))
+    assert subject.semantic_result(folder, result) == semantic
+    assert len(calls) == 1
+    if mutation == "missing_hash":
+        del semantic["source_hash"]
+        (folder / "semantic.json").write_text(json.dumps(semantic))
+    elif mutation == "changed_source":
+        (folder / "source.txt").write_text("new source")
+        result = {**result, "source_hash": hashlib.sha256(b"new source").hexdigest()}
+    else:
+        result = {**result, "input_identity": "changed"}
+    with pytest.raises(ValueError, match="캐시"):
+        subject.semantic_result(folder, result)
+    assert len(calls) == 1

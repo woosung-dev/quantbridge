@@ -182,6 +182,23 @@ def test_failed_unreported_usage_is_unknown_not_measured_zero(tmp_path):
     assert cell["score100"] == 0
 
 
+def test_successful_trial_does_not_receive_token_efficiency_for_unknown_usage(tmp_path):
+    manifest = run(tmp_path, cases=1, repetitions=1)
+    folder = trial(tmp_path, manifest, "01", 0)
+    generation_path = folder / "attempt-0/generation.json"
+    generation = json.loads(generation_path.read_text())
+    generation["usage"] = {}
+    write(generation_path, generation)
+    path = folder / "trial.json"
+    value = json.loads(path.read_text())
+    value["attempts"][0]["generation"] = generation
+    value["generation_output_tokens"] = 0
+    write(path, value)
+    cell = subject.build_report(tmp_path, draws=100)["score100_ranking"][0]
+    assert cell["unknown_output_usage_calls"] == 1
+    assert cell["score100"] == pytest.approx(90 + 5 * (1 - 2 / 180))
+
+
 def test_replica_correlation_uses_strategy_means_before_bootstrap(tmp_path):
     reports = []
     for repetitions in (1, 5):
