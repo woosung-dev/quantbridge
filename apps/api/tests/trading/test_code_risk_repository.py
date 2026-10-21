@@ -194,3 +194,26 @@ async def test_outbox_lease_survives_restart_and_rejects_old_ack(prepared, db_se
     await repo.commit()
     assert await repo.claim_command(session.id, uuid4()) is None
     await repo.commit()
+
+
+@pytest.mark.asyncio
+async def test_legacy_orphan_dispatcher_cannot_claim_code_policy_orders(prepared, db_session):
+    from datetime import timedelta
+
+    _repo, session, entry = prepared
+    legacy = Order(
+        strategy_id=session.strategy_id,
+        exchange_account_id=session.exchange_account_id,
+        symbol=session.symbol,
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=D(1),
+        state=OrderState.pending,
+    )
+    db_session.add(legacy)
+    await db_session.flush()
+    listed = await OrderRepository(db_session).list_stuck_pending(
+        datetime.now(UTC) + timedelta(seconds=1)
+    )
+    assert legacy.id in {order.id for order in listed}
+    assert entry.id not in {order.id for order in listed}

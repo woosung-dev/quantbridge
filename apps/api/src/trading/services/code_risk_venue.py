@@ -237,7 +237,12 @@ class BybitCodeRiskVenue:
         await self._orders.attach_exchange_order_id(order.id, status.exchange_order_id)
         await self._repo.commit()
         await self._sync(order, status)
-        if status.status == "rejected":
+        if status.status == "rejected" or (
+            status.status == "cancelled"
+            and order.risk_context is not None
+            and order.risk_context.get("role") == "partial_tp"
+            and (status.filled_quantity or Decimal(0)) < order.quantity
+        ):
             raise CodeRiskError("거래소가 주문을 거부했습니다")
         return {
             "order_id": str(order.id),
@@ -249,6 +254,7 @@ class BybitCodeRiskVenue:
         context = order.risk_context
         if context is None:
             raise CodeRiskError("주문 귀속이 없습니다")
+        await self._orders.attach_exchange_order_id(order.id, status.exchange_order_id)
         terminal = status.status in {"filled", "cancelled", "rejected"}
         if status.status == "filled" and status.filled_quantity is None:
             raise CodeRiskError("최종 체결 수량이 없습니다")
@@ -283,6 +289,14 @@ class BybitCodeRiskVenue:
                 role=cast(Any, context["role"]),
                 cumulative_quantity=quantity,
                 commit=False,
+            )
+        if (
+            context["role"] == "partial_tp"
+            and status.status in {"cancelled", "rejected"}
+            and quantity < order.quantity
+        ):
+            await self._risk.halt(
+                session_id, generation, "partial_tp_protection_lost", commit=False
             )
         if context["role"] == "close" and terminal and quantity == 0:
             await self._risk.record_zero_exit(session_id, generation, order.id, commit=False)

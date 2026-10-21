@@ -7,6 +7,8 @@ import json
 from typing import Any
 from uuid import UUID
 
+from src.strategy.code_contract import read_code_version
+from src.strategy.exceptions import CodeStrategyPolicyError
 from src.trading.product_policy import require_bybit_demo_account
 
 
@@ -37,6 +39,12 @@ def validate_code_snapshot(
         or snapshot.get("version_id") != str(version_id)
     ):
         raise CodeSnapshotError("실행 버전 핀이 일치하지 않습니다")
+    try:
+        stored = read_code_version(version)
+    except CodeStrategyPolicyError as exc:
+        raise CodeSnapshotError("저장 실행 계약의 전체 해시가 일치하지 않습니다") from exc
+    if snapshot.get("execution_hash") != stored.execution_hash:
+        raise CodeSnapshotError("실행 계약 해시가 일치하지 않습니다")
     source = getattr(version, "source_code", None)
     language = snapshot.get("language")
     if not isinstance(source, str) or language not in {"pine", "python", "typescript"}:
@@ -74,6 +82,7 @@ def build_code_snapshot(*, version: Any, account: Any, settings: dict[str, Any])
         "version_id": str(version.id),
         "language": getattr(version, "language", None),
         "source_hash": getattr(version, "source_hash", None),
+        "execution_hash": getattr(version, "execution_hash", None),
         "params": getattr(version, "params", None),
         "warmup_bars": getattr(version, "warmup_bars", None),
         "execution_settings": settings,

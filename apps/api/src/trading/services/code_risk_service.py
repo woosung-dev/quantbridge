@@ -327,9 +327,11 @@ class CodeRiskService:
             return []
         return await self.request_signal(session_id, state.generation, "close")
 
-    async def halt(self, session_id: UUID, generation: int, reason: str) -> list[RiskCommand]:
+    async def halt(
+        self, session_id: UUID, generation: int, reason: str, *, commit: bool = True
+    ) -> list[RiskCommand]:
         state = await self._load(session_id, generation)
-        return await self._fail(state, reason) if state is not None else []
+        return await self._fail(state, reason, commit=commit) if state is not None else []
 
     async def _load(self, session_id: UUID, generation: int) -> LiveRiskState | None:
         state = await self._repo.get(session_id)

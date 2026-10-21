@@ -12,9 +12,10 @@
 
 스냅샷 필수값은 `schema_version=1`, `source_policy=code_v1`,
 `policy_version=swing_two_bar_v1`, `version_id`, `language`, `source_hash`,
-`params`, `warmup_bars`, `execution_mode=bybit_demo`, `market_type=linear`다.
+`execution_hash`, `params`, `warmup_bars`, `execution_mode=bybit_demo`, `market_type=linear`다.
 `execution_settings`에는 서버가 동결한 레버리지·마진·포지션 비율을 저장한다.
 실제 `source_code` SHA256과 버전/스냅샷의 해시·언어·정책·파라미터·워밍업을 대조한다.
+저장 버전의 `read_code_version` 공통 검증기로 생성 이력을 포함한 전체 실행 해시도 확인한다.
 쓰기 권한이 확인된 Bybit demo 계정만 허용한다. 실행기 미주입·미완성 버전은 거부한다.
 
 ## 체결과 고정 R

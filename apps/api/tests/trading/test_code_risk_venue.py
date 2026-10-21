@@ -128,3 +128,28 @@ async def test_cancel_ack_is_not_terminal_evidence():
     with pytest.raises(ValueError, match="취소 확정"):
         await venue._cancel_confirm(Credentials("fake", "fake"), order)
     orders.transition_to_cancelled.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_partial_tp_halts_instead_of_acknowledging_protection():
+    repo, orders, risk, accounts, provider = (AsyncMock() for _ in range(5))
+    session_id = uuid4()
+    order = Order(
+        strategy_id=uuid4(),
+        exchange_account_id=uuid4(),
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        type=OrderType.limit,
+        quantity=D(1),
+        price=D(103),
+        state=OrderState.submitted,
+        risk_context={"session_id": str(session_id), "generation": 1, "role": "partial_tp"},
+    )
+    provider.fetch_order_by_client_id.return_value = OrderStatusFetch(
+        exchange_order_id="tp1", status="cancelled", filled_quantity=D(0)
+    )
+    venue = BybitCodeRiskVenue(repo, orders, risk, accounts, provider)
+    with pytest.raises(ValueError):
+        await venue._submit(Credentials("fake", "fake"), order)
+    risk.halt.assert_awaited_once_with(session_id, 1, "partial_tp_protection_lost", commit=False)
+    provider.create_order.assert_not_awaited()

@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.strategy.code_contract import CodeSnapshot
 from src.trading.code_execution_snapshot import (
     CodeSnapshotError,
     build_code_snapshot,
@@ -47,6 +48,15 @@ def runtime():
         warmup_bars=2,
     )
     version.source_hash = hashlib.sha256(version.source_code.encode()).hexdigest()
+    version.provenance = {"provider": "openai", "model": "sol6.1", "effort": "high"}
+    version.execution_hash = CodeSnapshot(
+        execution_policy="code_v1",
+        language="python",
+        source_code=version.source_code,
+        warmup_bars=2,
+        params={},
+        provenance=version.provenance,
+    ).execution_hash
     account = SimpleNamespace(exchange=ExchangeName.bybit, mode=ExchangeMode.demo, read_only=False)
     session.strategy_version_id = version.id
     session.execution_snapshot = build_code_snapshot(
@@ -278,6 +288,11 @@ async def test_new_generation_requires_fresh_matching_reversal_intent(runtime):
     orders.save.assert_awaited_once()
     assert orders.save.await_args.args[0].side == OrderSide.sell
     assert risk.prepare_entry.await_args.kwargs["previous_bars"] == args["previous_bars"]
+    existing = orders.save.await_args.args[0]
+    orders.save.reset_mock()
+    repo.get_order.return_value = existing
+    await service.on_intent(session.id, "short", **args)
+    orders.save.assert_not_awaited()
 
 
 @pytest.mark.asyncio

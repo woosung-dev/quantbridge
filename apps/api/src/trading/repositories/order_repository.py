@@ -1120,6 +1120,7 @@ class OrderRepository:
         """
         stmt = (
             select(Order)
+            .where(cast(Any, Order.risk_context).is_(None))  # code_v1는 전용 복구기가 소유한다.
             .where(Order.state == OrderState.pending)  # type: ignore[arg-type]
             .where(Order.created_at < cutoff)  # type: ignore[arg-type]
             .order_by(Order.created_at.asc())  # type: ignore[attr-defined]
@@ -1135,6 +1136,7 @@ class OrderRepository:
         """
         stmt = (
             select(Order)
+            .where(cast(Any, Order.risk_context).is_(None))  # code_v1는 전용 복구기가 소유한다.
             .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
             .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
@@ -1153,6 +1155,7 @@ class OrderRepository:
         """
         stmt = (
             select(Order)
+            .where(cast(Any, Order.risk_context).is_(None))  # code_v1는 전용 복구기가 소유한다.
             .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
             .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
             .where(Order.exchange_order_id.is_(None))  # type: ignore[union-attr]
