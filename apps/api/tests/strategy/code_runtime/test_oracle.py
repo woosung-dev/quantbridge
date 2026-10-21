@@ -311,8 +311,210 @@ def test_regression_known_line_and_htf_only_complete_buckets() -> None:
     assert len(htf.cache["htf_closes"]) == 200
 
 
+def test_all_30_evaluation_rules_have_independent_definitions() -> None:
+    assert {f"{index:02}" for index in range(1, 31)} <= set(oracle.supported_ids())
+    assert all(oracle.unsupported_reason(f"{index:02}") is None for index in range(1, 31))
+
+
+def test_squeeze_known_bandwidth_requires_120_prior_valid_values_and_next_bar() -> None:
+    import math
+
+    bars = history([100] * 140 + [110])
+    data = oracle._Math()
+    data.extend(bars)
+    longs, shorts = data.squeeze()
+    assert all(math.isnan(value) for value in data.cache["squeeze_event"][:139])
+    assert data.cache["squeeze_event"][139] == 139
+    assert longs[139] == shorts[139] == 0
+    assert data.sma(20)[140] == 100.5
+    assert data.cache["squeeze_std20"][140] == pytest.approx(4.75**0.5)
+    assert data.cache["squeeze_width"][140] == pytest.approx(4 * 4.75**0.5 / 100.5)
+    assert action("09", bars) == "long"
+    assert action("09", mirror(bars)) == "short"
+    assert action("09", history([100] * 139 + [110])) == "hold"
+
+
+def test_squeeze_consumes_signal_regardless_of_position_and_resets_on_new_event() -> None:
+    bars = history([100] * 140 + [110, 100, 90] + [100] * 20 + [110])
+    state: dict[str, Any] = {}
+    # 동방향 진입은 경제적으로 hold지만 squeeze는 이 시점에 이미 소비한다.
+    assert oracle.expected_action("09", bars[:141], {"direction": "long"}, state) == "hold"
+    assert oracle.expected_action("09", bars[:141], {"direction": "flat"}, state) == "long"
+    assert oracle.expected_action("09", bars[:143], {"direction": "flat"}, state) == "hold"
+    data = state["_independent_oracle"][1]
+    assert data.cache["squeeze_consumed"][140] == 1
+    assert data.cache["squeeze_short"][142] == 0
+    assert oracle.expected_action("09", bars, {"direction": "flat"}, state) == "long"
+    assert data.cache["squeeze_event"][-2] == len(bars) - 2
+
+
+def test_squeeze_event_priority_and_five_bar_expiry() -> None:
+    prefix = [99, 101] * 70
+    inside = [101.5, 98.5, 101.5, 98.5, 101.5]
+    assert action("09", history(prefix + inside[:4] + [110])) == "long"
+    assert action("09", history(prefix + inside + [110])) == "hold"
+    # 과거 고변동 구간이 창을 벗어나면서 같은 봉의 BW 신저점과 상단 교차가 겹친다.
+    bars = history([80, 120] * 70 + [100] * 19 + [101])
+    data = oracle._Math()
+    data.extend(bars)
+    longs, _ = data.squeeze()
+    assert data.cache["squeeze_event"][-1] == len(bars) - 1
+    assert longs[-1] == 0
+    assert action("09", bars) == action("09", mirror(bars)) == "hold"
+
+
+def divergence_bars() -> list[dict[str, Any]]:
+    return history([100, 101] * 10 + [50] + list(range(51, 61)) + [59, 58, 45, 46, 47, 48, 50])
+
+
+def append_bars(bars: list[dict[str, Any]], closes: list[float]) -> list[dict[str, Any]]:
+    extra = history(closes)
+    start = datetime.fromisoformat(str(bars[-1]["timestamp"]).replace("Z", "+00:00"))
+    for index, bar in enumerate(extra, 1):
+        bar["timestamp"] = (start + timedelta(hours=index)).isoformat()
+    return bars + extra
+
+
+def test_divergence_exact_pivots_rsi_known_value_and_single_confirmation_bar() -> None:
+    from fractions import Fraction
+
+    bars = divergence_bars()
+    data = oracle._Math()
+    data.extend(bars)
+    longs, shorts, levels, _ = data.divergence()
+    # 14개 변화는 상승/하락 각각 7개다. 이후 여섯 변화의 Wilder 가중합을 손계산한다.
+    decay = Fraction(13, 14)
+    gain = Fraction(1, 2) * decay**6 + (decay**5 + decay**3 + decay) / 14
+    loss = Fraction(1, 2) * decay**6 + (decay**4 + decay**2 + 51) / 14
+    assert data.rsi(14)[14] == 50
+    assert data.rsi(14)[20] == pytest.approx(float(100 * gain / (gain + loss)))
+    assert data.rsi(14)[33] == pytest.approx(18.861148730896815)
+    assert data.cache["divergence_low_pivot"][23] == 20
+    assert data.cache["divergence_low_pivot"][36] == 33
+    assert longs[36] == shorts[36] == 0
+    assert data.cache["divergence_pending_long"][36] == 44
+    assert levels[37] == 44
+    assert action("16", bars) == "long"
+    assert action("16", mirror(bars)) == "short"
+    assert action("16", bars[:-1]) == "hold"
+    late = [dict(bar) for bar in bars]
+    late[-1].update(open="48", high="49", low="47", close="48")
+    late = append_bars(late, [100])
+    assert action("16", late) == "hold"
+
+
+def test_divergence_invalidation_uses_latest_signal_pivot_and_strict_equality() -> None:
+    bars = divergence_bars()
+    equal = append_bars(bars, [44])
+    below = append_bars(bars, [43])
+    assert action("16", equal, "long") == "hold"
+    assert action("16", below, "long") == "close"
+    assert action("16", mirror(below), "short") == "close"
+    assert action("16", history([100] * 100 + [1]), "long") == "hold"
+
+
+def test_divergence_strict_rsi_ties_and_latest_separate_equal_pivot() -> None:
+    data = oracle._Math()
+    data.extend(history([100] * 25))
+    # 중심과 이웃이 동률인 plateau는 pivot이 아니다.
+    data.cache["rsi14"] = [50, 45, 40, 30, 30, 40, 45] + [50] * 18
+    data.divergence()
+    assert all(__import__("math").isnan(value) for value in data.cache["divergence_low_pivot"])
+    data = oracle._Math()
+    data.extend(history([100] * 25))
+    # 떨어진 두 pivot의 RSI가 같아도 최신 확정 pivot으로 기준을 갱신한다.
+    data.cache["rsi14"] = [50, 45, 40, 30, 40, 45, 50, 45, 40, 30, 40, 45, 50] + [50] * 12
+    longs, _, _, _ = data.divergence()
+    assert data.cache["divergence_low_pivot"][12] == 9
+    assert not any(longs)
+
+
+@pytest.mark.parametrize(("gap", "expected"), [(60, 1), (61, 0)])
+def test_divergence_pivot_gap_inclusive_boundary(gap: int, expected: int) -> None:
+    second = 3 + gap
+    bars = history([100] * (second + 5))
+    bars[3]["low"] = "90"
+    bars[second]["low"] = "80"
+    bars[-1].update(close="102", high="103")
+    data = oracle._Math()
+    data.extend(bars)
+    values = [50.0] * len(bars)
+    values[3], values[second] = 20, 30
+    data.cache["rsi14"] = values
+    longs, _, levels, _ = data.divergence()
+    assert longs[-1] == expected
+    if expected:
+        assert levels[-1] == 80
+
+
+def test_divergence_invalidation_changes_on_signal_not_pivot_confirmation() -> None:
+    bars = history([100] * 28)
+    for index, price in [(3, 90), (13, 80), (23, 70)]:
+        bars[index]["low"] = str(price)
+    for index in (17, 27):
+        bars[index].update(close="102", high="103")
+    data = oracle._Math()
+    data.extend(bars)
+    values = [50.0] * len(bars)
+    values[3], values[13], values[23] = 20, 30, 40
+    data.cache["rsi14"] = values
+    longs, _, levels, _ = data.divergence()
+    assert longs[17] == longs[27] == 1
+    assert levels[17] == levels[26] == 80
+    assert levels[27] == 70
+
+
+def test_anchored_vwap_exact_hlc3_volume_before_at_and_after_anchor() -> None:
+    import math
+
+    bars = history([999, 12, 16])
+    bars[0].update(timestamp="2025-12-31T23:00:00Z", volume="999000")
+    bars[1].update(timestamp="2026-01-01T00:00:00Z", high="16", low="8", volume="2")
+    bars[2].update(timestamp="2026-01-02T00:00:00Z", high="25", low="13", volume="1")
+    data = oracle._Math()
+    data.extend(bars)
+    values = data.anchored_vwap()
+    assert math.isnan(values[0])
+    assert values[1:] == [12, 14]
+
+
+def anchored_breakout_bars() -> list[dict[str, Any]]:
+    bars = history([100] * (288 + 21) + [110])
+    start = datetime(2025, 12, 20, tzinfo=UTC)
+    for index, bar in enumerate(bars):
+        bar["timestamp"] = (start + timedelta(hours=index)).isoformat()
+    return bars
+
+
+def test_anchored_vwap_both_direction_breakouts_and_invalidation() -> None:
+    bars = anchored_breakout_bars()
+    assert bars[288]["timestamp"] == "2026-01-01T00:00:00+00:00"
+    assert action("22", bars) == "long"
+    assert action("22", mirror(bars)) == "short"
+    assert action("22", bars[:289]) == "hold"
+    invalidated = append_bars(bars, [99.5])
+    assert action("22", invalidated, "long") == "close"
+    assert action("22", mirror(invalidated), "short") == "close"
+
+
 @pytest.mark.parametrize("ident", ["09", "16", "22"])
-def test_ambiguous_rules_are_unavailable_instead_of_false_hold(ident: str) -> None:
-    assert oracle.unsupported_reason(ident)
-    with pytest.raises(oracle.OracleUnavailable):
-        action(ident, history([100] * 300))
+def test_new_oracles_handle_zero_denominators_and_stream_without_future_data(ident: str) -> None:
+    bars = (
+        history([100] * 140 + [110, 100, 90] + [100] * 20 + [110])
+        if ident == "09"
+        else divergence_bars()
+        if ident == "16"
+        else anchored_breakout_bars()
+    )
+    state: dict[str, Any] = {}
+    for size in range(1, len(bars) + 1):
+        observed = oracle.expected_action(ident, bars[:size], {"direction": "flat"}, state)
+        if size in (10, len(bars) // 2, len(bars)):
+            assert observed == action(ident, bars[:size])
+    future = append_bars(bars, [9999, 1, 8000])
+    assert action(ident, future[: len(bars)]) == observed
+    zero = history([0 if ident == "09" else 100] * 300)
+    if ident == "22":
+        for bar in zero:
+            bar["volume"] = "0"
+    assert action(ident, zero) == "hold"

@@ -44,20 +44,11 @@ class OracleUnavailable(ValueError):
 
 
 def supported_ids() -> tuple[str, ...]:
-    return _DEV + _SIMPLE + ("05", "06", "07", "27", "30")
+    return _DEV + _SIMPLE + ("05", "06", "07", "09", "16", "22", "27", "30")
 
 
 def unsupported_reason(strategy_id: str) -> str | None:
-    unavailable = {
-        "09": "squeeze 관찰창과 발동봉 포함 여부·소비/재설정 규칙의 동결이 필요합니다",
-        "16": "pivot의 가격/RSI 기준·동률·확인 후 진입 유효기간이 확정되지 않았습니다",
-        "22": "사전 고정 UTC anchor의 실제 시각이 요구에 없습니다",
-    }
-    return (
-        None
-        if strategy_id in supported_ids()
-        else unavailable.get(strategy_id, "독립 수식 판정기가 아직 구현되지 않았습니다")
-    )
+    return None if strategy_id in supported_ids() else "독립 수식 판정기가 아직 구현되지 않았습니다"
 
 
 def _cross(a: list[float], b: list[float], *, up: bool = True) -> bool:
@@ -158,9 +149,7 @@ class _Math:
             gain_value, loss_value = gains[index], losses[index]
             if not math.isfinite(gain_value) or not math.isfinite(loss_value):
                 result.append(_NAN)
-            elif gain_value == loss_value == 0:
-                result.append(100.0)
-            elif loss_value == 0:
+            elif gain_value == loss_value == 0 or loss_value == 0:
                 result.append(100.0)
             else:
                 result.append(100 - 100 / (1 + gain_value / loss_value))
@@ -197,6 +186,103 @@ class _Math:
                 total_value[-1] / total_volume[-1] if total_volume[-1] > 0 else _NAN
             )
         return result
+
+    def anchored_vwap(self) -> list[float]:
+        result = self.cache.setdefault("anchored_vwap", [])
+        total_value = self.cache.setdefault("anchored_value", [])
+        total_volume = self.cache.setdefault("anchored_volume", [])
+        anchor = datetime(2026, 1, 1, tzinfo=UTC)
+        for index in range(len(result), len(self.times)):
+            included = self.times[index] >= anchor
+            volume = self.fields["volume"][index] if included else 0
+            value = self.fields["hlc3"][index] * volume
+            total_value.append((total_value[-1] if total_value else 0) + value)
+            total_volume.append((total_volume[-1] if total_volume else 0) + volume)
+            result.append(total_value[-1] / total_volume[-1] if total_volume[-1] > 0 else _NAN)
+        return result
+
+    def squeeze(self) -> tuple[list[float], list[float]]:
+        """현재 제외 유효 BW 120개, 새 event 우선, 이후 1..5봉의 첫 교차만 소비한다."""
+        close, basis = self.fields["close"], self.sma(20)
+        sd = self.rolling("squeeze_std20", close, 20, "std")
+        width = self.derived(
+            "squeeze_width",
+            lambda i: 4 * sd[i] / basis[i] if basis[i] != 0 else _NAN,
+        )
+        upper = self.derived("squeeze_upper", lambda i: basis[i] + 2 * sd[i])
+        lower = self.derived("squeeze_lower", lambda i: basis[i] - 2 * sd[i])
+        valid = self.cache.setdefault("squeeze_valid_width", [])
+        events = self.cache.setdefault("squeeze_event", [])
+        consumed = self.cache.setdefault("squeeze_consumed", [])
+        longs = self.cache.setdefault("squeeze_long", [])
+        shorts = self.cache.setdefault("squeeze_short", [])
+        for index in range(len(longs), len(close)):
+            event = events[-1] if events else _NAN
+            used = bool(consumed[-1]) if consumed else False
+            if (
+                math.isfinite(width[index])
+                and len(valid) >= 120
+                and width[index] <= min(valid[-120:])
+            ):
+                event, used = float(index), False
+            up = down = False
+            if not used and math.isfinite(event) and 1 <= index - event <= 5:
+                up = _cross(close[index - 1 : index + 1], upper[index - 1 : index + 1])
+                down = _cross(close[index - 1 : index + 1], lower[index - 1 : index + 1], up=False)
+                used = up or down
+            events.append(event)
+            consumed.append(float(used))
+            longs.append(float(up))
+            shorts.append(float(down))
+            if math.isfinite(width[index]):
+                valid.append(width[index])
+        return longs, shorts
+
+    def divergence(self) -> tuple[list[float], list[float], list[float], list[float]]:
+        """RSI 엄격 3/3 pivot은 3봉 뒤 확정, 확인은 그 다음 봉 한 번만이다."""
+        rsi = self.rsi(14)
+        high, low, close = (self.fields[key] for key in ("high", "low", "close"))
+        latest_low = self.cache.setdefault("divergence_low_pivot", [])
+        latest_high = self.cache.setdefault("divergence_high_pivot", [])
+        pending_long = self.cache.setdefault("divergence_pending_long", [])
+        pending_short = self.cache.setdefault("divergence_pending_short", [])
+        longs = self.cache.setdefault("divergence_long", [])
+        shorts = self.cache.setdefault("divergence_short", [])
+        long_level = self.cache.setdefault("divergence_long_level", [])
+        short_level = self.cache.setdefault("divergence_short_level", [])
+        for index in range(len(longs), len(close)):
+            previous_long = pending_long[-1] if pending_long else _NAN
+            previous_short = pending_short[-1] if pending_short else _NAN
+            up = index > 0 and math.isfinite(previous_long) and close[index] > high[index - 1]
+            down = index > 0 and math.isfinite(previous_short) and close[index] < low[index - 1]
+            longs.append(float(up))
+            shorts.append(float(down))
+            long_level.append(previous_long if up else long_level[-1] if long_level else _NAN)
+            short_level.append(previous_short if down else short_level[-1] if short_level else _NAN)
+            first_low = latest_low[-1] if latest_low else _NAN
+            first_high = latest_high[-1] if latest_high else _NAN
+            bull = bear = _NAN
+            pivot = index - 3
+            window = rsi[index - 6 : index + 1] if index >= 6 else []
+            if len(window) == 7 and all(math.isfinite(value) for value in window):
+                neighbours = window[:3] + window[4:]
+                if rsi[pivot] < min(neighbours):
+                    if math.isfinite(first_low) and 3 <= pivot - first_low <= 60:
+                        first = int(first_low)
+                        if low[pivot] < low[first] and rsi[pivot] > rsi[first]:
+                            bull = low[pivot]
+                    first_low = float(pivot)
+                if rsi[pivot] > max(neighbours):
+                    if math.isfinite(first_high) and 3 <= pivot - first_high <= 60:
+                        first = int(first_high)
+                        if high[pivot] > high[first] and rsi[pivot] < rsi[first]:
+                            bear = high[pivot]
+                    first_high = float(pivot)
+            latest_low.append(first_low)
+            latest_high.append(first_high)
+            pending_long.append(bull)
+            pending_short.append(bear)
+        return longs, shorts, long_level, short_level
 
     def ha(self) -> tuple[list[float], list[float]]:
         opens = self.cache.setdefault("ha_open", [])
@@ -701,6 +787,13 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
             current < lower[-1],
             current > upper[-1],
         )
+    if ident == "09":
+        long, short = data.squeeze()
+        basis = data.sma(20)[-1]
+        return bool(long[-1]), bool(short[-1]), current < basis, current > basis
+    if ident == "16":
+        long, short, long_level, short_level = data.divergence()
+        return bool(long[-1]), bool(short[-1]), current < long_level[-1], current > short_level[-1]
     if ident == "11":
         rsi, ema = data.rsi(14), data.ema(200)[-1]
         mid = [50.0] * len(close)
@@ -798,6 +891,15 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
         return (
             _cross(close, vwap) and current > ema and vwap[-1] > vwap[-2],
             _cross(close, vwap, up=False) and current < ema and vwap[-1] < vwap[-2],
+            current < vwap[-1],
+            current > vwap[-1],
+        )
+    if ident == "22":
+        vwap, ema = data.anchored_vwap(), data.ema(200)[-1]
+        high, low = data.channel(20)
+        return (
+            _cross(close, vwap) and current > ema and current > high[-1],
+            _cross(close, vwap, up=False) and current < ema and current < low[-1],
             current < vwap[-1],
             current > vwap[-1],
         )
