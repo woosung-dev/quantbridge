@@ -1020,7 +1020,9 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 → **2026-10-21 사용자 지시로 두 봉 스윙 SL·1.5R 반익절·2R 본절 트레일링의 로컬 비교 검증을 우선한다. 서버 반영은 미승인 상태다.**
 
 **다음 행동 = PRD §5에 따라 공개 추세 원문 50개의 1h·4h·1d V1·선택형 스윙 청산 V2 검증을 이어간다.**
-실행 계약 = [Python 전략 연구](./development/python-strategy-research.md) · 결정 = [ADR-045](./adr/045-python-strategy-research.md).
+실행 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
+Python 웹·API·작업 실행은 2026-10-21 사용자 최종 결정으로 제품에서 제외한다([ADR-045](./adr/045-python-strategy-research.md)).
+기존 DB 원장·마이그레이션 이력, 오프라인 연구 도구·공통 청산 계산은 보존하며 서비스 실행기 준비는 진행하지 않는다.
 현재 상태: PR #915는 머지됐으며 통합 CI는 6,396개 통과다. 운영 전략은 기존 9개와 신규 V1 연구 초안
 5개를 합한 14개이며 기존 소스·설정은 보존됐다. 신규 5개의 운영 백테스트는 0회이고 거래를 활성화하지 않았다.
 운영 DB는 `20261021_0001`이며 Python 연구 원장 3테이블이 존재한다. 워커 4개·FE는 `sha-c1dca61`,
@@ -1033,12 +1035,12 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 `quantbridge-20261021T074315Z.dump`이며 OCI 업로드가 성공했다. 운영 근거는 서버
 `~/quantbridge/runs/db-engine-rollout-20261021/`의 `backup.log`·`restore-check.log`·`migrate.log`·
 `deploy.log`·`verification.log`·`status-after.log`에 있다. 승인된 DDL과 엔진 배포는 완료됐고
-Python 실행기의 서버 준비·연구 검증은 별도 미완 항목이다.
+Python 서비스 미도입 결정에 따라 실행기 서버 준비는 종료 대상이다. 기존 연구 원장 3테이블은 미사용 상태로 보존하며 삭제 DDL은 적용하지 않는다.
 로컬 원문 48개·144조건 중 세 주기 양방향 사건·체결 원장 일치 조건을 만족한 원문은 36개로 14개가 더 필요하다.
 이번 Pine 원문 코호트의 V2 적용·TradingView 직접 대조·비용 반영 성과 검증은 미완이다. #914의 별도 Python
-스윙 연구 검증을 이 코호트의 통과로 합산하지 않는다. 새 미사용 기간과 Python 실행기의 서버 준비는 별도 대상이다.
+스윙 연구 검증을 이 코호트의 통과로 합산하지 않는다. 새 미사용 기간의 성과 검증은 별도 대상이다.
 로컬 근거는 `runs/trend-v2/REPORT.html`·`production-registration/FINAL.json`에 있으며 `runs/`는 gitignore다.
-Python 자동매매와 거래 활성화는 이번 범위 밖이다.
+Python 웹·서버 실행·자동매매는 제품에서 제외하며 신규 Pine 전략의 거래 활성화도 이번 범위 밖이다.
 PRD **§5** 「결과와 가정이 얼마나 정직하게 보이는가」에 따라 원본 `pine_v2`·독립 Python·TradingView 관측을
 구분한다. 외부 LLM은 사용하지 않는다. 계약·실행 절차 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 수집 probe만 일치한 결과나 미지원 지표를 원본 검증 성공으로 승격하지 않는다. 원시 캡처 직접 검증과

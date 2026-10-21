@@ -1,19 +1,12 @@
-# Python 전략 격리 실행기
+# 오프라인 연구용 Python 격리 이미지
 
-앱 API/Celery 는 HTTP client 만 사용한다. 이 gateway 와 Docker daemon 은 전용 Linux
-호스트 또는 별도 Linux VM 에 둔다. 사용자 소스는 `runsc` 컨테이너의 stdin 으로만
-전달하며 시세 파일·Docker socket·DB·거래소 키를 마운트하지 않는다.
+사용자 Python의 웹·서버 실행 서비스는 제공하지 않는다([ADR-045](../../docs/adr/045-python-strategy-research.md)).
+이 이미지는 내부 오프라인 연구 CLI에서만 사용한다. 앱 API·Celery와 연결하는 HTTP gateway와
+systemd 배포 예제는 제거했다. 기존 DB·거래소 권한과 분리하며 일반 Docker/호스트 실행으로 우회하지 않는다.
 
-1. Linux Docker daemon 에 gVisor `runsc` runtime 을 등록한다. 이름만 등록하고 실행이
-   불가능한 경우도 `/healthz` 실제 초기화 검사가 실패한다. `runc` 대체 실행은 없다.
-2. 저장소 루트에서 `sh infra/python-runner/build.sh` 로 이미지를 빌드한다.
-   Python base 는 `mise.toml` 에서 읽는다. 수동 빌드는 `--build-arg PYTHON_BASE` 가 필수다.
-3. 32자 이상 무작위 토큰을 `/etc/quantbridge/python-runner-token` 에 저장한다.
-   `qb-runner` 만 읽을 수 있게 하고 같은 값을 앱의 실행기 설정에 넣는다.
-4. `apps/api` 에서 `uv run python -m src.strategy.python_runtime.gateway --token-file /etc/quantbridge/python-runner-token` 로 실행한다.
-   systemd 예제는 이 디렉터리의 unit 이다. 기본 바인딩은 localhost 이고 동시 실행은 1개다.
-5. 인증된 `/healthz` 가 `available: true` 를 반환하는지 확인한 뒤 앱에서 사용한다.
-   다른 호스트에서 연결할 때는 사설 터널 또는 TLS 종단을 사용한다.
+1. 로컬 Linux VM의 Docker에 gVisor `runsc` runtime을 등록한다.
+2. 저장소 루트에서 `sh infra/python-runner/build.sh`로 이미지를 빌드한다.
+3. 오프라인 연구 CLI에만 해당 Docker endpoint를 지정한다. 앱 환경설정에는 넣지 않는다.
 
 ## macOS 로컬 VM
 
@@ -25,7 +18,7 @@ limactl start --name=qb-python-research --vm-type=vz --cpus=2 --memory=4 --disk=
 ```
 
 VM 안 Docker에 [공식 gVisor 설치 절차](https://gvisor.dev/docs/user_guide/install/)로 `runsc`를 등록한다.
-이후 재기동은 `limactl start qb-python-research`다. 빌드·gateway·연구 CLI를 실행하는 셸에만
+이후 재기동은 `limactl start qb-python-research`다. 빌드·연구 CLI를 실행하는 셸에만
 다음 Docker endpoint를 지정한다. 앱 `.env`나 전역 Docker context에 넣지 않는다.
 
 ```sh
@@ -34,8 +27,7 @@ sh infra/python-runner/build.sh
 apps/api/.venv/bin/python tools/research/cli.py --run-dir runs/indicator-research pilot
 ```
 
-이 구성은 gVisor 격리 코드를 Linux VM에서 실행하고 제어부는 macOS에서 실행한다. 운영 예제는
-제어부까지 전용 Linux 호스트로 옮기는 형태다. VM을 종료하면 Python 실행이 차단된다.
+이 구성은 오프라인 연구 전용이다. VM을 종료하면 로컬 Python 연구 실행이 차단된다.
 
 ## 전략 계약
 
@@ -68,22 +60,5 @@ def on_bar(ctx, state):
 고정 라이브러리는 이미지의 numpy/pandas 이고 타입은 `quantbridge_sdk` 로 import 한다.
 실행 중 패키지 설치는 지원하지 않는다. 사용자 print 는 버린다. 프로토콜 출력 초과,
 예외·잘못된 신호·900초 초과는 전체 실행 실패이며 부분 성과는 보존하지 않는다.
-900초 한도는 격리 전략 프로세스의 통신·실행에 적용한다. 공통 통계 계산은 신뢰된
-gateway 프로세스에서 후처리하므로 전체 요청의 엄격한 900초 한도는 아니다.
-후처리 중 취소하면 결과를 폐기하지만 진행 중인 통계 계산은 완료 후 종료한다.
-systemd 예제의 `CPUQuota=100%`, `MemoryMax=2G` 는 이 신뢰된 컨트롤러도 제한한다.
-전체 요청을 지정 시각에 강제 종료하려면 별도 컨트롤러 프로세스 감독이 필요하다.
-
-## HTTP 계약과 재현
-
-Bearer 인증 `POST /v1/backtests` 에 UUID `job_id`, `source`, `bars`, `funding`,
-`params`, `config`, `warmup_bars` 를 전달한다. 봉은 최대 50,000개이며
-`bars` 는 `timestamp/open/high/low/close/volume`, `funding` 은 `timestamp/rate` 이다.
-취소는 `POST /v1/backtests/{job_id}/cancel` 로 한다. 제출보다 먼저 온 취소도 보존하고
-실행 중이면 컨테이너를 종료한다. 다른 작업 실행 중에는 503, 재사용 ID 는 409다.
-
-결과는 `metrics`, `trades`, `equity_curve`, `config_used`, `provenance` 이다.
-금융 값은 Decimal 문자열이며 provenance 에 소스·데이터·파라미터·엔진 코드·실제 이미지
-ID 해시를 넣는다. 이미지 태그가 바뀌어도 해당 실행은 시작할 때 고정한 이미지 ID 를 쓴다.
-펀딩 비율만으로 과거 정산 일정의 완전성을 입증할 수 없으므로
-`funding_data_incomplete=None` 은 미검증이고 성공 판정의 증거가 아니다.
+900초 한도는 격리 전략 프로세스의 통신·실행에 적용한다. 신뢰된 제어부의 통계 후처리까지 포함한
+전체 명령 시간 보장이 아니다. 서버 HTTP gateway·systemd 서비스·앱 연결 설정은 제공하지 않는다.

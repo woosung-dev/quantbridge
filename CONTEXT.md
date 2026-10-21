@@ -57,11 +57,10 @@ Pine AST 를 읽을 수 있는 Python 으로 렌더한 **읽기 전용** 산출�
 _Avoid_: transpile, Python 전략, "Python 으로 변환"(전부 실행을 함의한다)
 
 **Python Research Strategy**:
-사용자가 별도로 작성한 Python 신호 코드와 파라미터·워밍업의 불변 버전. `PythonStrategy`·
-`PythonStrategyVersion`이 소유하고 `PythonBacktest`로 연구 실행한다([ADR-045]). **Python View와 별개**다.
-전용 gVisor 실행기는 과거 봉만 받아 신호를 만들며 공통 브로커가 체결·비용·성과를 계산한다.
-Pine 파싱·커버리지·라이브 자동매매 계약을 사용하지 않는다. 단일 백테스트 완료와 원본 재현·수익성
-검증 통과는 서로 다른 판정이다. Python 데모 주문 경로는 현재 범위 밖이다.
+**서비스에서 제공하지 않는다**(2026-10-21 사용자 결정, [ADR-045]). 웹 편집·저장·백테스트 API·
+Celery 작업·원격 실행기 연결은 제거했다. 기존 `PythonStrategy`·`PythonStrategyVersion`·`PythonBacktest`
+모델과 마이그레이션은 DB 이력 보존 전용이며 새 실행에 사용하지 않는다. 내부 오프라인 연구 도구와
+SL·반익절·트레일링 계산은 유지한다. **Python View의 읽기 전용 계약과 별개**다.
 
 **Generated Strategy**:
 자연어 프롬프트로 LLM 이 만든 전략([ADR-041](./docs/adr/041-ai-strategy-generation.md)). LLM 이 **Pine 과 Python 을 둘 다** 내지만

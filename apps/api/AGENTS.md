@@ -92,7 +92,8 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 | `tasks/` | Celery task entrypoint | HTTP 표면이 아니다. prefork-safe 규칙은 §9 |
 | `scripts/` | 운영 entrypoint helper (`run_alembic_with_lock`) | `python -m src.scripts.*` 로 실행. 테스트·dogfood 스크립트는 여기가 아니라 `apps/api/scripts/`(앱 루트) |
 | `strategy/narrative/` | [ADR-040] 해설 층 LLM 클라이언트 | **DB 세션을 안 쥔다** — `convert/` 와 같은 형태(repository·models 없음). 결정론 브리핑은 `StrategyService` 가 갖고 여기는 LLM 왕복만 한다 |
-| `strategy/python_runtime/` | [ADR-045] 격리 Python 실행 프로토콜·gateway·client | DB·거래소 권한 없이 신호 전송과 격리만 맡는다. 소스의 실제 실행은 `infra/python-runner/`의 gVisor 이미지 내부뿐이다. `python_strategy/`의 소유권 원장은 7파일 표준을 따른다 |
+| `strategy/python_runtime/` | 내부 오프라인 연구용 프로토콜·격리 transport·청산 계산 | 서비스 API·Celery와 연결하지 않는다([ADR-045]). 로컬 연구의 소스 실행은 `infra/python-runner/`의 gVisor 이미지 내부뿐이다 |
+| `python_strategy/` | 미사용 연구 원장의 모델 선언 | 기존 DB·마이그레이션 이력 보존 전용이다. router·service·작업 실행을 제공하지 않는다([ADR-045]) |
 | `common/` · `core/` | 기술 기반 · 설정 | 도메인이 아니다 |
 
 `trading/` 은 예외가 아니라 **확장**이다 — `service.py`/`repository.py` 가 `services/`·`repositories/`

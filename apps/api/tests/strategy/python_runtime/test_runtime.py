@@ -6,8 +6,6 @@ import ast
 import copy
 import json
 import subprocess
-import threading
-import uuid
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
@@ -15,12 +13,10 @@ from typing import Any
 
 import pandas as pd
 import pytest
-from fastapi.testclient import TestClient
 
 from src.backtest.engine.python_adapter import run_python_backtest
 from src.backtest.engine.types import BacktestConfig
 from src.backtest.engine.v2_adapter import run_backtest_v2
-from src.strategy.python_runtime.gateway import create_app
 from src.strategy.python_runtime.protocol import (
     PythonRunnerUnavailable,
     PythonRuntimeError,
@@ -28,15 +24,11 @@ from src.strategy.python_runtime.protocol import (
 )
 from src.strategy.python_runtime.sandbox import DockerPythonTransport, sandbox_command
 from src.strategy.python_runtime.serialization import (
-    bars_payload,
-    json_value,
     result_from_payload,
     result_payload,
 )
 
 SOURCE = "def on_bar(ctx, state): return {'action': 'hold'}"
-TOKEN = "test-runner-token-with-at-least-32-characters"
-HEADERS = {"Authorization": "Bearer " + TOKEN}
 
 
 def bars(count: int = 6) -> pd.DataFrame:
@@ -252,75 +244,6 @@ def test_host_modules_do_not_execute_python_source() -> None:
             isinstance(call.func, ast.Name) and call.func.id in {"exec", "eval", "compile"}
             for call in calls
         ), path
-
-
-def request_body(job_id: str | None = None) -> dict[str, Any]:
-    return {
-        "job_id": job_id or str(uuid.uuid4()),
-        "source": SOURCE,
-        "bars": bars_payload(bars()),
-        "config": json_value(config()),
-        "params": {},
-        "warmup_bars": 0,
-    }
-
-
-def test_gateway_auth_cancel_before_submission_and_provenance() -> None:
-    with TestClient(create_app(TOKEN, transport_factory=ScriptedTransport)) as client:
-        assert client.post("/v1/backtests", json=request_body()).status_code == 401
-        cancelled_id = str(uuid.uuid4())
-        assert (
-            client.post(f"/v1/backtests/{cancelled_id}/cancel", headers=HEADERS).json()["status"]
-            == "cancelled"
-        )
-        assert (
-            client.post(
-                "/v1/backtests", json=request_body(cancelled_id), headers=HEADERS
-            ).status_code
-            == 409
-        )
-        response = client.post("/v1/backtests", json=request_body(), headers=HEADERS)
-        assert response.status_code == 200, response.text
-        record = response.json()
-        assert len(record["provenance"]["environment_digest"]) == 64
-        assert len(record["provenance"]["source_hash"]) == 64
-        assert record["config_used"]["fill_timing"] == "next_bar_open"
-
-
-def test_gateway_cancels_active_process_and_rejects_second_job() -> None:
-    entered = threading.Event()
-    released = threading.Event()
-
-    class BlockingTransport(ScriptedTransport):
-        def exchange(self, message: dict[str, Any]) -> dict[str, Any]:
-            if message["type"] == "bar":
-                entered.set()
-                assert released.wait(timeout=10)
-                raise PythonRuntimeError("취소됨")
-            return super().exchange(message)
-
-        def close(self) -> None:
-            released.set()
-            super().close()
-
-    with TestClient(create_app(TOKEN, transport_factory=BlockingTransport)) as client:
-        job_id = str(uuid.uuid4())
-        responses = []
-        thread = threading.Thread(
-            target=lambda: responses.append(
-                client.post("/v1/backtests", json=request_body(job_id), headers=HEADERS)
-            )
-        )
-        thread.start()
-        assert entered.wait(timeout=10)
-        assert client.post("/v1/backtests", json=request_body(), headers=HEADERS).status_code == 503
-        assert (
-            client.post(f"/v1/backtests/{job_id}/cancel", headers=HEADERS).json()["status"]
-            == "cancelled"
-        )
-        thread.join(timeout=10)
-        assert not thread.is_alive()
-        assert responses[0].status_code == 422
 
 
 @pytest.mark.integration

@@ -57,7 +57,6 @@ celery_app = Celery(
     backend=secret_value(settings.celery_result_backend),
     include=[
         "src.tasks.backtest",
-        "src.tasks.python_strategy",
         "src.tasks.trading",
         "src.tasks.funding",
         "src.tasks.dogfood_report",
@@ -117,11 +116,6 @@ celery_app.conf.task_routes = {
 
 # Beat schedule — worker 상주 시 주기 task 실행.
 celery_app.conf.beat_schedule = {
-    "reclaim-stale-python-backtests": {
-        "task": "python_strategy.reclaim_stale",
-        "schedule": 300.0,
-        "options": {"expires": 240},
-    },
     "reclaim-stale-backtests": {
         "task": "backtest.reclaim_stale",
         "schedule": 300.0,  # 5분 주기 — startup @worker_ready hook 보완
