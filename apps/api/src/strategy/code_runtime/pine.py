@@ -122,17 +122,18 @@ class PineSignalTransport:
         if len(directions) > 1:
             raise CodeRuntimeError("같은 봉의 양방향 진입 의도는 지원하지 않습니다")
         action = "hold"
-        if entries:
+        if entries and str(entries[-1].direction) != direction:
             chosen = entries[-1]
             action = str(chosen.direction)
-            if action != direction:
-                self._entry_id = chosen.trade_id
+            self._entry_id = chosen.trade_id
         elif any(
             order.kind == "close_all"
             or (order.kind == "close" and order.trade_id == self._entry_id)
             for order in orders
         ):
             action = "close"
+        elif entries:
+            action = str(entries[-1].direction)
         state.pending_market_intents.clear()
         if state.closed_trades or state.events or state.pending_orders or state.pending_exits:
             raise CodeRuntimeError("Pine 내부 체결이 발생해 공통 원장과 분리할 수 없습니다")
