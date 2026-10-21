@@ -472,10 +472,17 @@ def compute_oracle(
         raise ValueError("oracle OHLCV에는 시간대가 있는 DatetimeIndex가 필요합니다")
     if not ohlcv.index.is_monotonic_increasing or ohlcv.index.has_duplicates:
         raise ValueError("oracle OHLCV 봉은 중복 없이 시간순이어야 합니다")
-    if name not in ORACLES:
+    implementations = ORACLES
+    if name not in implementations:
+        from scripts.pine_validation.oracles_a import ORACLES_A
+        from scripts.pine_validation.oracles_b import ORACLES_B
+        from scripts.pine_validation.oracles_c import ORACLES_C
+
+        implementations = ORACLES | ORACLES_A | ORACLES_B | ORACLES_C
+    if name not in implementations:
         raise ValueError(f"검토한 Python oracle이 없습니다: {name}")
     params = params or {}
-    events = ORACLES[name](ohlcv, params)
+    events = implementations[name](ohlcv, params)
     if not events:
         return events
     differences = ohlcv.index.to_series().diff().dropna().unique()

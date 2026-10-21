@@ -157,7 +157,9 @@ def fake_oracle(name, frame, params):
 def offline(monkeypatch):
     monkeypatch.setattr(V, "execute_pine", fake_execute)
     monkeypatch.setattr(V, "compute_oracle", fake_oracle)
-    monkeypatch.setattr(V, "compare_app_backtest", lambda *args, **kwargs: {"status": "exact_match"})
+    monkeypatch.setattr(
+        V, "compare_app_backtest", lambda *args, **kwargs: {"status": "exact_match"}
+    )
 
 
 def test_app_backtest_mismatch_blocks_validation(tmp_path, offline, monkeypatch):
@@ -175,7 +177,9 @@ def test_app_backtest_receives_whole_warmup_history(tmp_path, offline, monkeypat
         filename = tmp_path / f"{timeframe}.csv"
         frame = pd.read_csv(filename)
         warmup = frame.iloc[[0]].copy()
-        warmup["time"] = (pd.Timestamp(frame.iloc[0]["time"]) - pd.Timedelta(seconds=seconds)).isoformat()
+        warmup["time"] = (
+            pd.Timestamp(frame.iloc[0]["time"]) - pd.Timedelta(seconds=seconds)
+        ).isoformat()
         pd.concat([warmup, frame]).to_csv(filename, index=False)
     observed = []
 
@@ -285,7 +289,15 @@ def test_missing_evidence_never_counts_as_exact(tmp_path, offline, missing):
 
 
 @pytest.mark.parametrize(
-    "mode", ["missing", "derived_probe", "wrong_hash", "reviewed_unverified", "reviewed_verified"]
+    "mode",
+    [
+        "missing",
+        "derived_probe",
+        "wrong_hash",
+        "native_unverified",
+        "reviewed_unverified",
+        "reviewed_verified",
+    ],
 )
 def test_tv_provenance_keeps_derived_and_unverified_references_out_of_exact(
     tmp_path, offline, mode
@@ -301,6 +313,8 @@ def test_tv_provenance_keeps_derived_and_unverified_references_out_of_exact(
             payload["provenance"]["kind"] = "derived_probe"
         elif mode == "wrong_hash":
             payload["provenance"]["source_sha256"] = "0" * 64
+        elif mode == "native_unverified":
+            payload["provenance"]["native_original_verified"] = False
         else:
             payload["provenance"].update(
                 kind="reviewed_port", native_original_verified=mode == "reviewed_verified"
@@ -592,3 +606,67 @@ def test_reviewed_hash_does_not_accept_non_boolean_false_input(
     report = V.run_validation(runtime_degraded_manifest)
     assert report["exact_pairs"] == 0
     assert {row["status"] for row in report["results"]} == {"unreviewed_degraded_branch"}
+
+
+def test_missing_python_adapter_still_runs_every_app_cell(tmp_path, offline, monkeypatch):
+    path = fixture_manifest(tmp_path)
+    data = json.loads(path.read_text())
+    data["indicators"][0]["oracle"] = None
+    path.write_text(json.dumps(data))
+    seen = []
+
+    def compare(source, frame, inputs, timeframe, events, **kwargs):
+        assert events is None
+        seen.append(timeframe)
+        return {"status": "missing_signal_ledger", "executed": True, "app_status": "ok"}
+
+    monkeypatch.setattr(V, "compare_app_backtest", compare)
+    report = V.run_validation(path)
+    assert seen == list(V.TIMEFRAMES)
+    assert report["exact_pairs"] == 0
+    assert report["app_backtest_executed_pairs"] == 3
+    assert report["app_backtest_successful_pairs"] == 3
+
+
+def test_explicit_fifty_candidate_requirement_keeps_150_pair_denominator(tmp_path, offline):
+    path = fixture_manifest(tmp_path)
+    data = json.loads(path.read_text())
+    data["minimum_indicators"] = 50
+    path.write_text(json.dumps(data))
+    report = V.run_validation(path, limit=50)
+    assert report["minimum_indicators"] == 50
+    assert report["expected_pairs"] == 150
+    assert "insufficient_indicators" in report["completion_failures"]
+
+
+def test_cost_performance_is_separate_from_missing_oracle_verification(tmp_path, offline):
+    path = fixture_manifest(tmp_path, days=12)
+    data = json.loads(path.read_text())
+    data["indicators"][0]["oracle"] = None
+    data["evaluation"] = {
+        "registered_at": "2020-02-01T00:00:00Z",
+        "validation_start": "2020-01-05T00:00:00Z",
+        "holdout_start": "2020-01-09T00:00:00Z",
+        "init_cash": "10000",
+        "position_size_pct": "20",
+        "fees": "0.00055",
+        "slippage": "0.00014",
+        "cost_basis": "fixture",
+    }
+    path.write_text(json.dumps(data))
+    manifest = V.load_manifest(path)
+    row = V.validate_cell(manifest["indicators"][0], "1d", manifest, tmp_path)
+    assert row["status"] == "missing_python_adapter"
+    assert row["performance"]["status"] == "completed"
+    assert len(row["performance"]["runs"]) == 8
+    assert row["performance"]["funding_provenance"] is None
+
+
+@pytest.mark.parametrize("minimum", [9, 101, True, "50"])
+def test_invalid_minimum_indicator_requirement_fails_before_execution(tmp_path, minimum):
+    path = fixture_manifest(tmp_path)
+    data = json.loads(path.read_text())
+    data["minimum_indicators"] = minimum
+    path.write_text(json.dumps(data))
+    with pytest.raises(V.ManifestError, match="minimum_indicators"):
+        V.load_manifest(path)

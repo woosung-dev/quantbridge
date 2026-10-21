@@ -201,16 +201,25 @@ def test_no_fills_cannot_be_reported_as_exact(condition: str, status: str) -> No
     assert result["status"] == status, result
 
 
-def test_conflicting_events_fail_before_app_call(monkeypatch) -> None:
+def test_conflicting_oracle_events_do_not_prevent_real_app_execution() -> None:
     source = 'indicator("Conflict")\nplotshape(true)\nplotshape(true)\n'
-
-    def unexpected_call(*args, **kwargs):
-        pytest.fail("동봉 양방향 충돌은 앱 실행 전에 실패해야 합니다")
-
-    monkeypatch.setattr("src.backtest.engine.v2_adapter.run_backtest_v2", unexpected_call)
     result = _compare(source, _bindings((2, "long"), (3, "short")), _frame())
     assert result["status"] == "invalid_signal_ledger"
     assert "충돌" in result["detail"]
+    assert result["executed"] is True
+    assert result["app_status"] == "ok"
+    assert result["app_trades"]
+
+
+def test_missing_oracle_still_runs_app_without_claiming_parity() -> None:
+    converted = adapt_strategy(
+        'indicator("X")\nplotshape(bar_index == 0)\n', _bindings((2, "long"))
+    )
+    result = compare_app_backtest(converted.strategy_source, _frame(), {}, "1h", None)
+    assert result["status"] == "missing_signal_ledger"
+    assert result["executed"] is True
+    assert result["app_status"] == "ok"
+    assert len(result["app_trades"]) == 1
 
 
 def test_wrong_signal_events_are_reported_as_real_app_mismatch() -> None:
@@ -220,3 +229,62 @@ def test_wrong_signal_events_are_reported_as_real_app_mismatch() -> None:
     result = compare_app_backtest(converted.strategy_source, _frame(), {}, "1h", [])
     assert result["status"] == "mismatch", result
     assert result["differences"][0]["field"] == "trade_count"
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        'indicator("Display", "Short", overlay=true, linktoseries=true, max_labels_count=500)',
+        'indicator("Display", max_lines_count=1)',
+        'indicator("Display", shorttitle="Short", max_lines_count=500, max_labels_count=500)',
+    ],
+)
+def test_display_only_declaration_options_allow_actual_app_execution(header: str) -> None:
+    source = f"//@version=5\n{header}\nplotshape(bar_index == 0)\nplotshape(bar_index == 3)\n"
+    result = _compare(source, _bindings((3, "long"), (4, "short")), _frame())
+    assert result["status"] == "exact_match", result
+
+
+@pytest.mark.parametrize(
+    "option", ['timeframe="D"', "timeframe_gaps=true", "resolution_gaps=false"]
+)
+def test_execution_declaration_options_remain_explicitly_unsupported(option: str) -> None:
+    with pytest.raises(StrategyAdapterError):
+        adapt_strategy(f'indicator("X", {option})\nplotshape(true)\n', _bindings((2, "long")))
+
+
+def test_explicit_exits_precede_entries_and_preserve_captured_conditions() -> None:
+    source = """//@version=5
+indicator("Exits")
+buy = bar_index == 0 or bar_index == 2 or bar_index == 5
+plotshape(buy)
+buy := false
+plotshape(bar_index == 2 or bar_index == 3)
+plotshape(bar_index == 3)
+plotshape(bar_index == 5 or bar_index == 6)
+"""
+    bindings = _bindings((4, "long"), (6, "long_exit"), (7, "short"), (8, "short_exit"))
+    result = _compare(source, bindings, _frame())
+    assert result["status"] == "exact_match", result
+    assert [trade["direction"] for trade in result["app_trades"]] == [
+        "long",
+        "long",
+        "short",
+        "long",
+    ]
+    assert len(result["app_trades"]) == 4
+
+
+def test_exit_while_flat_does_not_close_new_entry_and_warmup_is_guarded() -> None:
+    source = """//@version=5
+indicator("Exit first")
+plotshape(bar_index == 0 or bar_index == 3)
+plotshape(bar_index == 0 or bar_index == 5)
+"""
+    bindings = _bindings((3, "long"), (4, "long_exit"))
+    result = _compare(source, bindings, _frame())
+    assert result["status"] == "exact_match", result
+    converted = adapt_strategy(source, bindings, trade_start=_frame().index[2])
+    guarded = compare_app_backtest(converted.strategy_source, _frame(), {}, "1h", None)
+    assert len(guarded["app_trades"]) == 1
+    assert guarded["app_trades"][0]["entry_time"] == _frame().index[4].isoformat()

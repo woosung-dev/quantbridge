@@ -19,7 +19,15 @@ from src.strategy.pine_v2.parser_adapter import parse_to_ast
 
 _SIGNALS = {"plotshape", "plotchar", "alertcondition"}
 _DISPLAY_CALLS = {"color.new", "color.rgb", "color.from_gradient"}
-_HEADER_ARGS = {"title", "shorttitle", "overlay", "format", "precision"}
+_HEADER_ARGS = {
+    "title",
+    "shorttitle",
+    "overlay",
+    "format",
+    "precision",
+    "max_lines_count",
+    "max_labels_count",
+}
 _SECONDS = {"1h": 3600, "4h": 14400, "1d": 86400}
 
 
@@ -79,7 +87,13 @@ def _safe_calls(node: Any, *, display: bool) -> bool:
     return True
 
 
-def adapt_strategy(source: str, signal_bindings: Sequence[Mapping[str, Any]]) -> StrategyAdaptation:
+def adapt_strategy(
+    source: str,
+    signal_bindings: Sequence[Mapping[str, Any]],
+    *,
+    trade_start: Any = None,
+    fixed_quantity: Decimal | None = Decimal("1"),
+) -> StrategyAdaptation:
     """전체 body를 보존하며 첫 조건을 한 번 계산한다. 범위를 추측해서 확장하지 않는다."""
     try:
         tree = parse_to_ast(source)
@@ -124,7 +138,13 @@ def adapt_strategy(source: str, signal_bindings: Sequence[Mapping[str, Any]]) ->
                     "non_chart_timeframe", "별도 resolution/timeframe 선언은 변환하지 않습니다"
                 )
             warnings.append(f"빈 {argument.name} 선언 인자만 제거했습니다")
-        elif argument.name in _HEADER_ARGS or (argument.name is None and index == 0):
+        elif argument.name == "linktoseries":
+            if not isinstance(argument.value, A.Constant) or type(argument.value.value) is not bool:
+                raise StrategyAdapterError(
+                    "dynamic_declaration", "linktoseries는 상수만 허용합니다"
+                )
+            warnings.append("화면 축 연결 전용 linktoseries 선언 인자만 제거했습니다")
+        elif argument.name in _HEADER_ARGS or (argument.name is None and index <= 1):
             if not _safe_calls(argument.value, display=True):
                 raise StrategyAdapterError(
                     "dynamic_declaration", "동적 선언 인자는 변환하지 않습니다"
@@ -161,6 +181,10 @@ def adapt_strategy(source: str, signal_bindings: Sequence[Mapping[str, Any]]) ->
     udf_names = {node.name for node in A.walk(tree) if isinstance(node, A.FunctionDef)}
     seen = set()
     reviewed = []
+    has_exits = any(
+        binding.get("direction") in {"long_exit", "short_exit"} for binding in ordered_bindings
+    )
+    deferred_entries = []
     for binding in ordered_bindings:
         function, line, direction = (
             binding.get("function"),
@@ -169,7 +193,7 @@ def adapt_strategy(source: str, signal_bindings: Sequence[Mapping[str, Any]]) ->
         )
         if (
             function not in _SIGNALS
-            or direction not in {"long", "short"}
+            or direction not in {"long", "short", "long_exit", "short_exit"}
             or binding.get("when", "truthy") != "truthy"
         ):
             raise StrategyAdapterError(
@@ -230,27 +254,6 @@ def adapt_strategy(source: str, signal_bindings: Sequence[Mapping[str, Any]]) ->
         arg_start, arg_end = _span(argument, lines, offsets)
         edits.append((call_start, call_start, f"{temp} = {condition}{newline}"))
         edits.append((arg_start, arg_end, temp))
-        flag = long_flag if direction == "long" else short_flag
-        guard = (
-            "strategy.position_size <= 0" if direction == "long" else "strategy.position_size >= 0"
-        )
-        pine_direction = (
-            ("true" if direction == "long" else "false")
-            if pine_version_from_ast(tree) < 4
-            else f"strategy.{direction}"
-        )
-        trade_id = "L" if direction == "long" else "S"
-        after_call = offsets[call.end_lineno]
-        separator = "" if after_call and source[after_call - 1] == "\n" else newline
-        edits.append(
-            (
-                after_call,
-                after_call,
-                f"{separator}if {temp} and {guard} and not {flag}{newline}"
-                f'    strategy.entry("{trade_id}", {pine_direction}, qty=1){newline}'
-                f"    {flag} := true{newline}",
-            )
-        )
         reviewed.append(
             {
                 **dict(binding),
@@ -258,6 +261,74 @@ def adapt_strategy(source: str, signal_bindings: Sequence[Mapping[str, Any]]) ->
                 "condition_variable": temp,
                 "condition": condition,
             }
+        )
+        if direction.endswith("_exit"):
+            continue
+        flag = long_flag if direction == "long" else short_flag
+        guard = (
+            "strategy.position_size <= 0" if direction == "long" else "strategy.position_size >= 0"
+        )
+        if trade_start is not None:
+            guard += f" and time >= {int(pd.Timestamp(utc_time(trade_start)).value // 1_000_000)}"
+        pine_direction = (
+            ("true" if direction == "long" else "false")
+            if pine_version_from_ast(tree) < 4
+            else f"strategy.{direction}"
+        )
+        trade_id = "L" if direction == "long" else "S"
+        quantity_arg = "" if fixed_quantity is None else f", qty={fixed_quantity}"
+        if has_exits:
+            deferred_entries.append(
+                (direction, temp, flag, guard, trade_id, pine_direction, quantity_arg)
+            )
+        else:
+            after_call = offsets[call.end_lineno]
+            separator = "" if after_call and source[after_call - 1] == "\n" else newline
+            edits.append(
+                (
+                    after_call,
+                    after_call,
+                    f"{separator}if {temp} and {guard} and not {flag}{newline}"
+                    f'    strategy.entry("{trade_id}", {pine_direction}{quantity_arg}){newline}'
+                    f"    {flag} := true{newline}",
+                )
+            )
+    if has_exits:
+        # 원래 위치의 캡처값을 사용하고, 다음 봉 주문 큐에는 명시 청산을 먼저 넣는다.
+        block = "" if source.endswith("\n") else newline
+        exits = {}
+        for direction, trade_id in (("long", "L"), ("short", "S")):
+            conditions = [
+                item["condition_variable"]
+                for item in reviewed
+                if item["direction"] == f"{direction}_exit"
+            ]
+            exits[direction] = " or ".join(conditions) or "false"
+            if conditions:
+                block += f'if {exits[direction]}{newline}    strategy.close("{trade_id}"){newline}'
+        for (
+            direction,
+            temp,
+            flag,
+            guard,
+            trade_id,
+            pine_direction,
+            quantity_arg,
+        ) in deferred_entries:
+            position_guard = (
+                "strategy.position_size <= 0"
+                if direction == "long"
+                else "strategy.position_size >= 0"
+            )
+            guard = guard.replace(position_guard, f"({position_guard} or ({exits[direction]}))")
+            block += (
+                f"if {temp} and {guard} and not {flag}{newline}"
+                f'    strategy.entry("{trade_id}", {pine_direction}{quantity_arg}){newline}'
+                f"    {flag} := true{newline}"
+            )
+        edits.append((len(source), len(source), block))
+        warnings.append(
+            "명시 청산은 원문 조건을 캡처한 뒤 진입보다 먼저 다음 봉 주문 큐에 제출합니다"
         )
     edits.sort(key=lambda item: (item[0], item[1]))
     chunks, cursor = [], 0
@@ -305,7 +376,7 @@ def compare_app_backtest(
     frame: pd.DataFrame,
     inputs: Mapping[str, Any],
     timeframe: str,
-    events: EventInput,
+    events: EventInput | None,
     *,
     window_start: Any = None,
     window_end: Any = None,
@@ -315,12 +386,7 @@ def compare_app_backtest(
     from src.backtest.engine.v2_adapter import run_backtest_v2
 
     if timeframe not in _SECONDS:
-        return {"status": "unsupported_timeframe", "timeframe": timeframe}
-    try:
-        signals = coerce_events(events)
-        ledger = simulate_futures(frame, signals)
-    except (ValueError, TypeError, KeyError) as exc:
-        return {"status": "invalid_signal_ledger", "detail": str(exc)}
+        return {"status": "unsupported_timeframe", "timeframe": timeframe, "executed": False}
     outcome = run_backtest_v2(
         source,
         frame,
@@ -340,6 +406,7 @@ def compare_app_backtest(
     if outcome.status != "ok" or outcome.result is None:
         return {
             "status": "app_backtest_failed",
+            "executed": True,
             "app_status": outcome.status,
             "detail": str(outcome.error),
         }
@@ -358,6 +425,26 @@ def compare_app_backtest(
                 "pnl": trade.pnl if trade.status == "closed" else None,
             }
         )
+
+    def json_value(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: json_value(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [json_value(item) for item in value]
+        if isinstance(value, Decimal):
+            return format(value.normalize(), "f") if value else "0"
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+        return value
+
+    execution = {"executed": True, "app_status": "ok", "app_trades": json_value(actual)}
+    if events is None:
+        return {**execution, "status": "missing_signal_ledger"}
+    try:
+        signals = coerce_events(events)
+        ledger = simulate_futures(frame, signals)
+    except (ValueError, TypeError, KeyError) as exc:
+        return {**execution, "status": "invalid_signal_ledger", "detail": str(exc)}
     expected = [
         {
             "direction": trade.direction,
@@ -380,17 +467,6 @@ def compare_app_backtest(
                     {"trade_index": index, "field": field, "app": value, "ledger": right[field]}
                 )
 
-    def json_value(value: Any) -> Any:
-        if isinstance(value, dict):
-            return {key: json_value(item) for key, item in value.items()}
-        if isinstance(value, list):
-            return [json_value(item) for item in value]
-        if isinstance(value, Decimal):
-            return format(value.normalize(), "f") if value else "0"
-        if hasattr(value, "isoformat"):
-            return value.isoformat()
-        return value
-
     status = (
         "mismatch"
         if differences
@@ -402,6 +478,7 @@ def compare_app_backtest(
     )
     return json_value(
         {
+            **execution,
             "status": status,
             "execution_policy": "whole_frame_both_paths",
             "execution_window": {

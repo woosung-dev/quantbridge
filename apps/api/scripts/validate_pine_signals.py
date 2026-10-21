@@ -20,8 +20,14 @@ if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 from scripts.pine_validation.compare import compare_events  # noqa: E402
+from scripts.pine_validation.evaluation import (  # noqa: E402
+    evaluate_performance,
+    load_funding,
+    validate_evaluation,
+)
 from scripts.pine_validation.futures import compare_futures, simulate_futures  # noqa: E402
 from scripts.pine_validation.models import SignalEvent, coerce_events, utc_time  # noqa: E402
+from scripts.pine_validation.native_capture import parse_native_capture  # noqa: E402
 from scripts.pine_validation.oracles import compute_oracle  # noqa: E402
 from scripts.pine_validation.strategy_adapter import (  # noqa: E402
     StrategyAdapterError,
@@ -59,6 +65,11 @@ def load_manifest(path: Path) -> dict[str, Any]:
             raise ValueError("ohlcv 객체와 indicators 배열이 필요합니다")
         if any(not isinstance(filename, str) for filename in data["ohlcv"].values()):
             raise ValueError("ohlcv 파일 경로는 문자열이어야 합니다")
+        if "evaluation" in data:
+            validate_evaluation(data["evaluation"], data["window"])
+        minimum = data.get("minimum_indicators", MINIMUM_INDICATORS)
+        if type(minimum) is not int or not MINIMUM_INDICATORS <= minimum <= 100:
+            raise ValueError("minimum_indicators는 10~100 정수여야 합니다")
         ids, publications = set(), set()
         for item in data["indicators"]:
             for name in ("id", "title", "url", "author", "source_file", "source_sha256"):
@@ -285,39 +296,79 @@ def validate_cell(
         try:
             reference_bytes = (base / reference).read_bytes()
             payload = json.loads(reference_bytes)
-            tv = _window_events(payload, frame, start, end)
             row["tv_reference_sha256"] = hashlib.sha256(reference_bytes).hexdigest()
-            row["tv_events"] = [event.to_dict() for event in tv]
-            provenance = payload.get("provenance") if isinstance(payload, dict) else None
-            row["tv_provenance"] = provenance
-            reference_window = provenance.get("window") if isinstance(provenance, dict) else None
-            try:
-                same_window = (
-                    isinstance(reference_window, dict)
-                    and utc_time(reference_window.get("start")) == start
-                    and utc_time(reference_window.get("end")) == end
+            raw_keys = {
+                "wire",
+                "compile_responses",
+                "compiled_source",
+                "compile_request_source",
+                "resolved_inputs",
+            }
+            if isinstance(payload, dict) and raw_keys.intersection(payload):
+                row["tv_verification"] = "raw_capture_rejected"
+                native = parse_native_capture(
+                    payload,
+                    source=source_bytes,
+                    signal_bindings=item["signal_bindings"],
+                    expected_indicator_id=item["id"],
+                    expected_symbol=manifest["symbol"],
+                    expected_timeframe=timeframe,
+                    expected_inputs=item.get("inputs", {}),
                 )
-            except (ValueError, TypeError):
-                same_window = False
-            trusted = (
-                isinstance(provenance, dict)
-                and provenance.get("source_sha256") == item["source_sha256"]
-                and provenance.get("symbol") == manifest["symbol"]
-                and provenance.get("timeframe") == timeframe
-                and json.dumps(provenance.get("inputs"), sort_keys=True)
-                == json.dumps(item.get("inputs", {}), sort_keys=True)
-                and same_window
-                and (
-                    provenance.get("kind") == "native_original"
-                    or (
-                        provenance.get("kind") == "reviewed_port"
-                        and provenance.get("native_original_verified") is True
+                native_events = native.window_events(start, end)
+                evaluation_bars = frame.loc[frame.index >= start]
+                captured_bars = native.ohlcv.reindex(evaluation_bars.index)
+                if (
+                    captured_bars.isna().any().any()
+                    or captured_bars.ne(evaluation_bars).any().any()
+                ):
+                    raise ValueError("native OHLCV가 manifest 비교창과 다릅니다")
+                tv = native_events
+                row["tv_verification"] = "raw_capture_checked"
+                row["tv_provenance"] = {**native.metadata, "window": manifest["window"]}
+            else:
+                tv = _window_events(payload, frame, start, end)
+                provenance = payload.get("provenance") if isinstance(payload, dict) else None
+                row["tv_verification"] = (
+                    "operator_provenance_attestation"
+                    if isinstance(provenance, dict)
+                    else "unverified_events"
+                )
+                row["tv_provenance"] = provenance
+                reference_window = (
+                    provenance.get("window") if isinstance(provenance, dict) else None
+                )
+                try:
+                    same_window = (
+                        isinstance(reference_window, dict)
+                        and utc_time(reference_window.get("start")) == start
+                        and utc_time(reference_window.get("end")) == end
+                    )
+                except (ValueError, TypeError):
+                    same_window = False
+                trusted = (
+                    isinstance(provenance, dict)
+                    and provenance.get("source_sha256") == item["source_sha256"]
+                    and provenance.get("symbol") == manifest["symbol"]
+                    and provenance.get("timeframe") == timeframe
+                    and json.dumps(provenance.get("inputs"), sort_keys=True)
+                    == json.dumps(item.get("inputs", {}), sort_keys=True)
+                    and same_window
+                    and (
+                        (
+                            provenance.get("kind") == "native_original"
+                            and provenance.get("native_original_verified", True) is True
+                        )
+                        or (
+                            provenance.get("kind") == "reviewed_port"
+                            and provenance.get("native_original_verified") is True
+                        )
                     )
                 )
-            )
-            if not trusted:
-                row["failures"].append("unverified_tv_reference")
-        except (OSError, ValueError, KeyError, TypeError) as exc:
+                if not trusted:
+                    row["failures"].append("unverified_tv_reference")
+            row["tv_events"] = [event.to_dict() for event in tv]
+        except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
             row["failures"].append("invalid_tv_reference")
             row["tv_error"] = str(exc)
     for label, left, right in (
@@ -344,27 +395,42 @@ def validate_cell(
         except ValueError as exc:
             row["failures"].append("futures_failed")
             row["futures_error"] = str(exc)
-    if python_full is not None:
+    try:
+        adaptation = adapt_strategy(source, item["signal_bindings"])
+        row["strategy_adaptation"] = adaptation.to_dict()
+        row["app_backtest"] = compare_app_backtest(
+            adaptation.strategy_source,
+            frame,
+            item.get("inputs", {}),
+            timeframe,
+            python_full,
+            window_start=start,
+            window_end=end,
+        )
+        if row["app_backtest"]["status"] != "exact_match":
+            row["failures"].append(f"app_{row['app_backtest']['status']}")
+    except StrategyAdapterError as exc:
+        row["failures"].append("strategy_adapter_failed")
+        row["app_backtest"] = {"status": exc.code, "detail": str(exc)}
+    except (ValueError, TypeError) as exc:
+        row["failures"].append("app_backtest_failed")
+        row["app_backtest"] = {"status": "app_backtest_failed", "detail": str(exc)}
+    if "evaluation" in manifest:
         try:
-            adaptation = adapt_strategy(source, item["signal_bindings"])
-            row["strategy_adaptation"] = adaptation.to_dict()
-            row["app_backtest"] = compare_app_backtest(
-                adaptation.strategy_source,
+            funding, funding_provenance = load_funding(manifest.get("funding"), base)
+            row["performance"] = evaluate_performance(
+                source,
+                item["signal_bindings"],
                 frame,
                 item.get("inputs", {}),
                 timeframe,
-                python_full,
-                window_start=start,
-                window_end=end,
+                manifest["window"],
+                manifest["evaluation"],
+                funding_rates=funding,
             )
-            if row["app_backtest"]["status"] != "exact_match":
-                row["failures"].append(f"app_{row['app_backtest']['status']}")
-        except StrategyAdapterError as exc:
-            row["failures"].append("strategy_adapter_failed")
-            row["app_backtest"] = {"status": exc.code, "detail": str(exc)}
-        except (ValueError, TypeError) as exc:
-            row["failures"].append("app_backtest_failed")
-            row["app_backtest"] = {"status": "app_backtest_failed", "detail": str(exc)}
+            row["performance"]["funding_provenance"] = funding_provenance
+        except (ValueError, TypeError, KeyError, OSError) as exc:
+            row["performance"] = {"status": "failed", "detail": str(exc)}
     if not {"long", "short"} <= {event.direction for event in pine}:
         row["failures"].append("one_sided_signal" if pine else "no_signal")
     row["failures"] = list(dict.fromkeys(row["failures"]))
@@ -398,15 +464,16 @@ def run_validation(manifest_path: Path, *, limit: int = 10) -> dict[str, Any]:
             if row["status"] == "exact_match":
                 row["status"] = "duplicate_source"
     exact = sum(row["status"] == "exact_match" for row in rows)
-    expected = max(MINIMUM_INDICATORS, len(selected)) * len(TIMEFRAMES)
+    minimum = manifest.get("minimum_indicators", MINIMUM_INDICATORS)
+    expected = max(minimum, len(selected)) * len(TIMEFRAMES)
     required_start, required_end = required_window()
     start, end = (utc_time(manifest["window"][name]) for name in ("start", "end"))
     failures = []
     if (start, end) != (required_start, required_end):
         failures.append("window_not_recent_calendar_year")
-    if len(selected) < MINIMUM_INDICATORS:
+    if len(selected) < minimum:
         failures.append("insufficient_indicators")
-    if len(source_groups) < MINIMUM_INDICATORS:
+    if len(source_groups) < minimum:
         failures.append("insufficient_unique_sources")
     if duplicate_sources:
         failures.append("duplicate_sources")
@@ -421,7 +488,7 @@ def run_validation(manifest_path: Path, *, limit: int = 10) -> dict[str, Any]:
         "completion_failures": failures,
         "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
         "selected_indicators": len(selected),
-        "minimum_indicators": MINIMUM_INDICATORS,
+        "minimum_indicators": minimum,
         "unique_sources": len(source_groups),
         "duplicate_sources": duplicate_sources,
         "expected_pairs": expected,
@@ -433,9 +500,19 @@ def run_validation(manifest_path: Path, *, limit: int = 10) -> dict[str, Any]:
         "futures_exact_pairs": sum(
             row.get("futures", {}).get("status") == "exact_match" for row in rows
         ),
+        "app_backtest_executed_pairs": sum(
+            row.get("app_backtest", {}).get("executed") is True for row in rows
+        ),
+        "app_backtest_successful_pairs": sum(
+            row.get("app_backtest", {}).get("app_status") == "ok" for row in rows
+        ),
         "app_backtest_exact_pairs": sum(
             row.get("app_backtest", {}).get("status") == "exact_match" for row in rows
         ),
+        "performance_completed_pairs": sum(
+            row.get("performance", {}).get("status") == "completed" for row in rows
+        ),
+        "evaluation_plan": manifest.get("evaluation"),
         "indicators": selected,
         "results": rows,
     }
@@ -466,6 +543,10 @@ def main(argv: list[str] | None = None) -> int:
             f"Pine↔Python {report['pine_python_exact_pairs']}개 · "
             f"선물 원장 {report['futures_exact_pairs']}개 · "
             f"앱 백테스트 {report['app_backtest_exact_pairs']}개 일치",
+            f"앱 엔진 실행 {report['app_backtest_executed_pairs']}개 · "
+            f"실행 성공 {report['app_backtest_successful_pairs']}개 (일치 판정과 별개)",
+            f"별도 비용 포함 성과 완료 {report['performance_completed_pairs']}개 "
+            "(신호 일치·추천 적격 판정과 별개)",
             f"완료 조건 미충족: {', '.join(report['completion_failures']) or '없음'}",
             "",
             "| 지표 | TF | Pine↔Python | 선물 원장 | 앱 백테스트 | 전체 판정 |",

@@ -35,7 +35,7 @@
 
 > **2026-07-05 TV-parity 정정:** `ta.hma` 마지막 WMA 길이가 `floor(sqrt(n))` 이던 것을 TV 빌트인 정의
 > `math.round(math.sqrt(n))` 로 수정 (예: n=15 → 4, n=34 → 6. 손유도 골든 = `test_stdlib.py`).
-> `ta.bb` 는 population stdev(TV `biased=true` 기본) 정합 확인. `ta.sar` 는 TV hand-oracle 미작성 (BL-399).
+> `ta.bb` 는 population stdev(TV `biased=true` 기본) 정합 확인. `ta.sar` 는 현재 봉의 반전을 먼저 판정하고 새 추세에서 직전 두 봉 가격으로 제한한다. 원본 대조 시 초기 이력 차이는 별도 구분한다.
 > **주의 (BL-393):** `strategy.exit` 의 `trail_points`/`profit`/`loss` 를 TV 는 **틱 단위**(× mintick)로
 > 해석하지만 QB 는 price-distance 로 해석 — ATR 등 가격 값을 넣는 전략은 TV 쪽이 초미세 트레일링이
 > 되어 성적이 왜곡될 수 있다 (QB 가 저자 의도에 근접).

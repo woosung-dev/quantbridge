@@ -67,6 +67,7 @@ _V4_ALIASES: dict[str, str] = {
     "atr": "ta.atr",
     "ema": "ta.ema",
     "sma": "ta.sma",
+    "wma": "ta.wma",
     "rsi": "ta.rsi",
     "crossover": "ta.crossover",
     "crossunder": "ta.crossunder",
@@ -82,6 +83,9 @@ _V4_ALIASES: dict[str, str] = {
     "min": "math.min",
     "abs": "math.abs",
     "floor": "math.floor",
+    "round": "math.round",
+    "sqrt": "math.sqrt",
+    "avg": "math.avg",
     "stdev": "ta.stdev",
 }
 
@@ -100,7 +104,10 @@ _ATTR_CONSTANTS: dict[str, str] = {
     "plot.style_linebr": "linebr",
     "plot.style_circles": "circles",
     "plot.style_cross": "cross",
+    "plot.style_columns": "columns",
     "hline.style_dotted": "dotted",
+    "hline.style_solid": "solid",
+    "hline.style_dashed": "dashed",
     "strategy.long": "long",
     "strategy.short": "short",
     # Sprint 37 BL-185: Pine strategy(default_qty_type=...) 3종 — interpreter 가

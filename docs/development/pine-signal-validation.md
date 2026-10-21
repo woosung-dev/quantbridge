@@ -34,6 +34,10 @@ PRD §5의 결과·가정 공개와 ADR-040/042의 결정론 판정 경계를 �
 한 번 평가한 임시 변수로 원래 plot/alert와 진입문이 함께 읽는다. 원본 hash·변환 hash·변환 Pine·줄 대응표를
 보고서에 남긴다. 단독 최상위 호출이나 안전한 인자 평가를 증명하지 못하면 변환을 거부한다.
 방향은 manifest가 명시하며, 같은 방향 복수 표식은 추가 진입을 만들지 않는다.
+원본 실행·OHLCV·방향 바인딩의 선행 조건을 통과한 셀에서는 Python oracle 생성 여부와 별도로
+앱 백테스트를 시도한다. `app_status=ok` 또는
+`executed=true`는 앱 엔진 실행 사실이고, 독립 사건 원장과의 `exact_match`가 아니다. Python
+사건이 없으면 `missing_signal_ledger`로 남기며 앱 거래가 있었다는 이유로 신호 동등성을 주장하지 않는다.
 
 ## 비교 계약
 
@@ -42,10 +46,10 @@ PRD §5의 결과·가정 공개와 ADR-040/042의 결정론 판정 경계를 �
 | 시장 | `BYBIT:BTCUSDT.P` — BTC/USDT 무기한 선물 |
 | 기간 | 실행일의 최근 확정 UTC 일봉 경계까지 calendar 1년, 별도 warmup |
 | 타임프레임 | 1h·4h·1d, 누락·중복 없는 동일 OHLCV |
-| 후보 | Boost ≥100 공개 소스, 중복 id/URL 금지, 최대 100개 |
+| 후보 | Boost ≥100 공개 소스, 중복 id/URL·원본 SHA 중복 구분, 최대 100개 |
 | 사건 | 조건 평가 봉·방향·확정 시각·표시 offset 시각을 각각 비교 |
 | 선물 | 롱/숏 반전, 단일 포지션, 같은 방향 추가 진입 없음, 명시 청산 지원 |
-| 체결 가정 | 다음 봉 시가, 1배, 고정 1수량, 수수료·슬리피지·펀딩 0 |
+| 신호·원장 대조 체결 가정 | 다음 봉 시가, 1배, 고정 1수량, 수수료·슬리피지·펀딩 0 |
 
 마지막 봉 신호는 미체결로 남긴다. 종료 시 강제 청산하지 않는다. 이 단순 원장은 실제 거래소 체결·
 청산·증거금 엔진을 대체하지 않는다. TV 지표의 신호를 같은 선물 규칙으로 해석하는 비교이며,
@@ -57,10 +61,38 @@ TradingView Strategy Tester의 손익을 수집하지 않았다면 그 손익까
 빈 포지션으로 시작한 단순 원장 실행을 섞어 비교하지 않는다.
 
 빈 사건, 한 방향만 발생한 사건, 자료 누락, 원본 hash 불일치, 미지원 계산은 통과하지 않는다.
-`exact_match`는 개별 비교의 일치이며, 전체 `passed`는 **10개 이상 × 세 타임프레임**의 모든 검증을 요구한다.
+`exact_match`는 개별 비교의 일치다. runner의 기본 최소 지표 수는 10이고 manifest의
+`minimum_indicators`는 10~100 정수다. **50개 연구에서는 이를 50으로 고정하고 `--limit 50`으로
+50개 고유 공개 원본 × 1h·4h·1d = 150개 셀을 분모로 유지한다.** runner의 `expected_pairs`는
+`max(minimum_indicators, 선택한 지표 수) × 3`이며 `evaluated_pairs`, `exact_pairs`와 구분한다.
+신호 없는 원본, 미지원·런타임 오류, 참조 부재, 불일치도 평가 분모에 남긴다. 소스 SHA가 같은 게시물은
+다른 ID여도 독립 지표 수에 보태지 않는다. 전체 `passed`는 최근 확정 UTC 일봉 경계의 calendar 1년,
+최소 고유 원본 수, 중복 없음, 모든 셀의 strict `exact_match`가 함께 필요하다.
 짧은 기간의 일치 결과도 기록하지만 전체 성공으로 승격하지 않는다.
 기본 입력에서 한 방향만 나와 입력을 바꿔 검증한다면 기본 결과를 보존하고 변경한 입력을 TV·Pine·Python
 세 경로에 동일하게 명시한다. 변경한 입력의 결과로 기본 입력 검증을 대체하지 않는다.
+
+## 비용 포함 성과는 별도 판정
+
+`evaluation.py`는 manifest의 `evaluation` 계획으로 비용 포함 앱 엔진 결과를 측정한다. 계획에는
+UTC 일봉 경계의 train·validation·holdout, 초기자본, 자본 대비 포지션 비율, 수수료·슬리피지 비율과
+`cost_basis` 근거를 성과 실행 전에 고정한다. `registered_at` 문자열만으로 사전등록을 증명하지 않는다.
+이미 지난 holdout을 평가한 결과는 `retrospective_not_untouched`이며, 이전 시점으로 선언했더라도
+독립 확인이 없으면 `declared_preregistered_unverified`다. 회고 구간을 미래 미사용 holdout이라고 부르지 않는다.
+
+각 타임프레임의 train·validation·holdout·full 네 구간을 수수료·슬리피지 기본값과 2배 스트레스에서
+각각 실행한다. 구간 이전 OHLCV는 지표 초기 계산에만 쓰고 미래 봉은 실행기에 주지 않는다. 구간마다
+포지션을 다시 시작하며 종료 시 강제 청산하지 않는다. 순손익에는 열린 포지션의 평가손익이 포함될 수
+있어 닫힌 거래 손익과 분리해 읽는다. 펀딩은 관측 정산만 반영하고 2배 비용 스트레스에서 펀딩을 2배로
+늘리지 않는다. 펀딩 파일은 출처·심볼·관측시각·SHA와 중복 없는 유한 비율을 확인하지만 과거 전체
+정산 일정의 완전성을 증명하지 못한다. 자료 없음은 비용 0의 실측 증거가 아니며, 관측 정산이 있어도
+`funding_status=observed_settlements_only`를 유지한다. 엔진의 `funding_data_incomplete`가 `None`
+또는 `false`여도 과거 정산 일정 전체를 확인했다는 뜻으로 해석하지 않는다.
+
+`performance.status=completed`는 고정 가정으로 엔진 실행을 끝냈다는 뜻이다. 원본 native 신호,
+Pine↔Python 사건, 앱 원장 일치나 추천 적격을 뜻하지 않는다. 성과 임계값과 후보 선택 기준은 결과를
+보고 바꾸지 않고 회차 계획에 보존한다. 성과 수치·순위는 해당 실행의 입력·코드 hash와 가정을 함께
+제시하고, 투자 권유나 미래 수익 보장으로 표현하지 않는다.
 
 ## 수집과 실행
 
@@ -86,7 +118,29 @@ OHLCV가 없는 응답은 데이터까지 검증한 것으로 표시하지 않�
 다르면 같은 평가 기간에도 경계 신호가 달라질 수 있다. 동일 이력으로 재계산한 실험은 별도 결과로 보존하고,
 원래 비교의 불일치를 지우지 않는다.
 
-모든 수집물·원본·실행 결과는 gitignore된 `runs/pine-validation/` 아래에 둔다. manifest의 경로는 manifest
+`scripts/pine_validation/native_capture.py`는 여러 공개 원본을 위한 별도 파서다. 원본 파일 SHA-256,
+실제 editor·compile request 소스의 LF 정규화 동일성, 기본 입력과 override(`inputs`) 및 실제 전개값
+(`resolved_inputs`), 성공 컴파일 `metaInfo`, `create_study` 입력·IL·study cohort를 교차 확인한다.
+원문의 최상위 정적 `plot`·`plotshape`·`plotchar`·`alertcondition` 호출의 AST 줄·0-based 열·순서·
+제목·문구를 metadata `plots`/`styles`의 plot id·유형과 연결한다. 로컬/동적 호출, 모호한 기본값·
+표시 타입, 누락/변조된 metadata는 거부한다. 검토하지 않은 표시를 임의 매수·매도로 바꾸지 않는다.
+현재 명시적으로 확인한 정적 입력은 scalar와 일곱 OHLCV source 이름이며, 동적 색상 기본값 등은
+별도 원문·컴파일 대조 없이 자동 지원하지 않는다.
+
+UI wire의 `du` study 열과 같은 차트 cohort의 `du`/`timescale_update` OHLCV를 UTC 봉 시각으로
+맞춘다. 같은 차트의 `timescale_update`가 빈 `s=[]`로 이력을 명시적으로 초기화하면 그 이전 가격행만
+이전 차트 구간으로 제외한다. 초기화 뒤에는 확정봉의 중복 충돌·격자 누락·비유한 값·가격 범위 오류를
+거부하며 진행 중 봉은 사건에서 제외한다. alertcondition 1만 발화하고 0은 불발이다. plotshape/plotchar는 숫자 0, NA 및
+TradingView의 큰 NA sentinel을 불발로 취급한다. `window_events(start,end)`는 [시작, 종료)의
+study와 OHLCV 완결 격자가 모두 있어야 반환한다. 공통 관측구간 결과의
+`reference_kind=native_original_partial_window`는 **그 구간의 원본 사건 추출**이지 최근 calendar
+1년 또는 150셀 strict 통과가 아니다. runner의 `tv_events[timeframe]`가 이 raw 캡처 파일을 가리키면
+원본·입력·컴파일 metadata·study cohort를 재검증하고 `window_events`의 비교창 완결성과 manifest
+OHLCV의 전 봉 동일성을 확인한 뒤에만 `tv_verification=raw_capture_checked`로 사건을 사용한다.
+raw 검증 실패 시 같은 파일의 `events`·`provenance`로 돌아가지 않는다. 독립 Python/Pine·앱 원장
+대조는 별도 판정으로 유지한다.
+
+모든 수집물·원본·실행 결과는 gitignore된 `runs/<회차>/` 아래에 둔다. manifest의 경로는 manifest
 기준 상대 경로다. CSV 열은 `time,open,high,low,close,volume`, time은 시간대가 명시된 ISO 문자열이다.
 
 ```json
@@ -112,9 +166,12 @@ OHLCV가 없는 응답은 데이터까지 검증한 것으로 표시하지 않�
 }
 ```
 
-TV 사건 JSON은 `events` 배열과 `provenance` 객체를 갖는다. provenance에는 원본 `source_sha256`,
+기존 TV 사건 JSON은 `events` 배열과 `provenance` 객체를 갖는다. provenance에는 원본 `source_sha256`,
 `symbol`, `timeframe`, `inputs`, `window`를 manifest와 동일하게 명시한다. `kind=native_original` 또는
 원본 대조를 마친 `kind=reviewed_port, native_original_verified=true`만 최종 판정에 사용한다.
+`native_original`에도 `native_original_verified=false`를 명시했다면 미검증으로 남긴다.
+이 형식의 검증 강도는 `tv_verification=operator_provenance_attestation`이다. 과거 strict 일치도
+원본 wire의 compile·study·OHLCV를 직접 검사했다는 뜻은 아니다.
 출처 없는 배열이나 미검증 probe는 차이를 계산해 보여주더라도 통과시키지 않는다. 동일 원본 hash는 중복 사례로
 표시하고 최소 10개의 독립 표본 수에 보태지 않는다. 게시물 URL의 query·slug 차이도 별도 지표로 세지 않는다.
 
@@ -136,6 +193,11 @@ uv run python scripts/validate_pine_signals.py \
 `summary.md`는 Pine↔Python·선물 원장·앱 백테스트·전체 판정을 나눠 보여준다. 앱 변환 실패나 체결 불일치도
 전체 통과를 막는다. 종료 코드는 0=전체 통과, 1=미완료/불일치, 2=manifest 오류다.
 워크트리에서는 Celery 대신 이 직접 실행 도구를 사용한다. DB·서버 등록·배포는 이 명령의 범위가 아니다.
+50개 평가를 재현할 때는 manifest에 `minimum_indicators: 50`을 넣고 `--limit 50`을 지정한다.
+예: `uv run python scripts/validate_pine_signals.py --manifest ../../runs/corpus50/manifest.json --output ../../runs/corpus50/result --limit 50`.
+`report.json`의 `expected_pairs`·`evaluated_pairs`·`exact_pairs`, 지표별 실패 이유, 원본·OHLCV·
+TV 참조 hash를 함께 보존한다. Python/oracle 선행 점검과 앱 엔진 실행 사실, 엄격 일치 및 별도 비용
+성과를 서로 다른 열로 읽는다. 현 수집물이 부분 native 구간뿐이면 연간 판정은 incomplete로 남긴다.
 
 ## LLM 차단
 
