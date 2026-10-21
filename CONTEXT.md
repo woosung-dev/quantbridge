@@ -75,6 +75,14 @@ _Avoid_: "LLM 변환"(= 기존 전략의 **번역**이고 그것은 [ADR-011](./
 
 ### Verification Context
 
+**Code Strategy**:
+`execution_policy=code_v1`인 언어별 실행 원문과 불변 `StrategyVersion`이다. Pine·Python·
+TypeScript는 격리 실행기에서 의도만 계산하고 공통 원장이 수량·SL·반익절·트레일링을
+소유한다([ADR-046](./docs/adr/046-generated-strategy-language-evaluation.md)). 기존 Pine
+전략과 별도 API로 저장하며 Python View나 과거 Python Research Strategy 테이블이 아니다.
+세 언어의 수동 실행 기반은 제공하지만 기본 LLM 생성 방식·추천 언어는 평가 후 정한다.
+계약은 [`code-strategy-storage.md`](./docs/development/code-strategy-storage.md)를 따른다.
+
 **Backtest**:
 한 Strategy 를 과거 OHLCV 에 대해 pine_v2 로 실행한 시뮬레이션 결과(불변 입력 + 상태 + `metrics` JSONB).
 
