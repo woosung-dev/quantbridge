@@ -648,11 +648,28 @@ def candidates() -> list[dict]:
             "risk": RISK_RULE,
         }
         details = ""
+        if number == "09":
+            details = (
+                " bandwidth=(BBupper-BBlower)/SMA20. 이전120개 유효값은 현재봉을 제외한다."
+                " 현재 bandwidth가 이전 최솟값 이하이면 squeeze event다. event봉은 진입하지 않는다."
+                " 이후1..5봉 중 첫 BB상하단 교차를 포지션과 무관하게 한 번 소비한다."
+                " 새 event는 관찰창과 소비 상태를 재설정하며 이전 창으로 당일 event봉에 진입하지 않는다."
+                " 이전 유효120개가 없거나 SMA20=0이면 event가 없다."
+            )
         if number == "16":
-            details = " pivot左右各3봉,확정pivot간격3..60봉,엄격극값,같은값은가장최근확정우선. 확인은pivot확정다음봉한번만."
+            details = (
+                " RSI14의 좌우 각3봉 strict pivot을 우측3봉 완료 후 확인한다. 동률 pivot은 제외한다."
+                " 같은 유형의 연속 확정 pivot 간격은 인덱스3..60봉이다."
+                " bullish는 두 번째 pivot의 가격 low가 낮고 RSI가 높음, bearish는 가격 high가 높고 RSI가 낮음이다."
+                " 확인 다음 봉 한 번만 bullish C>전봉H 또는 bearish C<전봉L일 때 진입한다."
+                " 무효화 기준은 최신 신호의 두 번째 pivot low/high이며 보유 중 동방향 신호도 기준을 갱신한다."
+                " 초기 R은 갱신하지 않는다. RSI 동률 pivot 쌍은 divergence가 아니지만 후속 pivot의 기준점은 된다."
+            )
         if number == "22":
             details = (
-                " anchor=2026-01-01T00:00:00Z 사전고정; 최종구간을보고anchor선택금지."
+                " anchor=2026-01-01T00:00:00Z 사전고정. anchor봉을 포함해"
+                " AVWAP=sum(hlc3*volume)/sum(volume), 거래량 합0이면 NA다."
+                " 최종구간을 보고 anchor를 고르지 않는다."
             )
         if number == "30":
             details = " 기준1h에서UTC정렬된직전완료4h만사용;4hEMAseed와warmup동결;현재미완료4h사용금지."

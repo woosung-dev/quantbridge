@@ -534,7 +534,7 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
         "final_selection_allowed": complete and full,
         "ranking_is_provisional": not (complete and full),
         "usd": "unknown",
-        "token_usage_note": "토큰 합계는 CLI가 보고한 관측값이다. 시간 초과 등 usage 미보고 호출의 소비량은 0으로 확정하지 않으며 unknown_output_usage_calls로 구분한다.",
+        "token_usage_note": "토큰 합계는 CLI가 보고한 관측값이다. usage 미보고 호출은 unknown_output_usage_calls로 구분하며 해당 artifact의 토큰 효율 성분은 0점이다. 관측 latency 성분은 별도 유지한다.",
         "observation_note": "4class 관찰수는 평가 실행들의 합이며 독립 전략 표본 수가 아니다. 누락 시간과 interrupted의 선언 timeout은 latency 분위수에서 제외하고 unknown_duration_calls·관측 수를 병기한다. 운영 적합성은 N/A이며 별도 검증이다.",
         "scoring": "sol_semantic_eval.paired_summary: 40+25+15+10+10; quality90 excludes generation efficiency",
         "score100_ranking": sorted(

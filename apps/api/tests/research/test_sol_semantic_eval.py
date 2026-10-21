@@ -1,7 +1,10 @@
 """hold 편향·실패 분모·미래 참조·독립 기준의 실제 거래 비교."""
 
+import hashlib
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT))
@@ -93,7 +96,28 @@ def test_missing_long_behavior_cannot_pass_sparse_htf_fixture(monkeypatch):
     assert quality["correct_counts"]["long"] == 0
 
 
-def test_unsupported_rule_has_no_success_score():
-    result = subject.evaluate("unexecuted", "python", "22")
+def test_unsupported_rule_has_no_success_score(monkeypatch):
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("미지원 기준은 native 실행을 시도하지 않아야 합니다")
+
+    monkeypatch.setattr(subject, "run_code_backtest", forbidden)
+    result = subject.evaluate("unexecuted", "python", "unknown")
     assert result["status"] == "not_evaluable"
     assert "contract_points" not in result
+    assert result["source_hash"] == hashlib.sha256(b"unexecuted").hexdigest()
+
+
+def test_unreported_usage_gets_no_token_efficiency_but_preserves_observed_latency():
+    known = {
+        "arm": "B",
+        "language": "python",
+        "case_id": "01",
+        "status": "public_pass",
+        "generation_output_tokens": 0,
+        "generation_seconds": 0,
+        "semantic": {"contract_points": 40, "ledger_points": 25, "reproducibility_points": 15},
+        "attempts": [{"generation": {"usage": {"output_tokens": 0}, "duration_seconds": 0}}],
+    }
+    unknown = {**known, "attempts": [{"generation": {"usage": {}, "duration_seconds": 0}}]}
+    assert subject.paired_summary([known])["cell_means"]["B/python"] == 100
+    assert subject.paired_summary([unknown])["cell_means"]["B/python"] == 95

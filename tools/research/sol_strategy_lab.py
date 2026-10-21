@@ -39,12 +39,23 @@ PUBLIC_CONTRACT = """
 공통 trusted broker가 처리한다. 신호는 다음 시가에 체결되며 같은 방향 추가 진입은 없다.
 반대 long/short 의도는 잔량 청산 확인 뒤 반전이다. 무효화는 close다. long과 short가
 동시에 참이면 hold. 이미 포지션이 있으면 반대 entry를 우선하고 다음으로 무효화를 평가한다.
+bar.timestamp는 UTC 봉 시작 시각이며 해당 봉 완료 후 판단한다. 1h의 03:00 시작봉이
+완료되면 00:00~04:00 구간의 4h봉도 완료되어 그 판단에 즉시 사용할 수 있다.
 EMA는 첫 length개 SMA seed, 이전에는NA, alpha=2/(length+1). Wilder RMA는 첫 length개 SMA seed,
 alpha=1/length. RSI는 첫 length개 변화량의 상승/하락 SMA seed이후 Wilder RMA,
 하락평균0이면100(평탄포함). 이는타깃pine_v2의계약이며TradingView전체동일주장이아니다.
+수치 계약 v2: 유한한 신호 비교값 a,b의 epsilon=1e-12*max(1,abs(a),abs(b)).
+abs(a-b)<=epsilon은 동률이다. >/<는 이 band 밖에서만 참이고 >=/<=는 동률을 포함한다.
+교차의 이전/현재 비교와 RSI pivot·divergence·Supertrend 방향 판정도 같은 규칙이다.
+원본 OHLC 극값 선택·Aroon 극값 동률·정수/시각 비교·지표 내부 분모0은 exact다.
+상수 입력의 rolling mean은 그 상수, std/MAD/회귀기울기는0을 보존한다. EMA/RMA도
+상수 seed와 정상 상태를 보존하는 안정식(예: anchored mean, previous+alpha*(x-previous))을 쓴다.
+정확한 분모0의 기존 NA/0 규칙은 유지하며 양의 작은 분모를 임의로 NA로 바꾸지 않는다.
 표준편차는 population(ddof=0). 모든 high/low breakout 창은 명시된 current봉 포함 여부를 따른다.
 Aroon25는현재포함26개봉창,극값동률은가장최근봉. Stoch/WPR의가격범위0과MFI의
 양음금액흐름둘다0은NA(조건거짓). CMF는H=L봉flow0,창총거래량0이면NA.
+CCI의MAD0은0, TSI의이중평활절대변화분모0은0이다. DMI의ATR0은DI를0으로,
+DI합0은DX를0으로계산한다. StochRSI의RSI범위0은NA다. 준비기간의NA는0으로대체하지않는다.
 history에는 현재까지 완료된 봉만 있고 미래정보는 없다. 코드에는 네트워크/파일/시계/난수/
 패키지설치/셸/외부프로세스 접근이 없다. 외부 라이브러리 기본 지표 의미를 추측하지 않는다.
 """
@@ -340,17 +351,108 @@ def trial(root: Path, case: dict, arm: str, language: str, repetition: int) -> d
     return result
 
 
+def semantic_result(folder: Path, result: dict) -> dict:
+    """실제로 평가한 source를 결합하며 구형 캐시에 SHA를 사후 부착하지 않는다."""
+    source = None
+    if result["status"] == "public_pass":
+        source = (folder / "source.txt").read_text()
+        if hashlib.sha256(source.encode()).hexdigest() != result["source_hash"]:
+            raise ValueError("semantic 평가 전 실행 source hash가 다릅니다")
+    path = folder / "semantic.json"
+    if path.exists():
+        semantic = json.loads(path.read_text())
+        if (
+            semantic.get("input_identity") != result["input_identity"]
+            or "source_hash" not in semantic
+            or semantic["source_hash"] != result["source_hash"]
+        ):
+            raise ValueError("독립 채점 캐시의 실행 source hash/실험 입력이 다릅니다")
+    elif source is not None:
+        from tools.research.sol_semantic_eval import evaluate
+
+        try:
+            semantic = evaluate(source, result["language"], result["case_id"])
+        except Exception as exc:
+            semantic = {
+                "status": "failed",
+                "source_hash": result["source_hash"],
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:1500],
+                "contract_points": 0,
+                "ledger_points": 0,
+                "reproducibility_points": 0,
+            }
+        if semantic.get("source_hash") != result["source_hash"]:
+            raise ValueError("독립 채점 결과의 실행 source hash가 다릅니다")
+    else:
+        semantic = {
+            "status": "generation_or_public_failure",
+            "source_hash": result["source_hash"],
+            "contract_points": 0,
+            "ledger_points": 0,
+            "reproducibility_points": 0,
+        }
+    return {**semantic, "input_identity": result["input_identity"]}
+
+
+def semantic_trial(root: Path, job: tuple) -> dict[str, Any]:
+    """trial별 독립 소스 증거·캐시를 유지한다."""
+    case, arm, language, repetition = job
+    folder = root / "trials" / arm / language / case["id"] / str(repetition)
+    result = json.loads((folder / "trial.json").read_text())
+    semantic = semantic_result(folder, result)
+    json_write(folder / "semantic.json", semantic)
+    result["semantic"] = semantic
+    return result
+
+
+def evaluate_semantics(root: Path, selected: list[tuple], workers: int) -> None:
+    """평가만 병렬화한다. 출력과 요약 순서는 동결된 선택 순서를 따른다."""
+    from tools.research.sol_semantic_eval import paired_summary
+
+    if workers not in (1, 2):
+        raise ValueError("독립 채점 동시 실행은 1..2입니다")
+    evaluated = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(semantic_trial, root, job) for job in selected]
+        for future in futures:
+            result = future.result()
+            evaluated.append(result)
+            print(
+                json.dumps(
+                    {
+                        "semantic": result["semantic"]["status"],
+                        "arm": result["arm"],
+                        "language": result["language"],
+                        "case_id": result["case_id"],
+                        "repetition": result["repetition"],
+                    }
+                ),
+                flush=True,
+            )
+    json_write(root / "semantic-summary.json", paired_summary(evaluated))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--stage", choices=("pilot", "evaluation"), default="pilot")
     parser.add_argument("--workers", type=int, default=3)
+    parser.add_argument(
+        "--semantic-workers",
+        type=int,
+        choices=(1, 2),
+        help="독립 채점 동시 실행 수 (pilot=1, evaluation=2)",
+    )
     parser.add_argument("--arm", choices=("A", "B", "C"))
     parser.add_argument("--limit", type=int)
     parser.add_argument(
         "--semantics", action="store_true", help="생성 후 비공개 독립 채점"
     )
     args = parser.parse_args()
+    semantic_workers = args.semantic_workers or (1 if args.stage == "pilot" else 2)
+    if args.stage == "pilot" and semantic_workers != 1:
+        parser.error("pilot 독립 채점은 1개씩 실행합니다")
     root = args.run_dir.resolve()
     if not root.is_relative_to(ROOT / "runs"):
         parser.error("산출물은 레포 runs/ 안에 둡니다")
@@ -383,6 +485,7 @@ def main() -> None:
         "model": MODEL,
         "effort": EFFORT,
         "stage": args.stage,
+        "semantic_workers": semantic_workers,
         "cases": cases,
         "total_jobs": len(jobs),
         "repetitions": repetitions,
@@ -422,45 +525,7 @@ def main() -> None:
                 flush=True,
             )
     if args.semantics:
-        from tools.research.sol_semantic_eval import evaluate, paired_summary
-
-        evaluated = []
-        for case, arm, language, repetition in selected:
-            folder = root / "trials" / arm / language / case["id"] / str(repetition)
-            result = json.loads((folder / "trial.json").read_text())
-            semantic_path = folder / "semantic.json"
-            if semantic_path.exists():
-                semantic = json.loads(semantic_path.read_text())
-                if semantic.get("input_identity") != result["input_identity"]:
-                    raise ValueError("독립 채점 캐시의 실행 소스/실험 입력이 다릅니다")
-            elif result["status"] == "public_pass":
-                semantic = evaluate(
-                    (folder / "source.txt").read_text(), language, case["id"]
-                )
-            else:
-                semantic = {
-                    "status": "generation_or_public_failure",
-                    "contract_points": 0,
-                    "ledger_points": 0,
-                    "reproducibility_points": 0,
-                }
-            semantic["input_identity"] = result["input_identity"]
-            json_write(semantic_path, semantic)
-            result["semantic"] = semantic
-            evaluated.append(result)
-            print(
-                json.dumps(
-                    {
-                        "semantic": semantic["status"],
-                        "arm": arm,
-                        "language": language,
-                        "case_id": case["id"],
-                        "repetition": repetition,
-                    }
-                ),
-                flush=True,
-            )
-        json_write(root / "semantic-summary.json", paired_summary(evaluated))
+        evaluate_semantics(root, selected, semantic_workers)
 
 
 if __name__ == "__main__":
