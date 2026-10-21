@@ -32,6 +32,7 @@ from src.optimizer import models as _optimizer_models  # noqa: F401
 from src.python_strategy import models as _python_strategy_models  # noqa: F401
 from src.strategy import models as _strategy_models  # noqa: F401
 from src.stress_test import models as _stress_test_models  # noqa: F401
+from src.trading import code_checkpoints as _code_checkpoints  # noqa: F401
 from src.trading import models as _trading_models  # noqa: F401
 from src.waitlist import models as _waitlist_models  # noqa: F401
 

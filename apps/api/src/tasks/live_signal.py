@@ -3448,6 +3448,11 @@ async def _evaluate_session_with_engine(
             qb_live_signal_skipped_total.labels(reason="session_inactive").inc()
             return {"skipped": "session_inactive"}
 
+        if getattr(sess, "execution_snapshot", None) is not None:
+            from src.tasks.code_live_signal import evaluate_code_session
+
+            return await evaluate_code_session(session, sess)
+
         # 2. strategy + settings validate (P2 #4)
         strategy = await strategy_repo.find_by_id_and_owner(sess.strategy_id, sess.user_id)
         if strategy is None:
