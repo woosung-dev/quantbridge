@@ -11,6 +11,7 @@ import pstats
 from functools import cache
 from pathlib import Path
 from time import perf_counter
+from types import CodeType
 from typing import Any
 
 from tests.strategy.pine_v2.test_execution_speed import _CORPUS_DIR, _load_frozen_ohlcv
@@ -123,11 +124,30 @@ def _function_coordinates(path: Path) -> set[tuple[str, int]]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     coordinates: set[tuple[str, int]] = set()
     for node in ast.walk(tree):
+        if isinstance(node, ast.GeneratorExp):
+            coordinates.add(("<genexpr>", node.lineno))
+            continue
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         coordinates.add((node.name, node.lineno))
         coordinates.update((node.name, decorator.lineno) for decorator in node.decorator_list)
     return coordinates
+
+
+def test_function_coordinates_include_actual_generator_code() -> None:
+    """cProfile이 기록하는 실제 generator 코드 좌표만 허용한다."""
+
+    def sample():
+        return (item for item in ())
+
+    generator = next(
+        value
+        for value in sample.__code__.co_consts
+        if isinstance(value, CodeType) and value.co_name == "<genexpr>"
+    )
+    coordinates = _function_coordinates(Path(generator.co_filename))
+    assert (generator.co_name, generator.co_firstlineno) in coordinates
+    assert (generator.co_name, sample.__code__.co_firstlineno) not in coordinates
 
 
 def test_profiled_hotspots_include_project_source() -> None:

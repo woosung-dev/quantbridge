@@ -58,12 +58,11 @@ describe("AssumptionsCard (Sprint 37 BL-187a — 라벨 simplify + 레버리지/
     expect(modelDt?.title ?? "").toMatch(/BL-186|미반영|후속/i);
   });
 
-  it("펀딩 반영 config 시 포지션 모델 tooltip 이 8시간 펀딩 차감을 설명", () => {
+  it("펀딩 반영 config 시 종목별 실제 정산 시각을 설명", () => {
     render(<AssumptionsCard initialCapital={10000} config={{ include_funding: true }} />);
     const modelDt = screen.getByText("포지션 모델").parentElement;
-    expect(modelDt?.title).toBe(
-      "강제 청산 / 유지 증거금 미반영. 펀딩 비용은 8시간 정산 주기로 차감 (총 펀딩 행 참조).",
-    );
+    expect(modelDt?.title).toContain("종목별 실제 정산 시각");
+    expect(modelDt?.title).not.toContain("8시간");
   });
 
   it("Nx config 시 격리마진과 강제청산 가정을 표시한다", () => {
@@ -72,9 +71,10 @@ describe("AssumptionsCard (Sprint 37 BL-187a — 라벨 simplify + 레버리지/
     );
 
     expect(screen.getByText("5x · 롱/숏 · 격리마진")).toBeInTheDocument();
-    expect(screen.getByText("포지션 모델").parentElement?.title).toBe(
-      "플랫 유지증거금률 0.5% · 단일 tier · Bybit 기준 강제청산 반영. tier 계단·파산수수료 미반영. 펀딩 비용은 8시간 정산 주기로 차감.",
-    );
+    const title = screen.getByText("포지션 모델").parentElement?.title;
+    expect(title).toContain("강제청산 반영");
+    expect(title).toContain("종목별 실제 정산 시각");
+    expect(title).not.toContain("8시간");
   });
 
   it("BL-187a: 레버리지 / 펀딩비 row 완전 제거 (사용자 명시)", () => {
@@ -124,6 +124,31 @@ describe("AssumptionsCard — C14 정직성 (총비용 + 가설적 고지 + 체�
     expect(note).toHaveTextContent("종가");
   });
 
+  it("다음 봉 시가 설정은 하단 체결 고지에도 같은 시점으로 표시한다", () => {
+    render(<AssumptionsCard initialCapital={10000} config={{ fill_timing: "next_bar_open" }} />);
+    expect(screen.getByText("다음 봉 시가 (TV 정합)")).toBeInTheDocument();
+    const note = screen.getByTestId("backtest-honesty-note");
+    expect(note).toHaveTextContent("시장가는 다음 봉 시가");
+    expect(note).not.toHaveTextContent("시장가는 현재 봉 종가");
+  });
+
+  it("종가 기본값은 하단 체결 고지에도 같은 시점으로 표시한다", () => {
+    render(<AssumptionsCard initialCapital={10000} />);
+    expect(screen.getByText("신호 봉 종가")).toBeInTheDocument();
+    expect(screen.getByTestId("backtest-honesty-note")).toHaveTextContent("시장가는 신호 봉 종가");
+  });
+
+  it("총 펀딩 tooltip 은 관측 정산 근사와 완전성 한계를 밝히고 지급·수취를 구분한다", () => {
+    render(<AssumptionsCard initialCapital={10000} totalFunding={-5.6} />);
+    const title = screen.getByText("총 펀딩").parentElement?.title;
+    expect(title).toContain("관측 정산 시각");
+    expect(title).toContain("근사한 펀딩 순액");
+    expect(title).toContain("양수 = 지급");
+    expect(title).toContain("음수 = 수취");
+    expect(title).toContain("데이터 완전성은 별도 확인");
+    expect(title).not.toContain("8시간");
+  });
+
   it("totalFees 미제공 시 총비용 row 미렌더 (구 백테스트 호환)", () => {
     render(<AssumptionsCard initialCapital={10000} />);
     expect(screen.queryByText("총 수수료")).toBeNull();
@@ -138,7 +163,7 @@ describe("AssumptionsCard — C6 정직성 (펀딩 비용 미반영 구간 고�
     expect(note).toHaveTextContent("펀딩");
   });
 
-  it("fundingDataIncomplete=false 시 경고 미렌더 (결측 없음)", () => {
+  it("fundingDataIncomplete=false 시 경고 미렌더 (노출 없음 또는 완전 확인)", () => {
     render(<AssumptionsCard initialCapital={10000} fundingDataIncomplete={false} />);
     expect(screen.queryByTestId("backtest-funding-incomplete-note")).toBeNull();
   });
@@ -147,6 +172,89 @@ describe("AssumptionsCard — C6 정직성 (펀딩 비용 미반영 구간 고�
     render(<AssumptionsCard initialCapital={10000} />);
     expect(screen.queryByTestId("backtest-funding-incomplete-note")).toBeNull();
   });
+});
+
+describe("AssumptionsCard — 펀딩 완전성 tri-state", () => {
+  it.each([null, undefined])("펀딩 설정이 켜졌고 완전성 %s 이면 미검증을 알린다", (flag) => {
+    render(
+      <AssumptionsCard
+        initialCapital={10000}
+        config={{ include_funding: true }}
+        fundingDataIncomplete={flag}
+      />,
+    );
+    expect(screen.getByTestId("backtest-funding-unverified-note")).toHaveTextContent(
+      "완전성 미검증",
+    );
+    expect(screen.queryByTestId("backtest-funding-incomplete-note")).toBeNull();
+  });
+
+  it.each([0, -5.6])(
+    "설정이 없어도 총 펀딩 %s 이 있고 완전성 null 이면 미검증을 알린다",
+    (totalFunding) => {
+      render(
+        <AssumptionsCard
+          initialCapital={10000}
+          totalFunding={totalFunding}
+          fundingDataIncomplete={null}
+        />,
+      );
+      expect(screen.getByTestId("backtest-funding-unverified-note")).toHaveTextContent(
+        "완전성 미검증",
+      );
+    },
+  );
+
+  it("총액 없는 legacy 결과는 실제 정산 계산을 완료했다고 단정하지 않는다", () => {
+    render(
+      <AssumptionsCard
+        initialCapital={10000}
+        config={{ include_funding: true }}
+        totalFunding={null}
+        fundingDataIncomplete={null}
+      />,
+    );
+    const note = screen.getByTestId("backtest-funding-unverified-note");
+    expect(note).toHaveTextContent("총액이 없어 실제 정산 반영 여부를 확인할 수 없습니다");
+    expect(screen.queryByText("총 펀딩")).toBeNull();
+  });
+
+  it("확인된 false 는 펀딩 설정이 켜져도 미검증으로 다시 분류하지 않는다", () => {
+    render(
+      <AssumptionsCard
+        initialCapital={10000}
+        config={{ include_funding: true }}
+        totalFunding={0}
+        fundingDataIncomplete={false}
+      />,
+    );
+    expect(screen.queryByTestId("backtest-funding-unverified-note")).toBeNull();
+    expect(screen.queryByTestId("backtest-funding-incomplete-note")).toBeNull();
+  });
+
+  it("true 는 미반영 또는 불명 구간을 알리고 손익 영향 방향을 단정하지 않는다", () => {
+    render(<AssumptionsCard initialCapital={10000} totalFunding={-5.6} fundingDataIncomplete />);
+    const note = screen.getByTestId("backtest-funding-incomplete-note");
+    expect(note).toHaveTextContent("미반영 또는 완전성 불명 구간");
+    expect(note).toHaveTextContent("지급·수취");
+    expect(note).not.toHaveTextContent(/최근 Bybit BTC\/ETH|가용 범위 밖|낙관 편향/);
+    expect(screen.queryByTestId("backtest-funding-unverified-note")).toBeNull();
+  });
+
+  it.each([undefined, { include_funding: false }])(
+    "펀딩 설정·총액 증거가 없으면 미검증 경고를 만들지 않는다: %j",
+    (config) => {
+      render(
+        <AssumptionsCard
+          initialCapital={10000}
+          config={config}
+          totalFunding={null}
+          fundingDataIncomplete={null}
+        />,
+      );
+      expect(screen.queryByTestId("backtest-funding-unverified-note")).toBeNull();
+    },
+  );
 });
 
 describe("AssumptionsCard — 엔진 경고 (2026-08-15 surface-truth · U8)", () => {

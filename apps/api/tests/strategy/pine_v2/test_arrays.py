@@ -4,16 +4,19 @@
 지원 (bs_indicator + DrFXGOD 실사용 표면):
 - 생성: new_float / new_int / new_bool / new_string / new_line / new_label / new_box
 - 조작: push / pop / get / set / clear / size / shift / unshift
+- 집계: avg (부분 na 제외, 빈 배열·전부 na는 na)
 
 시멘틱:
 - Pine array 는 **참조 타입** — `var float[] x = array.new_float(0)` 후 in-place
   mutation 이 bar 간 영속 (PersistentStore 는 객체 identity 보관).
 - 범위 밖 index → PineRuntimeError (TV runtime error 와 동일하게 loud).
-- 미지원 array 함수 (array.avg 등) 는 coverage preflight + runtime 양쪽에서 fail
+- 미지원 array 함수 (array.sum 등) 는 coverage preflight + runtime 양쪽에서 fail
   (부분 실행 금지 Golden Rule).
 """
 
 from __future__ import annotations
+
+import math
 
 import pandas as pd
 import pytest
@@ -96,9 +99,90 @@ class TestArrayOps:
             run_historical(src, _ohlcv(1), strict=True)
 
     def test_unsupported_array_fn_raises(self) -> None:
-        src = _wrap("a = array.new_float(2, 1.0)\nv = array.avg(a)")
+        src = _wrap("a = array.new_float(2, 1.0)\nv = array.sum(a)")
         with pytest.raises(PineRuntimeError, match="array"):
             run_historical(src, _ohlcv(1), strict=True)
+
+
+class TestArrayAverage:
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            ("a = array.new_float(0)", None),
+            ("a = array.new_float(3)", None),
+            ("a = array.new_float(3, 2.5)", 2.5),
+            ("a = array.new_float(3)\narray.set(a, 1, 4.0)", 4.0),
+            (
+                "a = array.new_float(0)\narray.push(a, 1)\narray.push(a, 2)",
+                1.5,
+            ),
+            (
+                "a = array.new_float(4)\narray.set(a, 0, -2.0)\narray.set(a, 2, 5.0)",
+                1.5,
+            ),
+        ],
+    )
+    def test_float_average_and_na_contract(self, body: str, expected: float | None) -> None:
+        source = _wrap(body + "\nv = array.avg(a)")
+        assert analyze_coverage(source).is_runnable
+        value = _final(source, "v")
+        assert isinstance(value, float)
+        if expected is None:
+            assert math.isnan(value)
+        else:
+            assert value == expected
+
+    def test_average_does_not_mutate_array_and_reflects_push_shift(self) -> None:
+        source = _wrap(
+            "var a = array.new_float(2)\n"
+            "array.push(a, close)\n"
+            "array.shift(a)\n"
+            "v = array.avg(a)\n"
+            "n = array.size(a)"
+        )
+        result = run_historical(source, _ohlcv(3), strict=True)
+        assert result.errors == []
+        assert result.final_state["v"] == 101.5
+        assert result.final_state["n"] == 2
+
+    def test_average_after_full_array_history_loop(self) -> None:
+        """Two EMA 원본처럼 배열 전체를 이번 봉의 과거 값으로 매번 교체한다."""
+        source = _wrap(
+            "var a = array.new_float(3)\n"
+            "for i = 0 to array.size(a) - 1\n"
+            "    array.push(a, close[i])\n"
+            "    array.shift(a)\n"
+            "v = array.avg(a)\n"
+            "n = array.size(a)"
+        )
+        result = run_historical(source, _ohlcv(3), strict=True)
+        assert result.errors == []
+        assert result.final_state["v"] == 101.0
+        assert result.final_state["n"] == 3
+
+    @pytest.mark.parametrize(("first", "second", "expected"), [(1, 2, 1.5), (-1, -2, -1.5)])
+    def test_integer_array_mean_preserves_fraction(
+        self, first: int, second: int, expected: float
+    ) -> None:
+        """TradingView v5 명시 int[] probe의 1.5/-1.5 관측값을 고정한다."""
+        source = (
+            '//@version=5\nindicator("t")\n'
+            "a = array.new_int(0)\n"
+            f"array.push(a, {first})\n"
+            f"array.push(a, {second})\n"
+            "v = array.avg(a)"
+        )
+        value = _final(source, "v")
+        assert isinstance(value, float)
+        assert value == expected
+
+    @pytest.mark.parametrize(
+        "expression",
+        ["array.new_bool(2, true)", 'array.new_string(1, "x")', "close"],
+    )
+    def test_average_rejects_non_numeric_arrays_and_non_arrays(self, expression: str) -> None:
+        with pytest.raises(PineRuntimeError, match=r"array\.avg"):
+            run_historical(_wrap(f"v = array.avg({expression})"), _ohlcv(1), strict=True)
 
 
 class TestArrayPersistence:
@@ -109,9 +193,7 @@ class TestArrayPersistence:
 
     def test_typed_var_array_declaration(self) -> None:
         """v6 typed 선언 `var float[] a = ...` 파싱+실행."""
-        src = _wrap(
-            "var float[] a = array.new_float(0)\narray.push(a, 1.0)\nn = array.size(a)"
-        )
+        src = _wrap("var float[] a = array.new_float(0)\narray.push(a, 1.0)\nn = array.size(a)")
         assert _final(src, "n", bars=4) == 4
 
 
@@ -169,10 +251,10 @@ class TestArrayCoverage:
 
     def test_unlisted_array_fn_still_unsupported(self) -> None:
         """array namespace 잔여 함수는 여전히 preflight 하드 fail (부분 실행 금지)."""
-        src = _wrap("a = array.new_float(2, 1.0)\nv = array.avg(a)")
+        src = _wrap("a = array.new_float(2, 1.0)\nv = array.sum(a)")
         cov = analyze_coverage(src)
         assert not cov.is_runnable
-        assert "array.avg" in cov.all_unsupported
+        assert "array.sum" in cov.all_unsupported
 
     def test_bs_indicator_now_runnable(self) -> None:
         """G2 종착 검증 — bs (i4_bs.pine, array 8종+루프 사용) 가 coverage 통과.

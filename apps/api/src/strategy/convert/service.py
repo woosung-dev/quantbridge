@@ -13,6 +13,8 @@ from src.core.config import Settings
 from src.strategy.convert.prompt import SYSTEM_PROMPT, USER_TEMPLATE
 from src.strategy.convert.schemas import ConvertIndicatorRequest, ConvertIndicatorResponse
 from src.strategy.narrative.providers import complete_json
+from src.strategy.pine_v2.ast_extractor import extract_content
+from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.signal_extractor import SignalExtractor
 
 _CONVERT_SCHEMA: dict[str, Any] = {
@@ -40,6 +42,7 @@ class ConvertService:
             token_reduction_pct = result.token_reduction_pct
 
             if result.is_runnable:
+                self._validate_converted(result.sliced_code)
                 return ConvertIndicatorResponse(
                     converted_code=result.sliced_code,
                     input_tokens=0,
@@ -64,6 +67,7 @@ class ConvertService:
         converted = completion.payload.get("converted_code")
         if not isinstance(converted, str) or not converted.strip():
             raise RuntimeError("LLM 변환 결과가 비어 있습니다")
+        self._validate_converted(converted)
 
         model = getattr(self._settings, f"{completion.provider}_model", completion.provider)
         provider_warnings = [
@@ -80,6 +84,19 @@ class ConvertService:
             sliced_to=sliced_to,
             token_reduction_pct=token_reduction_pct,
         )
+
+    @staticmethod
+    def _validate_converted(code: str) -> None:
+        try:
+            content = extract_content(code)
+        except Exception as exc:
+            raise ValueError("변환 결과의 Pine 문법을 해석할 수 없습니다") from exc
+        if content.declaration.kind != "strategy" or not any(
+            call.name == "strategy.entry" for call in content.strategy_calls
+        ):
+            raise ValueError("변환 결과에 실행할 전략 진입 신호가 없습니다")
+        if not analyze_coverage(code).is_runnable:
+            raise ValueError("변환 결과에 지원하지 않는 Pine 구문이 있습니다")
 
     @staticmethod
     def _heuristic_quality_warnings(original: str, converted: str) -> list[str]:

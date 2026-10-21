@@ -39,6 +39,7 @@ export interface AssumptionsCardProps {
   readonly totalFees?: number | null;
   readonly totalSlippage?: number | null;
   readonly totalFunding?: number | null;
+  /** true = 관측 정산 미반영, false = 펀딩 노출 없음, null/미제공 = 완전성 미검증. */
   readonly fundingDataIncomplete?: boolean | null;
   /** 데이터·기간 열 파생용 (BacktestDetail 에서 shell 이 전달). 없으면 그 행 미렌더. */
   readonly periodStart?: string | null;
@@ -84,6 +85,13 @@ export function AssumptionsCard({
   const slippage = config?.slippage ?? DEFAULT_SLIPPAGE;
   const leverage = config?.leverage ?? 1;
   const hasMarginModel = leverage > 1;
+  const hasFunding = config?.include_funding === true || totalFunding != null;
+  const fundingCompletenessUnknown = hasFunding && fundingDataIncomplete == null;
+  const fundingAssumption = hasFunding
+    ? "펀딩 정산의 기준은 종목별 실제 정산 시각입니다 (총 펀딩·완전성 안내 참조)."
+    : "펀딩 비용 미반영.";
+  const isNextBarOpen = config?.fill_timing === "next_bar_open";
+  const marketFillTiming = isNextBarOpen ? "다음 봉 시가" : "신호 봉 종가";
 
   // 실행 가정 열 (variant-c 좌열).
   const execRows: readonly AssumptionRow[] = [
@@ -92,9 +100,9 @@ export function AssumptionsCard({
       label: "포지션 모델",
       value: hasMarginModel ? `${leverage}x · 롱/숏 · 격리마진` : "1x · 롱/숏",
       title: hasMarginModel
-        ? "플랫 유지증거금률 0.5% · 단일 tier · Bybit 기준 강제청산 반영. tier 계단·파산수수료 미반영. 펀딩 비용은 8시간 정산 주기로 차감."
-        : config?.include_funding
-          ? "강제 청산 / 유지 증거금 미반영. 펀딩 비용은 8시간 정산 주기로 차감 (총 펀딩 행 참조)."
+        ? `플랫 유지증거금률 0.5% · 단일 tier · Bybit 기준 강제청산 반영. tier 계단·파산수수료 미반영. ${fundingAssumption}`
+        : hasFunding
+          ? `강제 청산 / 유지 증거금 미반영. ${fundingAssumption}`
           : "1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내). " +
             "전략의 수량 지정 3종 (자본 비율 / 현금 / 고정 수량) 사용. " +
             "펀딩 비용 / 강제 청산 / 유지 증거금 미반영.",
@@ -102,10 +110,7 @@ export function AssumptionsCard({
     },
     {
       label: "체결 타이밍",
-      value:
-        (config?.fill_timing ?? "bar_close") === "next_bar_open"
-          ? "다음 봉 시가 (TV 정합)"
-          : "신호 봉 종가",
+      value: isNextBarOpen ? `${marketFillTiming} (TV 정합)` : marketFillTiming,
       title:
         "시장가 주문 체결 시점. TradingView 기본은 다음 봉 시가 " +
         "(process_orders_on_close=false), QuantBridge 기본은 신호 봉 종가.",
@@ -156,7 +161,7 @@ export function AssumptionsCard({
       label: "총 펀딩",
       value: formatUsdt(totalFunding),
       title:
-        "8시간 정산 주기 무기한 선물 펀딩비 순액. 양수 = 지불, 음수 = 수취 (Bybit 실측 rate 기반)",
+        "관측 정산 시각의 rate와 해당 봉 종가×수량으로 근사한 펀딩 순액. 양수 = 지급, 음수 = 수취. 데이터 완전성은 별도 확인합니다.",
       isDefault: false,
     });
   }
@@ -192,7 +197,7 @@ export function AssumptionsCard({
         <InfoIcon />
         <span>
           가설적 결과입니다. 후행 데이터로 계산되며 위 수수료·슬리피지가 차감된 순(net) 수치입니다.
-          체결 가정. 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후 트리거가에 체결됩니다.
+          체결 가정. 시장가는 {marketFillTiming}, 지정가·스톱은 다음 봉 이후 트리거가에 체결됩니다.
         </span>
       </p>
 
@@ -200,9 +205,20 @@ export function AssumptionsCard({
         <p className="disclaimer report-note-warn" data-testid="backtest-funding-incomplete-note">
           <AlertTriangle aria-hidden="true" />
           <span>
-            펀딩 비용 미반영 구간이 있습니다. funding 데이터 가용 범위(최근 Bybit BTC/ETH) 밖의 보유
-            구간은 펀딩비가 차감되지 않았습니다. 해당 구간 손익은 펀딩 비용만큼 낙관 편향일 수
-            있습니다.
+            펀딩 정산 미반영 또는 완전성 불명 구간이 있습니다. 미반영 정산은 지급·수취 양쪽일 수
+            있으므로 손익 영향의 방향과 크기를 단정할 수 없습니다.
+          </span>
+        </p>
+      ) : null}
+
+      {fundingCompletenessUnknown ? (
+        <p className="disclaimer report-note-warn" data-testid="backtest-funding-unverified-note">
+          <AlertTriangle aria-hidden="true" />
+          <span>
+            펀딩 정산 데이터 완전성 미검증.{" "}
+            {totalFunding == null
+              ? "총액이 없어 실제 정산 반영 여부를 확인할 수 없습니다."
+              : "모든 정산 시각·구간이 반영되었는지 확인되지 않았습니다."}
           </span>
         </p>
       ) : null}

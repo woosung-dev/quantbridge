@@ -68,7 +68,11 @@ class SignalExtractor:
 
         kept_lines, removed_funcs = _extract_needed_lines(source, needed)
         header = _strategy_header(source)
-        footer = _strategy_entry_footer(signal_vars)
+        footer = (
+            _strategy_entry_footer(signal_vars)
+            if _has_exact_signal_bindings(source)
+            else "// [변환 실패: 원본 신호 조건을 보존할 수 없습니다]"
+        )
         sliced = "\n".join([header, *kept_lines, footer])
 
         orig_lines = len(source.splitlines())
@@ -81,7 +85,7 @@ class SignalExtractor:
             signal_vars=signal_vars,
             removed_lines=removed_count,
             removed_functions=removed_funcs,
-            is_runnable=analyze_coverage(sliced).is_runnable,
+            is_runnable="strategy.entry(" in footer and analyze_coverage(sliced).is_runnable,
             token_reduction_pct=round(reduction, 1),
         )
 
@@ -110,7 +114,11 @@ class SignalExtractor:
         needed = _collect_deps(source, set(signal_vars), user_vars)
         kept_lines, removed_funcs = _extract_needed_lines(source, needed)
         header = _strategy_header(source)
-        footer = _strategy_entry_footer(signal_vars)
+        footer = (
+            _strategy_entry_footer(signal_vars)
+            if _has_exact_signal_bindings(source)
+            else "// [변환 실패: 원본 신호 조건을 보존할 수 없습니다]"
+        )
         sliced = "\n".join([header, *kept_lines, footer])
 
         orig_lines = len(source.splitlines())
@@ -122,7 +130,7 @@ class SignalExtractor:
             signal_vars=signal_vars,
             removed_lines=removed_count,
             removed_functions=removed_funcs,
-            is_runnable=analyze_coverage(sliced).is_runnable,
+            is_runnable="strategy.entry(" in footer and analyze_coverage(sliced).is_runnable,
             token_reduction_pct=round(reduction, 1),
         )
 
@@ -371,6 +379,56 @@ def _find_signal_vars_ast(tree: object, user_vars: frozenset[str]) -> list[str]:
     return sorted(candidates & user_vars)
 
 
+def _has_exact_signal_bindings(source: str) -> bool:
+    """직접 연결된 최상위 변수만 허용한다. 조건식에서 이름만 떼면 게이트가 사라진다."""
+    import pynescript.ast as pyne_ast
+
+    from src.strategy.pine_v2.parser_adapter import parse_to_ast
+
+    try:
+        tree = parse_to_ast(source)
+    except Exception:
+        return False
+    top_level = {
+        id(statement.value) for statement in tree.body if isinstance(statement, pyne_ast.Expr)
+    }
+    signal_names: set[str] = set()
+    for node in pyne_ast.walk(tree):
+        if not isinstance(node, pyne_ast.Call):
+            continue
+        func = node.func
+        name = getattr(func, "id", None)
+        if isinstance(func, pyne_ast.Attribute):
+            name = f"{getattr(func.value, 'id', '')}.{func.attr}"
+        if name not in {"plotshape", "alertcondition", "strategy.entry", "label.new"}:
+            continue
+        if id(node) not in top_level or name == "label.new":
+            return False
+        condition = (
+            next(
+                (
+                    getattr(arg, "value", None)
+                    for arg in node.args
+                    if getattr(arg, "name", None) == "when"
+                ),
+                None,
+            )
+            if name == "strategy.entry"
+            else (getattr(node.args[0], "value", None) if node.args else None)
+        )
+        if not isinstance(condition, pyne_ast.Name):
+            return False
+        signal_names.add(condition.id)
+    # footer는 원본의 마지막 문장 뒤에서 실행된다. 신호 재할당은 호출 시점의 값을 잃는다.
+    if any(
+        isinstance(node, pyne_ast.ReAssign)
+        and getattr(getattr(node, "target", None), "id", None) in signal_names
+        for node in pyne_ast.walk(tree)
+    ):
+        return False
+    return bool(signal_names)
+
+
 def _strategy_entry_footer(signal_vars: list[str]) -> str:
     """신호 변수를 strategy.entry / strategy.close 로 변환."""
     if not signal_vars:
@@ -381,12 +439,14 @@ def _strategy_entry_footer(signal_vars: list[str]) -> str:
 
     buy_var = next(
         (v for v in signal_vars if any(k in v.lower() for k in buy_keywords)),
-        signal_vars[0],
+        None,
     )
     sell_var = next(
         (v for v in signal_vars if any(k in v.lower() for k in sell_keywords)),
-        signal_vars[-1],
+        None,
     )
+    if buy_var is None or sell_var is None or buy_var == sell_var:
+        return "// [변환 실패: 매수·매도 신호를 명확히 구분하지 못했습니다]"
 
     return (
         f'strategy.entry("Long",  strategy.long,  when={buy_var})\n'

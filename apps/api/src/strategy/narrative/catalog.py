@@ -145,12 +145,17 @@ def fetch_provider(
     settings: Settings, provider: str, *, now: float | None = None
 ) -> ProviderCatalog:
     """한 provider 의 목록. ★실패를 **삼키지 않고 실어 보낸다** — 못 읽은 것과 비어 있는 것은 다르다."""
+    configured = _configured_model(settings, provider)
+    if provider not in provider_order(settings):
+        return ProviderCatalog(
+            provider, configured=configured, error="설정에서 허용되지 않은 provider 입니다"
+        )
+
     now = time.monotonic() if now is None else now
     hit = _cache.get(provider)
     if hit is not None and now - hit[0] < _TTL_SECONDS:
         return hit[1]
 
-    configured = _configured_model(settings, provider)
     if not secret(getattr(settings, f"{provider}_api_key", None)):
         return ProviderCatalog(provider, configured=configured, error="키가 설정되지 않았습니다")
 
@@ -166,10 +171,8 @@ def fetch_provider(
 
 
 def catalog(settings: Settings) -> list[ProviderCatalog]:
-    """설정 순서대로 전 provider. ★순서를 보존한다 — 화면의 기본 선택이 그 순서를 따른다."""
-    ordered = provider_order(settings)
-    rest = [p for p in KNOWN_PROVIDERS if p not in ordered]
-    return [fetch_provider(settings, p) for p in [*ordered, *rest]]
+    """설정에서 허용한 provider 만 순서대로 조회한다."""
+    return [fetch_provider(settings, p) for p in provider_order(settings)]
 
 
 def reset_cache() -> None:
@@ -197,6 +200,8 @@ def resolve_override(settings: Settings, *, provider: str | None, model: str | N
         raise ModelNotAvailableError("provider 와 model 은 함께 지정해야 합니다")
     if provider not in KNOWN_PROVIDERS:
         raise ModelNotAvailableError(f"알 수 없는 provider 입니다: {provider}")
+    if provider not in provider_order(settings):
+        raise ModelNotAvailableError(f"설정에서 허용되지 않은 provider 입니다: {provider}")
     if not secret(getattr(settings, f"{provider}_api_key", None)):
         raise ModelNotAvailableError(f"{provider} 키가 설정되지 않았습니다")
 

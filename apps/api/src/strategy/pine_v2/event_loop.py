@@ -32,9 +32,11 @@ from src.strategy.pine_v2.interpreter import (
     BarContext,
     Interpreter,
     PineRuntimeError,
+    pine_version_from_ast,
 )
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.pine_v2.runtime import PersistentStore
+from src.strategy.pine_v2.signal_trace import SignalObservation
 from src.strategy.pine_v2.sizing import resolve_default_qty
 from src.strategy.pine_v2.strategy_state import (
     ConditionalFillAuthority,
@@ -54,6 +56,8 @@ class RunResult:
     # Sprint 8c: 외부 assertion 접근용. run_historical 종료 시 채워짐.
     strategy_state: Any | None = None  # StrategyState (trades / position_size 포함)
     var_series: dict[str, list[Any]] = field(default_factory=dict)  # user 변수 시계열
+    signal_trace: list[SignalObservation] = field(default_factory=list)
+    degraded_calls_seen: list[str] = field(default_factory=list)
     # BL-544 — 원장으로 채택한 trade id 들. 비어 있으면 seed 가 없었거나 재생이 이미
     # 포지션을 들고 있어 멱등 가드가 막은 것이다. 호출부의 거래소 대조가 이 값을 쓴다.
     ledger_seed_applied: tuple[str, ...] = ()
@@ -89,6 +93,8 @@ def run_historical(
     position_epoch_bar: int | None = None,
     ledger_seed_legs: Sequence[LedgerSeedLeg] = (),
     conditional_fill_authority: ConditionalFillAuthority | None = None,
+    capture_signals: bool = False,
+    timeframe: str | None = None,
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -97,6 +103,8 @@ def run_historical(
         ohlcv: columns must include open/high/low/close/volume.
         capture_history: 각 bar commit 후 state를 기록할지 (디버깅/테스트용).
         strict: True면 interpreter 오류를 즉시 raise, False면 errors에 기록 후 계속.
+        capture_signals: 실제 실행된 신호/마커 호출의 원시값을 전체 구간 수집한다.
+        timeframe: 명시하면 Pine timeframe.*에 실제 봉 context를 제공한다(예: "1h").
         initial_capital: BL-185 spot-equivalent. 지정 시 StrategyState.configure_sizing
             호출 → strategy.entry qty 미지정 시 default_qty_type/value 기반 계산.
             None 이면 기존 qty=1.0 fallback (호환).
@@ -131,9 +139,16 @@ def run_historical(
     )
 
     store = PersistentStore()
-    bar = BarContext(ohlcv.reset_index(drop=True), timestamps=timestamps)
+    bar = BarContext(
+        ohlcv.reset_index(drop=True),
+        timestamps=timestamps,
+        timeframe=timeframe,
+        pine_version=pine_version_from_ast(tree),
+    )
     # Sprint 51 BL-220 — input_overrides 주입 (Param Stability grid sweep cell 단위).
-    interp = Interpreter(bar, store, input_overrides=input_overrides)
+    interp = Interpreter(
+        bar, store, input_overrides=input_overrides, capture_signals=capture_signals
+    )
     if initial_capital is not None:
         interp.strategy.configure_sizing(
             initial_capital=initial_capital,
@@ -232,6 +247,8 @@ def run_historical(
     # deque → list 변환: RunResult.var_series 타입은 dict[str, list[Any]]
     result.strategy_state = interp.strategy
     result.var_series = {k: list(v) for k, v in interp._var_series.items()}
+    result.signal_trace = interp.signal_trace
+    result.degraded_calls_seen = interp.degraded_calls_seen
     return result
 
 

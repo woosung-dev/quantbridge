@@ -348,8 +348,8 @@ class BacktestMetricsOut(BaseModel):
     # C14 (정직성) — 총 수수료/슬리피지 (헤드라인 net 표시). 기존 backtest 호환 None.
     total_fees: Decimal | None = None
     total_slippage: Decimal | None = None
-    # C6 (정직성 Slice 4) — funding 차감 시 보유 구간 일부가 데이터 범위 밖이면 True.
-    # bool 이라 _decimal_to_str 직렬화 대상 아님. None=미반영 (구 backtest 호환).
+    # True=관측 정산 미반영, False=펀딩 노출 없음, None=완전성 미검증 또는 미계산.
+    # total_funding/config으로 실제 계산 여부를 구분한다. 과거 응답도 None을 허용한다.
     funding_data_incomplete: bool | None = None
     total_funding: Decimal | None = None
     # --- TV parity 팩 (구 backtest = None, graceful upgrade) ---

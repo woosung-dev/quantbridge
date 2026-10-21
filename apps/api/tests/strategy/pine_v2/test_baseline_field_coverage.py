@@ -16,7 +16,7 @@ import re
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args, get_origin
 
 import pytest
 
@@ -100,6 +100,8 @@ def _sample_value(field: dataclasses.Field) -> Any:
     if head == "Decimal":
         return Decimal("1.5")
     resolved = getattr(engine_types, head, None)
+    if get_origin(resolved) is Literal:
+        return get_args(resolved)[0]
     if resolved is not None and isinstance(resolved, type) and issubclass(resolved, Enum):
         # StrEnum 계열 (ExitOrderKind 등)
         return next(iter(resolved))

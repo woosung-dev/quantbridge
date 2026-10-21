@@ -43,6 +43,11 @@ def convert_indicator(
 ) -> ConvertIndicatorResponse:
     try:
         return svc.convert(req)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "convert_invalid_strategy", "detail": str(exc)},
+        ) from exc
     except RuntimeError as exc:
         raise _opaque(
             503,

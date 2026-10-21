@@ -156,11 +156,11 @@ def test_p2_supported_functions_union_consistency() -> None:
 
 
 def test_p2_supported_attributes_union_consistency() -> None:
-    """P-2: `SUPPORTED_ATTRIBUTES` 가 6 그룹 합집합.
+    """P-2: `SUPPORTED_ATTRIBUTES` 가 8 그룹 합집합.
 
     Series + strategy_attrs + syminfo + (Sprint 21) currency / strategy_extra / timeframe
-    explicit constant sets. Enum 상수 (color.*, shape.* 등) 는 is_supported_attribute
-    내 prefix 검사 경로로 처리.
+    + input / display explicit constant sets. Enum 상수 (color.*, shape.* 등) 는
+    is_supported_attribute 내 prefix 검사 경로로 처리.
 
     Sprint 21 (codex G.0 P1 #3): currency./strategy./timeframe. 의 prefix 추가는
     false-pass risk → explicit set 만 union. 본 test 는 SSOT 의무.
@@ -172,10 +172,12 @@ def test_p2_supported_attributes_union_consistency() -> None:
         | cov._CURRENCY_CONSTANTS
         | cov._STRATEGY_CONSTANTS_EXTRA
         | cov._TIMEFRAME_CONSTANTS
+        | cov._INPUT_CONSTANTS
+        | cov._DISPLAY_CONSTANTS
     )
     assert expected_union == cov.SUPPORTED_ATTRIBUTES, (
-        "SUPPORTED_ATTRIBUTES 가 6 하위 그룹 합집합과 불일치 "
-        "(Sprint 21 신규 constant sets 동기화 누락 가능)."
+        "SUPPORTED_ATTRIBUTES 가 8 하위 그룹 합집합과 불일치 "
+        "(explicit constant sets 동기화 누락 가능)."
     )
 
 

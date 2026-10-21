@@ -29,7 +29,76 @@ flowchart LR
 | **A** | `indicator()` 또는 `library` + alert     | `VirtualStrategyWrapper`가 전략 이벤트로 투영 |
 | **M** | `indicator()` 또는 `library`, alert 없음 | 지표 pass-through로 `run_historical` 실행     |
 
-분류 규칙의 정본은 `ast_classifier._classify_track`, 외부 진입점은 `compat.parse_and_run_v2`다. Track A는 `next_bar_open`을 그대로 재현하지 못할 때 경고를 남기고 bar-close로 실행한다.
+분류 규칙의 정본은 `ast_classifier._classify_track`, 외부 진입점은 `compat.parse_and_run_v2`다.
+Track A의 `next_bar_open`은 실제 alert 호출값을 시장가 인텐트로 등록하고 다음 봉 시작에 체결한다.
+명시 청산을 진입보다 먼저 처리하며, 같은 방향 추가 진입은 생략하고 동봉 양방향 진입은 거부한다.
+마지막 봉 인텐트는 미체결로 남는다. 기본 `bar_close`의 기존 edge-trigger 동작은 유지한다.
+앱의 `BacktestConfig.freq`도 Pine 봉 context로 전달한다.
+다음 봉 시장가 반전의 자본 비례 수량은 기존 포지션의 실현 후 gross 자본으로 계산한다. 증거금 사전 검사에서
+거부되면 기존 포지션을 보존한다. 봉 시가에 체결한 시장가 진입은 같은 봉의 고저가로 청산 여부를 검사하며,
+체결 전 고저가의 순서를 알 수 없는 종가·stop/limit 진입은 기존 진입 봉 청산 제외를 유지한다.
+
+Pine v5 이하의 `and`/`or`는 모든 항을 평가하며 v6부터 단축 평가한다
+([공식 버전 이전 계약](https://www.tradingview.com/pine-script-docs/migration-guides/to-pine-version-6/#lazy-evaluation-of-conditions)).
+이 구분은 논리식 안의 `ta.*` 호출 이력에도 적용한다. 종료 거래의 손익은 Decimal 진입가·청산가·수량으로
+계산한다. float 공간에서 뺀 손익을 Decimal로 포장하지 않는다.
+
+비교 결과의 NA는 v5 이하에서 보존하고 v6에서는 false로 반환한다
+([bool 버전 경계](https://www.tradingview.com/pine-script-docs/migration-guides/to-pine-version-6/#boolean-values-cannot-be-na)).
+`crossover`·`crossunder`·`cross`도 현재 피연산자가 NA이면 같은 버전 계약을 따르지만,
+현재 값은 유효하고 이전 값만 없으면 교차를 확인할 수 없으므로 false다.
+v5 이하의 `and`·`or`는 NA를 false로 소비하여 bool을 반환하며, `not NA`는 true다.
+버전은 compiler annotation에서 읽은 `BarContext.pine_version`을 표준 함수 호출까지 전달한다.
+EMA의 초기값은 비NA 표본 length개의 SMA이며, bool 경계와 별개다.
+
+전략 파싱 프리뷰의 `errors[].line`은 파서가 제공한 구조화된 1-based 행 번호를 보존한다.
+`pynescript` 구문 오류는 `details.lineno`에서 읽으며, 메시지 문자열에서 위치를 추측하지 않는다.
+위치 정보가 없는 오류는 `null`을 유지한다.
+
+`timestamp`의 UTC 달력 인자는 음수 월·월말 초과 일자를 정규화한다
+([공식 달력 계산 예시](https://www.tradingview.com/pine-script-docs/faq/times-dates-and-sessions/#how-can-i-plot-a-value-starting-n-months-or-years-back)).
+날짜 문자열·비UTC 시간대와 지원 달력 범위 밖 값은 추측해 계산하지 않고 명시 오류를 반환한다.
+
+### 체결 위상과 비용 경계
+
+`strategy_state.Trade`는 진입·청산을 `bar_open`, `bar_close`, `intrabar_unknown`으로 구분한다.
+시가 시장가 체결과 봉 내부의 조건부 체결을 같은 시각으로 간주하지 않는다. 이 위상은 내부 `RawTrade`까지
+보존하며 공개 거래 응답이나 DB 컬럼을 늘리지 않는다.
+
+`backtest/engine/holding_period.py`의 순수 `HoldingPeriod`가 거래별 MFE/MAE, equity 극값 근사와 펀딩 보유 여부를 함께 판정한다.
+시가 진입봉은 보유하고 시가 청산봉의 이후 wick은 제외한다. 종가 진입봉의 이전 wick도 제외한다.
+MFE/MAE는 확실히 전부 보유한 봉과 실제 진입·청산 가격으로 계산한다. 조건부 체결봉의 고저가 순서를
+알 수 없으면 해당 wick을 보유 성과로 만들지 않는다.
+
+별도 equity 극값 근사는 주문 전 시가, 확실히 전부 보유한 봉의 공통 high/low 가격점,
+실제 종가 equity를 후보로 사용한다. 종가 진입 이전 wick은 제외하고 종가 청산 이전 wick은 포함한다.
+봉 내부 체결로 노출이 변한 봉은 전체 포지션의 wick 조합을 제외하고 확인된 가격점만 사용하며 경고한다.
+실제 종가 equity를 재사용하므로 이 근사로 종가 곡선·헤드라인 MDD를 다시 계산하지 않는다.
+같은 봉의 high/low 선후는 알 수 없으므로 상승·하락 통계는 양방향 범위 근사다. 펀딩 봉 총액도 후보에
+선차감하는 기존 근사를 유지한다. 정산과 wick의 실제 선후나 TradingView의 봉 내부 경로를 재현한 값은 아니다.
+
+```mermaid
+flowchart LR
+    T[Trade 체결 위상] --> R[RawTrade 내부 메타데이터]
+    R --> H[HoldingPeriod]
+    H --> E[거래별 MFE · MAE]
+    H --> I[equity 극값의 전체 보유 봉]
+    H --> F[관측 정산의 펀딩 보유 판정]
+    F --> C[같은 비용 배열을 equity · metrics에 공유]
+```
+
+펀딩은 관측한 정산 시각만 사용한다. 종가 진입에 그 봉의 앞선 정산을 소급 부과하지 않으며,
+종가 청산 직전까지의 정산은 포함한다. 마지막 확정 봉도 `[시가, 시가 + cfg.freq)` 범위의 정산을 포함한다.
+OHLCV 공백을 이전 봉으로 늘려 귀속하지 않는다. 봉 내부 체결 순서가 불명확하거나 정산에 해당하는 봉이
+없으면 그 정산을 미반영하고 경고한다. 비용의 명목금액은 해당 봉 종가×수량의 근사이며, 정산 시점의
+거래소 mark price를 재현한 것이 아니다.
+
+`funding_data_incomplete`의 `True`는 관측 정산을 반영하지 못한 경우, `False`는 펀딩 노출이 없는 경우다.
+보유가 있지만 과거 정산 일정의 독립적인 증거가 없으면 `None`(미검증)이다. rate의 최소·최대 시각이나
+관측 간격만으로 완전성을 주장하지 않는다. `total_funding`과 `include_funding`으로 미계산/구 결과와
+관측 비용의 계산을 구분하고, 화면에서도 미검증을 안내한다. 고정 8시간 주기를 가정하지 않는다
+([Bybit 상품 정보](https://bybit-exchange.github.io/docs/v5/market/instrument),
+[정산 이력](https://bybit-exchange.github.io/docs/v5/market/history-fund-rate)).
 
 ### 파스 캐시 2층 (BL-832)
 

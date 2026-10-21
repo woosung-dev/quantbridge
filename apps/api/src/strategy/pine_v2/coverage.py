@@ -123,6 +123,22 @@ _INPUT_FUNCTIONS: frozenset[str] = frozenset(
     }
 )
 
+# v4의 type= 인자는 함수 호출이 아닌 상수 참조다. input.* 전체를 허용하지 않는다.
+_INPUT_CONSTANTS: frozenset[str] = frozenset(
+    {"input.integer", "input.float", "input.bool", "input.source"}
+)
+
+_DISPLAY_CONSTANTS: frozenset[str] = frozenset(
+    {
+        "format.price",
+        "plot.style_line",
+        "plot.style_linebr",
+        "plot.style_circles",
+        "plot.style_cross",
+        "hline.style_dotted",
+    }
+)
+
 # String / format (NOP — display only)
 _STRING_FUNCTIONS: frozenset[str] = frozenset(
     {
@@ -224,12 +240,12 @@ _UNSUPPORTED_WORKAROUNDS: dict[str, str] = {
     "time": "시간 기반 로직은 가격 기반 (close/open 변화) 권장. 필요 시 변수 추출.",
     "request.security": "단일 timeframe 전략으로 재구성 권장. Slice A graceful 가정 시 current bar 값 반환.",
     # Sprint 31 A (BL-159+161) → G2 (2026-07-12 QA) 부분 지원 전환:
-    # _names.ARRAY_FUNCTIONS 15종(new_float/int/bool/string/line/label/box +
-    # push/pop/get/set/clear/size/shift/unshift)은 SUPPORTED 로 승격.
+    # _names.ARRAY_FUNCTIONS 16종(new_float/int/bool/string/line/label/box +
+    # push/pop/get/set/clear/size/shift/unshift/avg)은 SUPPORTED 로 승격.
     # 아래 잔여 array.* 는 여전히 미지원 — namespace catch 가 자동 등록.
     "array.new_color": "Pine array<color> 미지원. 시각 NOP 영역 — 제거 권장.",
     "array.new_table": "Pine array<table> 미지원. 시각 NOP 영역 — 단일 table 변수 사용.",
-    "array.avg": "array 집계 미지원 — for 루프 + array.get 으로 직접 합산.",
+    "array.sum": "array 합계 미지원 — for 루프 + array.get 으로 직접 합산.",
     "array.sort": "array 정렬 미지원 — 필요 시 단일 series 변수 재구성.",
     "matrix.new": "Pine matrix<T> 미지원. 2D 데이터는 외부 source 또는 다중 series 로 재구성.",
     "map.new": "Pine map<K,V> 미지원. dict-like 데이터는 외부 source 또는 lookup 변수로 재구성.",
@@ -267,6 +283,8 @@ _V4_ALIASES: frozenset[str] = frozenset(
         "lowest",
         "crossover",
         "crossunder",
+        "cross",
+        "floor",
         "change",
         "stdev",
         "variance",
@@ -320,6 +338,7 @@ _SERIES_ATTRS: frozenset[str] = frozenset(
         "barstate.isconfirmed",
         "barstate.isrealtime",  # Sprint 58 BL-242b: backtest → always False
         "ta.tr",  # Sprint X1+X3 follow-up
+        "tr",  # v4 속성 별칭 — ta.tr와 동일 계산을 공유한다.
         "ta.obv",  # Sprint 58 BL-241: On Balance Volume series
     }
 )
@@ -424,6 +443,8 @@ SUPPORTED_ATTRIBUTES: frozenset[str] = (
     | _CURRENCY_CONSTANTS
     | _STRATEGY_CONSTANTS_EXTRA
     | _TIMEFRAME_CONSTANTS
+    | _INPUT_CONSTANTS
+    | _DISPLAY_CONSTANTS
 )
 
 
@@ -463,6 +484,8 @@ _KNOWN_NAMESPACES: frozenset[str] = frozenset(
         "yloc",
         "text",
         "font",
+        "format",
+        "plot",
         "barstate",
         "session",
         "currency",

@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from pydantic import SecretStr
@@ -127,6 +128,39 @@ def test_unknown_names_are_ignored_not_fatal(monkeypatch):
     assert call(settings("opnai,openai", openai="k")).provider == "openai"
 
 
+@pytest.mark.parametrize("order", ["", " , ", "opnai,claud"])
+@pytest.mark.parametrize("consumer", ["completion", "generate", "narrative", "convert"])
+def test_disabled_order_never_constructs_provider_clients(monkeypatch, order, consumer):
+    """키가 남아 있어도 빈 설정·오타만 있는 설정은 모든 LLM 소비자에서 호출 0회다."""
+    from src.strategy.convert.schemas import ConvertIndicatorRequest
+    from src.strategy.convert.service import ConvertService
+    from src.strategy.narrative.generate_service import GenerateService
+    from src.strategy.narrative.schemas import GenerateStrategyRequest
+    from src.strategy.narrative.service import NarrativeService
+
+    client = Mock(side_effect=AssertionError("비활성화된 provider 를 생성했습니다"))
+    monkeypatch.setattr(P.anthropic, "Anthropic", client)
+    monkeypatch.setattr(P, "OpenAI", client)
+    monkeypatch.setattr(P.genai, "Client", client)
+    st = settings(order, anthropic="k", openai="k", gemini="k")
+    assert P.provider_order(st) == []
+    assert P.available_providers(st) == []
+
+    with pytest.raises(RuntimeError, match="사용 가능한 LLM provider"):
+        if consumer == "completion":
+            call(st)
+        elif consumer == "generate":
+            GenerateService(st).generate(
+                GenerateStrategyRequest(prompt="RSI 과매도 반전 전략을 만드세요")
+            )
+        elif consumer == "narrative":
+            NarrativeService(st).explain(source='strategy("A")', facts={}, source_hash="h" * 64)
+        else:
+            ConvertService(st).convert(ConvertIndicatorRequest(code='indicator("A")'))
+
+    client.assert_not_called()
+
+
 # ── ⑵ 키 없는 provider 는 건너뛴다 ───────────────────────────────────────────
 def test_provider_without_key_is_skipped_entirely(monkeypatch):
     """★설정에 적혀 있어도 **시도조차 안 한다**. 시도하면 무의미한 401 지연이 붙는다."""
@@ -142,7 +176,7 @@ def test_provider_without_key_is_skipped_entirely(monkeypatch):
 
 
 def test_no_key_anywhere_names_what_to_set():
-    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+    with pytest.raises(RuntimeError, match="LLM_PROVIDER_ORDER"):
         call(settings("anthropic,openai,gemini"))
 
 
@@ -240,20 +274,22 @@ def test_anthropic_without_tool_block_is_a_failure(monkeypatch):
         call(settings("anthropic", anthropic="k"))
 
 
-# ── ⑸ 기본 순서에서 anthropic 을 뺐다 (2026-08-28 사용자 결정) ────────────────
-def test_default_provider_order_excludes_anthropic() -> None:
+# ── ⑸ 기본값은 모든 외부 LLM 호출을 끈다 (2026-10-20 사용자 결정) ────────────
+def test_default_provider_order_disables_all_external_clients(monkeypatch) -> None:
     """★`Settings()` 를 만들지 않고 **Field 기본값**을 직접 읽는다.
 
     인스턴스를 만들면 그 결과가 `.env`·환경변수에 따라 달라져 **주변 환경이 판정을 정한다**
     (같은 병으로 이 회차에 CI 가 한 번 빨갛게 됐다). 재려는 것은 「레포가 선언한 기본」이다.
-    ★anthropic 어댑터를 지운 것이 아니다 — `KNOWN_PROVIDERS` 에는 그대로 있고, 키를 넣고
-      이 목록에 이름을 되돌리면 다시 돈다. 그 경로는 아래 두 단언이 지킨다.
+    키가 남아 있어도 기본값에서는 SDK를 생성하지 않는다.
     """
     from src.core.config import Settings
 
     default = Settings.model_fields["llm_provider_order"].default
-    assert default == "openai,gemini"
-    assert "anthropic" not in default
-    # 능력은 남아 있다 — 목록에 되돌리면 순서가 그대로 산다.
-    assert "anthropic" in P.KNOWN_PROVIDERS
-    assert P.provider_order(settings("anthropic,openai")) == ["anthropic", "openai"]
+    assert default == ""
+    client = Mock(side_effect=AssertionError("기본 설정에서 외부 SDK를 생성했습니다"))
+    monkeypatch.setattr(P.anthropic, "Anthropic", client)
+    monkeypatch.setattr(P, "OpenAI", client)
+    monkeypatch.setattr(P.genai, "Client", client)
+    with pytest.raises(RuntimeError, match="LLM_PROVIDER_ORDER"):
+        call(settings(default, anthropic="k", openai="k", gemini="k"))
+    client.assert_not_called()

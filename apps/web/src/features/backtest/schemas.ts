@@ -282,8 +282,8 @@ export const BacktestMetricsOutSchema = z.object({
   total_fees: decimalString.nullable().optional(),
   total_slippage: decimalString.nullable().optional(),
   total_funding: decimalString.nullable().optional(),
-  // C6 (정직성 Slice 4) — funding 차감 시 보유 구간 일부가 funding 데이터 가용 범위
-  // 밖이면 true. include_funding=false / 펀딩 미반영 / 구 완료 백테스트 → null/absent.
+  // true=관측 정산 미반영, false=펀딩 노출 없음, null/absent=완전성 미검증 또는 미계산.
+  // total_funding/config으로 계산 여부를 구분하며 과거 결과도 미검증으로 유지한다.
   funding_data_incomplete: z.boolean().nullable().optional(),
   // --- TV Strategy Tester parity 팩 (구 완료 백테스트 = null/absent → graceful hide) ---
   net_profit_abs: decimalString.nullable().optional(),

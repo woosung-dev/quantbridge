@@ -29,10 +29,12 @@ from __future__ import annotations
 
 import math
 import operator
+import re
 from collections import deque
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 import pandas as pd
 from pynescript import ast as pyne_ast
@@ -46,6 +48,7 @@ from src.strategy.pine_v2.rendering import (
     TableObject,
 )
 from src.strategy.pine_v2.runtime import PersistentStore
+from src.strategy.pine_v2.signal_trace import SignalFunction, SignalObservation
 from src.strategy.pine_v2.stdlib import StdlibDispatcher
 from src.strategy.pine_v2.strategy_state import StrategyState
 
@@ -67,6 +70,7 @@ _V4_ALIASES: dict[str, str] = {
     "rsi": "ta.rsi",
     "crossover": "ta.crossover",
     "crossunder": "ta.crossunder",
+    "cross": "ta.cross",
     "highest": "ta.highest",
     "lowest": "ta.lowest",
     "change": "ta.change",
@@ -77,12 +81,26 @@ _V4_ALIASES: dict[str, str] = {
     "max": "math.max",
     "min": "math.min",
     "abs": "math.abs",
+    "floor": "math.floor",
+    "stdev": "ta.stdev",
 }
 
 # Pine enum constants — value 매핑 (location.absolute, extend.right, shape.*, etc.)
 # Sprint 29 Slice C: function-local dict 에서 module-level dict 으로 export.
 # coverage._ENUM_PREFIXES 와 parity invariant 검증 대상 (test_ssot_invariants.py).
 _ATTR_CONSTANTS: dict[str, str] = {
+    # v4 input(..., type=input.integer) 등의 타입 상수다. input.*() 함수와 별개다.
+    "input.integer": "integer",
+    "input.float": "float",
+    "input.bool": "bool",
+    "input.source": "source",
+    # 수집 원본의 표시 전용 상수다. 미지의 format/plot 속성은 계속 오류로 둔다.
+    "format.price": "price",
+    "plot.style_line": "line",
+    "plot.style_linebr": "linebr",
+    "plot.style_circles": "circles",
+    "plot.style_cross": "cross",
+    "hline.style_dotted": "dotted",
     "strategy.long": "long",
     "strategy.short": "short",
     # Sprint 37 BL-185: Pine strategy(default_qty_type=...) 3종 — interpreter 가
@@ -146,6 +164,15 @@ _ATTR_CONSTANTS: dict[str, str] = {
 # ------------------------------------------------------------
 
 
+def pine_version_from_ast(tree: Any) -> int:
+    """문자열 리터럴이 아닌 파서의 compiler annotation에서 버전을 읽는다."""
+    for annotation in getattr(tree, "annotations", []):
+        match = re.fullmatch(r"//\s*@version\s*=\s*(\d+)\s*", annotation)
+        if match is not None:
+            return int(match[1])
+    return 6
+
+
 @dataclass
 class BarContext:
     """현재 bar + 히스토리 접근 인터페이스.
@@ -161,6 +188,35 @@ class BarContext:
     ohlcv: pd.DataFrame  # columns: open/high/low/close/volume (float)
     bar_index: int = -1
     timestamps: pd.DatetimeIndex | None = None
+    timeframe: str | None = None
+    pine_version: int = 6
+    _timeframe_attributes: dict[str, str | int | bool] = field(
+        default_factory=dict, init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        if self.timeframe is None:
+            return
+        match = re.fullmatch(r"([1-9]\d*)([smhdwM])", self.timeframe)
+        if match is None:
+            raise ValueError(f"Unsupported timeframe context: {self.timeframe!r}")
+        count, unit = int(match[1]), match[2]
+        multiplier = count * 60 if unit == "h" else count
+        suffix = {"s": "S", "m": "", "h": "", "d": "D", "w": "W", "M": "M"}[unit]
+        prefix = (
+            ""
+            if self.pine_version < 6 and count == 1 and unit in {"d", "w", "M"}
+            else str(multiplier)
+        )
+        self._timeframe_attributes = {
+            "timeframe.period": f"{prefix}{suffix}",
+            "timeframe.multiplier": multiplier,
+            "timeframe.isseconds": unit == "s",
+            "timeframe.isminutes": unit in {"m", "h"},
+            "timeframe.isdaily": unit == "d",
+            "timeframe.isweekly": unit == "w",
+            "timeframe.ismonthly": unit == "M",
+        }
 
     def advance(self) -> bool:
         """다음 bar로 이동. 데이터가 남아있으면 True, 끝났으면 False."""
@@ -189,7 +245,11 @@ class BarContext:
             return None
         if self.bar_index < 0 or self.bar_index >= len(self.timestamps):
             return None
-        return self.timestamps[self.bar_index]
+        stamp = self.timestamps[self.bar_index]
+        return stamp.tz_localize("UTC") if stamp.tzinfo is None else stamp.tz_convert("UTC")
+
+    def timeframe_attribute(self, name: str) -> str | int | bool | None:
+        return self._timeframe_attributes.get(name)
 
 
 # ------------------------------------------------------------
@@ -219,6 +279,7 @@ _RENDERING_FACTORIES: dict[str, str] = {
     "box.set_right": "box_set_right",
     "box.delete": "box_delete",
     "label.set_xy": "label_set_xy",
+    "label.set_x": "label_set_x",
     "label.delete": "label_delete",
     "table.cell": "table_cell",
     "table.delete": "table_delete",
@@ -293,6 +354,7 @@ class Interpreter:
         *,
         rendering: RenderingRegistry | None = None,
         input_overrides: Mapping[str, Any] | None = None,
+        capture_signals: bool = False,
     ) -> None:
         self.bar = bar_context
         self.store = store
@@ -322,6 +384,10 @@ class Interpreter:
         # codex G.0 P1#2: _exec_assign 에서 RHS eval 전 push, 후 pop (try/finally).
         self.input_overrides: Mapping[str, Any] | None = input_overrides
         self._assignment_target_stack: list[str] = []
+        self.capture_signals = capture_signals
+        # 변수 history ring과 달리 전체 평가 구간의 관찰값을 보존한다.
+        self.signal_trace: list[SignalObservation] = []
+        self.degraded_calls_seen: list[str] = []
 
     def reset_transient(self) -> None:
         self._transient = {}
@@ -691,6 +757,13 @@ class Interpreter:
             return None
         if op == "size":
             return len(arr)
+        if op == "avg":
+            values = [value for value in arr if not _is_na(value)]
+            if any(
+                isinstance(value, bool) or not isinstance(value, (int, float)) for value in values
+            ):
+                raise PineRuntimeError("array.avg: elements must be int or float")
+            return sum(values) / len(values) if values else float("nan")
 
         raise PineRuntimeError(f"array function not supported: {name}")
 
@@ -797,23 +870,22 @@ class Interpreter:
         raise PineRuntimeError(f"Unsupported UnaryOp: {op_name}")
 
     def _eval_boolop(self, node: Any) -> Any:
-        """And/Or — Python 단축평가 채택 (Pine도 동일)."""
+        """Pine v5 이하는 모든 항을 평가하고, v6부터 단축 평가한다."""
         op_name = type(node.op).__name__
-        values = node.values
+        values: Iterator[Any] = (self._eval_expr(value) for value in node.values)
+        if self.bar.pine_version < 6:
+            # legacy 논리는 NA를 false로 소비하되, 모든 항의 평가 이력은 보존한다.
+            values = iter([self._truthy(value) for value in values])
         if op_name == "And":
             result: Any = True
-            for v in values:
-                cur = self._eval_expr(v)
+            for cur in values:
                 if not self._truthy(cur):
                     return cur  # 첫 falsy 반환
                 result = cur
             return result
         if op_name == "Or":
-            if not values:
-                return False
             last: Any = False
-            for v in values:
-                last = self._eval_expr(v)
+            for last in values:
                 if self._truthy(last):
                     return last  # 첫 truthy 반환
             return last  # 모두 falsy면 마지막 값 반환 (Pine 단축평가 관례)
@@ -829,13 +901,8 @@ class Interpreter:
             if fn is None:
                 raise PineRuntimeError(f"Unsupported compare: {op_name}")
             if _is_na(left) or _is_na(right):
-                # Pine: 비교 연산은 na 피연산자에 concrete **false** 반환 (na 전파 아님).
-                # TV type-system: "The ==, != operators, and all other comparison operators
-                # always return `false` if at least one of the operands is na" + "values of
-                # the 'bool' type are never na". 산술(_eval_binop)만 na 전파. 이 false 반환이
-                # TV 정답 — BL-405("na→False 실체화 버그") 는 오라클 전제 오류로 재분류(not-a-bug).
-                # 회귀 잠금: tests/strategy/pine_v2/test_na_bool_tv_parity.py.
-                return False
+                # v4/v5 native의 비교 결과는 NA를 보존한다. bool 2값은 v6 계약이다.
+                return float("nan") if self.bar.pine_version < 6 else False
             if not fn(left, right):
                 return False
             left = right
@@ -1029,28 +1096,10 @@ class Interpreter:
         if name and name.startswith("array."):
             return self._eval_array_call(name, node)
 
-        # timestamp(y, mo, d, h, mi[, s]) — v4/v5 built-in. 실제 datetime은 불필요
-        # (time_cond 같은 기간 필터에서만 사용). year/month/day/hour/minute을 반영한
-        # approx epoch ms 반환. time(=bar_index 기반 stub)과 같은 scale로 비교됨.
+        # Bybit의 기본 exchange timezone은 UTC다. 근사 달력이면 실제 time과 날짜
+        # 필터를 비교할 때 윤년·월 길이만큼 경계가 어긋나므로 epoch ms를 정확히 계산한다.
         if name == "timestamp":
-            if not node.args:
-                return 0
-            parts: list[int] = []
-            for a in node.args[:5]:
-                val = self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
-                try:
-                    parts.append(int(val))
-                except (TypeError, ValueError, OverflowError):  # BL-376: int(inf) → 0 (degrade)
-                    parts.append(0)
-            while len(parts) < 5:
-                parts.append(0)
-            year, month, day, hour, minute = parts[:5]
-            if year <= 1970:
-                return 0
-            # approx: (year-1970)*365일 + (month-1)*30일 + (day-1)*1일 → 초/ms 변환
-            # 월·일 정보 보존이 목적 (정확한 calendar math는 H2+).
-            days = (year - 1970) * 365 + (month - 1) * 30 + (day - 1)
-            return days * 86_400 * 1000 + hour * 3_600_000 + minute * 60_000
+            return self._eval_timestamp(node)
 
         # str.* / bare tostring·tonumber — display NOP-safe (tostring/format) 또는
         # 정확 변환 (tonumber=parse|na, length=len). backtest math 에 무관하거나 정확.
@@ -1065,7 +1114,11 @@ class Interpreter:
         if name in ("tostring", "str.tostring"):
             if not node.args:
                 return ""
-            val = _first_arg()
+            # 표시 format을 무시해도 모든 인자는 원본 순서로 한 번씩 평가한다.
+            values = [
+                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
+            ]
+            val = values[0]
             if isinstance(val, float) and math.isnan(val):
                 return "NaN"
             return str(val)
@@ -1095,6 +1148,7 @@ class Interpreter:
         # Sprint 29 Slice A (a): heikinashi NOP — 일반 OHLC 그대로 반환 (Trust Layer 위반, dogfood-only).
         # Heikin-Ashi 캔들 정확 변환은 Sprint 30+ ADR-009 Candle transformation layer.
         if name == "heikinashi":
+            self._record_degraded_call(name)
             return (
                 self.bar.current("open"),
                 self.bar.current("high"),
@@ -1106,6 +1160,7 @@ class Interpreter:
         # Sprint 29 Slice A: `security` (v4 no-namespace alias) 도 동일 처리.
         # (실제 MTF fetch는 H2+; NOP으로 graceful degrade.)
         if name in ("request.security", "request.security_lower_tf", "security"):
+            self._record_degraded_call(name)
             if len(node.args) < 3:
                 return float("nan")
             expr_arg = node.args[2]
@@ -1113,17 +1168,14 @@ class Interpreter:
                 expr_arg.value if isinstance(expr_arg, pyne_ast.Arg) else expr_arg
             )
 
-        # iff(cond, then, else) — v4 built-in (v5는 ternary로 대체). 단축평가.
+        # v4 iff는 반환하지 않는 쪽도 평가한다. lazy한 ternary와 구분한다.
         if name == "iff":
             if len(node.args) != 3:
                 raise PineRuntimeError(f"iff expects 3 args, got {len(node.args)}")
-            cond_arg, then_arg, else_arg = (
-                a.value if isinstance(a, pyne_ast.Arg) else a for a in node.args
+            cond_val, then_val, else_val = (
+                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
             )
-            cond_val = self._eval_expr(cond_arg)
-            return (
-                self._eval_expr(then_arg) if self._truthy(cond_val) else self._eval_expr(else_arg)
-            )
+            return then_val if self._truthy(cond_val) else else_val
 
         # ta.* / na / nz — stdlib 디스패치 (참조: STDLIB_NAMES 모듈-level frozenset)
         if name in STDLIB_NAMES:
@@ -1137,6 +1189,7 @@ class Interpreter:
                 high=self.bar.current("high"),
                 low=self.bar.current("low"),
                 close_prev=self._prev_close,
+                pine_version=self.bar.pine_version,
             )
 
         # strategy.* 실행 핸들러
@@ -1153,6 +1206,16 @@ class Interpreter:
             handle = self._resolve_name_if_declared(head)
             if isinstance(handle, (LineObject, BoxObject, LabelObject, TableObject)):
                 return self._exec_rendering_method(handle, tail, node)
+
+        if self.capture_signals and name in {
+            "plotshape",
+            "plotchar",
+            "plotarrow",
+            "alertcondition",
+            "alert",
+        }:
+            self._capture_signal_call(cast(SignalFunction, name), node)
+            return None
 
         # 선언/렌더링/alert NOP
         _NOP_NAMES = {
@@ -1222,6 +1285,8 @@ class Interpreter:
                 if pos_args:
                     return pos_args[0]
                 return None
+            # 렌더링을 생략해도 인자의 상태 변경은 실행 의미의 일부다.
+            self._collect_args(node)
             return None
 
         # NOTE (Sprint 21 P1 #1 + #4): user-defined function dispatch 는 _eval_call
@@ -1229,6 +1294,82 @@ class Interpreter:
         # 단일 source of truth 유지 (plain identifier user_function 은 위 prior dispatch).
 
         raise PineRuntimeError(f"Call to {name!r} not supported in current scope")
+
+    def _record_degraded_call(self, name: str) -> None:
+        """검증 모드만 실제로 진입한 근사 실행을 기록한다. 정적 coverage는 바꾸지 않는다."""
+        if self.capture_signals and name not in self.degraded_calls_seen:
+            self.degraded_calls_seen.append(name)
+
+    def _eval_timestamp(self, node: Any) -> int | float:
+        """숫자 calendar 인자와 UTC timezone만 지원하며 다른 overload는 명시 차단한다."""
+        positional, named = self._collect_args(node)
+        zone = named.pop("timezone", None)
+        if positional and isinstance(positional[0], str):
+            zone = positional.pop(0)
+        if zone not in {None, "UTC", "UTC0", "UTC+0", "UTC+00:00", "GMT", "GMT0", "Etc/UTC"}:
+            raise PineRuntimeError("timestamp: dateString 및 비UTC timezone은 지원하지 않습니다")
+        fields = ("year", "month", "day", "hour", "minute", "second")
+        if len(positional) > len(fields) or set(named) - set(fields):
+            raise PineRuntimeError("timestamp: 지원하지 않는 인자입니다")
+        values = dict(zip(fields, positional, strict=False))
+        values.update(named)
+        if any(name not in values for name in fields[:3]):
+            raise PineRuntimeError("timestamp: year, month, day가 필요합니다")
+        try:
+            parts = [int(values.get(name, 0)) for name in fields]
+        except (TypeError, ValueError, OverflowError):
+            return float("nan")
+        year, month, day, hour, minute, second = parts
+        try:
+            # Pine은 음수 월·월말 초과 일자도 달력 경계를 넘어 정규화한다.
+            year, month_index = divmod(year * 12 + month - 1, 12)
+            stamp = datetime(year, month_index + 1, 1, tzinfo=UTC) + timedelta(
+                days=day - 1, hours=hour, minutes=minute, seconds=second
+            )
+        except (ValueError, OverflowError) as exc:
+            raise PineRuntimeError("timestamp: 지원하는 UTC 달력 범위를 벗어났습니다") from exc
+        delta = stamp - datetime(1970, 1, 1, tzinfo=UTC)
+        return delta.days * 86_400_000 + delta.seconds * 1000
+
+    def _capture_signal_call(self, name: SignalFunction, node: Any) -> None:
+        """실행된 호출의 조건/offset만 한 번 평가한다. 방향·edge는 추론하지 않는다."""
+        raw: Any = True if name == "alert" else None
+        offset = 0
+        positional_index = 0
+        offset_index = 4 if name == "plotarrow" else 5
+        for arg in node.args:
+            arg_name = getattr(arg, "name", None)
+            value_node = arg.value if isinstance(arg, pyne_ast.Arg) else arg
+            is_first = (arg_name is None and positional_index == 0) or arg_name in {
+                "series",
+                "condition",
+            }
+            is_offset = arg_name == "offset" or (
+                arg_name is None and positional_index == offset_index
+            )
+            if name != "alert" and is_first:
+                raw = self._eval_expr(value_node)
+            elif name in {"plotshape", "plotchar", "plotarrow"} and is_offset:
+                offset = int(self._eval_expr(value_node))
+            else:
+                self._eval_expr(value_node)
+            if arg_name is None:
+                positional_index += 1
+        value: bool | int | float | None = None
+        if isinstance(raw, (bool, int)) or (isinstance(raw, float) and math.isfinite(raw)):
+            value = raw
+        stamp = self.bar.current_timestamp()
+        self.signal_trace.append(
+            SignalObservation(
+                function=name,
+                source_line=node.lineno,
+                source_column=node.col_offset,
+                bar_index=self.bar.bar_index,
+                bar_open_time=stamp.to_pydatetime() if stamp is not None else None,
+                value=value,
+                marker_offset=offset,
+            )
+        )
 
     def _call_user_function(self, fn_def: Any, call_node: Any) -> Any:
         """Pine user function 호출: 매개변수 바인딩 + body 실행 + 마지막 Expr 값 반환.
@@ -1294,12 +1435,23 @@ class Interpreter:
 
     # ---- Name 해석 (built-in + var + transient) ------------------------
 
+    def _true_range(self) -> float:
+        """v4 tr와 v5 ta.tr 속성이 같은 현재·직전 봉 계산을 공유한다."""
+        high = self.bar.current("high")
+        low = self.bar.current("low")
+        prev_close = self.bar.history("close", 1)
+        if math.isnan(prev_close):
+            return high - low
+        return max(high - low, abs(high - prev_close), abs(low - prev_close))
+
     def _resolve_name(self, name: str) -> Any:
         # 로컬 frame 우선 — user function 호출 중 매개변수/로컬 변수 lookup.
         if self._scope_stack and name in self._scope_stack[-1]:
             return self._scope_stack[-1][name]
         if name in _BUILTIN_SERIES:
             return self.bar.current(name)
+        if name == "tr":
+            return self._true_range()
         # S2 (전체 정검 P1-10/13): 합성 series source — Pine 정의와 1:1 (근사 없음).
         # coverage._SERIES_ATTRS 가 SUPPORTED 표기하나 interpreter 미구현이던 누출.
         if name in _SYNTHETIC_SERIES:
@@ -1307,6 +1459,9 @@ class Interpreter:
         if name == "bar_index":
             return self.bar.bar_index
         if name == "time":
+            stamp = self.bar.current_timestamp()
+            if stamp is not None:
+                return stamp.value // 1_000_000
             # Pine `time` = 현재 bar의 timestamp (epoch ms). OHLCV에 timestamp 없으면
             # 2020-01-01 기준(≈ 50년 * 365*86400*1000 ms)으로 bar_index 분봉 가정.
             # backtest range 필터(time >= startDate and time <= finishDate)가
@@ -1338,6 +1493,19 @@ class Interpreter:
             return self.store.get(key)
         if name in self._transient:
             return self._transient[name]
+        # 수집한 v2/v3 원본의 표시·입력 상수다. v4부터는 namespace를 사용한다.
+        if self.bar.pine_version < 4:
+            if name in {"green", "red", "aqua", "lime"}:
+                return float("nan")  # color.*와 같은 표시 전용 NOP다.
+            legacy_constants = {
+                "line": "line",
+                "cross": "cross",
+                "integer": "integer",
+                "source": "source",
+                "bool": "bool",
+            }
+            if name in legacy_constants:
+                return legacy_constants[name]
         raise PineRuntimeError(f"Undefined name: {name}")
 
     # ---- Attribute 해석 (`strategy.long` 등 built-in 상수) -----------
@@ -1387,7 +1555,11 @@ class Interpreter:
             return True  # backtest 는 전 bar historical (isrealtime=False 의 보완)
         if chain == "barstate.isconfirmed":
             return True  # backtest bar 는 전부 closed/confirmed
-        # Sprint 58 BL-242b: timeframe 속성 — 단일 타임프레임 백테스트 가정
+        if chain.startswith("timeframe."):
+            context_value = self.bar.timeframe_attribute(chain)
+            if context_value is not None:
+                return context_value
+        # 명시 context가 없는 기존 호출은 종전 기본값을 유지한다.
         if chain in (
             "timeframe.isdaily",
             "timeframe.isminutes",
@@ -1406,19 +1578,16 @@ class Interpreter:
                 "ta.obv",
                 id(node),
                 [close_val, vol_val, self._prev_close],
+                pine_version=self.bar.pine_version,
             )
         # ta.tr — built-in series: True Range = max(high-low, |high-prev_close|, |low-prev_close|)
         # 첫 bar 는 prev_close 가 nan → high-low 만 (Pine 동작과 동일)
         if chain == "ta.tr":
-            high = self.bar.current("high")
-            low = self.bar.current("low")
-            prev_close = self.bar.history("close", 1)
-            if math.isnan(prev_close):
-                return high - low
-            return max(high - low, abs(high - prev_close), abs(low - prev_close))
+            return self._true_range()
         # timeframe.period — Sprint 29 Slice A: BarContext 에 timeframe 미구현,
         # 기본값 "1D" 반환 (backtest 단일 timeframe 가정).
         if chain == "timeframe.period":
+            self._record_degraded_call(chain)
             return "1D"
         # color.* 는 렌더링 맥락에서만 쓰이므로 na 반환
         if chain.startswith("color."):

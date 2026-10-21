@@ -2,6 +2,7 @@
 
 Sprint 8b: indicator + alertcondition → 자동 매매 실행 경로 변환.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -153,3 +154,75 @@ def test_run_virtual_strategy_records_discrepancy_warning() -> None:
     assert any("discrepancy" in w.lower() for w in result.warnings), (
         f"discrepancy warning 부재: {result.warnings}"
     )
+
+
+def _next_open_candles() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "open": [100.0, 130.0, 150.0],
+            "high": [111.0, 141.0, 161.0],
+            "low": [99.0, 129.0, 149.0],
+            "close": [110.0, 140.0, 160.0],
+            "volume": [1.0] * 3,
+        },
+        index=pd.date_range("2026-01-01", periods=3, freq="h", tz="UTC"),
+    )
+
+
+_FIRST_BAR_BUY = """//@version=5
+indicator("t")
+buy = bar_index == 0
+alertcondition(buy, "Buy", "BUY")
+"""
+
+
+def test_virtual_default_bar_close_price_is_unchanged() -> None:
+    state = run_virtual_strategy(_FIRST_BAR_BUY, _next_open_candles()).strategy_state
+    assert state.open_trades["L"].entry_bar == 0
+    assert state.open_trades["L"].entry_price == 110.0
+    assert state.pending_market_intents == []
+
+
+def test_virtual_next_open_uses_fill_price_for_default_sizing() -> None:
+    result = run_virtual_strategy(
+        _FIRST_BAR_BUY,
+        _next_open_candles(),
+        initial_capital=1300.0,
+        default_qty_type="strategy.percent_of_equity",
+        default_qty_value=100.0,
+        fill_timing="next_bar_open",
+    )
+    trade = result.strategy_state.open_trades["L"]
+    assert trade.entry_bar == 1
+    assert trade.entry_price == 130.0
+    assert trade.qty == 10.0
+    assert result.signal_trace == []
+    assert result.degraded_calls_seen == []
+    assert not any("미지원" in warning for warning in result.strategy_state.warnings)
+
+
+def test_virtual_last_bar_next_open_signal_remains_pending() -> None:
+    source = _FIRST_BAR_BUY.replace("bar_index == 0", "bar_index == 2")
+    state = run_virtual_strategy(
+        source, _next_open_candles(), fill_timing="next_bar_open"
+    ).strategy_state
+    assert state.open_trades == {}
+    assert state.closed_trades == []
+    assert len(state.pending_market_intents) == 1
+    assert state.pending_market_intents[0].trade_id == "L"
+    assert state.pending_market_intents[0].placed_bar == 2
+
+
+def test_virtual_next_open_session_fill_is_carried_to_next_allowed_bar() -> None:
+    frame = _next_open_candles()
+    frame.index = pd.DatetimeIndex(
+        ["2026-01-01T15:00:00Z", "2026-01-01T16:00:00Z", "2026-01-02T08:00:00Z"]
+    )
+    state = run_virtual_strategy(
+        _FIRST_BAR_BUY,
+        frame,
+        fill_timing="next_bar_open",
+        sessions_allowed=("london",),
+    ).strategy_state
+    assert state.open_trades["L"].entry_bar == 2
+    assert state.open_trades["L"].entry_price == 150.0

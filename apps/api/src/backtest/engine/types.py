@@ -12,6 +12,7 @@ import pandas as pd
 
 from src.strategy.pine import ParseOutcome, PineError
 from src.strategy.pine_v2.exit_orders import ExitOrderKind
+from src.strategy.pine_v2.strategy_state import FillPhase
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,7 @@ class BacktestConfig:
     # 를 100% 초과로 해석할 수 있도록 응답에 노출.
     leverage: float = 1.0
     # 무기한 선물 funding 비용 — include_funding=True 이고 worker 경로가 funding_rates 를
-    # 제공하면 8h 정산 경계마다 차감한다(SSOT: v2_adapter._funding_cost_by_bar).
+    # 제공하면 관측된 정산 시각마다 차감·수취한다(SSOT: v2_adapter._funding_cost_by_bar).
     include_funding: bool = False
     # TV parity — 시장가 체결 타이밍. "bar_close"(기본, 신호 bar 종가 즉시 — 기존
     # 동작 byte-identical) | "next_bar_open"(다음 bar 시가 — TV
@@ -229,9 +230,9 @@ class BacktestMetrics:
     # 기존 완료 backtest round-trip 호환 위해 None default.
     total_fees: Decimal | None = None
     total_slippage: Decimal | None = None
-    # C6 (정직성 번들 Slice 4) — perp funding 차감 시 보유 구간 일부가 funding 데이터
-    # 가용 범위(인제스션 forward-only) 밖이면 True. include_funding=false 또는 funding
-    # 미전달 시 None(미반영) → 기존 완료 backtest round-trip 호환.
+    # True=관측 정산의 미반영 확인, False=누락 없음 확인(현재는 보유 없음),
+    # None=완전성 미검증 또는 펀딩 미반영. 후자는 total_funding/config과 함께 구분한다.
+    # 저장된 rate의 min/max는 상품별 정산 일정의 증거가 아니다.
     funding_data_incomplete: bool | None = None
     # funding 총액. 양수=지불(equity 감소), 음수=수취. None=미반영, 0=반영했으나 정산 0건.
     total_funding: Decimal | None = None
@@ -299,8 +300,8 @@ class RawTrade:
     # RawTrade 전 필드를 자동 유도하므로, 여기에 필드를 추가하면 baseline digest 가
     # 함께 움직인다(추가 시 `--confirm` 재생성 의무).
     # run-up(MFE)/drawdown(MAE): 보유 구간 bar high/low 기반 gross(수수료 미차감)
-    # 가격 excursion. 스캔 윈도 = (entry_bar, exit_bar] — entry bar 는 종가 체결
-    # 이전 고저가 미보유 구간이라 제외, exit bar 는 full 포함(bar 근사, "TV 근사").
+    # 가격 excursion. 전부 보유한 봉의 고저가와 진입·청산가를 포함한다.
+    # 봉 내부 체결 시각 미상인 경계 봉의 고저가는 제외한다.
     # pct 분모 = entry notional (return_pct 규약 동일). ohlcv 미전달 시 None.
     runup_abs: Decimal | None = None
     runup_pct: Decimal | None = None
@@ -313,6 +314,9 @@ class RawTrade:
     comment: str | None = None  # Pine strategy.entry comment ("" → None)
     cumulative_pnl: Decimal | None = None  # trade_index(entry 순) net pnl 누적
     liquidated: bool | None = None  # 격리 강제청산으로 종료된 거래.
+    # 내부 후처리용 체결 위상. 서비스가 API/DB trade로 매핑할 때는 노출하지 않는다.
+    entry_phase: FillPhase = "bar_close"
+    exit_phase: FillPhase = "bar_close"
 
 
 @dataclass(frozen=True)

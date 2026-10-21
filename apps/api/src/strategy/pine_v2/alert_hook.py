@@ -79,6 +79,8 @@ class AlertHook:
     # Tier-1 bar 단위 조건 재평가용 — alertcondition arg0 또는 enclosing if.test의 AST 노드.
     # JSON 직렬화 대상 아님 (to_dict에서 제외). pyne_ast.Expression 하위 노드 허용.
     condition_ast: Any | None = None
+    source_line: int | None = None
+    source_column: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -470,6 +472,8 @@ def collect_alerts(source: str) -> list[AlertHook]:
                 discrepancy=discrepancy,
                 index=idx,
                 condition_ast=condition_ast_node,
+                source_line=node.lineno,
+                source_column=node.col_offset,
             )
         )
 

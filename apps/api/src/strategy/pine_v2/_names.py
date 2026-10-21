@@ -75,7 +75,7 @@ UTILITY_FUNCTIONS: frozenset[str] = frozenset(
 # ARRAY_FUNCTIONS — Pine `array.*` 최소 서브셋 (G2, 2026-07-12 pine-batch QA).
 # interpreter._eval_array_call 디스패치와 1:1. coverage.SUPPORTED_FUNCTIONS 에도
 # 합류 — `array` namespace 는 _PINE_V6_COLLECTION_NAMESPACES 에 남아 있으므로
-# 본 set 에 없는 array.* 호출(array.avg / array.sort 등)은 여전히 preflight
+# 본 set 에 없는 array.* 호출(array.sum / array.sort 등)은 여전히 preflight
 # 하드 fail (부분 실행 금지 Golden Rule).
 # 추가 절차: 본 set + interpreter._eval_array_call 분기 동시 갱신.
 # ---------------------------------------------------------------------------
@@ -98,6 +98,7 @@ ARRAY_FUNCTIONS: frozenset[str] = frozenset(
         "array.size",
         "array.shift",
         "array.unshift",
+        "array.avg",
     }
 )
 

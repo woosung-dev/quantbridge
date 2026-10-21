@@ -31,7 +31,7 @@ from src.strategy.pine_v2.interpreter import (
 # _ATTR_CONSTANTS 안 const value (enum 이 아니라 사용자-friendly alias) prefix.
 # 예: strategy.long="long" / line.style_dashed="dashed" — coverage._ENUM_PREFIXES
 # 가 prefix lookup 으로 enum 만 인식. const value prefix 는 별도 화이트리스트.
-_CONST_VALUE_PREFIXES = frozenset({"strategy.", "line."})
+_CONST_VALUE_PREFIXES = frozenset({"strategy.", "line.", "input.", "plot.", "format.", "hline."})
 
 
 def test_stdlib_names_subset_of_supported_functions():
@@ -48,9 +48,7 @@ def test_stdlib_names_subset_of_supported_functions():
 # ---------------------------------------------------------------------------
 def test_bl200_names_module_union_invariant():
     """`_names.STDLIB_NAMES == TA_FUNCTIONS | UTILITY_FUNCTIONS` 정합."""
-    assert pine_names.STDLIB_NAMES == (
-        pine_names.TA_FUNCTIONS | pine_names.UTILITY_FUNCTIONS
-    ), (
+    assert pine_names.STDLIB_NAMES == (pine_names.TA_FUNCTIONS | pine_names.UTILITY_FUNCTIONS), (
         "BL-200: _names.STDLIB_NAMES 가 TA_FUNCTIONS ∪ UTILITY_FUNCTIONS 와 불일치. "
         "_names.py 갱신 시 union 식 누락 — frozenset 정의 직후 한 줄 검증."
     )
@@ -180,18 +178,14 @@ def _scan_canonical_sources_from_service() -> set[str]:
     AST 기반 정적 스캔 — runtime import 가 외부 의존 (DB/Celery) 을 끌어올 수
     있어 ssot audit 는 source 텍스트 파싱으로만 검증.
     """
-    service_path = (
-        Path(__file__).resolve().parents[3] / "src" / "backtest" / "service.py"
-    )
+    service_path = Path(__file__).resolve().parents[3] / "src" / "backtest" / "service.py"
     tree = ast.parse(service_path.read_text(encoding="utf-8"))
     sources: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         func = node.func
-        is_canonical = (
-            isinstance(func, ast.Name) and func.id == "_canonical_dict"
-        ) or (
+        is_canonical = (isinstance(func, ast.Name) and func.id == "_canonical_dict") or (
             isinstance(func, ast.Attribute) and func.attr == "_canonical_dict"
         )
         if not is_canonical:
@@ -199,9 +193,7 @@ def _scan_canonical_sources_from_service() -> set[str]:
         for kw in node.keywords:
             if kw.arg != "source":
                 continue
-            if isinstance(kw.value, ast.Constant) and isinstance(
-                kw.value.value, str
-            ):
+            if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
                 sources.add(kw.value.value)
     return sources
 
@@ -265,11 +257,7 @@ def test_bl188_d2_chain_priority_4_collection_sync():
 
     # 4. v2_adapter.adapt_run 소스가 cfg.live_position_size_pct 를 compat 으로 전달
     v2_adapter_path = (
-        Path(__file__).resolve().parents[3]
-        / "src"
-        / "backtest"
-        / "engine"
-        / "v2_adapter.py"
+        Path(__file__).resolve().parents[3] / "src" / "backtest" / "engine" / "v2_adapter.py"
     )
     v2_src = v2_adapter_path.read_text(encoding="utf-8")
     assert "live_position_size_pct=cfg.live_position_size_pct" in v2_src, (
@@ -294,12 +282,8 @@ def test_bl188_sessions_allowed_propagation_5_layer_sync():
     from src.strategy.pine_v2.virtual_strategy import run_virtual_strategy
 
     layers: dict[str, set[str]] = {
-        "compat.parse_and_run_v2": set(
-            inspect.signature(parse_and_run_v2).parameters
-        ),
-        "event_loop.run_historical": set(
-            inspect.signature(run_historical).parameters
-        ),
+        "compat.parse_and_run_v2": set(inspect.signature(parse_and_run_v2).parameters),
+        "event_loop.run_historical": set(inspect.signature(run_historical).parameters),
         "event_loop.run_live": set(inspect.signature(run_live).parameters),
         "virtual_strategy.run_virtual_strategy": set(
             inspect.signature(run_virtual_strategy).parameters
@@ -307,8 +291,7 @@ def test_bl188_sessions_allowed_propagation_5_layer_sync():
     }
     for name, params in layers.items():
         assert "sessions_allowed" in params, (
-            f"BL-188 v3: {name} 시그니처에 sessions_allowed 파라미터 누락. "
-            "session gate 전파 끊김."
+            f"BL-188 v3: {name} 시그니처에 sessions_allowed 파라미터 누락. session gate 전파 끊김."
         )
 
     # StrategyState 는 dataclass field 로 노출
@@ -395,9 +378,7 @@ def test_bl188_pine_partial_corpus_invariant():
         qt = decl.default_qty_type
         qv = decl.default_qty_value
         if (qt is None) != (qv is None):
-            violations.append(
-                f"{pine_path.name}: type={qt!r} value={qv!r}"
-            )
+            violations.append(f"{pine_path.name}: type={qt!r} value={qv!r}")
     assert not violations, (
         "BL-188 v3: corpus partial default_qty 선언 발견 — 둘 다 명시 또는 둘 다 "
         f"None 의무 (service._resolve_sizing_canonical 422 reject 대상): {violations}"
