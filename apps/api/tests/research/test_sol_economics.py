@@ -1,5 +1,6 @@
 """선정·native ABI·입력 cache·경제 분모 검사. Docker·거래소·모델은 실행하지 않는다."""
 
+import itertools
 import json
 import sys
 from copy import deepcopy
@@ -37,7 +38,6 @@ def artifact(tmp_path, *, language="python"):
 
 def selection(tmp_path):
     evidence = tmp_path / "full-quality.json"
-    json_write(evidence, {"quality_only": True})
     rows = [
         {
             "case_id": f"{number:02}",
@@ -58,13 +58,61 @@ def selection(tmp_path):
         "decided_before_economics": True,
         "arm": "A",
         "language": "python",
-        "quality_evidence": {"path": evidence.name, "sha256": digest(evidence)},
+        "quality_evidence": {"path": evidence.name, "sha256": None},
         "semantic_pass_repetitions": {x["case_id"]: [] for x in rows},
         "selected_source_hashes": {x["case_id"]: None for x in rows},
     }
+    write_quality_proof(tmp_path, spec)
     proof = tmp_path / "selection.json"
     json_write(proof, spec)
     return values, proof, spec
+
+
+def write_quality_proof(tmp_path, spec):
+    rows, files = [], {}
+    for case, arm, language, repetition in itertools.product(
+        (f"{n:02}" for n in range(1, 31)), "ABC", ("pine", "python", "typescript"), range(5)
+    ):
+        passed = (
+            arm == spec["arm"]
+            and language == spec["language"]
+            and repetition in spec["semantic_pass_repetitions"][case]
+        )
+        checksum = spec["selected_source_hashes"][case] if passed else None
+        rows.append(
+            {
+                "case_id": case,
+                "arm": arm,
+                "language": language,
+                "repetition": repetition,
+                "observation": "complete",
+                "public_status": "public_pass" if passed else "failed",
+                "semantic_status": "passed" if passed else "generation_or_public_failure",
+                "source_hash": checksum,
+            }
+        )
+        if passed:
+            files[f"trials/{arm}/{language}/{case}/{repetition}/source.txt"] = checksum
+    report = {
+        "schema_version": 1,
+        "stage": "evaluation",
+        "complete": True,
+        "final_selection_allowed": True,
+        "expected_artifacts": 1350,
+        "manifest_sha256": "a" * 64,
+        "input_files": files,
+        "implementation_hashes": {},
+        "artifact_scores": rows,
+    }
+    report["input_proof_sha256"] = economics.quality_digest(
+        {"manifest_sha256": report["manifest_sha256"], "files": files, "implementations": {}}
+    )
+    path = tmp_path / "full-quality.json"
+    json_write(path, report)
+    spec.update(
+        manifest_sha256=report["manifest_sha256"], input_proof_sha256=report["input_proof_sha256"]
+    )
+    spec["quality_evidence"]["sha256"] = digest(path)
 
 
 def data():
@@ -135,6 +183,7 @@ def test_final_selection_preserves_all_thirty_and_rejects_best_return_repeat(tmp
     spec["semantic_pass_repetitions"]["01"] = [0, 2]
     spec["selected_source_hashes"]["01"] = "1" * 64
     values[0].update(repetition=2, source_hash="1" * 64)
+    write_quality_proof(tmp_path, spec)
     json_write(proof, spec)
     with pytest.raises(ValueError, match="첫 semantic"):
         economics.validate_selection(proof, values)
@@ -152,6 +201,30 @@ def test_quality_evidence_and_selected_source_are_hash_bound(tmp_path):
     values[0]["source_hash"] = None
     (tmp_path / "full-quality.json").write_text("changed evidence")
     with pytest.raises(ValueError, match="해시"):
+        economics.validate_selection(proof, values)
+
+
+@pytest.mark.parametrize("mutation", ["opaque_report", "manifest", "proof", "later_rep", "source"])
+def test_selection_cannot_relabel_evidence_or_first_pass(tmp_path, mutation):
+    values, proof, spec = selection(tmp_path)
+    spec["semantic_pass_repetitions"]["01"] = [0, 2]
+    spec["selected_source_hashes"]["01"] = "1" * 64
+    values[0].update(repetition=0, source_hash="1" * 64)
+    write_quality_proof(tmp_path, spec)
+    if mutation == "opaque_report":
+        path = tmp_path / "full-quality.json"
+        json_write(path, {"not_a_quality_report": True})
+        spec["quality_evidence"]["sha256"] = digest(path)
+    elif mutation in {"manifest", "proof"}:
+        spec["manifest_sha256" if mutation == "manifest" else "input_proof_sha256"] = "b" * 64
+    elif mutation == "later_rep":
+        spec["semantic_pass_repetitions"]["01"] = [2]
+        values[0]["repetition"] = 2
+    else:
+        spec["selected_source_hashes"]["01"] = "2" * 64
+        values[0]["source_hash"] = "2" * 64
+    json_write(proof, spec)
+    with pytest.raises(ValueError, match=r"보고서|proof"):
         economics.validate_selection(proof, values)
 
 
@@ -346,6 +419,7 @@ def test_execute_preserves_missing_semantic_and_failed_source_denominators(tmp_p
     values[0].update(source_hash="1" * 64, source_error="source_integrity: changed", repetition=0)
     spec["semantic_pass_repetitions"]["01"] = [0]
     spec["selected_source_hashes"]["01"] = "1" * 64
+    write_quality_proof(tmp_path, spec)
     json_write(proof, spec)
     selected = economics.validate_selection(proof, values)
     window = {"start": "2026-01-01T00:00Z", "end_exclusive": "2026-01-03T00:00Z"}

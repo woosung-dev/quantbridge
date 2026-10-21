@@ -109,6 +109,7 @@ def trial(
     write(folder / "trial.json", value)
     semantic = {
         "input_identity": identity,
+        "source_hash": value["source_hash"],
         "status": "generation_or_public_failure"
         if not public
         else "passed"
@@ -232,6 +233,24 @@ def test_bonferroni_eight_descriptive_paired_comparisons_are_deterministic():
     assert result == subject.paired_bootstrap(groups, draws=500)
     assert result["family_comparisons"] == 8 and result["descriptive_only"]
     assert all(row["bonferroni_family95_ci"] == [0, 0] for row in result["paired_differences"])
+
+
+def test_old_semantic_score_cannot_follow_a_consistently_replaced_generated_source(tmp_path):
+    manifest = run(tmp_path, cases=1, repetitions=1)
+    folder = trial(tmp_path, manifest, "01", 0)
+    replacement = "def on_bar(ctx, state):\n    return {'action':'long'}\n"
+    payload = {"source_code": replacement, "assumptions": []}
+    generation = json.loads((folder / "attempt-0/generation.json").read_text())
+    generation["payload_hash"] = digest(payload)
+    write(folder / "attempt-0/payload.json", payload)
+    write(folder / "attempt-0/generation.json", generation)
+    (folder / "source.txt").write_text(replacement)
+    value = json.loads((folder / "trial.json").read_text())
+    value["attempts"][0]["generation"] = generation
+    value["source_hash"] = subject.file_hash(folder / "source.txt")
+    write(folder / "trial.json", value)
+    with pytest.raises(ValueError, match="semantic/trial 실행 source hash"):
+        subject.build_report(tmp_path, draws=100)
 
 
 def test_full_selection_matches_economic_exact_contract_and_first_pass(tmp_path):

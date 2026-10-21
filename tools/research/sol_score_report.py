@@ -210,6 +210,8 @@ def _trial(
     semantic = _load(semantic_path, root, evidence)
     if semantic.get("input_identity") != identity:
         raise ValueError("semantic/trial 입력 hash가 다릅니다")
+    if "source_hash" not in semantic or semantic["source_hash"] != trial.get("source_hash"):
+        raise ValueError("semantic/trial 실행 source hash가 다릅니다")
     if semantic.get("status") not in (
         "passed",
         "failed",
@@ -454,6 +456,7 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
                 },
                 "public_status": row.get("public_status", row["status"]),
                 "semantic_status": row["semantic"].get("status", "not_evaluated"),
+                "source_hash": row.get("source_hash"),
                 "score100": paired_summary([row])["cell_means"][f"{row['arm']}/{row['language']}"],
                 "quality90": paired_summary([quality_row])["cell_means"][
                     f"{row['arm']}/{row['language']}"

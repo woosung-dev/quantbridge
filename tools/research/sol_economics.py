@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import itertools
 import json
 import platform
 import re
@@ -37,6 +38,7 @@ from tools.research.cli import (  # noqa: E402
     output_dir,
 )
 from tools.research.data import ASSETS, TIMEFRAMES, digest, json_write  # noqa: E402
+from tools.research.sol_codegen import digest as quality_digest  # noqa: E402
 from tools.research.sol_economic_data import (  # noqa: E402
     RETROSPECTIVE,
     economic_verdict,
@@ -136,6 +138,42 @@ def validate_selection(path: Path, artifacts: list[dict]) -> dict:
     source = (path.parent / evidence["path"]).resolve()
     if digest(source) != evidence["sha256"] or value.get("quality_stage") != "full_eval":
         raise ValueError("full-eval 품질 근거 파일 해시가 다릅니다")
+    report = json.loads(source.read_text())
+    proof = {
+        "manifest_sha256": report.get("manifest_sha256"),
+        "files": report.get("input_files"),
+        "implementations": report.get("implementation_hashes"),
+    }
+    if (
+        report.get("schema_version") != 1
+        or report.get("stage") != "evaluation"
+        or report.get("complete") is not True
+        or report.get("final_selection_allowed") is not True
+        or report.get("expected_artifacts") != 1350
+        or not re.fullmatch(r"[0-9a-f]{64}", report.get("manifest_sha256", ""))
+        or value.get("manifest_sha256") != report["manifest_sha256"]
+        or value.get("input_proof_sha256") != report.get("input_proof_sha256")
+        or quality_digest(proof) != report.get("input_proof_sha256")
+    ):
+        raise ValueError("완료된 full-eval 품질 보고서·manifest·입력 proof가 필요합니다")
+    quality_rows = report.get("artifact_scores", [])
+    identities = {
+        (row["case_id"], row["arm"], row["language"], row["repetition"]) for row in quality_rows
+    }
+    expected_rows = set(
+        itertools.product(
+            [f"{number:02}" for number in range(1, 31)],
+            "ABC",
+            ("pine", "python", "typescript"),
+            range(5),
+        )
+    )
+    if (
+        len(quality_rows) != 1350
+        or identities != expected_rows
+        or any(row.get("observation") != "complete" for row in quality_rows)
+    ):
+        raise ValueError("품질 보고서의 완료된 1350개 분모가 다릅니다")
     if len(artifacts) != 30 or {x["case_id"] for x in artifacts} != {
         f"{index:02}" for index in range(1, 31)
     }:
@@ -145,12 +183,34 @@ def validate_selection(path: Path, artifacts: list[dict]) -> dict:
     if set(passes) != {x["case_id"] for x in artifacts} or set(selected_hashes) != set(passes):
         raise ValueError("30개 case의 semantic pass 목록이 필요합니다")
     for artifact in artifacts:
+        reported = [
+            row
+            for row in quality_rows
+            if row["case_id"] == artifact["case_id"]
+            and row["arm"] == value.get("arm")
+            and row["language"] == value.get("language")
+        ]
+        reported_passes = sorted(
+            row["repetition"] for row in reported if row["semantic_status"] == "passed"
+        )
         repetitions = passes[artifact["case_id"]]
         if not isinstance(repetitions, list) or any(
             type(x) is not int or x < 0 for x in repetitions
         ):
             raise ValueError("semantic 반복 번호가 유효하지 않습니다")
         expected = min(repetitions) if repetitions else None
+        selected = next((row for row in reported if row["repetition"] == expected), None)
+        expected_hash = selected.get("source_hash") if selected else None
+        if repetitions != reported_passes or artifact["source_hash"] != expected_hash:
+            raise ValueError("품질 보고서의 첫 semantic pass·source hash와 다릅니다")
+        if selected is not None and (
+            selected["public_status"] != "public_pass"
+            or report["input_files"].get(
+                f"trials/{artifact['arm']}/{artifact['language']}/{artifact['case_id']}/{expected}/source.txt"
+            )
+            != expected_hash
+        ):
+            raise ValueError("선정 source hash가 품질 보고서의 실행 원문과 다릅니다")
         if (
             artifact["arm"] != value.get("arm")
             or artifact["language"] != value.get("language")
