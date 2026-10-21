@@ -1,0 +1,2557 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-10-21",
+  "repository_base": "6bc8738d6ddd5ad6ea5541badaf39252ec640896",
+  "scope": "공개 자료 조사·정적 식별·설계 제안",
+  "implementation_status": {
+    "application_runtime_changed": false,
+    "database_or_orders_changed": false,
+    "kernel_implemented": false,
+    "numerical_or_live_parity_verified": false
+  },
+  "score_model": {
+    "kind": "conditional_subjective_design_preference_not_empirical_safety_or_profit_probability",
+    "population": "현재 선정85개 정의; arbitrary Python 일반화 금지",
+    "axes": [
+      "goal_fit_expression",
+      "authority_failure_isolation",
+      "calculation_backtest_live_semantics",
+      "reuse_implementation_effort",
+      "personal_operations_cost"
+    ],
+    "weights": [
+      25,
+      25,
+      25,
+      15,
+      10
+    ],
+    "vectors_0_to_5": {
+      "fixed_reviewed_kernel_config": [
+        5,
+        4,
+        4.5,
+        5,
+        4.5
+      ],
+      "existing_gvisor_python": [
+        5,
+        4,
+        4.5,
+        5,
+        3
+      ],
+      "selected_pine_port": [
+        3,
+        4,
+        3,
+        5,
+        4.5
+      ]
+    },
+    "weighted_totals": {
+      "fixed_reviewed_kernel_config": 91.5,
+      "existing_gvisor_python": 88.5,
+      "selected_pine_port": 74.0
+    },
+    "actual_deploy_readiness": "all_pending_hard_gate_verification"
+  },
+  "census": {
+    "schema_version": 1,
+    "checked_at": "2026-10-21T09:21:45.369174+00:00",
+    "method": "stdlib JSON/hash/AST read only; custom literal AST reader; exact source_for replacements and entry_source POSITION_BLOCK removal reproduced as string operations; catalogue/swing/source modules NOT imported; user sources NOT executed",
+    "executed_strategy_source": false,
+    "executed_catalogue_module": false,
+    "evaluated_filter_signal_expressions": false,
+    "manifest_integrity": {
+      "actual_sha256": "d0d15b9be1055bbe99122e51edf56cca71f4de5c42b5282b8113a72bbf75c044",
+      "checksum_file_sha256": "d0d15b9be1055bbe99122e51edf56cca71f4de5c42b5282b8113a72bbf75c044",
+      "verification_sha256": "d0d15b9be1055bbe99122e51edf56cca71f4de5c42b5282b8113a72bbf75c044",
+      "passed": true
+    },
+    "frozen_input_artifacts": [
+      {
+        "path": "runs/swing-exits-v3/swing-summary.json",
+        "expected_sha256": "d9f34ec63bf017b6f701131cdc08b18b40bdc38b03f07df857327228f6d8e6ae",
+        "actual_sha256": "d9f34ec63bf017b6f701131cdc08b18b40bdc38b03f07df857327228f6d8e6ae",
+        "passed": true
+      },
+      {
+        "path": "runs/swing-exits-v3/comparison-analysis.json",
+        "expected_sha256": "0a482e4786345f7cc2acdafeb3bd7494972ee46af61910f0382639b907bad09e",
+        "actual_sha256": "0a482e4786345f7cc2acdafeb3bd7494972ee46af61910f0382639b907bad09e",
+        "passed": true
+      },
+      {
+        "path": "runs/swing-exits-v3/experiment.json",
+        "expected_sha256": "e44cbceb3260aa765a98696d1d1ac1a1a0f978f6e26623cb9617b6473aa2993c",
+        "actual_sha256": "e44cbceb3260aa765a98696d1d1ac1a1a0f978f6e26623cb9617b6473aa2993c",
+        "passed": true
+      },
+      {
+        "path": "runs/swing-exits-v3/swing-journal.jsonl",
+        "expected_sha256": "03babd037adf0b94a269056df476594e2e12f2812e5da21b7ce309dfc5f39c1f",
+        "actual_sha256": "03babd037adf0b94a269056df476594e2e12f2812e5da21b7ce309dfc5f39c1f",
+        "passed": true
+      },
+      {
+        "path": "runs/swing-exits-v3/verification/audit-all.json",
+        "expected_sha256": "778be5f65011f747bc2aed51c231ffb6bb95150ac79975d54ba4fc0500131054",
+        "actual_sha256": "778be5f65011f747bc2aed51c231ffb6bb95150ac79975d54ba4fc0500131054",
+        "passed": true
+      },
+      {
+        "path": "runs/swing-exits-v3/result-integrity-audit.json",
+        "expected_sha256": "68fbfc06041e26458f93ce615b1b3985bb80cf903d6d1f335a804afd56c2abcf",
+        "actual_sha256": "68fbfc06041e26458f93ce615b1b3985bb80cf903d6d1f335a804afd56c2abcf",
+        "passed": true
+      },
+      {
+        "path": "runs/swing-exits-v3/execution-dataset.json",
+        "expected_sha256": "6d9ca9cd515f01dd4802e02847409cb64690b528060db0c6fad0cee5880cb154",
+        "actual_sha256": "6d9ca9cd515f01dd4802e02847409cb64690b528060db0c6fad0cee5880cb154",
+        "passed": true
+      }
+    ],
+    "source_inputs": {
+      "tools/research/catalogue.py": "0137350460454b1801636f735b900b5af54d4228ccee6a1ca27e903b60f344c3",
+      "tools/research/strategy_template.py.txt": "f238f3624c49cff9af163fc264c27761a8b350c1b8f299fbd7b05f46a1e4f650",
+      "tools/research/swing_signals.py": "28a92924eda8796f0afd9acc1f46acb0b215ec0a6cd567dc92beb2e5f986ee0a"
+    },
+    "catalogue": {
+      "filters": 10,
+      "signals": 10,
+      "hypotheses": 100,
+      "generated_source_policy_variants": 200,
+      "unique_generated_hashes": 200,
+      "all_generated_variants_ast_parse": true,
+      "single_exact_position_anchor": true,
+      "all_four_placeholders_single_occurrence": true
+    },
+    "selected_records": {
+      "total": 85,
+      "identified_exact_config": 85,
+      "unknown_or_rejected": 0,
+      "policy_counts": {
+        "source": 46,
+        "swing": 39
+      },
+      "distinct_hypotheses": 56
+    },
+    "negative_identification_probes": [
+      {
+        "case": "unknown_candidate_id",
+        "rejected": true
+      },
+      {
+        "case": "unknown_exit_policy",
+        "rejected": true
+      },
+      {
+        "case": "source_changed_by_comment",
+        "rejected": true
+      },
+      {
+        "case": "unsupported_params",
+        "rejected": true
+      },
+      {
+        "case": "changed_warmup",
+        "rejected": true
+      }
+    ],
+    "history_semantics": {
+      "history_window": 201,
+      "warmup_bars": 200,
+      "template_ema_seed": "x[0] on current clipped window; recomputed each on_bar",
+      "pine_ta_ema_seed": "SMA(length), then stateful recurrence across bars",
+      "not_interchangeable_by_name": true,
+      "numerical_parity_verified": false,
+      "full_backtest_or_live_parity_verified": false
+    },
+    "limitations": [
+      "config identification is byte/hash and grammar identity, not computation replay or financial validation",
+      "a reviewed fixed kernel with config dispatch has not been implemented or executed",
+      "source and swing exit ledgers remain distinct policies",
+      "not evidence that arbitrary Python can be automatically converted",
+      "unknown candidate/policy/hash/params/warmup must be rejected, not mapped to fallback"
+    ],
+    "generated_variants": [
+      {
+        "candidate_id": "hyp-v2-ema_trend-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "512ea07c0d5b778d5986d19d9bdd8d80b8d544da74546252452726fad2f060ea",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "7867f30996732ea99027214c0ff9262e7ea6a631ca535ab682833bb95efc4f0e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "5dd9285ac352451fa77edc2c2b37927675b7965ba7620664848f624c971c36bb",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "90358c5a9f4cee3d693b070cbbe6defc53b2f869c45f5e7337109ddddcfc0bf6",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "e967bbf619a64c11302f632e25c303f5d6d0345d6005cb4a67c6b8c2901bf0e6",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "0c5a285f014661d87314d98309eab3dcd3f4d998fce7bab067f6c34b914f8528",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "44f62d39096938e2651816069ef3ee7b43a9cc6af2e999bceaf2f3b1ef715199",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "a4b074abff390472c23040369cc2d04fa6b2dbea541be8192bf363dd6153ce83",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "bd4bf5fa9f7f4837a6c751a58fc8f1ab43f21600c70906a116f7d2f1670b44c9",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "30e74722b760b97abe07feee45dc79569dd6fd3d51fc504c8cbfbee10e0a674e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "19962131edaabda5707d69915bd997e14cee5fd4c2e195a8c82b4c4fc7c9d05a",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "e21a91e66fa3bff06fc43d85af066fbb9fe29d9ff4e56bd283947c03e4e28cb4",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "d090d40bad561c4eb5c92d6b36d32f0051caa8bcedcb5188355fab8a3ada3762",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "419a6730ad33fcf4d5c010ab6dac0206b1dbeb3f3bfc5f8ec08a38ff1cbca793",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "b01141118c55f62541d4efa8fa1466dcf4e49543546f1f2ce913afb058141aed",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "cf84eff5304a5ecb037df22ea1abf28f6765291c777e1a035114fa1bd6e3ee52",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "187714eb7de7fb4b8d09890c2a6420b8c222c759f623f75a38e3248d74a8632f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "9625ea21c44166a5604361c67236e237ae829e33ef010b258c70094c23a60273",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "d72f0fa0d319128361cd53699c8cedc64cb3c541c823ab5bf121a2bda679034c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ema_trend-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "bfb579c09acb3b621c4532105097afd1167647498ef458e2c2b3fa67cc6f359e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "ee20f942218fe463075a70e5863ebd8fe4adcb75efe32c4cf9279486c98d80da",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "1687d8cfe1d026608144ea00a4d50602653dec63c92bed805e5c3c9e90605e85",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "3c1a9d4be64b2ccda18fb2bcf77892305a78b8aa5f04c2a731ed0892004a9b15",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "9a307ceebc79faae70616275dedd05dfad440c7e783d31c746835647b497f6cc",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "12a8b0ef16f3caa81433a494aefb2b9378013de84f9ca140d30912e53047be1c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "b034a25748c24a5e873f280ef8e81d94eb5a3211c88b86bffadec158ed6e02a5",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "a80dea2da071aca5b0c8861e8de3483c2cb3f4108611dad60255578d4f9a4c30",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "ea2e4e085fbb783a875c86edc760f4c5cf6a5d7bb95371467d78d95b407edb75",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "9f07be2df757b58bcaf663a22ebd45a0f9b956daebbf3991a1b90ee0090e3ffd",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "a54c41cf715028c0daa8806f31d6a0122bb2e5e27fcb22c055008c8b26a4326e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "6b733643a6f0e98561a4bde643e5932bd8f84fde55dc16920587c16a7f18fb99",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "8db043a46bb983850fa889ddcecb74d202572fba7f3135deb484c2964e1b5762",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "649b69dea1d1bbdc1ac718bbbbd779db78a5c66ae74a6fe7ed89074432493e30",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "1c2a47e2711308cf9ed30073a62186671a495b24ac64568ce024627c64422e26",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "a418146a11f6b16f8ea9668b45c0d19d9732ade8423e7418621767298c546117",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "088f24c87b3a1c5fbc56721b6926f4a2b9250eee0c099aa600ba891f734e8651",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "f8c0394015eb903dd2f3bbb49efeb8ce0abcaee5ba159c4b29c1e82b29f4997d",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "39a3c3b3739ee8a8ce7fbee74c5d2f470cfa55ed273694c3986ef9af84c9e27b",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "fb7c5c292b0492bc408bd81a40f19ad20caeacc67293142cbc70ffd25887f55f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-sma_trend-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "e6ac46cace179ffcbc8a60f50f2feeabb31a4f9ce7c472b5e9cd4f4421f0cafd",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "f7654a405f44fb5169f9b08137224cc5f1433cbd920ac5b2b38bc9cfd219c83f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "88b8ad0ff95d1cb6520d095669676daf1d389eba0bd7dc7e0573cb94213f6671",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "7d05c7fe161f0c1892197441342b03c0779297b36faaee1dcdb15fe08ee3d7af",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "600b78ececaafc86237ea9e65215cb118ff3ea8c55385adf060f5d63781e37b3",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "f1034228a303665d70f425aa50fcc4ff84368258b6b67d742c81c9f80a128b8a",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "2d50ee3bae2b5f36a1e2a34c17ff2b95ce835ba04dc0b1d4c1ddc34da658a29a",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "5ae262c6563d7d757baedcb75617cce2d1be159ca4e8b96d7ea44211804e54cb",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "64e1c5cb24de40fabd9544566e1d88fbc53566aabe342a6f3bbbca78cc521c7e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "0d57b36eedbf624284da36723201e1192616488a7c72e7cffb1bb79f04fce0f7",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "0d0a02e1834449d9eea7a503417a172d6f54f5afd5bae8b641e8ebe4beacc034",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "9cb26f946c732383be9d2d13fe66cec8b1b646540f7dbedb7cd8dcfdeb4196f5",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "5614f8dc634abed16daa716c02b1bc9d540cd243115cb35eb02022bb50aac131",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "6cb73293ea450b8bbb197b93e4637fae2a7d76333f0b6eed5f52c595dcc0a47c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "68ab7243818b53b760936e0269319b8dafe9ae0fb6601e8948c3530ab656ba5f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "e22e17b5e90742d613344d79c74e55dcc78218b728a662d0320c8f85bfaf8e72",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "8950a804cbedf0049b71ea8ab3b791011bb367c9fe03ff210a57165f8b1646f6",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "098b369b9eed148e372038b03305da0b6d4a7b58edcec088bb9edfcea3defd1f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "80c1ca0e5c4216b269abd6cb52437124a2b966725976d24050d2cd3781eaa767",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "9a8ea694dac31a9bb2f5dccba50cadbfae11e4da43af8a55fe6b77a215e6967f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-wma_trend-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "ff2d9660beb30d3cfceda68437325ad48d1a0fc42cb7a57c32dbd01616987c6b",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "e6d078e19b07dcd447a1980217f2cd653f29ee5fbca5eefa5f463a6166442d98",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "936a25da4960911ec165c6ce7989f2abc369af547aec2d336530060e17757c01",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "1731b22da9b8680cf84e2c9f49f86761152eb40793e2ca4d195e3bc7d7d4b05e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "d449395b61d48de562d6765480760a90a4be3c6867ff56299819497dba8eafe6",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "3f98a0d726a791575455a3a554249b7a6f02760436f54926bf90aa315bbcccd5",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "94a35b9ccf49119c733d32afdd3886b3675792eba93356a9e79a0a76edd45174",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "732032cbb4954c48a3e959e22f5c715ad464a8e7b7829a188e5f321e82b4b2f9",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "1538514940e1310bd510276a4c2e919441aa2072e9ba2f1189d4b4cbdf43d864",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "182b06b5aecec7f84f8e324539c675b908e230e3ecb52c6258f0787f9196c11b",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "bad19b529d3bf29197330c7b97d33434b5b6ebb07583ff41d5e43235c13d0241",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "3c82782dac45d366a68679252fb219ecf2822efac1bb80b955215875406120cf",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "421ea804a6a0f415b1acd27a21d6cac677b5e98b4b4c7461bdcee4e9c3d83641",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "9175ce75e8f39c36b1d5fe0038b348bbdc49a8272d55c73fe9a07e2dc4a4283c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "7130824d7190c921eb97f03343f3f2af3154fcdd33ac00ef6a9f0b3bd6e7d6dd",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "1eedce8fd76078643fa178f5078c65d1436d6946168fbc4ee19bf5f87b001391",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "35e6c7861fd6ad4834aa0f82e3fbca455b85ae0dfd8c885f2c3a1c4219550298",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "db28b74b7e6e7d0a3971b053d506aaf009e6c976e72d3d45bbf1d5fe2e28c644",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "37dccf1eb7ac0ef683714e80d1dc35f9f916bf5878a611575de9e7a7a10c5f6c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "ef437f916cdbe087d8a8fb16cd93862e54a31414df4b946f80825edb6f30f47c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-vwap_value-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "f8d665c327cc689aee75467efddc0c28e44a234b1b763ecbadaba7833a665de8",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "0a2174766c35486f3b6336652019cd290e5ab48bd52c140e7f6306e7d6243330",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "cd536b0dbbdec0f68d15fd0290c1e6c40bce111a83469e64f98a9e27c9e7f904",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "0ff50abab17cdb08945e3db7a71cdbef2405a5409cae4ea48cd5dbc89c3169af",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "955e6f47052cfd4e3f65e670d9b479d64957646cc0997ae633489cb5e2a51a67",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "addef51c4a51c1e73a42537155cd016f873bbcd926cefc46ed43b7dda56f1d17",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "2c7391e8823cfaee4593b5dfdefcedf42e4438627bc15cd3ae9056c9e22fbb1b",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "c7df746f53c5a73c07e8616cee1ff854b6342af176e961f5474ce5329e4d6f50",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "85fa5c2911707a30b708498f664615de1bd3153649cac8eeda07a19b67d69654",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "7dc221f15bc945277ba993903ac2cabab4bd74b373b8d9d37888808947ef3e63",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "871222b070c4c2f7e0b8090ba4be550723efa1d5b7ac7d991a5c6940de5047f9",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "249c77c9595b389c10a8f1311a838ae112408fa8426de23dd5e7a9db8bb898d5",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "04ac94b19ddf5f1365b400343036d9ad057b90e16864c9e56c59594627ad8b91",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "0bd1a308f925eefa178505ae1fb2e944ec4d53c9639c6b043225619b22fbbdba",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "19ec211cdccac778c51d4efa85e6ad3d003aae41f3c8c114cda06b34fcd88364",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "578aa1a2780a3311826c8773a27f8222e152299c1334e9e9752cf2f00cd5f870",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "cb85a3c535130fa55d7250867e9c04913b5d3c2a793ac908ca13f0f46726a1aa",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "2a600dede84557c7a4dc9f5489f4e7d94a78da686a6fb597daea5eb09ef34076",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "e89276bc02e07c52c08e04aa9ecb8dfaaf73a9217a9b0fb90d1cbd0c0bcc94b7",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "f7160146767efc627e30b724252afb3107f93b0349c2f902a442b32135c1f8ef",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-donchian_mid-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "6e067b34e3f3313ab2520dfe12d4cf2470c7ae885dff4a30b082851cfd11151c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "e6c05a1ca81bdd15831072277b9df8735ab16fb0d1295e1f333ac6aa75e8bb23",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "70f9d0f861a4771652b790b078662be4d4b79e3190ae1f930bdfc51d4aef1c64",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "f787c0dabda4bfbfb4aabb0bcf0d7a2d7931be26c9b39ab0dfe9343a4ae92d14",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "d197cb7fbde485477c09966e8916617b4b0b61bb086d9d08c2681bdfa7033ee0",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "17c04d0bdc362139e26c6415c10d0cc8155b7a758a1c9ecb4a5e8c72955d8d84",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "3c074b15a63c80282f19b0b073b6325f08929deb486c78dc5e5681443918d7ab",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "aabed53ef3b60b1ea1898fbea589d4b89c1bd6e13514fae9fcb17c0dd036d412",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "f4638303302e6a89e28097e6fcc8ae8e9e54ffaa633023f654fbf1e069d6d001",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "60a176435c87d13eec0d609daaff3a601cce3cd4f2ec41991b6ad0d37203dc66",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "5e0fa2b36f72a5cf54af9abb5f389e56de0879e6ebe4c576d6423ef2a55dfaf3",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "bf3f7fa63fad1750c223f4cf179a6ccfb208cb926eb423127e9aa7c04d674264",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "6d84908f024eff3a84e5b8b1255aae3e3928484e4765ba84c9f7969b5da60382",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "5441743610565bd219b37dca1ae0aadc66338d1c40581581e8846c1d40aed4a2",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "648458855c1fecaea88b249122007500e33e2f807a471064459278841ca1d602",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "d70b7acdadcb3d2192ceb0b2208df410e5d113cf12c484df8eb253185314d0b8",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "61bccd65a99105b76ff1054497d7781e4be3e8f6402a42ed39ca83f4272b1f23",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "802e8cd489966cc25ddd9424ca6e4a4a9800e475a79dbc7c005694c62c8da33a",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "78c1d0f4e05578ca030156c564c53df36ec0ff6e64f8a05bcaeaff21f6efa900",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "a8ac8d5a893e8f47be88c34e4de26f49b19f5423777cbaa6d86c9bfb3448bf97",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-ichimoku_cloud-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "cf994145513e992228325d8a7d433bbd90e127f02106265e5b9db2e596a6273e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "9148ace2f8be1ad5ada45b1789ac546daeeb8b3a306823587228ab4d9ada02d6",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "5fd16cf3c1b71f6cc87c3f1728e8a2f647a04c4e2260bef001ec08b1cf611198",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "39532b0daddda6842bef2a63a0a5e4af511c1f0b0a5d21bdf1737364d66a392a",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "507d7bbe59a4b1e2f1f47c29c30e7e53fc1f54f9f404c64623ba1145e07e720b",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "c592d176d62885b58ae4e1af50083f647d81d5cb4aa7bbcf96d555eb5577c02f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "fa9b56f516fa16a864838875caa10541c13ea1a0589ea722766aab8dba096506",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "d29dcbfa99871eb6bf4ccfbd80a159a6ad56909342060f6a873fde31bc16058b",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "cfed9bb033e9e269901cc686932ea1fd3e48d8b7653de067fdc65ae515889ae1",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "864cf00c4b305209646765054930eb5979a44734bb5055aa72e8612af632f8f9",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "4d1f223db513466fa534d3eeea3fc14188f76cf151b9ea818d1e661bf438d705",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "b90e43fd58337083f70e1dc988fd454997f5f03ab4a3489822c99144a41389ad",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "53bf6cc7c4312b8782e30f01d11d18c7f040c6dad3575b24028ceb720fb2ec8c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "c2c92e2d05e132f12028a244e10a97282dc84a989fbe77ec6d677eca05223ed2",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "8b54cab504eb210f91c225322986547af616650fc2cee73cd5a9c2677d492167",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "d5e612a00297c054da887149a67cb526c7c7f9355cd47967f624d2454d901d23",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "7919396715fff58073c1e6b7e2d6adcfc9a566eaf342a0f0f3b4cd66dc11b93d",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "ffc57238a995284ecb787aa682e34ec3e01a8133ee732ebc3c10a6eae3e80b50",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "0aa9ea76ccd6cdfc042d35ff0ebbfc497a126b7b4d93c5f74ef0526e9f0f492f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "81294b9a466b3e8fc5b1ab954c5ba001bde945ceabb68f4c5ba9f8f1f84e4e3d",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-obv_flow-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "3932a45e8aaedd1ea27fe342afad60a80bc55cc2af0cecfb7f8ca08db7b5b4e1",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "286c646c89729575408cf1b3ab1ee2346fcd585e3de2451b3f916c5409cb10be",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "6252e6037dac6ba6def538ae125b7d8490f1372ca4ff5fe375466dc9a320b9f8",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "a179345f9a90b0a2f1fcff2c54489a54fd3d73aba878bfb346816dec0b4fcedf",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "bce92aecb1a9c5831e5198b0220f95cc520d3036f451c2fab3a3bb47f8f0951e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "7d2abe7233c089d4997c846f1b84a1ba4b3d183fa89bd3d0d2d782e090c07d75",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "a551d014dfb16fa38999c4bd17814ebdff0e18b674cf815f48b74227194689f6",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "b4aa1dee3ad60e4d739e601bdb9fa09367092bd5dbf415b524ec4d7dc6e050de",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "f01bf7b18a3397356aa768e36d32cc31ab9e05cb716e254f0d462461b6e8c3e1",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "ff23b5009bcdd4d7f98e8b4ff1408425ea41b5e55d9b4f02bfa21e78ae74f0df",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "9d24345432be65ab5fc45a55bc5a03eb4050472f48e3f8a73b242852fd56b806",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "9f1bd32dc8c0d104f1ef41087d4bf98ddcfe33ec5db129d4692df0becc4c54be",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "85befb7778c80dff01169d25deb387b34b1f898215627e1761fae0f936848887",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "1d94df5de4f6e570bb8e564881f550a0eaafb1288a6d62cb602859d586126f7d",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "c4e1b336abe5dceec0f569caf1e80e22ee423eb83f62d8933834cad80e6de9a2",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "e9c82f7329a674b602d639d6d420b0f72ab6aebbf17b3f62ac500966f151e986",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "31af0d06b5aebfcea48a5665a707043604a3e390921f948fad839b400e7aef0e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "fe7cf8efe77924fa7200cd257513627380c35be8dd85b4ed8faeab82b556155a",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "083152650580e4609809264d2fa9528d888d900264b50be7d5348d410dd05d5b",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "a2e0a086f4548dffda0e3564671484db2c5044cd1abc765827a0eb98be6fdd72",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-regression_slope-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "3aa75fa5352e7800862d479b172a5cf4bbb98d0e790449b2fec1eb6a8e15c4cf",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "a6c92bfe9c20e061e5d5ee860da2e2fa43b70b62cbebe3a8bff47af013e68521",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "e1827d7427350df8099798fe104d54f0d7a2eb693cf95342083f5f915f4bd29f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "284561881c86a922c51f7a5ed2a08625812c1a172dcd495f936581a752607613",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "bf0e654f0853a43a64e478afabb347299a4aa1847c41789a34076a33b3c36f0e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "e7d563b8b99a92515048d9b650ef86779dca135eb90fc28aa1f470e1801a38a7",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "ba2f3e9882b0731a0548f591cb9da24026c861315a4923e2b7afc898cf285cad",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "3abbfbf11ff5994a0f993f6ca3a3ebab3f7bacf32b03e9803c0553297ce34d26",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "0648a4c1343845dca1840fb859e2cc5573ef393a332f691602f4ec0c59767146",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "d1278a5ea978d2192884388243e2997ae87b9485d518937fc9c7afe743c7251f",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "49e9ab636639c91ec55817281d77ae7a5b65c63d851e248b59e5efad259ebcea",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "cd738fcfe09683b28383beb137b8fe72cdecea5fd19e1faf774bdf3e3637b4c3",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "2140631669ac75e144db6b394e9c08b1282ec6254f2ab782f85532141029cf93",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "bd8cd1f00c853696513e94a1beadde2034467545f346d70345c8da8044fc867c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "33c4a315d2b9ca97355f02a627afb49244aa62579131f5c531861d3bd723d6a8",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "fe5a3691c7cf1b4d77b35fe90f3198467719e963e4f65fa704ebdbec6ae34942",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "e355a5f0db0ec89cb6e7d6c50ef393877d14974ac9834babf65449fa4a12b9e4",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "49c8c139007f1b4b22c9c23b54366bfbdf821738d2f10880ff064b9095d2c167",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "efc5ed613d72a86c68701241d3d08c8156fb4211e2d8bd371c5420d1d0abbc68",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "836a3a27343d1cfa91d2f7ac586867bee38bf7d49445ac510a81eda789dbfb1e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-kama_trend-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "2c31b031615a43c0f675c75dc61b00f4b2299cca8616ce0314eb2f68641471ef",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-ema_cross",
+        "exit_policy": "source",
+        "source_sha256": "fbc9cd51819ae75262ec70505eb9b19d3901d0adcbf052364f9d690d79352295",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-ema_cross",
+        "exit_policy": "swing",
+        "source_sha256": "da59d19fb3d670df8fe1488a34fe95ffb263136b8b4e1722bc936ede64d9260e",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-rsi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "f4f6bd914cb19002d2aedd66e762b37e0f37437596edb0942936ba040f34a8d5",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-rsi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "44f6ec5b68255a825c2e815ba5d83df2218ab1ddbf0b8ee32f76d2bd59667916",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-stochastic_cross",
+        "exit_policy": "source",
+        "source_sha256": "fd1eca0f2b531ca15726fdd2656faf3647a63d1287e903c85bebe7ec81a497b0",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-stochastic_cross",
+        "exit_policy": "swing",
+        "source_sha256": "36210b9d9ebf6ee1c9bb3f70e3c9ccc609ca56df5b0c81d89373cc8830ea4da8",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-cci_recovery",
+        "exit_policy": "source",
+        "source_sha256": "9b4eafe80493ac32ed990890af6341fcb210cdf4a65a8359e505e224d1238fc0",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-cci_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "494b0446a9b862f340ea35cd32266ce9aec8556592d90e9b48363dcdd3f1129d",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-macd_cross",
+        "exit_policy": "source",
+        "source_sha256": "cc81f37be51607be8b6e144dfce489e662e1795bb86e712dfa170ed781f5e665",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-macd_cross",
+        "exit_policy": "swing",
+        "source_sha256": "9c041057b032b2f6982c43bd68188d45b319f892afb988e11a0a4530efc5a6bb",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-bollinger_reentry",
+        "exit_policy": "source",
+        "source_sha256": "02b143039d548341f04636d86f6a9dd97b96d5b9f1415ed190bc0d82e7d440fe",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-bollinger_reentry",
+        "exit_policy": "swing",
+        "source_sha256": "30c272617d4f4f443520ba5042be9bf61199bd233e22041a3fd2162d48cd6daf",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-donchian_breakout",
+        "exit_policy": "source",
+        "source_sha256": "95fb736d078cf222ac1830ace475cd546818554ec3f14685a63bfcddf0b666f8",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-donchian_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "b95d5d3fc699be41ce75b76949d8dea35fe2562279915351b8d41a8cccc83ce0",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-keltner_breakout",
+        "exit_policy": "source",
+        "source_sha256": "a09d0b970270fab7f736489648825bc472258a47dd9bf7dbcb657a08db127de1",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-keltner_breakout",
+        "exit_policy": "swing",
+        "source_sha256": "4f7e59db2eb9fb4ac4fa69aa1425952ad5605779b0bc892a8a3f4ed0161b901c",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-mfi_recovery",
+        "exit_policy": "source",
+        "source_sha256": "4b3689aecacef99442450fc658b4bdd056681b2db785321ef3b07ef32977de81",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-mfi_recovery",
+        "exit_policy": "swing",
+        "source_sha256": "c3fbc529b4974aade7134aa4f99139b2300832ce6a37f0263f191b5ced7eb0b6",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-roc_zero",
+        "exit_policy": "source",
+        "source_sha256": "d6e5b4d9704cce586104c990ed2c282b0e296173f010e96c8453dec6b4dd6d3b",
+        "ast_parse": true
+      },
+      {
+        "candidate_id": "hyp-v2-roc_regime-roc_zero",
+        "exit_policy": "swing",
+        "source_sha256": "340aab4f9f8206b56fa861767cd18df42ba47cc8feceada35f454c05cd073787",
+        "ast_parse": true
+      }
+    ],
+    "passed": true
+  },
+  "source_inventory": {
+    "agent_source_entries": {
+      "conversion": 20,
+      "trading": 23,
+      "critical": 17
+    },
+    "distinct_urls_including_metadata": 59,
+    "independence_note": "동일 프로젝트의 여러 페이지·논문 버전·AI 에이전트는 독립 실험 복제가 아니다"
+  },
+  "primary_sources": {
+    "conversion": [
+      {
+        "id": "S1",
+        "evidence_group": "CPython",
+        "title": "py_compile",
+        "url": "https://docs.python.org/3/library/py_compile.html",
+        "evidence_location": "소개, compile(file,...) — 웹 추출 L7/L15-20",
+        "evidence_summary": "source를 bytecode cache file로 컴파일한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "문서가 sandbox를 약속하지 않음; OS 권한 불변은 컴파일 계약에서의 추론",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S2",
+        "evidence_group": "Cython",
+        "title": "Cython overview",
+        "url": "https://docs.cython.org/en/latest/src/quickstart/overview.html",
+        "evidence_location": "overview — 웹 추출 L12-19",
+        "evidence_summary": "Python/Cython을 C extension으로 컴파일하며 CPython runtime에서 실행하고 C library를 직접 호출할 수 있다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "선택 C semantics는 Python 의미를 바꿀 수 있으므로 개별 compiler flags 검증 필요",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S3",
+        "evidence_group": "Cython",
+        "title": "External C code",
+        "url": "https://docs.cython.org/en/latest/src/userguide/external_C_code.html",
+        "evidence_location": "Interfacing with External C Code, External declarations — L15-41",
+        "evidence_summary": "Cython은 C functions/variables를 외부 선언으로 참조한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "보안 sandbox가 아니라 native interop 계약",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S4",
+        "evidence_group": "Nuitka",
+        "title": "Overview",
+        "url": "https://nuitka.net/pages/overview.html",
+        "evidence_location": "What is Nuitka / Now — L23-35",
+        "evidence_summary": "Python을 executable/extension으로 만들고 libpython과 연결해 CPython과 같은 동작을 목표로 한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "개별 라이브러리/옵션의 완전 호환 및 속도는 별도 검증 필요",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S5",
+        "evidence_group": "CPython",
+        "title": "ast",
+        "url": "https://docs.python.org/3/library/ast.html",
+        "evidence_location": "ast.parse warnings L1825-29; literal_eval warnings L1853-59",
+        "evidence_summary": "큰/복잡한 입력은 AST compiler stack depth로 interpreter crash를 만들 수 있고 literal_eval도 자원고갈을 막지 못한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "API 프로세스 내 parsing이 안전하다는 근거로 사용하면 안 됨",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S6",
+        "evidence_group": "RestrictedPython",
+        "title": "Introduction",
+        "url": "https://restrictedpython.readthedocs.io/en/latest/",
+        "evidence_location": "Welcome — L31-36",
+        "evidence_summary": "프로젝트 자신이 sandbox system 또는 secured environment가 아니라고 명시한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "정책 guard를 설계하는 보조 도구이며 단독 격리가 아님",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S7",
+        "evidence_group": "TradingView",
+        "title": "Execution model",
+        "url": "https://www.tradingview.com/pine-script-docs/language/execution-model/",
+        "evidence_location": "Rollback L245; var/varip L363-81; execution summary L417-19",
+        "evidence_summary": "Pine은 realtime rollback과 bar close state commit을 가진다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "TradingView 문법 의미이며 QuantBridge 전체 구현과 동등하다는 증거가 아님",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S8",
+        "evidence_group": "TradingView",
+        "title": "Strategies",
+        "url": "https://www.tradingview.com/pine-script-docs/concepts/strategies/",
+        "evidence_location": "broker emulator / order execution L392-99",
+        "evidence_summary": "기본 시장가 체결은 다음 available tick, 기본 봉마감 계산이면 다음 봉 시가다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "계산/체결 설정별 예외가 있으므로 옵션 pin 필요",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S9",
+        "evidence_group": "TradingView",
+        "title": "Repainting",
+        "url": "https://www.tradingview.com/pine-script-docs/concepts/repainting/",
+        "evidence_location": "Future leak with request.security L281-93",
+        "evidence_summary": "offset 없는 lookahead_on은 역사봉에서 미래값을 보이게 할 수 있다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "Pine 이식 자체가 look-ahead 부재 보증은 아님",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S10",
+        "evidence_group": "Wasmtime",
+        "title": "Security",
+        "url": "https://docs.wasmtime.dev/security.html",
+        "evidence_location": "Security L70-72",
+        "evidence_summary": "Wasm은 host functionality를 import해야 하며 Wasmtime는 untrusted execution sandbox를 목표로 한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "runtime/embedding 취약점 및 side channel 제거를 보증하지 않음",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S11",
+        "evidence_group": "Wasmtime",
+        "title": "WasiCtxBuilder",
+        "url": "https://docs.rs/wasmtime-wasi/latest/wasmtime_wasi/struct.WasiCtxBuilder.html",
+        "evidence_location": "new defaults L105-17; preopened_dir L249-55; inherit_network L317-21",
+        "evidence_summary": "기본 env/preopen이 없으며 file/network 권한을 host에서 부여한다; clocks/RNG defaults는 존재한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "최신 docs의 TCP/UDP 설명에 부분 불일치가 있어 defaults에 기대지 말고 명시 deny 권장",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S12",
+        "evidence_group": "Wasmtime",
+        "title": "Interrupting execution",
+        "url": "https://docs.wasmtime.dev/examples-interrupting-wasm.html",
+        "evidence_location": "Deterministic Fuel L84-87; Non-Deterministic Epochs L127-30",
+        "evidence_summary": "fuel 중단은 결정론적이고 epoch는 wall time에 따라 달라진다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "host callback/binary compilation 자원은 별도 제한 필요",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S13",
+        "evidence_group": "Wasmtime",
+        "title": "ResourceLimiter",
+        "url": "https://docs.rs/wasmtime/latest/wasmtime/trait.ResourceLimiter.html",
+        "evidence_location": "description L53-56",
+        "evidence_summary": "limiter는 guest allocation을 제한하나 Store/embedding 전체 메모리를 모두 제한하지 않는다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "process/cgroup 메모리 상한이 여전히 필요",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S14",
+        "evidence_group": "CPython",
+        "title": "WASI source",
+        "url": "https://github.com/python/cpython/blob/main/Platforms/WASI/README.md",
+        "evidence_location": "README opening lines, 웹 추출 L193-218",
+        "evidence_summary": "공식 CPython WASI 빌드는 tier2이며 Wasmtime 같은 WASI runtime을 사용한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "NumPy/pandas WASI wheels의 적합성/ABI를 이 README가 보증하지 않음",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S15",
+        "evidence_group": "Pyodide",
+        "title": "About",
+        "url": "https://pyodide.org/en/stable/project/about.html",
+        "evidence_location": "What is Pyodide L64-68",
+        "evidence_summary": "browser/Node용 Emscripten distribution, NumPy/pandas port와 JS FFI, browser Web API 접근을 제공한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "WASI-native distribution과 동일하지 않으며 host API 권한은 별도 경계",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S16",
+        "evidence_group": "Pyodide",
+        "title": "JS API",
+        "url": "https://pyodide.org/en/stable/usage/api/js-api.html",
+        "evidence_location": "PyodideConfig.jsglobals L151-55",
+        "evidence_summary": "Python js 모듈이 참조하는 jsglobals의 기본은 globalThis다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "jsglobals 재정의 한 번만으로 hardened sandbox가 된다고 입증하지 않음",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S17",
+        "evidence_group": "Pyodide",
+        "title": "Python compatibility",
+        "url": "https://pyodide.org/en/stable/usage/wasm-constraints.html",
+        "evidence_location": "Included but not working modules L123-41",
+        "evidence_summary": "multiprocessing/threading/sockets 등 표준 라이브러리 기능에 제약이 있다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "버전 및 platform별 변화 가능; 현재 selected85 호환은 실측하지 않음",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S18",
+        "evidence_group": "Wasmtime",
+        "title": "Security scope",
+        "url": "https://docs.wasmtime.dev/security-what-is-considered-a-security-vulnerability.html",
+        "evidence_location": "host trust/output validation L76-81",
+        "evidence_summary": "host는 guest 값을 검증해야 하며 compiling Wasm DoS는 프로젝트 security scope에서 별도로 다뤄진다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "운영 서비스는 컴파일 단계도 OS 제한해야 한다는 설계 추론",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S19",
+        "evidence_group": "Wasmtime",
+        "title": "Deterministic execution",
+        "url": "https://docs.wasmtime.dev/examples-deterministic-wasm-execution.html",
+        "evidence_location": "L73-90 imports, NaN, relaxed SIMD, memory/table growth",
+        "evidence_summary": "Wasm 결정론에는 imports/NaN/SIMD/memory growth 등 추가 설정이 필요하다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "기존 CPython/native scientific stack과 bit-identical하다는 보증이 아님",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      },
+      {
+        "id": "S20",
+        "evidence_group": "Wasmtime",
+        "title": "Platform support",
+        "url": "https://docs.wasmtime.dev/stability-platform-support.html",
+        "evidence_location": "Compiler Support L74-80",
+        "evidence_summary": "Cranelift는 aarch64를 지원한다.",
+        "checked_at": "2026-10-21",
+        "uncertainty": "현 shared ARM64 2CPU/12GiB에서 latency/RSS는 미측정",
+        "source_type": "공식 개발문서 또는 프로젝트 원본"
+      }
+    ],
+    "trading": [
+      {
+        "id": "F1",
+        "title": "Freqtrade 전략",
+        "url": "https://www.freqtrade.io/en/stable/strategy-customization/",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "Python 전략 클래스가 지표·진입·청산 신호를 정의한다. 완결 봉과 워밍업·미래 참조를 구분한다.",
+        "application_inference_and_uncertainty": "Python 신호 플러그인으로도 서버 자동매매가 가능하다. Freqtrade의 신뢰된 Python 로딩을 우리 사용자 코드 격리의 보안 근거로 쓰면 안 된다.",
+        "notebook_source_id": "5df6385c-6f7c-43d2-8bbe-3b1cc76670fd"
+      },
+      {
+        "id": "F2",
+        "title": "Freqtrade callbacks",
+        "url": "https://www.freqtrade.io/en/stable/strategy-callbacks/",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "`custom_stoploss`는 거래 중 호출되고 기본적으로 보호 방향만 이동한다. `after_fill`은 예외다. `adjust_trade_position`은 부분 청산·열린 주문 교체를 지원하며 반복 호출의 중복 행동을 경고한다.",
+        "application_inference_and_uncertainty": "매 봉 신호와 체결별 상태 전이를 분리하고 반익절 완료·진행 수량을 원장에 보존한다. 이 API 자체가 Bybit Demo 지원을 보증하지 않는다.",
+        "notebook_source_id": "33898aa3-8844-446e-82d2-31ac58151b64"
+      },
+      {
+        "id": "F3",
+        "title": "Freqtrade lookahead 분석",
+        "url": "https://www.freqtrade.io/en/stable/lookahead-analysis/",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "전체 dataframe 선계산은 미래 참조를 만들 수 있다. 잘린 재실행의 지표·진입·청산 변화를 비교해 탐지한다.",
+        "application_inference_and_uncertainty": "원본 연구 성과 이외에 prefix 일치·워밍업 안정성 검증이 필요하다. 탐지 통과가 수익성이나 전체 인과성을 증명하지 않는다.",
+        "notebook_source_id": null
+      },
+      {
+        "id": "F4",
+        "title": "Freqtrade stoploss",
+        "url": "https://www.freqtrade.io/en/stable/stoploss/",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "거래소 stop과 봇 stop을 구분하며, 거래소 stop은 체결 후 부착할 수 있다. trailing 갱신 간격과 stop-limit 미체결 위험을 설명한다.",
+        "application_inference_and_uncertainty": "native 보호와 app 계산은 다른 운용 계약이다. Freqtrade의 거래소별 표와 Bybit V5 직접 지원표는 서로 다른 층이다.",
+        "notebook_source_id": null
+      },
+      {
+        "id": "Q1",
+        "title": "LEAN Algorithm Framework",
+        "url": "https://www.quantconnect.com/docs/v2/writing-algorithms/algorithm-framework/overview",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "Alpha 신호 → 포트폴리오 목표 → Risk → Execution 책임을 분리한다. 진입·청산이 강하게 결합된 전략에는 classic/hybrid가 더 적합할 수 있다.",
+        "application_inference_and_uncertainty": "언어가 주문을 직접 다루어야 한다는 주장을 반박한다. 고정 R episode 상태를 범용 비중 조절 모델에 억지로 끼울 필요도 없다.",
+        "notebook_source_id": null
+      },
+      {
+        "id": "Q2",
+        "title": "LEAN fill 모델",
+        "url": "https://www.quantconnect.com/docs/v2/writing-algorithms/reality-modeling/trade-fills/key-concepts",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "fill 모델은 체결 가격·수량을 모사한다. 기본 백테스트 모델의 완전체결 가정과 live 부분체결 차이를 명시한다.",
+        "application_inference_and_uncertainty": "BT/live 공통 정책을 써도 fill adapter는 다르다. 지금 연구 BT의 이상화된 50% 이벤트를 거래소 개별 fill과 같은 것으로 취급하면 안 된다.",
+        "notebook_source_id": "4d773012-002a-4361-a8ec-e2189ab76525"
+      },
+      {
+        "id": "N1",
+        "title": "Nautilus 주문",
+        "url": "https://nautilustrader.io/docs/latest/concepts/orders/",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "`SUBMITTED`, `PENDING_CANCEL`, `PARTIALLY_FILLED` 등을 구분하며 취소 대기 주문도 거래소에서 동작 중일 수 있다. 지원 주문은 adapter별로 다르다.",
+        "application_inference_and_uncertainty": "접수·취소 요청을 terminal 상태로 성급하게 바꾸지 않는다. 프레임워크의 통합 API가 거래소 capability를 대신하지 않는다.",
+        "notebook_source_id": null
+      },
+      {
+        "id": "N2",
+        "title": "Nautilus live",
+        "url": "https://nautilustrader.io/docs/latest/concepts/live/",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "같은 strategy/core를 BT/live에 재사용할 수 있지만 transport·타이밍·외부 주문·지속성·reconciliation 차이가 생긴다. 시작 전에 상태를 복구한다.",
+        "application_inference_and_uncertainty": "공통 core의 목표는 정책 동일성이다. 과거 OHLCV와 live가 체결·성과까지 동일하다는 뜻이 아니다.",
+        "notebook_source_id": "b2470312-c9c6-48ff-97b4-db9a82023864"
+      },
+      {
+        "id": "N3",
+        "title": "Nautilus 실행 정책",
+        "url": "https://nautilustrader.io/docs/latest/concepts/execution/policies/",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "transport 실패는 결과 미상일 수 있고, 모든 명령·이벤트의 exactly-once를 보장하지 않는다. cache enqueue가 durable commit은 아니다.",
+        "application_inference_and_uncertainty": "우리 outbox는 주문 전 DB commit을 명시해야 한다. 라이브러리를 바꾸는 것만으로 이 문제가 사라지지 않는다.",
+        "notebook_source_id": "ff7bd33d-cd0f-403e-9a38-85e46d41c0a4"
+      },
+      {
+        "id": "N4",
+        "title": "Nautilus 재조정",
+        "url": "https://nautilustrader.io/docs/latest/concepts/execution/reconciliation/",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "로컬 이벤트 상태를 거래소 주문·체결·포지션 보고와 대조한다. 누락 포지션 보고가 flat의 증거는 아니며 오래된 snapshot이 새 fill을 취소해서는 안 된다.",
+        "application_inference_and_uncertainty": "재시작·재연결 중 신규 진입을 막고, 확인된 상태만 이어서 실행한다. 부분 이력만으로 과거 손익 전체를 복원했다고 주장하지 않는다.",
+        "notebook_source_id": "272d76d5-6c84-4719-9823-a4b1831998b3"
+      },
+      {
+        "id": "C1",
+        "title": "CCXT Manual",
+        "url": "https://github.com/ccxt/ccxt/blob/master/wiki/Manual.md",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "주문 응답 일부 필드는 비어 있을 수 있다. timeout은 발주 결과 미상이고 주문 조회가 필요하다. 정밀도 formatter 전 market metadata를 로드한다.",
+        "application_inference_and_uncertainty": "CCXT는 운송 adapter다. 전략 상태·세대·중복 방지·정책 버전을 대신 소유하지 않는다. 본문은 공식 GitHub Contents API로 확인했다.",
+        "notebook_source_id": "cbfa1f4c-3772-4c17-a02a-b37dcbfc0b36"
+      },
+      {
+        "id": "B1",
+        "title": "Bybit create",
+        "url": "https://bybit-exchange.github.io/docs/v5/order/create-order",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "`reduceOnly`와 `closeOnTrigger`의 감축 의미, `positionIdx`, 고유 `orderLinkId`(최대 36자), 비동기 접수를 규정한다. Market도 IOC 변환되어 미체결 취소될 수 있다.",
+        "application_inference_and_uncertainty": "client ID만으로 exactly-once를 보증하지 않는다. 보호 주문이 새 generation 포지션을 줄이지 않도록 별도 소유권·취소 확인이 필요하다.",
+        "notebook_source_id": "e09ac010-e879-40ea-817c-9e44f478e335"
+      },
+      {
+        "id": "B2",
+        "title": "Bybit cancel",
+        "url": "https://bybit-exchange.github.io/docs/v5/order/cancel-order",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "미체결·부분체결 주문을 ID로 취소하며 요청 응답은 비동기 접수다.",
+        "application_inference_and_uncertainty": "취소 ACK 뒤에도 fill을 처리하고, terminal 증거와 잔량을 확인한 후 대체 주문을 계산한다.",
+        "notebook_source_id": "a85dfbe5-8dc0-49c6-b353-e60051d9b0f1"
+      },
+      {
+        "id": "B3",
+        "title": "Bybit trading-stop",
+        "url": "https://bybit-exchange.github.io/docs/v5/position/trading-stop",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "포지션 TP/SL/TS, `activePrice`, 절대 가격거리 `trailingStop`, Full/Partial을 지원한다. Partial은 추가 방식이고 `tpSize=slSize`. 포지션 종료 시 내부 주문을 취소·수량 조절한다. 단측 수정은 TP/SL 결합을 잃게 할 수 있다.",
+        "application_inference_and_uncertainty": "2R 활성/2R 거리를 수학적으로 표현할 수 있다. 50% TP와 전체 보호 SL을 한 Partial 쌍으로 표현할 수는 없다. 분리 주문·기존 보호 유지·취소 경합을 Demo에서 검증해야 한다.",
+        "notebook_source_id": "59355afd-e594-46ad-ab5d-30b6ae19951b"
+      },
+      {
+        "id": "B4",
+        "title": "Bybit Demo",
+        "url": "https://bybit-exchange.github.io/docs/v5/demo",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "create/cancel/trading-stop 및 private order/execution/position stream이 지원표에 있다. Demo REST/private WS 주소는 별도이고 public data는 mainnet이다. WS Trade는 미지원이다. 주문 보존은 7일이다.",
+        "application_inference_and_uncertainty": "이 조합의 구현 가능성은 공식 확인이다. 앱 원장을 거래소 단기 이력에 맡기지 않는다. 실계정 API로 fallback하면 안 된다.",
+        "notebook_source_id": "1129dc66-bf75-4550-ad29-c5b36cfb8fc7"
+      },
+      {
+        "id": "B5",
+        "title": "Bybit order WS",
+        "url": "https://bybit-exchange.github.io/docs/v5/websocket/private/order",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "fill과 cancel 경합에서 Filled 메시지가 중복 도착할 수 있다.",
+        "application_inference_and_uncertainty": "상태 메시지 횟수를 체결 횟수로 세지 않는다.",
+        "notebook_source_id": "e7e65380-cb16-4293-9068-b5c0e5635b25"
+      },
+      {
+        "id": "B6",
+        "title": "Bybit execution WS",
+        "url": "https://bybit-exchange.github.io/docs/v5/websocket/private/execution",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "한 메시지에 한 주문의 여러 execution이 들어갈 수 있다. `execId`, `execQty`, `execPrice`, `leavesQty`, `seq`를 제공한다.",
+        "application_inference_and_uncertainty": "account/category/order/exec ID와 수량 원장으로 체결을 누적한다. `seq` 단독은 심볼 간 유일하지 않다.",
+        "notebook_source_id": "ec9a8b8b-2257-4e6f-9d44-10c6248c0531"
+      },
+      {
+        "id": "B7",
+        "title": "Bybit instrument",
+        "url": "https://bybit-exchange.github.io/docs/v5/market/instrument",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "`tickSize`, `qtyStep`, 최소·최대 주문량과 최소 명목가치 metadata가 있다.",
+        "application_inference_and_uncertainty": "50%가 lot에 표현 가능한 초기 수량을 선택하거나 진입을 거부한다. 반올림한 effective 정책과 이론 정책을 구분해야 한다.",
+        "notebook_source_id": "409f67f8-b052-40ee-bf69-20aa1377fafd"
+      },
+      {
+        "id": "B8",
+        "title": "Bybit open/closed 조회",
+        "url": "https://bybit-exchange.github.io/docs/v5/order/open-order",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "ID 조회와 최근 closed 조회를 제공하지만 cache는 release/restart로 비워질 수 있어 history API가 필요하다.",
+        "application_inference_and_uncertainty": "열린 주문 목록 부재를 미발주·미체결 증거로 쓰지 않는다.",
+        "notebook_source_id": null
+      },
+      {
+        "id": "B9",
+        "title": "Bybit trailing 설명",
+        "url": "https://www.bybit.com/en/help-center/article/Trailing-Stop-Order-Perpetual-and-Futures-Trading",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "활성 후 LTP의 유리한 최고/최저에서 거리만큼 되돌리면 market close가 발동한다. stop은 불리하게 되돌아가지 않는다. 설명 갱신일은 2026-02-05다.",
+        "application_inference_and_uncertainty": "native 2R/2R의 수학적 대응 근거다. API 부착 전에 이미 활성가를 넘었다 되돌아온 경우의 복구와 세부 양자화는 별도 검증한다.",
+        "notebook_source_id": "16c06bb5-d840-4f7a-b381-0aa3c117d4ee",
+        "canonical_url": "https://www.bybit.com/en/help-center/article/Trailing-Stop-Order-Perpetual-and-Expiry-Trading",
+        "current_page_updated_on": "2026-09-29"
+      },
+      {
+        "id": "B10",
+        "title": "Bybit reduce-only 설명",
+        "url": "https://www.bybit.com/en/help-center/article/Reduce-Only-Order",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "열린 포지션이 없으면 감축 주문을 거절하며, 포지션 수량과 다른 감축 주문에 따라 수량을 축소하거나 취소할 수 있다.",
+        "application_inference_and_uncertainty": "재조정 때 주문이 원래 요청 수량 그대로 남는다고 가정하지 않는다. 특정 application generation에 묶이는 기능은 아니다.",
+        "notebook_source_id": null
+      },
+      {
+        "id": "A1",
+        "title": "AWS transactional outbox",
+        "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "원장 변경과 outbox를 같은 트랜잭션에 기록한다. relay의 중복 전달 때문에 소비자는 멱등해야 한다.",
+        "application_inference_and_uncertainty": "DB와 큐 사이 유실을 줄이는 근거다. 거래소 원격 체결까지 원자화하거나 exactly-once로 만드는 패턴은 아니다.",
+        "notebook_source_id": "6b23906c-f2a5-4257-975c-c5e3e8a1a242"
+      },
+      {
+        "id": "G1",
+        "title": "gVisor 설치",
+        "url": "https://gvisor.dev/docs/user_guide/install/",
+        "source_type": "official_primary",
+        "checked_on": "2026-10-21",
+        "directly_supported_fact": "x86_64·ARM64와 Linux 5.6 이상을 지원한다. 현재 배포는 runsc 외 sidecar 파일도 포함한다.",
+        "application_inference_and_uncertainty": "ARM64라는 이유로 격리 Python 실행이 불가능하지는 않다. 우리 호스트에서 설치·성능을 실측했다는 증거는 아니다.",
+        "notebook_source_id": null
+      }
+    ],
+    "critical": [
+      {
+        "id": "S1",
+        "title": "The Probability of Backtest Overfitting",
+        "authors": [
+          "David H. Bailey",
+          "Jonathan M. Borwein",
+          "Marcos López de Prado",
+          "Qiji Jim Zhu"
+        ],
+        "type": "원논문 저자 preprint·최종 출판 메타데이터",
+        "urls": [
+          "https://www.carmamaths.org/resources/jon/backtest2.pdf",
+          "https://doi.org/10.21314/JCF.2016.322",
+          "https://escholarship.org/uc/item/4w1110bb"
+        ],
+        "verified": "본문 2014-11-27 preprint 직접 읽음; 2017 journal/DOI는 대학 저장소 검색 메타데이터 확인",
+        "supports": "다중 탐색·CSCV/PBO·선택 성과의 OOS 평가",
+        "limits": "직접 읽은 preprint와 최종 출판은 독립 복제가 아님. 현재 전략의 미래 수익을 증명하지 않음. 저장소 본문 open은 429여서 저자 소속 원문 사용",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S2",
+        "title": "The Deflated Sharpe Ratio: Correcting for Selection Bias, Backtest Overfitting and Non-Normality",
+        "authors": [
+          "David H. Bailey",
+          "Marcos López de Prado"
+        ],
+        "date": "2014-07-31 author version",
+        "type": "원논문 저자 PDF",
+        "urls": [
+          "https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf"
+        ],
+        "verified": "PDF 본문 직접 읽음",
+        "supports": "trial 수·선택 편향·비정규 수익을 고려하는 DSR 방법",
+        "limits": "PF 기준 자동 교정·전략 참 확률·모형 체결 검증 아님",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S3",
+        "title": "Temporal Cross-Validation",
+        "type": "공식 RiskLabAI 프로젝트 설명",
+        "urls": [
+          "https://www.risklab.ai/research/machine-intelligence-for-finance/temporal-cross-validation"
+        ],
+        "verified": "본문 직접 읽음",
+        "supports": "정보구간 중첩·purge·embargo·walk-forward",
+        "limits": "현재 규칙 전략 집합에 대한 실증 아님; 미래 레짐 동일성 보장 없음",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S4",
+        "title": "TimeSeriesSplit",
+        "type": "공식 scikit-learn API 문서",
+        "urls": [
+          "https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.TimeSeriesSplit.html"
+        ],
+        "verified": "시간순 split·gap 파라미터 직접 확인",
+        "supports": "고정 gap의 정확한 계약",
+        "limits": "event-end 기반 purge 자동 대체 아님",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S5",
+        "title": "Pine Script v6 Concepts: Strategies",
+        "type": "공식 TradingView 언어·broker emulator 문서",
+        "urls": [
+          "https://www.tradingview.com/pine-script-docs/concepts/strategies/"
+        ],
+        "verified": "broker emulator·OHLC path·historical/realtime·fill timing·limit fill 섹션 직접 확인",
+        "supports": "체결 모형·봉 위상·실시간과 역사 재생의 차이",
+        "limits": "Python→Pine 변환의 개별 동등성 증명 아님",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S6",
+        "title": "Lookahead analysis",
+        "type": "공식 Freqtrade 도구 문서",
+        "urls": [
+          "https://www.freqtrade.io/en/stable/lookahead-analysis/"
+        ],
+        "verified": "Introduction·Examples·Caveats 직접 확인",
+        "supports": "full dataframe future leak·sliced 비교·미발화 신호 false-negative",
+        "limits": "검사 실행 결과가 아니며 모든 signal path 검증을 보장하지 않음",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S7",
+        "title": "RestrictedPython documentation and idea",
+        "type": "공식 보안 부분집합 프로젝트 문서",
+        "urls": [
+          "https://restrictedpython.readthedocs.io/en/stable/index.html",
+          "https://restrictedpython.readthedocs.io/en/stable/idea.html"
+        ],
+        "verified": "not a sandbox·compile not sufficient·library/capability 제한 직접 확인",
+        "supports": "AST/bytecode compile과 OS 격리의 구분",
+        "limits": "QuantBridge의 AST allowlist 구현을 공격 시험한 것이 아님",
+        "word_limit_per_page": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S8",
+        "title": "Nuitka User Manual",
+        "type": "공식 compiler 프로젝트 문서",
+        "urls": [
+          "https://nuitka.net/user-documentation/user-manual.html"
+        ],
+        "verified": "compiler·Python·native dependencies·architecture 계약 직접 확인",
+        "supports": "native 빌드의 의존성·배포 조건",
+        "limits": "컴파일이 sandbox라는 보장을 문서가 제공하지 않음; 현재 전략의 성능·동등성 미측정",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S9",
+        "title": "gVisor Security Model and Resource Model",
+        "type": "공식 격리 runtime 위협·자원 모형",
+        "urls": [
+          "https://gvisor.dev/docs/architecture_guide/security/",
+          "https://gvisor.dev/docs/architecture_guide/resources/"
+        ],
+        "verified": "System API boundary·host cgroups·network policy·memory accounting 직접 확인",
+        "supports": "격리 범위·별도 자원/네트워크 통제 책임",
+        "limits": "host import·구성·runtime 결함 무위험 인증 아님",
+        "word_limit_per_page": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S10",
+        "title": "gVisor Performance Guide",
+        "type": "공식 프로젝트 benchmark 설명",
+        "urls": [
+          "https://gvisor.dev/docs/architecture_guide/performance/"
+        ],
+        "verified": "structural/implementation costs 및 측정 환경 직접 확인",
+        "supports": "workload/platform별 overhead와 메모리·startup·syscall 비용",
+        "limits": "Broadwell·과거 ptrace 환경 숫자를 ARM64 2CPU 공유 host에 전이하지 않음",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S11",
+        "title": "CompCert C: a trustworthy compiler",
+        "type": "공식 검증 compiler 매뉴얼",
+        "urls": [
+          "https://compcert.org/man/manual001.html"
+        ],
+        "verified": "semantic preservation 정리·source/target AST 범위·TCB 한계 직접 확인",
+        "supports": "동등성은 정식 의미와 특정 compiler 범위의 별도 보장임",
+        "limits": "CompCert 보장이 임의 Python/LLM→Pine 변환으로 전이되지 않음",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S12",
+        "title": "Finding and Understanding Bugs in C Compilers",
+        "authors": [
+          "Xuejun Yang",
+          "Yang Chen",
+          "Eric Eide",
+          "John Regehr"
+        ],
+        "date": "2011",
+        "type": "PLDI 원논문 저자 PDF·차등 검사 실증 연구",
+        "urls": [
+          "https://users.cs.utah.edu/~regehr/papers/pldi11-preprint.pdf"
+        ],
+        "verified": "abstract·intro·differential testing·verified compiler 미증명 부분 한계 직접 읽음",
+        "supports": "compiler의 silent miscompile·차등/무작위 검사의 필요와 가치",
+        "limits": "현 Python 변환기의 오류율·선정 전략의 오류를 측정한 연구 아님",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S13",
+        "title": "Wasmtime Security and Interrupting Execution",
+        "type": "공식 WASM runtime 보안·실행 중단 문서",
+        "urls": [
+          "https://docs.wasmtime.dev/security.html",
+          "https://docs.wasmtime.dev/examples-interrupting-wasm.html"
+        ],
+        "verified": "imports/capabilities·memory isolation·defense in depth·fuel/epoch 직접 확인",
+        "supports": "WASM sandbox 경계와 bounded execution 메커니즘",
+        "limits": "host imports·전략 의미·Python dependency·재현성·수익 인증 아님",
+        "word_limit_per_page": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S14",
+        "title": "Demo Trading Service",
+        "type": "공식 Bybit API 문서",
+        "urls": [
+          "https://bybit-exchange.github.io/docs/v5/demo"
+        ],
+        "verified": "REST/private stream domains·미지원 WS Trade·사용 가능 order/position API·7일 주문 보관 직접 확인",
+        "supports": "Demo 주문 수명주기 통합 경로가 기술적으로 존재",
+        "limits": "이번 조사에서 주문/API 호출 없음. Demo를 mainnet 수익/시장 영향 증거로 해석하지 않음",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S15",
+        "title": "Pyodide Python compatibility",
+        "type": "공식 Python-on-WASM 프로젝트 문서",
+        "urls": [
+          "https://pyodide.org/en/stable/usage/wasm-constraints.html"
+        ],
+        "verified": "module·threading/multiprocessing/socket·browser HTTP 제한 직접 확인",
+        "supports": "WASM에 CPython을 올리는 선택과 restricted IR compile의 차이",
+        "limits": "현재 선정 전략·package compatibility 시험 아님",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S16",
+        "title": "gVisor Installation",
+        "type": "공식 설치·지원 플랫폼 문서",
+        "urls": [
+          "https://gvisor.dev/docs/user_guide/install/"
+        ],
+        "verified": "ARM64/Linux 지원 공식 설명 확인",
+        "supports": "ARM64 배포 가능성",
+        "limits": "현재 host 설치/설정/제한 집행/성능 검증 아님",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      },
+      {
+        "id": "S17",
+        "title": "Scientific Agent Skills: A Library of Procedural Knowledge for Research Agents",
+        "authors": [
+          "Timothy Kassis",
+          "Vinayak Agarwal",
+          "Yuhuan He",
+          "Darshil Patel",
+          "Aubrey M. Brueckner"
+        ],
+        "year": 2026,
+        "first_submitted": "2026-08-30",
+        "latest_revision": "2026-09-02",
+        "latest_version_metadata": "v2",
+        "citation_doi": "10.48550/arXiv.2609.00065",
+        "type": "arXiv procedural library/documentation corpus paper",
+        "urls": [
+          "https://arxiv.org/abs/2609.00065",
+          "https://doi.org/10.48550/arXiv.2609.00065"
+        ],
+        "verified": "공식 arXiv record의 저자·날짜·최신 버전·DOI·abstract 확인. journal reference/publisher DOI는 해당 record에 없음",
+        "supports": "실사용한 평가 skill의 서지 출처",
+        "limits": "task-level evaluation·host selection rate 미보고. skill 효능/현재 판단 정확성 실증으로 사용하지 않음",
+        "word_limit": 200,
+        "checked_at": "2026-10-21"
+      }
+    ]
+  },
+  "notebooklm": {
+    "status": "completed_grounded_chat_and_citation_review",
+    "cli_version": "0.8.5",
+    "notebook_id": "81c377dc-3b9c-4042-9d4d-0fa64cc8ca62",
+    "url": "https://notebook.google.com/notebook/81c377dc-3b9c-4042-9d4d-0fa64cc8ca62",
+    "is_public": false,
+    "auth_validated": true,
+    "sensitive_material_uploaded": false,
+    "source_imports": [
+      {
+        "evidence_id": "F1",
+        "url": "https://www.freqtrade.io/en/stable/strategy-customization/",
+        "source_id": "5df6385c-6f7c-43d2-8bbe-3b1cc76670fd",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "F2",
+        "url": "https://www.freqtrade.io/en/stable/strategy-callbacks/",
+        "source_id": "33898aa3-8844-446e-82d2-31ac58151b64",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "F3",
+        "url": "https://www.freqtrade.io/en/stable/lookahead-analysis/",
+        "source_id": null,
+        "add_exit_code": 1
+      },
+      {
+        "evidence_id": "Q1",
+        "url": "https://www.quantconnect.com/docs/v2/writing-algorithms/algorithm-framework/overview",
+        "source_id": null,
+        "add_exit_code": 2
+      },
+      {
+        "evidence_id": "Q2",
+        "url": "https://www.quantconnect.com/docs/v2/writing-algorithms/reality-modeling/trade-fills/key-concepts",
+        "source_id": "4d773012-002a-4361-a8ec-e2189ab76525",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "N1",
+        "url": "https://nautilustrader.io/docs/latest/concepts/orders/",
+        "source_id": null,
+        "add_exit_code": 2
+      },
+      {
+        "evidence_id": "N2",
+        "url": "https://nautilustrader.io/docs/latest/concepts/live/",
+        "source_id": "b2470312-c9c6-48ff-97b4-db9a82023864",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "N3",
+        "url": "https://nautilustrader.io/docs/latest/concepts/execution/policies/",
+        "source_id": "ff7bd33d-cd0f-403e-9a38-85e46d41c0a4",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "N4",
+        "url": "https://nautilustrader.io/docs/latest/concepts/execution/reconciliation/",
+        "source_id": "272d76d5-6c84-4719-9823-a4b1831998b3",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "C1",
+        "url": "https://github.com/ccxt/ccxt/blob/master/wiki/Manual.md",
+        "source_id": "cbfa1f4c-3772-4c17-a02a-b37dcbfc0b36",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "B1",
+        "url": "https://bybit-exchange.github.io/docs/v5/order/create-order",
+        "source_id": "e09ac010-e879-40ea-817c-9e44f478e335",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "B2",
+        "url": "https://bybit-exchange.github.io/docs/v5/order/cancel-order",
+        "source_id": "a85dfbe5-8dc0-49c6-b353-e60051d9b0f1",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "B3",
+        "url": "https://bybit-exchange.github.io/docs/v5/position/trading-stop",
+        "source_id": "59355afd-e594-46ad-ab5d-30b6ae19951b",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "B4",
+        "url": "https://bybit-exchange.github.io/docs/v5/demo",
+        "source_id": "1129dc66-bf75-4550-ad29-c5b36cfb8fc7",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "B5",
+        "url": "https://bybit-exchange.github.io/docs/v5/websocket/private/order",
+        "source_id": "e7e65380-cb16-4293-9068-b5c0e5635b25",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "B6",
+        "url": "https://bybit-exchange.github.io/docs/v5/websocket/private/execution",
+        "source_id": "ec9a8b8b-2257-4e6f-9d44-10c6248c0531",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "B7",
+        "url": "https://bybit-exchange.github.io/docs/v5/market/instrument",
+        "source_id": "409f67f8-b052-40ee-bf69-20aa1377fafd",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "B9",
+        "url": "https://www.bybit.com/en/help-center/article/Trailing-Stop-Order-Perpetual-and-Futures-Trading",
+        "source_id": "16c06bb5-d840-4f7a-b381-0aa3c117d4ee",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      },
+      {
+        "evidence_id": "A1",
+        "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html",
+        "source_id": "6b23906c-f2a5-4257-975c-c5e3e8a1a242",
+        "add_exit_code": 0,
+        "wait_exit_code": 0,
+        "status": "ready"
+      }
+    ],
+    "source_ids": [
+      "5df6385c-6f7c-43d2-8bbe-3b1cc76670fd",
+      "33898aa3-8844-446e-82d2-31ac58151b64",
+      "4d773012-002a-4361-a8ec-e2189ab76525",
+      "b2470312-c9c6-48ff-97b4-db9a82023864",
+      "ff7bd33d-cd0f-403e-9a38-85e46d41c0a4",
+      "272d76d5-6c84-4719-9823-a4b1831998b3",
+      "cbfa1f4c-3772-4c17-a02a-b37dcbfc0b36",
+      "e09ac010-e879-40ea-817c-9e44f478e335",
+      "a85dfbe5-8dc0-49c6-b353-e60051d9b0f1",
+      "59355afd-e594-46ad-ab5d-30b6ae19951b",
+      "1129dc66-bf75-4550-ad29-c5b36cfb8fc7",
+      "e7e65380-cb16-4293-9068-b5c0e5635b25",
+      "ec9a8b8b-2257-4e6f-9d44-10c6248c0531",
+      "409f67f8-b052-40ee-bf69-20aa1377fafd",
+      "16c06bb5-d840-4f7a-b381-0aa3c117d4ee",
+      "6b23906c-f2a5-4257-975c-c5e3e8a1a242"
+    ],
+    "research_run_id": null,
+    "method": "source-selected grounded chat; separate deep-research run not used",
+    "answers": [
+      {
+        "question_id": 1,
+        "question": "한국어로 답하라. 업로드된 공식 문서만 사용하고 직접 지지 사실, 설계 추론, 확인 필요를 구분하며 각 핵심 주장에 출처 인용을 달라. 질문: Python 연구 전략을 선정한 뒤 서버에서 실제 주문까지 실행하는 구조에서 언어 자체가 거래소 API를 호출해야 하는가? Freqtrade, QuantConnect LEAN, NautilusTrader의 전략/신호/포지션 목표/리스크/실행 책임을 비교하라. 두 선택지를 반론까지 평가하라. A: 불변 Python 소스와 params를 gVisor 같은 격리 child에서 신호 플러그인으로 실행하고 신뢰된 주문원장이 거래소를 호출. B: 후보가 모두 검토 가능한 유한 전략 템플릿+indicator/filter/signal/exit config로 정적으로 식별된 상황에서, 임의 신규 Python 소스는 서버가 받지 않고 고정 검토 계산 커널+스키마 검증된 config만 별도 자원 제한 child에서 실행; 거래소 권한은 역시 없음. 정적 식별은 계산 parity 검증이 끝났다는 뜻이 아니다. 원래 Python 연구 소스와 서버 커널의 indicator 값/봉별 신호/청산 상태가 같은지 검증하기 전 자동 승격이 가능한가? 각 안의 장단점과 전환 조건, 임의 Python 전체를 자동으로 의미보존 DSL로 바꾸는 약속의 한계를 설명하라. 문서가 특정 sandbox 제품의 보안을 보증하지 않으면 그렇게 명시하라. 핵심 목표는 조회 서비스가 아니라 Python 연구→검증 통과 선정→실제 전략 신호와 주문 실행이다.",
+        "exit_code": 0,
+        "reference_occurrences": 38,
+        "source_urls": [
+          "https://github.com/ccxt/ccxt/blob/master/wiki/Manual.md",
+          "https://nautilustrader.io/docs/latest/concepts/execution/policies/",
+          "https://nautilustrader.io/docs/latest/concepts/execution/reconciliation/",
+          "https://nautilustrader.io/docs/latest/concepts/live/",
+          "https://www.freqtrade.io/en/stable/strategy-callbacks/",
+          "https://www.freqtrade.io/en/stable/strategy-customization/",
+          "https://www.quantconnect.com/docs/v2/writing-algorithms/reality-modeling/trade-fills/key-concepts"
+        ],
+        "selected_source_ids": [
+          "5df6385c-6f7c-43d2-8bbe-3b1cc76670fd",
+          "33898aa3-8844-446e-82d2-31ac58151b64",
+          "4d773012-002a-4361-a8ec-e2189ab76525",
+          "b2470312-c9c6-48ff-97b4-db9a82023864",
+          "ff7bd33d-cd0f-403e-9a38-85e46d41c0a4",
+          "272d76d5-6c84-4719-9823-a4b1831998b3",
+          "cbfa1f4c-3772-4c17-a02a-b37dcbfc0b36"
+        ]
+      },
+      {
+        "question_id": 2,
+        "question": "한국어로 답하라. Bybit 공식 출처만 사용해 perpetual one-way Demo의 고정 R 정책을 매핑하고 지지 인용을 달라. 정책은 실제 진입가격 E와 직전 완료 부모봉 두 개의 min(low)/max(high)를 기준으로 진입가-극값 거리의 10%를 더한 초기 SL, 고정 R=초기 손실거리, 1.5R에서 최초 확정 수량의 50% TP 한 번, 2R에서 trailing 활성/절대 거리 2R로 본절 도달 후 유리한 극값을 따라 stop 단방향 이동이다. (1) create/reduceOnly/closeOnTrigger/positionIdx/orderLinkId의 서로 다른 역할 (2) Full/Partial tpSize=slSize 제약 때문에 TP50%와 SL100%를 한 native Partial 쌍으로 표현할 수 있는가 (3) native trailing activePrice와 trailingStop는 절대가격/거리인가 비율인가, 어떤 가격을 추적하는가 (4) Demo REST/private WS/WS Trade 지원 범위 (5) tick/qty precision, entry의 부분체결/VWAP/R 동결 시점, native 부착 지연의 한계 (6) 같은 방향 계획 유지, 반대 방향 새 generation, 명시 교체 때 이전 exit ID 취소와 남은 수량 처리. 가능한 기능, 조건부 기능, 미지원 조합을 구분하라. 문서의 숫자 예제는 일반 정책으로 확대하지 말고, API 필드와 웹 UI 기능을 구분하라.",
+        "exit_code": 0,
+        "reference_occurrences": 27,
+        "source_urls": [
+          "https://bybit-exchange.github.io/docs/v5/demo",
+          "https://bybit-exchange.github.io/docs/v5/market/instrument",
+          "https://bybit-exchange.github.io/docs/v5/order/cancel-order",
+          "https://bybit-exchange.github.io/docs/v5/order/create-order",
+          "https://bybit-exchange.github.io/docs/v5/position/trading-stop",
+          "https://bybit-exchange.github.io/docs/v5/websocket/private/execution",
+          "https://bybit-exchange.github.io/docs/v5/websocket/private/order",
+          "https://www.bybit.com/en/help-center/article/Trailing-Stop-Order-Perpetual-and-Futures-Trading"
+        ],
+        "selected_source_ids": [
+          "e09ac010-e879-40ea-817c-9e44f478e335",
+          "a85dfbe5-8dc0-49c6-b353-e60051d9b0f1",
+          "59355afd-e594-46ad-ab5d-30b6ae19951b",
+          "1129dc66-bf75-4550-ad29-c5b36cfb8fc7",
+          "e7e65380-cb16-4293-9068-b5c0e5635b25",
+          "ec9a8b8b-2257-4e6f-9d44-10c6248c0531",
+          "409f67f8-b052-40ee-bf69-20aa1377fafd",
+          "16c06bb5-d840-4f7a-b381-0aa3c117d4ee"
+        ]
+      },
+      {
+        "question_id": 3,
+        "question": "한국어로 답하라. 공식 문서 근거를 인용해 backtest/live 공통 core, transactional outbox, idempotency, reconciliation의 정확한 역할과 한계를 정리하라. 주문 접수 ACK와 실제 체결·취소 완료가 같은가? network timeout 뒤 새 client ID로 create를 재발주해도 되는가? 중복 Filled 메시지, 한 주문의 복수 execution, TP 주문 부분체결, cancel과 fill의 경합, 옛 generation에서 이미 발생한 fill, 재시작·오래된 REST snapshot·거래소 history 한도를 어떻게 처리해야 하는가? outbox가 거래소까지 exactly-once를 보장하는가? 같은 방향 신호는 계획을 유지하고 명시 교체는 남은 수량으로 새 exit를 만드는 정책에서 generation fence가 실제 옛 거래소 주문을 취소하는가? 이미 발생한 옛 fill을 단순 무시해도 되는가? OHLC 두 시나리오로 보수적인 BT를 만든 것과 native LTP trailing의 tick 결과가 동일하다고 주장할 수 있는가? 마지막에 연구 소스와 고정 커널/config의 계산 parity, 사건 재생, 주문 운용 검증을 각각 다른 통과 기준으로 제시하라.",
+        "exit_code": 0,
+        "reference_occurrences": 54,
+        "source_urls": [
+          "https://bybit-exchange.github.io/docs/v5/order/cancel-order",
+          "https://bybit-exchange.github.io/docs/v5/order/create-order",
+          "https://bybit-exchange.github.io/docs/v5/websocket/private/execution",
+          "https://bybit-exchange.github.io/docs/v5/websocket/private/order",
+          "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html",
+          "https://github.com/ccxt/ccxt/blob/master/wiki/Manual.md",
+          "https://nautilustrader.io/docs/latest/concepts/execution/policies/",
+          "https://nautilustrader.io/docs/latest/concepts/execution/reconciliation/",
+          "https://nautilustrader.io/docs/latest/concepts/live/",
+          "https://www.bybit.com/en/help-center/article/Trailing-Stop-Order-Perpetual-and-Futures-Trading",
+          "https://www.freqtrade.io/en/stable/strategy-callbacks/",
+          "https://www.freqtrade.io/en/stable/strategy-customization/"
+        ],
+        "selected_source_ids": [
+          "5df6385c-6f7c-43d2-8bbe-3b1cc76670fd",
+          "33898aa3-8844-446e-82d2-31ac58151b64",
+          "4d773012-002a-4361-a8ec-e2189ab76525",
+          "b2470312-c9c6-48ff-97b4-db9a82023864",
+          "ff7bd33d-cd0f-403e-9a38-85e46d41c0a4",
+          "272d76d5-6c84-4719-9823-a4b1831998b3",
+          "cbfa1f4c-3772-4c17-a02a-b37dcbfc0b36",
+          "e09ac010-e879-40ea-817c-9e44f478e335",
+          "a85dfbe5-8dc0-49c6-b353-e60051d9b0f1",
+          "59355afd-e594-46ad-ab5d-30b6ae19951b",
+          "1129dc66-bf75-4550-ad29-c5b36cfb8fc7",
+          "e7e65380-cb16-4293-9068-b5c0e5635b25",
+          "ec9a8b8b-2257-4e6f-9d44-10c6248c0531",
+          "409f67f8-b052-40ee-bf69-20aa1377fafd",
+          "16c06bb5-d840-4f7a-b381-0aa3c117d4ee",
+          "6b23906c-f2a5-4257-975c-c5e3e8a1a242"
+        ]
+      }
+    ],
+    "source_ready_count": 16,
+    "deep_research_started": false,
+    "citation_review": {
+      "method": "반환된 cited_text를 읽고 직접 확인한 공식 페이지 본문과 대조. UTF-16 offset을 평문 fulltext에 그대로 적용하지 않음.",
+      "all_reference_source_ids_mapped": true,
+      "total_reference_items": 119,
+      "manual_support_checks": [
+        {
+          "question": 1,
+          "citations": [
+            4,
+            9,
+            24,
+            28,
+            29,
+            32,
+            33,
+            34,
+            35,
+            37
+          ],
+          "verdict": "supported_with_stated_scope",
+          "facts": [
+            "신호/callback 책임",
+            "live 외부 타이밍과 미상 결과",
+            "exactly-once 한계",
+            "워밍업과 미래 참조 검증의 한계"
+          ]
+        },
+        {
+          "question": 2,
+          "citations": [
+            9,
+            14,
+            15,
+            19,
+            20,
+            21,
+            22,
+            23,
+            27
+          ],
+          "verdict": "supported_with_stated_scope",
+          "facts": [
+            "Partial tpSize=slSize",
+            "API 절대 trailing 거리",
+            "LTP 극값 추적",
+            "Demo 지원표와 WS Trade 미지원",
+            "tickSize와 qtyStep",
+            "포지션 보호 수량 자동 조절"
+          ]
+        },
+        {
+          "question": 3,
+          "citations": [
+            6,
+            7,
+            10,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            29,
+            37,
+            38,
+            39,
+            41
+          ],
+          "verdict": "supported_with_stated_scope",
+          "facts": [
+            "원장과 outbox 같은 트랜잭션",
+            "원격 exactly-once 미보장",
+            "ACK와 완료 구분",
+            "결과 미상과 안전 재시도",
+            "복수 execution",
+            "오래된 snapshot과 bounded history의 한계"
+          ]
+        }
+      ],
+      "rejected_or_qualified_model_claims": [
+        {
+          "question": 1,
+          "claim": "고정 커널은 임의 코드 위험을 원천 차단하고 속도를 극대화",
+          "verdict": "unsupported_guarantee",
+          "correction": "허용 소스와 config 경계를 줄이는 설계 추론이며 구현 안전성과 성능은 별도 검증"
+        },
+        {
+          "question": 1,
+          "claim": "임의 Python에서 모든 DSL로의 컴파일은 이론적으로 불가능",
+          "verdict": "overbroad",
+          "correction": "유한 제한 DSL에서 지원 범위를 넓히지 않고 모든 Python 의미 보존을 보장할 수 없다고 한정"
+        },
+        {
+          "question": 1,
+          "citation": 12,
+          "claim": "LEAN 책임 분리의 본문 증거",
+          "verdict": "weak_citation_navigation_only",
+          "correction": "별도 공식 Algorithm Framework 본문 직접 확인을 근거로 사용"
+        },
+        {
+          "question": 1,
+          "claim": "모든 지표값 diff=0만 허용",
+          "verdict": "design_choice_not_source_fact",
+          "correction": "숫자 허용오차를 사전 고정하고 신호와 상태/사건 일치를 구분"
+        },
+        {
+          "question": 2,
+          "claim": "UI percentage가 내부에서 absolute distance로 변환되어 API 호출됨",
+          "verdict": "unsupported_implementation_inference",
+          "correction": "UI 두 방식과 API distance 필드까지만 확인"
+        },
+        {
+          "question": 2,
+          "claim": "closeOnTrigger는 무조건 주문 수용과 체결을 보장",
+          "verdict": "overstated",
+          "correction": "감축·가용 증거금 보조 의미이며 모든 거절·유동성·체결 조건을 제거하지 않음"
+        },
+        {
+          "question": 2,
+          "citation": 4,
+          "claim": "포지션 수량 초과가 주문 자동 분할의 조건",
+          "verdict": "conflated_limits",
+          "correction": "인용은 거래소 max order qty 초과를 설명함"
+        },
+        {
+          "question": 3,
+          "citations": [
+            17,
+            34,
+            35,
+            36
+          ],
+          "claim": "옛 generation fill은 일률적으로 order-only 처리하여 현재 포지션에 적용하지 않음",
+          "verdict": "incorrect_generalization",
+          "correction": "bounded-history recovery 조건을 generation 규칙으로 일반화하지 말고 중복 아닌 실제 fill은 exposure에 반영"
+        },
+        {
+          "question": 3,
+          "citation": 9,
+          "claim": "orderLinkId 자체가 exactly-once를 보장",
+          "verdict": "unsupported_guarantee",
+          "correction": "고유 식별자와 조회 상관관계이며 원격 결과·멱등성 보장은 별도"
+        },
+        {
+          "question": 3,
+          "claim": "OHLC BT와 live tick 결과가 항상 다름",
+          "verdict": "overstated",
+          "correction": "결과가 같을 수 있으나 동일성 보장은 없음"
+        }
+      ]
+    },
+    "pending_action": null
+  },
+  "evidence_limits": [
+    "85/85 config 식별은 원본 해시·정확 생성 규칙 일치이며 신호·체결 의미 동등성 증거가 아니다",
+    "공식 문서는 기능·계약·위협 모형 근거이며 QuantBridge 운영 성능·보안·수익 실증이 아니다",
+    "기존 겹치는3/6개월·상관된후보는 독립 최종 평가가 아니다",
+    "운영 앱·DB·서버·주문 변경 및 기존2400백테스트 재실행은 수행하지 않았다"
+  ],
+  "census_reproduction": {
+    "script": "tools/research/verify_candidate_config_census.py",
+    "script_sha256": "b559136a6f4c8bbeea9c5f9cfa5bd182fb73ea9f2eabc3c33392f4432b87fd08",
+    "root_rerun_passed": true,
+    "baseline_core_equal": true,
+    "selected_records": {
+      "total": 85,
+      "identified_exact_config": 85,
+      "unknown_or_rejected": 0,
+      "policy_counts": {
+        "source": 46,
+        "swing": 39
+      },
+      "distinct_hypotheses": 56
+    },
+    "negative_probes_rejected": 5,
+    "executed_strategy_source": false,
+    "numerical_parity_verified": false,
+    "input_availability": "frozen runs/strategy-registration-review and runs/swing-exits-v3 are local ignored artifacts; a fresh clone requires these original inputs"
+  }
+}

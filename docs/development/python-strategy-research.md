@@ -4,6 +4,9 @@
 [`tools/research/README.md`](../../tools/research/README.md), 실행기 준비·SDK는
 [`infra/python-runner/README.md`](../../infra/python-runner/README.md)가 갖는다.
 
+선정본의 고정 kernel+설정, 기존 gVisor 유지, Pine 이식의 비교는
+[실행 방식 조사](python-strategy-execution-methods.md)에 있다. 후속 설계 제안이며 아래 현재 실행 계약을 변경하지 않는다.
+
 ## 실행 흐름
 
 ```mermaid

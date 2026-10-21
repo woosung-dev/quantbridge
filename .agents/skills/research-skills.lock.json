@@ -1,0 +1,291 @@
+{
+  "reviewed_at": "2026-10-21",
+  "purpose": "공개 자료 수집·출처 기반 종합·퀀트 검증 방법 비판 검토",
+  "runtime_dependency_changes": false,
+  "global_cli_version": {
+    "notebooklm-py": "0.8.5",
+    "playwright": "1.61.0"
+  },
+  "packages": [
+    {
+      "name": "insane-search",
+      "repository": "https://github.com/fivetaku/insane-search",
+      "revision": "33efae832d48670a09bb1d2329a8505963ff7e74",
+      "upstream_path": "skills/insane-search",
+      "license": "MIT",
+      "discovery": {
+        "skills_sh_approximate_installs": 178,
+        "github_stars_observed": 2598,
+        "observed_date": "2026-10-21",
+        "note": "조회 시점 관측값이며 품질·안전성 보증이 아니다"
+      },
+      "upstream_skill_sha256": "b274dfa5fb6b32766ece2ca889f162ba635c7c1d9148f63502865b39e2db37a7",
+      "local_adaptations": [
+        "GitHub 별표·마켓플레이스 자동 설정 권유 제거",
+        "공개 조사 범위·비공개 데이터 금지·자동 설치/유료 호출 비활성 명시"
+      ],
+      "excluded_paths": [
+        "tests",
+        "__pycache__",
+        "observations"
+      ],
+      "files": [
+        {
+          "path": "insane-search/LICENSE",
+          "sha256": "e343d30bc6631a1c8377b7aac26e7b1c5b38366913a98ef71fe6861fe812dcd4"
+        },
+        {
+          "path": "insane-search/SKILL.md",
+          "sha256": "e31a0d0ee4e52d8ae07c4617ec0cde31739afb48887241c31c85ed4be380ae2e"
+        },
+        {
+          "path": "insane-search/engine/__init__.py",
+          "sha256": "519d0d0417fc3b8e91d577f87c56baacd49c40c80bfa974c231b0b8e5cd74d26"
+        },
+        {
+          "path": "insane-search/engine/__main__.py",
+          "sha256": "68b4b62af9167708a3d4183fc31dddb93affb7ac6f73cf5fac38415d7471dc93"
+        },
+        {
+          "path": "insane-search/engine/bias_check.py",
+          "sha256": "3516328a812a27354f21ebd13f935f8de4aee5e37e6efb83ecf50b3e30b1a103"
+        },
+        {
+          "path": "insane-search/engine/content_safety.py",
+          "sha256": "b15e984a90834d0e59044806250c5213559c4d44641391fc4a8c589318e8c9ce"
+        },
+        {
+          "path": "insane-search/engine/executor.py",
+          "sha256": "6295eb8975c009b0609896f6de4f525ca1de5abd45151e6da91acc7ecaa639a9"
+        },
+        {
+          "path": "insane-search/engine/fetch_chain.py",
+          "sha256": "ee398fbd46c2155761ceace743719f9e385d4566680137dd8fbfef309867ae88"
+        },
+        {
+          "path": "insane-search/engine/learning.py",
+          "sha256": "4360529675d2a2eb41855ab76b7ed2a37995cf4409161c7a0ac38b2a6413bed6"
+        },
+        {
+          "path": "insane-search/engine/observations_log.py",
+          "sha256": "a4b6c42d4870758930eba117a82ce150d9e4b6afe6362008fca716ae49f2ffa2"
+        },
+        {
+          "path": "insane-search/engine/phase0.py",
+          "sha256": "13cdc3115a3831d5cee2a5b5858125d99abf678f3632496f95ea56266f6b2d23"
+        },
+        {
+          "path": "insane-search/engine/safety.py",
+          "sha256": "3b78f8130db7041293aab85e53446b5f579cee08e7e7468a50880e17ff8be96e"
+        },
+        {
+          "path": "insane-search/engine/templates/.gitignore",
+          "sha256": "88b6b09796bc021a6f46b5964be1cbe30ef7a25d613ee43f868e720ee4d15587"
+        },
+        {
+          "path": "insane-search/engine/templates/nodriver_fetch.py",
+          "sha256": "432eae13f61ecd1f973bc3174e5375b9074b7eb9e5e775c9d23b336f4b11df08"
+        },
+        {
+          "path": "insane-search/engine/templates/package.json",
+          "sha256": "cdfe0887ea423e541153127573ab2cf2ff0d333266d33206670161d007a61613"
+        },
+        {
+          "path": "insane-search/engine/templates/patchright_fetch.py",
+          "sha256": "02c72fa8f62eba1aa2cb4326e593d35f8eec275df133c2ffbfcd95c5dac14ac2"
+        },
+        {
+          "path": "insane-search/engine/templates/playwright_mobile_chrome.js",
+          "sha256": "79536eef4ec96670aab23edc5eb2c4ed150715d43ed948fab919b95c7c66fda3"
+        },
+        {
+          "path": "insane-search/engine/templates/playwright_real_chrome.js",
+          "sha256": "62641a82248ddb420ed8a5bc119da4e5bdf38983ca38cbef93c5d8c0e9bcf757"
+        },
+        {
+          "path": "insane-search/engine/transport.py",
+          "sha256": "14530f4140dfd4a01f5806242987a9ad6482d9c6f2a0f802852e1b22e6d980d1"
+        },
+        {
+          "path": "insane-search/engine/url_masking.py",
+          "sha256": "3a92566d2e16dc5f9e3f79abac8bba2937f5eb74ca5030bae1078d16cee1131d"
+        },
+        {
+          "path": "insane-search/engine/url_transforms.py",
+          "sha256": "92b3a2fc77e26dc090c5814181758fe5d197b5d390c81212c80e6469a4965f82"
+        },
+        {
+          "path": "insane-search/engine/validators.py",
+          "sha256": "bb2caa2745542f3ed1c222faa8f1aca5b74fcd4dcfdd63ac5072360e85212200"
+        },
+        {
+          "path": "insane-search/engine/waf_detector.py",
+          "sha256": "7308143b382dd9563e2c36901dbd5058f38e59cf5dbe5e1f7c65ca8bec7d0b20"
+        },
+        {
+          "path": "insane-search/engine/waf_profiles.yaml",
+          "sha256": "ec638d9885564a5ab4d934396d2b9b72d1a6c1ac62c6fe0f701e4283e0ca6349"
+        },
+        {
+          "path": "insane-search/engine/x_search.py",
+          "sha256": "e83ddd2e1023b339dad8316b8f7e888e0240396060fcc06aa9cc40f28f15c07a"
+        },
+        {
+          "path": "insane-search/engine/x_search_io.py",
+          "sha256": "4000269cb50aeb873e7dd63ce4fd31932b8be6c4b5e7af2799dffa9e39aaae03"
+        },
+        {
+          "path": "insane-search/engine/x_search_types.py",
+          "sha256": "216a0ddb221c3b222f84ff73817cd4aa6af3bd89d8135dfdc126ba71f555cfe4"
+        },
+        {
+          "path": "insane-search/references/cache-archive.md",
+          "sha256": "4abe85d2083881871a7e840754b7a82d27592c0108f583493f33002705e0fe6f"
+        },
+        {
+          "path": "insane-search/references/fallback.md",
+          "sha256": "555169c5fdf1a8c1f1249e7510374f613b9d18baec24fdb511158ae2ff5c2919"
+        },
+        {
+          "path": "insane-search/references/jina.md",
+          "sha256": "586b38af2f830698f4e67b545b413348ac59dbfb3fc2e0c939572ec11ba84ca1"
+        },
+        {
+          "path": "insane-search/references/json-api.md",
+          "sha256": "a8351cf01e7d1ea7842f7ecbd04c439dcf08e7e3d7526d79bffd156745d7be57"
+        },
+        {
+          "path": "insane-search/references/media.md",
+          "sha256": "5870801306d810130fd8e8a385e67b138a4bd86a7fae1a1399ed79e66c41d917"
+        },
+        {
+          "path": "insane-search/references/metadata.md",
+          "sha256": "6b564a628f72d54bab0deb8156ac4da36d38870bcf58e900d95fc709805339d6"
+        },
+        {
+          "path": "insane-search/references/naver.md",
+          "sha256": "1de0ecd0d4244f253538b6b197adf6e72e21e35c137b2f956af06a4c5804e942"
+        },
+        {
+          "path": "insane-search/references/playwright.md",
+          "sha256": "182a04266363fedc3932684c94ad9a8a742f59ffa9fe432e08f8e6f65b0166f5"
+        },
+        {
+          "path": "insane-search/references/public-api.md",
+          "sha256": "c0cf68114fb8ec10deb70ca65b127738fa32f7a58a2a920419b343fd6ad1a563"
+        },
+        {
+          "path": "insane-search/references/rss.md",
+          "sha256": "8078d05ce089176af30a5282ab42667353e07cd04dfe94243d6722a110717bb9"
+        },
+        {
+          "path": "insane-search/references/tls-impersonate.md",
+          "sha256": "8d81cc969b5f6cf5196b3271efec5612bb15f3fbf41db89ec2fb180c5740a572"
+        },
+        {
+          "path": "insane-search/references/twitter.md",
+          "sha256": "02c53edfb774d1de26170bd80ac70d33a4e2ed69b79397d44d6fba51bacfa2bf"
+        }
+      ]
+    },
+    {
+      "name": "notebooklm",
+      "repository": "https://github.com/teng-lin/notebooklm-py",
+      "revision": "4d551830df2680b1bd288330c6c249b4b34d4cd0",
+      "upstream_path": "SKILL.md",
+      "license": "MIT",
+      "discovery": {
+        "skills_sh_approximate_installs": 9800,
+        "github_stars_observed": 19833,
+        "observed_date": "2026-10-21",
+        "note": "조회 시점 관측값이며 품질·안전성 보증이 아니다"
+      },
+      "upstream_skill_sha256": "e15e7a0a48ada895120e046fd36b5961f304a24356e3ad2988c87740e3ae7bf9",
+      "local_adaptations": [],
+      "excluded_paths": [
+        "tests",
+        "__pycache__",
+        "observations"
+      ],
+      "files": [
+        {
+          "path": "notebooklm/LICENSE",
+          "sha256": "3acfdcec01b9b4700419ad10e64ea236e614afd4ad6e9901935276e938fbc6bc"
+        },
+        {
+          "path": "notebooklm/SKILL.md",
+          "sha256": "e15e7a0a48ada895120e046fd36b5961f304a24356e3ad2988c87740e3ae7bf9"
+        }
+      ]
+    },
+    {
+      "name": "scientific-critical-thinking",
+      "repository": "https://github.com/K-Dense-AI/scientific-agent-skills",
+      "revision": "593377bb048752abb0152deab9fbb1083a6087df",
+      "upstream_path": "skills/scientific-critical-thinking",
+      "license": "MIT",
+      "discovery": {
+        "skills_sh_approximate_installs": 2300,
+        "github_stars_observed": 53411,
+        "observed_date": "2026-10-21",
+        "note": "조회 시점 관측값이며 품질·안전성 보증이 아니다"
+      },
+      "upstream_skill_sha256": "563af70571b7dcd6a96bf2e303bedfdcba623b4e9f082d58f04aacbc961fdae4",
+      "local_adaptations": [],
+      "excluded_paths": [
+        "tests",
+        "__pycache__",
+        "observations"
+      ],
+      "files": [
+        {
+          "path": "scientific-critical-thinking/LICENSE.md",
+          "sha256": "09b02a3c9df3053c55531d503357a9c7cde275970e6c3ceaa1ddf5f0e90b40c1"
+        },
+        {
+          "path": "scientific-critical-thinking/SKILL.md",
+          "sha256": "563af70571b7dcd6a96bf2e303bedfdcba623b4e9f082d58f04aacbc961fdae4"
+        },
+        {
+          "path": "scientific-critical-thinking/references/common_biases.md",
+          "sha256": "641e8e8e6dfadac1643ea8691b7d3e4e58cf013f134cd42c71301878096a5a39"
+        },
+        {
+          "path": "scientific-critical-thinking/references/core_capabilities.md",
+          "sha256": "0f337b96aa2d7453433a17824368fbd0638b9469d4f90a5fd23f4167c9dee180"
+        },
+        {
+          "path": "scientific-critical-thinking/references/evidence_hierarchy.md",
+          "sha256": "534fbe991ecfb2d162f755004dc528118ce74a78862917c2911595a522d76e6c"
+        },
+        {
+          "path": "scientific-critical-thinking/references/experimental_design.md",
+          "sha256": "eca7e42025393984c07676f3d4bc354d217e5604dc2209c76215d31953a7c74c"
+        },
+        {
+          "path": "scientific-critical-thinking/references/logical_fallacies.md",
+          "sha256": "becfc5bfac7b831dca67cc442cd0fcb42d8eea527a6fc2921c1b704e592ff593"
+        },
+        {
+          "path": "scientific-critical-thinking/references/review_sources.md",
+          "sha256": "71e75106f36f3e69b28959ad1fec503ccdb21b7f5361ab230173e4812accbf62"
+        },
+        {
+          "path": "scientific-critical-thinking/references/scientific_method.md",
+          "sha256": "5aa925b97c7a916f819dafc8b42a9c24e4bd3eb2836594e724f1e7f9ae75ea0f"
+        },
+        {
+          "path": "scientific-critical-thinking/references/statistical_pitfalls.md",
+          "sha256": "0c43204a0a81110cfeb7c982fa4caa89f274bdcebf096e09e5adfccf31241cb9"
+        }
+      ]
+    }
+  ],
+  "user_tool_update": {
+    "from": "notebooklm-py 0.7.3",
+    "to": "notebooklm-py 0.8.5",
+    "source": "https://pypi.org/project/notebooklm-py/0.8.5/",
+    "reason": "official host moved from notebooklm.google.com to notebook.google.com; old CLI allowlist prevented login completion",
+    "application_dependencies_changed": false
+  }
+}

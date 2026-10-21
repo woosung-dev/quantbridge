@@ -8,6 +8,7 @@
 ## 지금 필요한 문서
 
 Python 지표 연구·배치·웹 백테스트 계약은 [Python 전략 연구](./development/python-strategy-research.md)를 본다.
+선정 전략의 서버 실행·변환 방식 비교와 후속 PoC 제안은 [Python 실행 방식 조사](./development/python-strategy-execution-methods.md)에 있다(미채택 제안).
 영상에서 확인한 규칙과 미확인 조건은 [영상 출처 계약](./development/python-video-source-evidence.md)에 있다.
 
 | 질문                          | 정본                                                                 | 역할                                                                                                     |
