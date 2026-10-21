@@ -329,6 +329,7 @@ class CodeExecutionSummary(BaseModel):
     new_entries_blocked: bool
     failure_reason: str | None
     pending_reversal: str | None
+    unsettled_exit_quantity: Decimal = Decimal("0")
 
 
 class LiveSignalStateResponse(BaseModel):
@@ -344,6 +345,9 @@ class LiveSignalStateResponse(BaseModel):
     session_id: UUID
     evaluated: bool = True
     code_execution: CodeExecutionSummary | None = None
+    pnl_complete: bool | None = None
+    pnl_scope: Literal["known_order_subtotal"] | None = None
+    unpriced_exit_orders: int = 0
     schema_version: int
     last_strategy_state_report: dict[str, object]
     total_closed_trades: int

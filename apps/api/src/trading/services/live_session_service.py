@@ -124,6 +124,10 @@ class LiveSignalSessionService:
         require_bybit_demo_account(account.exchange, account.mode)
         if account.read_only is True:
             raise ReadOnlyAccountNotAllowed()
+        if (await self._account_repo.has_unsettled_code_exit(account.id)) is True:
+            raise InvalidStrategySettings(
+                error="미정산 코드 청산이 있는 거래소 계정은 새 세션을 시작할 수 없습니다"
+            )
 
         snapshot = None
         if req.source_policy == "code_v1":

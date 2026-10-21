@@ -1878,6 +1878,12 @@
             "title": "Trailing Active",
             "type": "boolean"
           },
+          "unsettled_exit_quantity": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unsettled Exit Quantity",
+            "type": "string"
+          },
           "version_id": {
             "anyOf": [
               {
@@ -4260,6 +4266,29 @@
             "title": "Last Strategy State Report",
             "type": "object"
           },
+          "pnl_complete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pnl Complete"
+          },
+          "pnl_scope": {
+            "anyOf": [
+              {
+                "const": "known_order_subtotal",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pnl Scope"
+          },
           "schema_version": {
             "title": "Schema Version",
             "type": "integer"
@@ -4277,6 +4306,11 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Realized Pnl",
             "type": "string"
+          },
+          "unpriced_exit_orders": {
+            "default": 0,
+            "title": "Unpriced Exit Orders",
+            "type": "integer"
           },
           "updated_at": {
             "anyOf": [

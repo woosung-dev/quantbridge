@@ -48,6 +48,8 @@ class LiveSessionQueryService:
         is_code = (sess.execution_snapshot or {}).get("source_policy") == "code_v1"
         state = None if is_code else await self._session_repo.get_state(session_id)
         code_summary = None
+        pnl_complete = None
+        unpriced_exit_orders = 0
         evaluated = state is not None
         updated_at = state.updated_at if state is not None else None
         if is_code:
@@ -87,7 +89,12 @@ class LiveSessionQueryService:
                 new_entries_blocked=risk.new_entries_blocked if risk else False,
                 failure_reason=risk.failure_reason if risk else None,
                 pending_reversal=risk.pending_reversal if risk else None,
+                unsettled_exit_quantity=risk.unsettled_exit_quantity if risk else Decimal(0),
             )
+            unpriced_exit_orders = await self._order_repo.count_unpriced_exit_fills_for_session(
+                SessionScope.from_live_session(sess)
+            )
+            pnl_complete = code_summary.unsettled_exit_quantity == 0 and unpriced_exit_orders == 0
         if state is None and not is_code:
             return LiveSignalStateResponse(
                 session_id=session_id,
@@ -133,6 +140,9 @@ class LiveSessionQueryService:
             session_id=session_id,
             evaluated=evaluated,
             code_execution=code_summary,
+            pnl_complete=pnl_complete,
+            pnl_scope="known_order_subtotal" if is_code else None,
+            unpriced_exit_orders=unpriced_exit_orders,
             schema_version=state.schema_version if state else 0,
             last_strategy_state_report=state.last_strategy_state_report if state else {},
             total_closed_trades=len(closed_pnls),

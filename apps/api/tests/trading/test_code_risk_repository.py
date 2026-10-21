@@ -484,7 +484,8 @@ async def test_real_sql_tp_race_waits_for_fill_evidence_without_synthetic_native
     await executor.drain(session_id)
     observed = await repo.get(session_id)
     assert observed.position_quantity == 0 and observed.cancels_confirmed
-    assert not observed.new_entries_blocked
+    assert observed.new_entries_blocked and observed.unsettled_exit_quantity == 1
+    assert observed.failure_reason == "native_exit_unsettled"
 
 
 @pytest.mark.asyncio

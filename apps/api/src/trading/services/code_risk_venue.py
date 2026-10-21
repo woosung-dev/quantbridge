@@ -73,7 +73,7 @@ class BybitCodeRiskVenue:
             position = await self._provider.fetch_position(creds, session.symbol)
             if position is None:
                 await self._risk.confirm_flat_and_cancelled(
-                    session.id, latest.generation, flat=True, cancelled=False
+                    session.id, latest.generation, flat=True, cancelled=False, unexplained=True
                 )
             elif position.side != latest.direction or position.size > latest.position_quantity:
                 await self._risk.halt(session.id, latest.generation, "position_ledger_mismatch")
@@ -114,7 +114,7 @@ class BybitCodeRiskVenue:
             position = await self._provider.fetch_position(creds, session.symbol)
             if position is None or position.size == 0:
                 await self._risk.confirm_flat_and_cancelled(
-                    session.id, state.generation, flat=True, cancelled=False
+                    session.id, state.generation, flat=True, cancelled=False, unexplained=True
                 )
                 return {"flat": True}
             if position.side != state.direction:
@@ -344,6 +344,7 @@ class BybitCodeRiskVenue:
                 order_id=order.id,
                 role=cast(Any, context["role"]),
                 cumulative_quantity=quantity,
+                terminal=terminal,
                 commit=False,
             )
         if (

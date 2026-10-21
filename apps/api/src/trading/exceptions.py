@@ -44,6 +44,12 @@ class KillSwitchActive(AppException):
     code = "kill_switch_active"
 
 
+class NativeExitUnsettled(KillSwitchActive):
+    """미귀속 native 청산이 남은 실제 계정의 신규 진입 차단."""
+
+    code = "native_exit_unsettled"
+
+
 class WebhookUnauthorized(AppException):
     status_code = 401
     code = "webhook_unauthorized"

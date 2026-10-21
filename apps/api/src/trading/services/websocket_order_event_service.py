@@ -150,6 +150,7 @@ class WebSocketOrderEventService:
                 order.id,
                 role=cast(Literal["partial_tp", "stop_loss", "trailing_stop", "close"], role),
                 cumulative_quantity=quantity,
+                terminal=new_state is not None and bool(payload.get("orderId")),
                 commit=False,
             )
         else:

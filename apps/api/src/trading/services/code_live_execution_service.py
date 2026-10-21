@@ -11,7 +11,11 @@ from src.trading.models import Order, OrderSide, OrderState, OrderType
 from src.trading.repositories.code_risk_repository import CodeRiskRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.services.code_risk_executor import CodeRiskExecutor
-from src.trading.services.code_risk_service import CodeRiskError, CodeRiskService
+from src.trading.services.code_risk_service import (
+    CodeRiskError,
+    CodeRiskReconciliationPending,
+    CodeRiskService,
+)
 
 
 class CodeLiveExecutionService:
@@ -101,6 +105,8 @@ class CodeLiveExecutionService:
         # 체크포인트 delivered ACK 유실 뒤 이미 종료된 같은 봉도 재진입하지 않는다.
         if await self._repo.get_order(identifier) is not None:
             return
+        if (await self._repo.has_unsettled_exit_for_account(session.exchange_account_id)) is True:
+            raise CodeRiskReconciliationPending("거래소 계정의 미정산 청산 증거를 기다립니다")
         await self._entry_gate(session.strategy_id, session.exchange_account_id)
         order = Order(
             id=identifier,

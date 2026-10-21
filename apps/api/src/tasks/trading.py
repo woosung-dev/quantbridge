@@ -485,6 +485,19 @@ async def _execute_with_session(
             provider = _provider_from_order_snapshot_or_fallback(
                 order, account, submit=order_submit
             )
+            # 큐 대기·이전 await 동안 marker가 생길 수 있어 실제 발주 직전에 재조회한다.
+            # 청산·보호 주문은 미정산 계정에서도 반드시 통과한다.
+            if not order.reduce_only and (
+                await repo.has_unsettled_code_exit(order.exchange_account_id)
+            ) is True:
+                error_msg = "native_exit_unsettled"
+                rows = await repo.transition_to_rejected(
+                    order_id, error_message=error_msg, failed_at=datetime.now(UTC)
+                )
+                await session.commit()
+                if rows == 1:
+                    record_metric_safely(qb_active_orders.dec)
+                return {"order_id": str(order_id), "state": "rejected", "error_message": error_msg}
             receipt = await provider.create_order(creds, order_submit)
         except ProviderError as e:
             error_msg = f"provider_failure: {e}"

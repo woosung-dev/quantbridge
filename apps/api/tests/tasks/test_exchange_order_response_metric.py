@@ -123,6 +123,7 @@ def _patch_execution(
     )
     repo = SimpleNamespace(
         get_by_id=AsyncMock(return_value=order),
+        has_unsettled_code_exit=AsyncMock(return_value=False),
         # 2026-08-15 적대 리뷰 P1 — 워커가 발주 직전에 소유자 활성을 다시 묻는다.
         # 이 페이크는 「살아 있는 소유자」를 모형한다(프로덕션에서는 FK 가 행의 존재를 보장한다).
         strategy_owner_is_active=AsyncMock(return_value=True),
@@ -362,3 +363,27 @@ def test_guard_metric_accepts_bracket_outcomes() -> None:
         "bracket_trailing_only_dropped",
     ):
         qb_live_conditional_guard_total.labels(outcome=outcome)
+
+
+@pytest.mark.parametrize("reduce_only", [False, True])
+async def test_worker_rechecks_unsettled_account_immediately_before_create(
+    monkeypatch, reduce_only
+):
+    harness, session = _patch_execution(monkeypatch, _receipt("open"))
+    harness.order.reduce_only = reduce_only
+    harness.repo.has_unsettled_code_exit.return_value = True
+    result = await trading_module._execute_with_session(
+        harness.order.id, lambda: _SessionContext(session)
+    )
+    if reduce_only:
+        harness.provider.create_order.assert_awaited_once()
+        harness.repo.has_unsettled_code_exit.assert_not_awaited()
+    else:
+        assert result["error_message"] == "native_exit_unsettled"
+        harness.provider.create_order.assert_not_awaited()
+        harness.repo.transition_to_rejected.assert_awaited_once()
+        # 초기 생성 검증을 통과해 submitted된 기존 큐 주문도 막는다.
+        harness.repo.transition_to_submitted.assert_awaited_once()
+        harness.repo.has_unsettled_code_exit.assert_awaited_once_with(
+            harness.order.exchange_account_id
+        )

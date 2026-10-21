@@ -295,6 +295,11 @@ class OrderRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def has_unsettled_code_exit(self, account_id: UUID) -> bool:
+        from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+
+        return await ExchangeAccountRepository(self.session).has_unsettled_code_exit(account_id)
+
     async def commit(self) -> None:
         await self.session.commit()
 
@@ -634,6 +639,18 @@ class OrderRepository:
         if states:
             stmt = stmt.where(Order.state.in_(states))  # type: ignore[attr-defined]
         return (await self.session.execute(stmt)).scalars().all(), total
+
+    async def count_unpriced_exit_fills_for_session(self, scope: SessionScope) -> int:
+        result = await self.session.scalar(
+            select(func.count())
+            .select_from(Order)
+            .where(
+                *_session_scope_where(scope),
+                col(Order.reduce_only).is_(True),
+                col(Order.realized_pnl).is_(None),
+            )
+        )
+        return int(result or 0)
 
     async def list_filled_realized_for_session(self, scope: SessionScope) -> Sequence[Order]:
         """세션 스코프 안의 체결 + realized_pnl 보유 주문만 filled_at ASC.

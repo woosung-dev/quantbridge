@@ -336,3 +336,15 @@ async def test_late_tp_after_observed_flat_only_settles_once_and_preserves_rever
     # 실제 누적 청산 총량이 진입 총량을 넘는 모순은 여전히 차단한다.
     await svc.record_exit_fill(session_id, 1, uuid4(), role="close", cumulative_quantity=D(2))
     assert stored["state"].new_entries_blocked
+
+
+@pytest.mark.asyncio
+async def test_other_session_unsettled_exit_blocks_preparing_entry(controller):
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+
+    _, repo, _, _, _ = controller
+    repo.has_unsettled_exit_for_account.return_value = True
+    with pytest.raises(CodeRiskReconciliationPending, match="미정산"):
+        await prepare(controller)
+    repo.create_if_absent.assert_not_awaited()
+    repo.attach_entry.assert_not_awaited()

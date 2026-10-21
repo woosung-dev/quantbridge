@@ -607,13 +607,19 @@ class LiveRiskState(SQLModel, table=True):
             name="ck_live_risk_quantities",
         ),
         CheckConstraint("fixed_r IS NULL OR fixed_r > 0", name="ck_live_risk_fixed_r"),
+        CheckConstraint("unsettled_exit_quantity >= 0", name="ck_live_risk_unsettled_exit"),
         CheckConstraint("direction IN ('long','short')", name="ck_live_risk_direction"),
         {"schema": "trading"},
     )
 
     session_id: UUID = Field(
         sa_column=Column(
-            ForeignKey("trading.live_signal_sessions.id", ondelete="CASCADE"), primary_key=True
+            ForeignKey(
+                "trading.live_signal_sessions.id",
+                ondelete="RESTRICT",
+                name="fk_live_risk_states_session_id",
+            ),
+            primary_key=True,
         )
     )
     revision: int = Field(
@@ -636,6 +642,10 @@ class LiveRiskState(SQLModel, table=True):
         sa_column=Column(Numeric(28, 8), nullable=False, server_default=text("0")),
     )
     position_quantity: Decimal = Field(
+        default=Decimal(0),
+        sa_column=Column(Numeric(18, 8), nullable=False, server_default=text("0")),
+    )
+    unsettled_exit_quantity: Decimal = Field(
         default=Decimal(0),
         sa_column=Column(Numeric(18, 8), nullable=False, server_default=text("0")),
     )

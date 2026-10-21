@@ -79,6 +79,8 @@ class CodeRiskService:
             or order.reduce_only
         ):
             raise CodeRiskError("세션에 귀속된 같은 방향·수량의 미발주 진입 주문이 필요합니다")
+        if (await self._repo.has_unsettled_exit_for_account(order.exchange_account_id)) is True:
+            raise CodeRiskReconciliationPending("거래소 계정의 미정산 청산 증거를 기다립니다")
         generation = current.generation + 1 if current is not None else 1
         provisional = create_plan(
             entry_price=estimated_entry,
@@ -228,6 +230,7 @@ class CodeRiskService:
         *,
         role: Literal["partial_tp", "stop_loss", "trailing_stop", "close"],
         cumulative_quantity: Decimal,
+        terminal: bool = False,
         commit: bool = True,
     ) -> list[RiskCommand]:
         state = await self._load(session_id, generation)
@@ -276,6 +279,25 @@ class CodeRiskService:
             return await self._fail(
                 state, "exit_fill_exceeds_position_or_partial_target", commit=commit
             )
+        if flat_settlement and terminal and state.unsettled_exit_quantity > 0:
+            order = await self._repo.get_order(order_id)
+            context = order.risk_context if order is not None else None
+            if (
+                order is not None
+                and order.reduce_only
+                and context is not None
+                and context.get("session_id") == str(session_id)
+                and context.get("generation") == generation
+                and context.get("role") == role
+            ):
+                # exit_fills의 누적 증가분만 한 번 상쇄한다. 미귀속 native 주문은 여기에 없다.
+                state.unsettled_exit_quantity = max(ZERO, state.unsettled_exit_quantity - delta)
+                if (
+                    state.unsettled_exit_quantity == ZERO
+                    and state.failure_reason == "native_exit_unsettled"
+                ):
+                    state.new_entries_blocked = False
+                    state.failure_reason = None
         if state.position_quantity > 0:
             self._desire_protection(state)
         elif not flat_settlement:
@@ -329,12 +351,20 @@ class CodeRiskService:
         *,
         flat: bool,
         cancelled: bool,
+        unexplained: bool = False,
     ) -> list[RiskCommand]:
         """거래소 flat 관측과 자식 주문 취소 ACK가 함께 있어야 반전을 허용한다."""
         state = await self._load(session_id, generation)
         if state is None:
             return []
         if flat:
+            if unexplained and state.position_quantity > ZERO:
+                state.unsettled_exit_quantity += state.position_quantity
+                state.new_entries_blocked = True
+                state.close_requested = True
+                state.pending_reversal = None
+                if state.failure_reason is None:
+                    state.failure_reason = "native_exit_unsettled"
             state.position_quantity = ZERO
         state.cancels_confirmed = flat and cancelled and state.entry_terminal
         return await self._save(state)

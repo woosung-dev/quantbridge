@@ -88,6 +88,12 @@ class CodeRiskExecutor:
                 continue
             try:
                 if command.kind in {"submit_entry", "ready_reversal"}:
+                    if (
+                        await self._repo.has_unsettled_exit_for_account(session.exchange_account_id)
+                    ) is True:
+                        raise CodeRiskReconciliationPending(
+                            "거래소 계정의 미정산 청산 증거를 기다립니다"
+                        )
                     version_id = session.strategy_version_id
                     version = await self._repo.get_version(version_id) if version_id else None
                     validate_code_snapshot(

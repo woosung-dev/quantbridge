@@ -25,6 +25,7 @@ from src.trading.exceptions import (
     KillSwitchActive,
     LeverageCapExceeded,
     MinNotionalNotMet,
+    NativeExitUnsettled,
     NotionalExceeded,
     OwnerAccountInactive,
     RiskSizingExceeded,
@@ -393,6 +394,10 @@ class OrderService:
             else:
                 pre_existing = None
             if pre_existing is None:
+                if not req.reduce_only and (
+                    await self._repo.has_unsettled_code_exit(req.exchange_account_id)
+                ) is True:
+                    raise NativeExitUnsettled("native_exit_unsettled")
                 try:
                     await self._kill_switch.ensure_not_gated(
                         strategy_id=req.strategy_id,

@@ -26,6 +26,11 @@ class CodeRiskRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def has_unsettled_exit_for_account(self, account_id: UUID) -> bool:
+        from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+
+        return await ExchangeAccountRepository(self.session).has_unsettled_code_exit(account_id)
+
     async def get(self, session_id: UUID) -> LiveRiskState | None:
         result = await self.session.execute(
             select(LiveRiskState)

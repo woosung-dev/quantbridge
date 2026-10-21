@@ -422,3 +422,15 @@ async def test_later_entry_fill_between_rest_and_protection_waits_then_recovers(
     )
     assert [command.status for command in outbox.values()] == ["superseded", "applied"]
     provider.set_code_protection.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_account_unsettled_exit_blocks_actual_entry_delivery_even_after_prepare(runtime):
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+
+    executor, _, repo, venue, _, outbox, session, *_ = runtime
+    repo.has_unsettled_exit_for_account.return_value = True
+    with pytest.raises(CodeRiskReconciliationPending, match="미정산"):
+        await executor.drain(session.id)
+    venue.execute.assert_not_awaited()
+    assert next(iter(outbox.values())).status == "pending"

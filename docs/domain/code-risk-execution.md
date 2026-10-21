@@ -111,3 +111,36 @@ legacy 세션의 `code_execution`은 null이다. 코크핏의 전략 이름은 �
 그 주문은 기존 closed-PnL refresh·원장 sweep·백필/정정 CAS·세션 손익·kill-switch 합계에
 포함한다. 순수 진입 주문은 기존 reduce-only 게이트에 따라 closed-PnL refresh를 예약하지 않는다.
 
+
+
+## native 청산 미정산과 손익 표시
+
+로컬 축소 주문의 누적 체결로 설명되지 않는 잔량이 거래소에서 flat으로 관측되면
+`LiveRiskState.unsettled_exit_quantity`에 그 잔량을 남긴다. 잔량은 실제 flat으로 갱신하되
+`native_exit_unsettled` 사유로 새 진입을 차단한다. 이는 native SL 체결 원인·가격·손익을
+확정한 것이 아니다. 미귀속 WS는 기존 orphan 정책으로 폐기하고, `ExchangeExit`의 native
+SL/trailing 분류·추정 전략 귀속을 정확한 세션/세대 체결이나 확정 손익으로 승격하지 않는다.
+
+같은 계정 ID와 알려진 `exchange_uid` 형제는 종료·archive된 세션의 미정산도 조회한다.
+미정산 계정은 legacy를 포함한 새 세션 등록과 코드 신규 진입 준비·전달을 거부한다.
+수동·웹훅·legacy 신호의 `OrderService`도 비축소 신규 주문을 거부한다. 이미 생성된 큐
+주문은 실제 provider `create_order` 직전에 같은 정본 쿼리를 재조회하여
+`native_exit_unsettled`로 종결한다. 축소 주문·취소·보호 변경·기존 outbox 보호 복구는
+이 가드로 막지 않는다. 조회 직후 거래소 호출과 DB marker 변경을 원자화하지는 못한다.
+세션 FK는 RESTRICT로 보존하여 세션 삭제로 marker를 제거하지 못한다. 기존 Order FK도
+전략·계정 삭제를 제한한다. UID가 불명인 새 계정 행이 같은 실제 계정인지 판별할 수 없는
+한계는 남는다. 권위 리스크 행의 임의 DB 삭제는 제품 API가 제공하지 않는다.
+
+뒤늦은 **기존 로컬 Order의 session·generation·reduce-only·terminal 누적 체결**만
+`exit_fills`에 아직 기록되지 않은 증가분으로 marker를 한 번 상쇄할 수 있다. 다른 이유의
+진입 차단은 해제하지 않는다. 미귀속 native 주문·inferred 원장 행에는 자동 해제가 없다.
+이미 비종결 누적 체결로 기록된 수량은 terminal 재관측만으로 재상쇄하지 않는 보수적
+한계가 있다. 이 경우 미정산을 유지하며 일반 resolve API를 제공하지 않는다.
+
+코드 상태 응답의 `pnl_scope=known_order_subtotal`은 **알려진 주문 손익 소계**다.
+미정산 수량이 있거나 실제 축소 주문의 `realized_pnl`이 아직 없으면 `pnl_complete=false`다.
+`unpriced_exit_orders`는 후자의 개수이며 `code_execution.unsettled_exit_quantity`는
+전자의 수량이다. 화면은 false일 때 **손익 미정산·전체 실현손익 아님**을 표시하고, 같은
+계정 새 진입 차단을 알린다. 숫자 0이나 confirmed 소계 0은 전체 손익 확정 0이 아니다.
+기존 fake native 여정은 보호 파라미터 ACK와 명시적 close 주문을 검증했으며,
+실제 native SL/trailing 자식 주문의 체결 회계·자동 귀속을 검증한 결과가 아니다.
