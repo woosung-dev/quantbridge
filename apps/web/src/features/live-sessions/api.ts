@@ -66,7 +66,7 @@ export async function getLiveSessionState(
       token,
     });
     const parsed = LiveSignalStateSchema.parse(raw);
-    return parsed.evaluated ? parsed : null;
+    return parsed.evaluated || parsed.code_execution != null ? parsed : null;
   } catch (err) {
     // 세션 삭제 직후 폴링 race에서는 apiFetch의 404를 null로 흡수한다.
     if (err instanceof Error && /\b404\b/.test(err.message)) {
