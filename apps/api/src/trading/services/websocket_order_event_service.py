@@ -24,9 +24,15 @@ from src.common.metrics import (
 from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.core.config import Settings
 from src.trading.models import Order, OrderState
+from src.trading.providers import bybit_cumulative_execution_value
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.order_repository import OrderRepository
-from src.trading.services.code_risk_service import CodeRiskError, CodeRiskService, RiskCommand
+from src.trading.services.code_risk_service import (
+    CodeRiskError,
+    CodeRiskReconciliationPending,
+    CodeRiskService,
+    RiskCommand,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,20 +114,16 @@ class WebSocketOrderEventService:
             quantity = Decimal(str(raw_quantity))
             if not quantity.is_finite() or quantity < 0 or generation < 1:
                 raise ValueError("invalid fill")
-            raw_value = payload.get("cumExecValue")
-            if raw_value is not None:
-                value = Decimal(str(raw_value))
-            elif quantity == 0:
-                value = Decimal(0)
-            else:
-                value = quantity * Decimal(str(payload.get("avgPrice") or payload.get("average")))
-            if not value.is_finite() or value < 0:
-                raise ValueError("invalid value")
         except (KeyError, ValueError, InvalidOperation) as exc:
             raise CodeRiskError(
                 "코드 주문의 누적 체결 또는 리스크 귀속이 올바르지 않습니다"
             ) from exc
         if role == "entry":
+            value = Decimal(0) if quantity == 0 else bybit_cumulative_execution_value(payload)
+            if value is None:
+                raise CodeRiskReconciliationPending("진입 누적 체결대금 증거를 기다립니다")
+            if not value.is_finite() or value < 0:
+                raise CodeRiskError("코드 진입 누적 체결대금이 올바르지 않습니다")
             commands = await self._risk_service.record_entry_fill(
                 session_id,
                 generation,

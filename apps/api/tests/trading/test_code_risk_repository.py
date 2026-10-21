@@ -301,7 +301,7 @@ async def test_durable_venue_entry_tp_trailing_close_and_reversal_use_one_sessio
                 status="filled",
                 filled_price=D(100),
                 filled_quantity=request.quantity,
-                raw={},
+                raw={"cumExecValue": str(D(100) * request.quantity)},
             )
         statuses[identifier] = OrderStatusFetch(
             exchange_order_id=identifier,
@@ -319,6 +319,7 @@ async def test_durable_venue_entry_tp_trailing_close_and_reversal_use_one_sessio
             status="cancelled",
             filled_quantity=old.filled_quantity,
             filled_price=old.filled_price,
+            raw=old.raw,
         )
 
     provider.fetch_order_by_client_id.side_effect = by_client
@@ -443,6 +444,7 @@ async def test_real_sql_tp_race_waits_for_fill_evidence_without_synthetic_native
                 status="filled",
                 filled_quantity=D(2),
                 filled_price=D(100),
+                raw={"cumExecValue": "200"},
             )
         )
 
@@ -483,3 +485,147 @@ async def test_real_sql_tp_race_waits_for_fill_evidence_without_synthetic_native
     observed = await repo.get(session_id)
     assert observed.position_quantity == 0 and observed.cancels_confirmed
     assert not observed.new_entries_blocked
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first", ["ws", "rest"])
+@pytest.mark.parametrize("shape", ["v5", "ccxt"])
+async def test_ws_and_rest_preserve_exact_cumulative_value_despite_rounded_average(
+    prepared, db_session, first, shape
+):
+    from src.trading.providers import _build_bybit_v5_order_status_fetch, _build_order_status_fetch
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, order = prepared
+    orders = OrderRepository(db_session)
+    await orders.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
+    await orders.commit()
+    await db_session.refresh(order)
+    handler = WebSocketOrderEventService(
+        repo=orders, risk_service=CodeRiskService(repo), settings=MagicMock()
+    )
+    handler._after_committed_winner = AsyncMock()
+    raw = {
+        "orderLinkId": str(order.id),
+        "orderId": "exact",
+        "orderStatus": "Filled",
+        "cumExecQty": "2",
+        "cumExecValue": "200.66666667",
+        "avgPrice": "100.33333333",
+    }
+    status = (
+        _build_bybit_v5_order_status_fetch(raw)
+        if shape == "v5"
+        else _build_order_status_fetch(
+            "exact", {"status": "closed", "filled": "2", "average": "100.33333333", "info": raw}
+        )
+    )
+    venue = BybitCodeRiskVenue(repo, orders, CodeRiskService(repo), AsyncMock(), AsyncMock())
+
+    async def ws():
+        await handler.handle_order_event(order.exchange_account_id, raw)
+
+    async def rest():
+        await venue._sync(order, status)
+
+    await (ws() if first == "ws" else rest())
+    before = (await repo.get(session.id)).model_dump()
+    await (rest() if first == "ws" else ws())
+    after = await repo.get(session.id)
+    assert after is not None and after.cumulative_value == D("200.66666667")
+    assert after.entry_vwap == D("100.33333334")
+    assert after.fixed_r == before["fixed_r"]
+    assert after.revision == before["revision"]
+    assert not after.new_entries_blocked and not after.close_requested
+    assert after.failure_reason is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["ws", "rest"])
+@pytest.mark.parametrize("average", ["100", None])
+async def test_missing_exact_entry_value_waits_without_mutating_risk_ledger(
+    prepared, db_session, source, average
+):
+    from src.trading.providers import _build_bybit_v5_order_status_fetch
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, order = prepared
+    orders = OrderRepository(db_session)
+    await orders.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
+    await orders.commit()
+    await db_session.refresh(order)
+    raw = {
+        "orderLinkId": str(order.id),
+        "orderId": "missing",
+        "orderStatus": "Filled",
+        "cumExecQty": "2",
+        "avgPrice": average,
+    }
+    with pytest.raises(CodeRiskReconciliationPending, match="누적 체결대금"):
+        if source == "ws":
+            handler = WebSocketOrderEventService(
+                repo=orders, risk_service=CodeRiskService(repo), settings=MagicMock()
+            )
+            await handler.handle_order_event(order.exchange_account_id, raw)
+        else:
+            venue = BybitCodeRiskVenue(
+                repo, orders, CodeRiskService(repo), AsyncMock(), AsyncMock()
+            )
+            await venue._sync(order, _build_bybit_v5_order_status_fetch(raw))
+    state = await repo.get(session.id)
+    assert state is not None and state.cumulative_quantity == 0 and state.cumulative_value == 0
+    assert state.fixed_r is None and not state.new_entries_blocked and not state.close_requested
+    assert state.revision == 0
+
+
+@pytest.mark.asyncio
+async def test_native_partially_filled_tp_cancel_preserves_remaining_protection_loss(
+    prepared, db_session
+):
+    from src.trading.providers import Credentials, _build_bybit_v5_order_status_fetch
+    from src.trading.services.code_risk_service import CodeRiskError
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    risk = CodeRiskService(repo)
+    await risk.record_entry_fill(
+        session.id, 1, entry.id, cumulative_quantity=D(2), cumulative_value=D(200), terminal=True
+    )
+    child = Order(
+        strategy_id=session.strategy_id,
+        exchange_account_id=session.exchange_account_id,
+        symbol=session.symbol,
+        side=OrderSide.sell,
+        type=OrderType.limit,
+        quantity=D(1),
+        price=D(103),
+        state=OrderState.submitted,
+        reduce_only=True,
+        risk_context={"session_id": str(session.id), "generation": 1, "role": "partial_tp"},
+    )
+    db_session.add(child)
+    await db_session.commit()
+    provider = AsyncMock()
+    status = _build_bybit_v5_order_status_fetch(
+        {
+            "orderId": "tp-partial-cancel",
+            "orderStatus": "PartiallyFilledCanceled",
+            "cumExecQty": "0.4",
+            "cumExecValue": "41.2",
+            "avgPrice": "103",
+        }
+    )
+    assert status.status == "filled"  # legacy mapper 계약은 유지한다.
+    provider.fetch_order_by_client_id.return_value = status
+    venue = BybitCodeRiskVenue(repo, OrderRepository(db_session), risk, AsyncMock(), provider)
+    with pytest.raises(CodeRiskError, match="거부"):
+        await venue._submit(Credentials("fake", "fake"), child)
+    state = await repo.get(session.id)
+    assert state is not None and state.position_quantity == D("1.6")
+    assert state.tp_filled_quantity == D("0.4")
+    assert state.failure_reason == "partial_tp_protection_lost"
+    assert state.new_entries_blocked and state.close_requested
+    await db_session.refresh(child)
+    assert child.state == OrderState.cancelled and child.filled_quantity == D("0.4")
+    provider.create_order.assert_not_awaited()

@@ -194,6 +194,17 @@ class OrderStatusFetch:
     filled_price: Decimal | None = None
     filled_quantity: Decimal | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+    # avgPrice 반올림값으로 재합성하지 않는 거래소 누적 체결대금이다.
+    cumulative_value: Decimal | None = None
+
+
+def bybit_cumulative_execution_value(raw: dict[str, Any]) -> Decimal | None:
+    """V5 원본·CCXT info의 정확한 cumExecValue만 읽는다. 평균가로 합성하지 않는다."""
+    value = raw.get("cumExecValue")
+    if value in (None, ""):
+        info = raw.get("info")
+        value = info.get("cumExecValue") if isinstance(info, dict) else None
+    return _decimal_or_none(value, finite_only=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -2292,6 +2303,7 @@ def _build_bybit_v5_order_status_fetch(order: dict[str, Any]) -> OrderStatusFetc
         filled_price=_decimal_or_none(order.get("avgPrice"), zero_as_none=True),
         filled_quantity=filled_quantity,
         raw=dict(order),
+        cumulative_value=bybit_cumulative_execution_value(order),
     )
 
 
@@ -2365,6 +2377,7 @@ def _build_order_status_fetch(exchange_order_id: str, result: dict[str, Any]) ->
         filled_price=_decimal_or_none(avg),
         filled_quantity=_decimal_or_none(filled_qty),
         raw=dict(result),
+        cumulative_value=bybit_cumulative_execution_value(result),
     )
 
 

@@ -374,3 +374,51 @@ async def test_pending_tp_settlement_does_not_turn_into_failed_protection_or_fla
     assert not stored["state"].new_entries_blocked and not stored["state"].close_requested
     assert all(command.kind != "flatten" for command in outbox.values())
     assert next(iter(outbox.values())).status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_later_entry_fill_between_rest_and_protection_waits_then_recovers(runtime):
+    from src.trading.providers import PositionInfo
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    _, risk, repo, _, stored, outbox, session, *_ = runtime
+    orders, accounts, provider = AsyncMock(), AsyncMock(), AsyncMock()
+    entry = Order(
+        id=stored["state"].entry_order_id,
+        strategy_id=session.strategy_id,
+        exchange_account_id=session.exchange_account_id,
+        symbol=session.symbol,
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=D(2),
+        leverage=1,
+        margin_mode="cross",
+    )
+    repo.get_order.side_effect = lambda identifier: entry if identifier == entry.id else None
+    venue = BybitCodeRiskVenue(repo, orders, risk, accounts, provider)
+    venue.reconcile = AsyncMock(return_value=True)
+    venue._submit = AsyncMock(return_value={"accepted": True})
+    provider.fetch_position.return_value = PositionInfo(size=D(2), side="long")
+    provider.set_code_protection.return_value = {"stop_loss": "97.8"}
+    executor = CodeRiskExecutor(repo, risk, venue)
+    await risk.record_entry_fill(
+        session.id, 1, entry.id, cumulative_quantity=D(1), cumulative_value=D(100), terminal=False
+    )
+    with pytest.raises(CodeRiskReconciliationPending, match="늦은 진입"):
+        await executor.drain(session.id)
+    assert stored["state"].position_quantity == 1 and not stored["state"].entry_terminal
+    assert not stored["state"].new_entries_blocked and not stored["state"].close_requested
+    assert next(iter(outbox.values())).status == "pending"
+    provider.set_code_protection.assert_not_awaited()
+    await risk.record_entry_fill(
+        session.id, 1, entry.id, cumulative_quantity=D(2), cumulative_value=D(200), terminal=True
+    )
+    await executor.drain(session.id)
+    assert stored["state"].position_quantity == 2 and stored["state"].entry_terminal
+    assert not stored["state"].new_entries_blocked and stored["state"].failure_reason is None
+    assert (
+        stored["state"].protection_applied["token"] == stored["state"].protection_desired["token"]
+    )
+    assert [command.status for command in outbox.values()] == ["superseded", "applied"]
+    provider.set_code_protection.assert_awaited_once()

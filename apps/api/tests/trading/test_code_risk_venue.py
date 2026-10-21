@@ -212,3 +212,24 @@ async def test_tp_fill_between_child_rest_and_position_read_never_infers_stop_fi
     risk.record_exit_fill.assert_not_awaited()
     risk.halt.assert_not_awaited()
     provider.create_order.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "side,size,terminal", [("short", "2", False), ("long", "3", False), ("long", "2", True)]
+)
+async def test_protection_opposite_overfill_and_terminal_mismatch_still_fail(side, size, terminal):
+    from src.trading.providers import PositionInfo
+    from src.trading.services.code_risk_service import CodeRiskError, CodeRiskReconciliationPending
+
+    repo, orders, risk, accounts, provider = (AsyncMock() for _ in range(5))
+    provider.fetch_position.return_value = PositionInfo(size=D(size), side=side)
+    venue = BybitCodeRiskVenue(repo, orders, risk, accounts, provider)
+    state = SimpleNamespace(
+        direction="long", position_quantity=D(1), expected_quantity=D(2), entry_terminal=terminal
+    )
+    session = SimpleNamespace(exchange_account_id=uuid4(), symbol="BTCUSDT")
+    with pytest.raises(CodeRiskError) as failure:
+        await venue.execute(SimpleNamespace(kind="apply_protection"), session, state)
+    assert not isinstance(failure.value, CodeRiskReconciliationPending)
+    provider.set_code_protection.assert_not_awaited()

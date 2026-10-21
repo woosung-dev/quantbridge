@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal, cast
@@ -17,7 +18,13 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
-from src.trading.providers import BybitFuturesProvider, Credentials, OrderStatusFetch, OrderSubmit
+from src.trading.providers import (
+    BybitFuturesProvider,
+    Credentials,
+    OrderStatusFetch,
+    OrderSubmit,
+    bybit_cumulative_execution_value,
+)
 from src.trading.repositories.code_risk_repository import CodeRiskRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.services.account_service import ExchangeAccountService
@@ -126,6 +133,12 @@ class BybitCodeRiskVenue:
                 position.side == state.direction and position.size < state.position_quantity
             ):
                 raise CodeRiskReconciliationPending("보호 적용 전 늦은 청산 체결을 재조회합니다")
+            if (
+                not state.entry_terminal
+                and position.side == state.direction
+                and state.position_quantity < position.size <= state.expected_quantity
+            ):
+                raise CodeRiskReconciliationPending("보호 적용 전 늦은 진입 체결을 재조회합니다")
             if position.side != state.direction or position.size != state.position_quantity:
                 raise CodeRiskError("보호 적용 시 포지션과 원장이 다릅니다")
             p = command.payload
@@ -269,7 +282,7 @@ class BybitCodeRiskVenue:
         await self._orders.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
         await self._orders.attach_exchange_order_id(order.id, status.exchange_order_id)
         await self._repo.commit()
-        await self._sync(order, status)
+        status = await self._sync(order, status)
         if status.status == "rejected" or (
             status.status == "cancelled"
             and order.risk_context is not None
@@ -283,7 +296,16 @@ class BybitCodeRiskVenue:
             "status": status.status,
         }
 
-    async def _sync(self, order: Order, status: OrderStatusFetch) -> None:
+    async def _sync(self, order: Order, status: OrderStatusFetch) -> OrderStatusFetch:
+        # legacy mapper는 부분 체결 취소를 filled로 합친다. 새 원장은 취소 잔량을 보존한다.
+        info = status.raw.get("info")
+        native_status = status.raw.get("orderStatus") or (
+            info.get("orderStatus") if isinstance(info, dict) else None
+        )
+        if native_status in {"PartiallyFilledCanceled", "Cancelled", "Canceled", "Deactivated"}:
+            status = replace(status, status="cancelled")
+        elif native_status == "Rejected":
+            status = replace(status, status="rejected")
         context = order.risk_context
         if context is None:
             raise CodeRiskError("주문 귀속이 없습니다")
@@ -294,17 +316,18 @@ class BybitCodeRiskVenue:
         quantity = status.filled_quantity or Decimal(0)
         if not quantity.is_finite() or quantity < 0:
             raise CodeRiskError("체결 수량이 잘못되었습니다")
+        cumulative_value = Decimal(0)
+        if context["role"] == "entry" and quantity > 0:
+            observed_value = status.cumulative_value
+            if observed_value is None:
+                observed_value = bybit_cumulative_execution_value(status.raw)
+            if observed_value is None:
+                raise CodeRiskReconciliationPending("진입 누적 체결대금 증거를 기다립니다")
+            cumulative_value = observed_value
         if quantity > 0 and (status.filled_price is None or status.filled_price <= 0):
             raise CodeRiskError("체결 VWAP가 없습니다")
         session_id, generation = UUID(str(context["session_id"])), int(str(context["generation"]))
         if context["role"] == "entry":
-            info = status.raw.get("info")
-            raw_value = info.get("cumExecValue") if isinstance(info, dict) else None
-            cumulative_value = (
-                Decimal(str(raw_value))
-                if raw_value not in (None, "")
-                else quantity * (status.filled_price or Decimal(0))
-            )
             await self._risk.record_entry_fill(
                 session_id,
                 generation,
@@ -359,6 +382,7 @@ class BybitCodeRiskVenue:
                 filled_quantity=quantity,
             )
         await self._repo.commit()
+        return status
 
     async def _cancel_confirm(self, creds: Credentials, order: Order) -> None:
         if order.state in {OrderState.filled, OrderState.cancelled, OrderState.rejected}:
