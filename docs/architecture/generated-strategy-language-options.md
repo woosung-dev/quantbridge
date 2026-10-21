@@ -66,12 +66,12 @@ fake 검사는 진입·종결 체결 VWAP 기준 고정 R·SL/추적 보호 파�
 응답의 `pnl_complete=false`와 알려진 주문 손익 소계를 구분한다
 ([리스크 계약](../domain/code-risk-execution.md#native-청산-미정산과-손익-표시)).
 
-광역 CI 관측은 `e3ba66dc`의 BE `6804 passed, 70 skipped, 2 xfailed`(955.84초),
+광역 CI 관측은 `44f93d68`의 BE `6990 passed, 71 skipped, 2 xfailed`(912.71초),
 FE·strategy journey·live-smoke 통과다. 미정산 계정 가드·전송 직전 재확인과 목록·대시보드
-표시가 포함된다. 후속 수치 v2·운영 측정기 통합 head는 재CI로 판정한다. 해당 CI 통과도
+표시, 수치 v2·운영 측정기 통합이 포함된다. 해당 CI 통과도
 실거래소 주문·native child 회계 검증을 대신하지 않는다.
 원시 관측 근거는 control의 `runs/sol-strategy-lab/native-product-journey-latest.json`과
-`ci-backend-e3ba66dc.log`에 보존한다.
+`ci-backend-44f93d68.log`에 보존한다.
 
 ## 실행 기한과 제품 적합성 판단
 
