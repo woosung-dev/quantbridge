@@ -133,9 +133,7 @@ def _trial(
     if trial.get("input_identity") != identity:
         raise ValueError(f"trial 입력 hash가 다릅니다: {trial_path}")
     attempts = trial.get("attempts", [])
-    if not isinstance(attempts, list) or not 1 <= len(attempts) <= (
-        1 if arm == "A" else 3
-    ):
+    if not isinstance(attempts, list) or not 1 <= len(attempts) <= (1 if arm == "A" else 3):
         raise ValueError("방식별 생성·수정 호출 수가 다릅니다")
     tokens, seconds = 0.0, 0.0
     initial_tokens, initial_seconds = 0.0, 0.0
@@ -144,9 +142,7 @@ def _trial(
         directory = folder / f"attempt-{index}"
         generation = _load(directory / "generation.json", root, evidence)
         request = _load(directory / "request.json", root, evidence)
-        if generation != attempt.get("generation") or generation.get(
-            "job_hash"
-        ) != digest(request):
+        if generation != attempt.get("generation") or generation.get("job_hash") != digest(request):
             raise ValueError("generation/request hash가 다릅니다")
         if (
             request.get("model") != manifest["model"]
@@ -183,9 +179,7 @@ def _trial(
             from src.strategy.code_runtime.compiler import compile_strategy
             from src.strategy.code_runtime.spec import StrategySpec
 
-            expected_source = compile_strategy(
-                StrategySpec.model_validate(final_payload), language
-            )
+            expected_source = compile_strategy(StrategySpec.model_validate(final_payload), language)
         else:
             expected_source = final_payload.get("source_code")
         if not isinstance(expected_source, str) or hashlib.sha256(
@@ -193,15 +187,16 @@ def _trial(
         ).hexdigest() != trial.get("source_hash"):
             raise ValueError("source와 생성 payload hash가 다릅니다")
         source_path = folder / "source.txt"
-        if not source_path.is_file() or file_hash(source_path) != trial.get(
-            "source_hash"
-        ):
+        if not source_path.is_file() or file_hash(source_path) != trial.get("source_hash"):
             raise ValueError("실행 source hash가 다릅니다")
         evidence[str(source_path.relative_to(root))] = file_hash(source_path)
     row.update(trial)
     row["public_status"] = trial["status"]
     row["initial_public_pass"] = attempts[0].get("validation", {}).get("passed") is True
     row["repair_calls"] = len(attempts) - 1
+    row["unknown_output_usage_calls"] = sum(
+        "output_tokens" not in attempt["generation"].get("usage", {}) for attempt in attempts
+    )
     row.update(
         initial_output_tokens=initial_tokens,
         repair_output_tokens=tokens - initial_tokens,
@@ -221,10 +216,7 @@ def _trial(
         "generation_or_public_failure",
     ):
         raise ValueError("종결되지 않은 semantic 증거입니다")
-    if (
-        trial["status"] == "public_pass"
-        and semantic["status"] == "generation_or_public_failure"
-    ):
+    if trial["status"] == "public_pass" and semantic["status"] == "generation_or_public_failure":
         raise ValueError("성공한 public 검사의 semantic 상태가 다릅니다")
     if trial["status"] == "failed" and (
         semantic["status"] != "generation_or_public_failure"
@@ -252,7 +244,8 @@ def paired_bootstrap(groups: dict[str, list[float]], *, draws: int = 20000) -> d
     if not size or any(len(v) != size for v in groups.values()):
         raise ValueError("동일 전략 분모가 필요합니다")
     leader = sorted(groups, key=lambda key: (-statistics.mean(groups[key]), key))[0]
-    rng = random.Random(SEED)
+    # 비밀 생성이 아니라 재현 가능한 통계 재표집이다.
+    rng = random.Random(SEED)  # noqa: S311
     samples = {key: [] for key in groups}
     for _ in range(draws):
         indices = [rng.randrange(size) for _ in range(size)]
@@ -276,8 +269,7 @@ def paired_bootstrap(groups: dict[str, list[float]], *, draws: int = 20000) -> d
             {
                 "reference": leader,
                 "other": key,
-                "mean_difference": statistics.mean(groups[leader])
-                - statistics.mean(groups[key]),
+                "mean_difference": statistics.mean(groups[leader]) - statistics.mean(groups[key]),
                 "ci95": [quantile(diff, 0.025), quantile(diff, 0.975)],
                 "bonferroni_family95_ci": [
                     quantile(diff, tail),
@@ -286,9 +278,7 @@ def paired_bootstrap(groups: dict[str, list[float]], *, draws: int = 20000) -> d
             }
             for key in sorted(groups)
             if key != leader
-            for diff in [
-                [a - b for a, b in zip(samples[leader], samples[key], strict=True)]
-            ]
+            for diff in [[a - b for a, b in zip(samples[leader], samples[key], strict=True)]]
         ],
         "family_comparisons": len(groups) - 1,
     }
@@ -363,15 +353,11 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
     cells = []
     for arm, language in itertools.product(arms, languages):
         combo = f"{arm}/{language}"
-        group = [
-            row for row in rows if row["arm"] == arm and row["language"] == language
-        ]
+        group = [row for row in rows if row["arm"] == arm and row["language"] == language]
         observed = [row for row in group if "generation_seconds" in row]
-        counts = Counter({action: 0 for action in ACTIONS})
+        counts = Counter(dict.fromkeys(ACTIONS, 0))
         for row in group:
-            counts.update(
-                row["semantic"].get("action_quality", {}).get("expected_counts", {})
-            )
+            counts.update(row["semantic"].get("action_quality", {}).get("expected_counts", {}))
         times = [_number(row["generation_seconds"]) for row in observed]
         cells.append(
             {
@@ -380,9 +366,7 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
                 "observations": dict(Counter(row["observation"] for row in group)),
                 "score100": base["cell_means"][combo],
                 "quality90": quality["cell_means"][combo],
-                "semantic_passes": sum(
-                    row["semantic"].get("status") == "passed" for row in group
-                ),
+                "semantic_passes": sum(row["semantic"].get("status") == "passed" for row in group),
                 "semantic_pass_rate": sum(
                     row["semantic"].get("status") == "passed" for row in group
                 )
@@ -392,18 +376,10 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
                     row.get("initial_public_pass", False) for row in group
                 ),
                 "repair_calls": sum(row.get("repair_calls", 0) for row in group),
-                "initial_output_tokens": sum(
-                    row.get("initial_output_tokens", 0) for row in group
-                ),
-                "repair_output_tokens": sum(
-                    row.get("repair_output_tokens", 0) for row in group
-                ),
-                "initial_seconds_p50": quantile(
-                    [row["initial_seconds"] for row in observed], 0.5
-                ),
-                "initial_seconds_p95": quantile(
-                    [row["initial_seconds"] for row in observed], 0.95
-                ),
+                "initial_output_tokens": sum(row.get("initial_output_tokens", 0) for row in group),
+                "repair_output_tokens": sum(row.get("repair_output_tokens", 0) for row in group),
+                "initial_seconds_p50": quantile([row["initial_seconds"] for row in observed], 0.5),
+                "initial_seconds_p95": quantile([row["initial_seconds"] for row in observed], 0.95),
                 "repair_seconds_p50": quantile(
                     [row["repair_seconds"] for row in observed if row["repair_calls"]],
                     0.5,
@@ -414,6 +390,9 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
                 ),
                 "generation_output_tokens": sum(
                     row.get("generation_output_tokens", 0) for row in observed
+                ),
+                "unknown_output_usage_calls": sum(
+                    row.get("unknown_output_usage_calls", 0) for row in observed
                 ),
                 "generation_seconds_p50": quantile(times, 0.5),
                 "generation_seconds_p95": quantile(times, 0.95),
@@ -452,6 +431,7 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
         "final_selection_allowed": complete and full,
         "ranking_is_provisional": not (complete and full),
         "usd": "unknown",
+        "token_usage_note": "토큰 합계는 CLI가 보고한 관측값이다. 시간 초과 등 usage 미보고 호출의 소비량은 0으로 확정하지 않으며 unknown_output_usage_calls로 구분한다.",
         "observation_note": "4class 관찰수는 평가 실행들의 합이며 독립 전략 표본 수가 아니다. 누락 시간은 latency 분위수에서 제외하고 관측 수를 병기한다.",
         "scoring": "sol_semantic_eval.paired_summary: 40+25+15+10+10; quality90 excludes generation efficiency",
         "score100_ranking": sorted(
@@ -474,9 +454,7 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
                 },
                 "public_status": row.get("public_status", row["status"]),
                 "semantic_status": row["semantic"].get("status", "not_evaluated"),
-                "score100": paired_summary([row])["cell_means"][
-                    f"{row['arm']}/{row['language']}"
-                ],
+                "score100": paired_summary([row])["cell_means"][f"{row['arm']}/{row['language']}"],
                 "quality90": paired_summary([quality_row])["cell_means"][
                     f"{row['arm']}/{row['language']}"
                 ],
@@ -502,9 +480,7 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
     }
 
 
-def export_selection(
-    root: Path, report_path: Path, combination: str
-) -> tuple[dict, list[dict]]:
+def export_selection(root: Path, report_path: Path, combination: str) -> tuple[dict, list[dict]]:
     report = json.loads(report_path.read_text())
     if not report.get("final_selection_allowed"):
         raise ValueError("pilot/불완료 보고서는 winner·경제 선정을 생성할 수 없습니다")
@@ -520,13 +496,10 @@ def export_selection(
         passed = [
             rep
             for rep in range(5)
-            if json.loads((folder / str(rep) / "semantic.json").read_text())["status"]
-            == "passed"
+            if json.loads((folder / str(rep) / "semantic.json").read_text())["status"] == "passed"
         ]
         repetition = min(passed) if passed else None
-        source = (
-            folder / str(repetition) / "source.txt" if repetition is not None else None
-        )
+        source = folder / str(repetition) / "source.txt" if repetition is not None else None
         source_hash = file_hash(source) if source else None
         passes[case_id], selected_hashes[case_id] = passed, source_hash
         artifacts.append(
@@ -571,9 +544,7 @@ def main() -> None:
     try:
         report = build_report(args.run_dir, draws=args.bootstrap_draws)
         if args.quality_selection and not report["final_selection_allowed"]:
-            raise ValueError(
-                "pilot/불완료 보고서는 winner·경제 선정을 생성할 수 없습니다"
-            )
+            raise ValueError("pilot/불완료 보고서는 winner·경제 선정을 생성할 수 없습니다")
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(
             json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
@@ -584,8 +555,7 @@ def main() -> None:
             )
             for suffix, value in (("selection", selection), ("artifacts", artifacts)):
                 destination.with_suffix(f".{suffix}.json").write_text(
-                    json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2)
-                    + "\n"
+                    json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
                 )
     except (ValueError, OSError, KeyError) as exc:
         parser.error(str(exc))

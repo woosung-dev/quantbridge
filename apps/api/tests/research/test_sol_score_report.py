@@ -162,6 +162,25 @@ def test_missing_semantic_scores_zero_even_after_public_pass(tmp_path):
     assert report["artifact_scores"][0]["public_status"] == "public_pass"
 
 
+def test_failed_unreported_usage_is_unknown_not_measured_zero(tmp_path):
+    manifest = run(tmp_path, cases=1, repetitions=1)
+    folder = trial(tmp_path, manifest, "01", 0, public=False)
+    generation_path = folder / "attempt-0/generation.json"
+    generation = json.loads(generation_path.read_text())
+    generation.update(status="timeout", usage={})
+    write(generation_path, generation)
+    trial_path = folder / "trial.json"
+    value = json.loads(trial_path.read_text())
+    value["attempts"][0]["generation"] = generation
+    value["generation_output_tokens"] = 0
+    write(trial_path, value)
+    report = subject.build_report(tmp_path, draws=100)
+    cell = report["score100_ranking"][0]
+    assert cell["generation_output_tokens"] == 0
+    assert cell["unknown_output_usage_calls"] == 1
+    assert cell["score100"] == 0
+
+
 def test_replica_correlation_uses_strategy_means_before_bootstrap(tmp_path):
     reports = []
     for repetitions in (1, 5):
