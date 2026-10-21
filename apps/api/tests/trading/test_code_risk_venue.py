@@ -1,6 +1,7 @@
 """code_v1 공급자는 가짜 HTTP 응답으로만 검증한다. 실주문은 하지 않는다."""
 
 from decimal import Decimal as D
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -148,6 +149,7 @@ async def test_cancelled_partial_tp_halts_instead_of_acknowledging_protection():
     provider.fetch_order_by_client_id.return_value = OrderStatusFetch(
         exchange_order_id="tp1", status="cancelled", filled_quantity=D(0)
     )
+    repo.get.return_value = SimpleNamespace(position_quantity=D(1), close_requested=False)
     venue = BybitCodeRiskVenue(repo, orders, risk, accounts, provider)
     with pytest.raises(ValueError):
         await venue._submit(Credentials("fake", "fake"), order)

@@ -295,9 +295,11 @@ class BybitCodeRiskVenue:
             and status.status in {"cancelled", "rejected"}
             and quantity < order.quantity
         ):
-            await self._risk.halt(
-                session_id, generation, "partial_tp_protection_lost", commit=False
-            )
+            latest = await self._repo.get(session_id)
+            if latest is not None and latest.position_quantity > 0 and not latest.close_requested:
+                await self._risk.halt(
+                    session_id, generation, "partial_tp_protection_lost", commit=False
+                )
         if context["role"] == "close" and terminal and quantity == 0:
             await self._risk.record_zero_exit(session_id, generation, order.id, commit=False)
         if status.status == "filled":

@@ -44,6 +44,7 @@ class CodeRiskRepository:
                 col(LiveSignalSession.symbol) == col(Order.symbol),
                 col(Order.id) == order_id,
             )
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -208,7 +209,11 @@ class CodeRiskRepository:
 
     async def get_order(self, order_id: UUID) -> Order | None:
         return (
-            await self.session.execute(select(Order).where(col(Order.id) == order_id))
+            await self.session.execute(
+                select(Order)
+                .where(col(Order.id) == order_id)
+                .execution_options(populate_existing=True)
+            )
         ).scalar_one_or_none()
 
     async def child_orders(self, session_id: UUID, generation: int) -> list[Order]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
@@ -32,9 +33,16 @@ class CodeRiskExecutor:
         state = await self._repo.get(session_id)
         if session is None or state is None:
             return []
-        account = await self._repo.get_account(session.exchange_account_id)
-        if account is None:
+        session = LiveSignalSession(**session.model_dump())
+        state = LiveRiskState(**state.model_dump())
+        loaded_account = await self._repo.get_account(session.exchange_account_id)
+        if loaded_account is None:
             raise CodeRiskError("리스크 계정이 없습니다")
+        account = SimpleNamespace(
+            exchange=loaded_account.exchange,
+            mode=loaded_account.mode,
+            read_only=loaded_account.read_only,
+        )
         require_bybit_demo_account(account.exchange, account.mode)
         # 소스 변조·세션 종료도 기존 포지션 축소·취소를 막지 않는다.
         await self._venue.reconcile(session, state)
@@ -59,7 +67,8 @@ class CodeRiskExecutor:
             await self._repo.commit()
             if command is None:
                 break
-            state = await self._repo.get(session_id)
+            loaded = await self._repo.get(session_id)
+            state = LiveRiskState(**loaded.model_dump()) if loaded is not None else None
             current = await self._risk.recover(session_id)
             if (
                 state is None
