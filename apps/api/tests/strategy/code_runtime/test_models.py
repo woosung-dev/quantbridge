@@ -11,7 +11,9 @@ from src.strategy.code_runtime.models import (
 
 
 def test_generated_artifact_retains_code_without_executing_it() -> None:
-    artifact = GeneratedCodeArtifact(language="python", source_code="raise RuntimeError()", model="sol")
+    artifact = GeneratedCodeArtifact(
+        language="python", source_code="raise RuntimeError()", model="sol"
+    )
     assert artifact.source_code == "raise RuntimeError()"
     with pytest.raises(ValidationError):
         artifact.model = "another"
