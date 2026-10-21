@@ -139,6 +139,9 @@ services:
       OHLCV_FIXTURE_ROOT: /app/data/fixtures/ohlcv
       DEFAULT_EXCHANGE: ${DEFAULT_EXCHANGE:-bybit}
       BACKTEST_STALE_THRESHOLD_SECONDS: ${BACKTEST_STALE_THRESHOLD_SECONDS:-1800}
+      # Python 코드는 별도 runner에만 전달한다. 워커에는 Docker socket 권한이 없다.
+      PYTHON_RUNNER_URL: ${PYTHON_RUNNER_URL:-}
+      PYTHON_RUNNER_TOKEN: ${PYTHON_RUNNER_TOKEN:-}
       PINE_ALERT_HEURISTIC_MODE: ${PINE_ALERT_HEURISTIC_MODE:-strict}
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
       # BL-838 — alert 채널 env 는 celery 4서비스 전건 대칭이다. 여기 없으면 기본 큐의

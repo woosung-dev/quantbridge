@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "QuantBridge"
+    python_runner_url: str = ""
+    python_runner_token: SecretStr | None = None
     app_env: Literal["development", "staging", "production"] = "development"
     # ★기본값은 False 다 — 안전한 쪽이 기본이어야 한다(2026-08-15 surface-truth).
     #   종전 기본값 True 는 `APP_ENV` 를 안 넣은 배포 호스트에서 그대로 살아남았고,

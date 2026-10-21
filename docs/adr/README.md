@@ -54,6 +54,7 @@
 | [041](./041-ai-strategy-generation.md) | 자연어 → 전략 생성 (Pine 정본) | 결정 | PRD §4 비범위 1줄 개정 |
 | [042](./042-pine-to-python-readonly-renderer.md) | Pine AST → Python 읽기 전용 렌더러 | 결정 | 실행 경로 없음 — 004 의 미구현 대안 |
 | [044](./044-pwa-web-push.md) | PWA(설치·오프라인 안내·웹 푸시) — 데이터 무캐시 | 결정 | PRD §4 비범위 1줄 개정 |
+| [045](./045-python-strategy-research.md) | 임의 Python의 격리 연구 백테스트 | 결정 | Python View는 읽기 전용 유지 · 자동매매 제외 |
 
 ## 새 ADR 을 쓸 때
 

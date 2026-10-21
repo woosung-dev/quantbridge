@@ -1821,6 +1821,11 @@ class Interpreter:
             return None
 
         if name == "strategy.exit":
+            if len(positional) > 2 or any(key in kwargs for key in ("qty", "qty_percent")):
+                raise PineRuntimeError(
+                    "strategy.exit의 qty/qty_percent 부분 청산은 미지원입니다. "
+                    "수량을 무시한 전량 청산으로 실행하지 않습니다."
+                )
             # BL-104 — strategy.exit 본격 구현 (NOP 교체). Pine
             # `strategy.exit(id, from_entry, profit/limit/loss/stop/trail_*)` =
             # exit order 예약 (target price 도달 시 trigger). 매 bar 재호출 시 같은
