@@ -60,8 +60,28 @@ describe("SharedBacktestPage (server component)", () => {
     render(ui);
     expect(screen.getByText(/BTCUSDT/)).toBeInTheDocument();
     expect(screen.getByText(/총 수익률/)).toBeInTheDocument();
+    expect(screen.getByText(/미기록: 요청 기간과 같다고 보장할 수 없습니다/)).toBeVisible();
     // CTA 가 banner + footer 양쪽에 노출되므로 최소 1개 이상
     expect(screen.getAllByText(/QuantBridge 시작하기/).length).toBeGreaterThan(0);
+  });
+
+  it("공개 리포트도 저장된 실제 구간·누락을 표시한다", async () => {
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockOk({
+        ...SAMPLE_DETAIL,
+        data_coverage: {
+          actual_start: "2024-01-02T00:00:00Z",
+          actual_end: "2024-01-30T00:00:00Z",
+          bar_count: 672,
+          expected_bars: 721,
+          missing_bars: 49,
+        },
+      }),
+    );
+    render(await SharedBacktestPage({ params: Promise.resolve({ token: "tkn-coverage" }) }));
+    expect(screen.getByText("2024-01-02 00:00 ~ 2024-01-30 00:00")).toBeVisible();
+    expect(screen.getByText("672 / 721")).toBeVisible();
+    expect(screen.getByTestId("backtest-data-incomplete-note")).toBeVisible();
   });
 
   it("200 — 상단 SharePublicBanner 가 렌더되고 read-only 안내가 노출된다", async () => {

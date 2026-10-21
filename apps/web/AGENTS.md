@@ -188,7 +188,8 @@ src/
 `--topbar-h` 60 · `.page` 1240px)과 **셸 경계가 1024/768 둘뿐**이라는 사실 = **§10.2·§10.6** · `900px` = **§4.3.1** ·
 완료 체크리스트 = **§4.3.2**(고정 너비 `w-[Npx]` 금지 · 다열 그리드에 모바일 브레이크포인트 · 320px 무횡스크롤 ·
 텍스트 오버플로 처리 · 테이블 `overflow-x-auto` 래퍼 — 기계 집행 **0/5**).
-⚠️`e2e/design-canon-responsive.spec.ts` 는 **CI 에서 안 돈다** — 로컬에서 직접 돌려라.
+⚠️CI 브라우저 검증은 공개 `live-smoke.spec.ts`와 실제 서비스 `verified-strategy-journey.spec.ts`의 EMA 대표 여정이다.
+그 밖의 spec(반응형 포함)은 자동 실행 보장 밖이다. 실행 범위·명령 = `docs/development/ci-cd.md`.
 
 ## 11. TypeScript 컨벤션 (구 `typescript.md` 병합)
 
