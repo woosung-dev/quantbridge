@@ -467,6 +467,12 @@ class BacktestConfigOut(BaseModel):
     설명 가능.
     """
 
+    # None은 기존 Pine 실행이다. code_v1은 저장된 엔진 식별자로 판정한다.
+    execution_policy: Literal["code_v1"] | None = None
+    default_qty_type: Literal[
+        "strategy.percent_of_equity", "strategy.cash", "strategy.fixed"
+    ] | None = None
+    default_qty_value: float | None = None
     leverage: float
     fees: float
     slippage: float

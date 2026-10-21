@@ -409,6 +409,45 @@
       "BacktestConfigOut": {
         "description": "PRD `backtests.config` JSONB 5 가정 — FE AssumptionsCard 노출용.\n\nSprint 31 BL-156: leverage / fees / slippage / include_funding 응답 활성화.\n`initial_capital` 은 BacktestDetail 최상위 필드라 본 모델에선 생략.\n\nleverage 는 *명시적 가정* 으로 노출 — 현재 pine_v2 엔진은 leverage 를\nPnL 계산에 적용하지 않으므로 (qty 가 절대 수량) 사용자가 자본 대비 손실\n한계 (-100%) 를 초과하는 MDD 를 해석할 때 참고. >1.0 는 자연스럽게\n설명 가능.",
         "properties": {
+          "default_qty_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "strategy.percent_of_equity",
+                  "strategy.cash",
+                  "strategy.fixed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Qty Type"
+          },
+          "default_qty_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Qty Value"
+          },
+          "execution_policy": {
+            "anyOf": [
+              {
+                "const": "code_v1",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Policy"
+          },
           "fees": {
             "title": "Fees",
             "type": "number"

@@ -9,6 +9,8 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 
 import { ApiError } from "@/lib/api-client";
 import { listCodeStrategies, saveCodeStrategy, submitCodeBacktest } from "../code-api";
+import { getCodeResultStrategy } from "../code-result-api";
+import { createBacktest } from "@/features/backtest/api";
 import type { CodeLanguage, SaveCodeStrategy } from "../code-schemas";
 
 const STRATEGY_ID = "11111111-1111-4111-8111-111111111111";
@@ -84,6 +86,55 @@ describe("수동 코드 전략 API", () => {
     expect(apiFetchMock).toHaveBeenCalledWith(
       id ? `/api/v1/strategies/code/${id}` : "/api/v1/strategies/code",
       { method: id ? "PUT" : "POST", token: TOKEN, body: request() },
+    );
+  });
+
+  it("결과의 코드 상세 조회도 응답 언어를 검증한다", async () => {
+    apiFetchMock.mockResolvedValueOnce(response());
+    expect((await getCodeResultStrategy(STRATEGY_ID, TOKEN)).id).toBe(STRATEGY_ID);
+    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/strategies/code/${STRATEGY_ID}`, {
+      token: TOKEN,
+    });
+    const payload = response();
+    apiFetchMock.mockResolvedValueOnce({
+      ...payload,
+      version: { ...payload.version, language: "javascript" },
+    });
+    await expect(getCodeResultStrategy(STRATEGY_ID, TOKEN)).rejects.toThrow();
+  });
+
+  it("공통 백테스트 클라이언트의 Zod 검증 뒤에도 코드 재실행 정책과 수량이 전달된다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      backtest_id: BACKTEST_ID,
+      status: "queued",
+      created_at: "2026-01-01T00:00:00Z",
+    });
+    await createBacktest(
+      {
+        strategy_id: STRATEGY_ID,
+        execution_policy: "code_v1",
+        symbol: "BTC/USDT",
+        timeframe: "1h",
+        period_start: "2026-01-01T00:00:00Z",
+        period_end: "2026-02-01T00:00:00Z",
+        initial_capital: 10000,
+        leverage: 1,
+        fees_pct: 0.0004,
+        slippage_pct: 0.0002,
+        include_funding: true,
+        fill_timing: "next_bar_open",
+        default_qty_type: "strategy.percent_of_equity",
+        default_qty_value: 17,
+      },
+      TOKEN,
+    );
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests",
+      expect.objectContaining({
+        method: "POST",
+        token: TOKEN,
+        body: expect.objectContaining({ execution_policy: "code_v1", default_qty_value: 17 }),
+      }),
     );
   });
 

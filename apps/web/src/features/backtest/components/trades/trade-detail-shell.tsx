@@ -13,7 +13,7 @@ import { useBacktest, useAllBacktestTrades } from "@/features/backtest/hooks";
 import type { TradeItem } from "@/features/backtest/schemas";
 import { CHIP_TONE_CLASS } from "@/lib/labels";
 import { StateBox } from "@/components/state-box";
-import { useStrategy } from "@/features/strategy/hooks";
+import { BacktestStrategyLink } from "@/features/backtest/components/backtest-strategy-link";
 
 import { TradeDetailTable } from "@/features/backtest/components/trades/trade-detail-table";
 import { TradeStatsStrip } from "@/features/backtest/components/trades/trade-stats-strip";
@@ -38,8 +38,6 @@ const TABLE_SKELETON_CELLS = [
 
 export function TradeDetailShell({ id }: { id: string }) {
   const detail = useBacktest(id);
-  // [BL-859] 원장도 어느 전략의 원장인지 말한다.
-  const strategyQ = useStrategy(detail.data?.strategy_id);
   const trades = useAllBacktestTrades(id, {
     enabled: detail.data?.status === "completed",
   });
@@ -96,14 +94,7 @@ export function TradeDetailShell({ id }: { id: string }) {
             <h1 className="report-title">거래 내역</h1>
             <div className="report-meta">
               <span className="chip">{bt.id.slice(0, 8)}</span>
-              <Link
-                className="chip"
-                href={`/strategies/${bt.strategy_id}/edit`}
-                title="전략 편집기로 이동"
-                data-testid="trades-strategy-chip"
-              >
-                {strategyQ.data?.name ?? `전략 ${bt.strategy_id.slice(0, 8)}`}
-              </Link>
+              <BacktestStrategyLink backtest={bt} testId="trades-strategy-chip" />
               <span className="chip">{bt.symbol}</span>
               <span className="chip">{bt.timeframe}</span>
               <span className={CHIP_TONE_CLASS[statusTone]}>

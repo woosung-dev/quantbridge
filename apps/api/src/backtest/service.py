@@ -1009,6 +1009,13 @@ class BacktestService:
         # 사용자 입력값 — float coerce + 누락 키(또는 NULL config 전체)는 default 로 fallback.
         cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
         config_out = BacktestConfigOut(
+            execution_policy="code_v1" if bt.engine_version == "code_v1" else None,
+            default_qty_type=cfg_dict.get("default_qty_type")
+            if bt.engine_version == "code_v1"
+            else None,
+            default_qty_value=cfg_dict.get("default_qty_value")
+            if bt.engine_version == "code_v1"
+            else None,
             leverage=float(cfg_dict.get("leverage", _default.leverage)),
             fees=float(cfg_dict.get("fees", _default.fees)),
             slippage=float(cfg_dict.get("slippage", _default.slippage)),

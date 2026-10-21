@@ -46,8 +46,22 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
     // backtest 와 동일 결과 기대). bt.config null (legacy) 시 BE 기본값과 같은 값으로
     // 떨어진다 — ★BL-603 이후 그 기본값은 거래소 공시 표준가가 아니라 **라이브 원장 실측**이다.
     const cfg = backtest.config ?? null;
+    if (
+      cfg?.execution_policy === "code_v1" &&
+      (cfg.default_qty_type == null || cfg.default_qty_value == null)
+    ) {
+      toast.error("재실행 실패: 저장된 코드 실행 수량을 확인할 수 없습니다.");
+      return;
+    }
     create.mutate({
       strategy_id: backtest.strategy_id,
+      ...(cfg?.execution_policy === "code_v1"
+        ? {
+            execution_policy: "code_v1" as const,
+            default_qty_type: cfg.default_qty_type!,
+            default_qty_value: cfg.default_qty_value!,
+          }
+        : {}),
       symbol: backtest.symbol,
       timeframe: backtest.timeframe as never, // schema enum 보장 (BE→FE)
       period_start: backtest.period_start,

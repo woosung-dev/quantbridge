@@ -115,6 +115,9 @@ def test_to_detail_config_serialization_matches_fe_schema() -> None:
         "slippage",
         "include_funding",
         "fill_timing",
+        "execution_policy",
+        "default_qty_type",
+        "default_qty_value",
     }
     # 타입 정합 — number / boolean
     assert isinstance(dumped["leverage"], float)
@@ -138,3 +141,34 @@ def test_to_detail_config_present_for_queued_status() -> None:
     assert detail.metrics is None
     assert detail.config is not None
     assert detail.config.leverage == 1.0
+
+
+def test_code_result_policy_and_sizing_survive_response_roundtrip() -> None:
+    """엔진 식별자가 응답 정책을 정하며 저장 수량은 재실행까지 보존한다."""
+    from src.backtest.schemas import BacktestDetail
+
+    bt = _make_completed_bt()
+    bt.engine_version = "code_v1"
+    # config에 정책 키가 없어도 코드 실행을 레거시로 오인하지 않는다.
+    bt.config = {
+        "default_qty_type": "strategy.percent_of_equity",
+        "default_qty_value": 17.0,
+        "fill_timing": "next_bar_open",
+    }
+    detail = _make_service()._to_detail(bt)
+    restored = BacktestDetail.model_validate_json(detail.model_dump_json())
+    assert restored.config is not None
+    assert restored.config.execution_policy == "code_v1"
+    assert restored.config.default_qty_type == "strategy.percent_of_equity"
+    assert restored.config.default_qty_value == 17.0
+    assert restored.config.fill_timing == "next_bar_open"
+
+
+def test_legacy_result_does_not_invent_code_policy() -> None:
+    bt = _make_completed_bt()
+    bt.config = {"default_qty_type": "strategy.fixed", "default_qty_value": 0.0}
+    detail = _make_service()._to_detail(bt)
+    assert detail.config is not None
+    assert detail.config.execution_policy is None
+    assert detail.config.default_qty_type is None
+    assert detail.config.default_qty_value is None
