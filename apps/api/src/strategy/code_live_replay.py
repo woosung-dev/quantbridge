@@ -58,11 +58,13 @@ def replay_code_intents(
     elif code.language.value == "pine":
         from src.strategy.code_runtime.pine import PineSignalTransport
 
-        transport = PineSignalTransport(frame_from_payload([row.bar for row in records]))
+        transport = PineSignalTransport(
+            frame_from_payload([row.bar for row in records]), timeout=30
+        )
     else:
         from src.strategy.code_runtime.sandbox import create_transport
 
-        transport = create_transport(code.language)
+        transport = create_transport(code.language, timeout=30)
     try:
         if transport.exchange(
             {

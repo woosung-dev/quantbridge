@@ -232,6 +232,30 @@ async def test_code_dispatch_failure_rolls_back_without_commit():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("timeframe", ["1m", "5m", "15m"])
+async def test_unsupported_code_timeframe_rejected_before_dispatch(timeframe):
+    strategy_repo, strategy, _ = fixture()
+    repo, dispatcher = AsyncMock(), Mock()
+    svc = BacktestService(
+        repo=repo, strategy_repo=strategy_repo, ohlcv_provider=AsyncMock(), dispatcher=dispatcher
+    )
+    req = CreateBacktestRequest(
+        strategy_id=strategy.id,
+        symbol="BTC/USDT",
+        timeframe=timeframe,
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        period_end=datetime(2024, 1, 7, tzinfo=UTC),
+        initial_capital=Decimal("10000"),
+        fill_timing="next_bar_open",
+        execution_policy="code_v1",
+    )
+    with pytest.raises(CodeStrategyPolicyError, match="1h/4h/1d"):
+        await svc.submit(req, user_id=strategy.user_id)
+    repo.create.assert_not_awaited()
+    dispatcher.dispatch_backtest.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_code_worker_unavailable_is_failed_and_never_calls_legacy(monkeypatch):
     import pandas as pd
 

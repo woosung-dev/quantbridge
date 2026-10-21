@@ -2128,6 +2128,7 @@
                 "type": "null"
               }
             ],
+            "description": "code_v1은 명시적 opt-in이며 1h/4h/1d 신호 주기, next_bar_open, 1X만 지원합니다.",
             "title": "Execution Policy"
           },
           "fees_pct": {

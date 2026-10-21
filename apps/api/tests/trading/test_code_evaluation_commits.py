@@ -144,6 +144,19 @@ async def test_ack_loss_retries_same_intent_key_and_frozen_quantity():
 
 
 @pytest.mark.asyncio
+async def test_expired_prepared_entry_cannot_become_fresh_order():
+    svc, _, coordinator, rows, _, args = fixture("long")
+    coordinator.on_intent.side_effect = RuntimeError("delivery failed")
+    with pytest.raises(RuntimeError):
+        await svc.evaluate(**args)
+    args.update(bars=bars(5), now=START + timedelta(hours=5))
+    coordinator.on_intent.side_effect = None
+    with pytest.raises(CodeRuntimeError, match="오래된 진입"):
+        await svc.evaluate(**args)
+    assert rows[-1].status == "prepared" and coordinator.on_intent.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_unobserved_gap_rejects_without_synthetic_position_or_delivery():
     svc, _repo, coordinator, rows, _, args = fixture()
     await svc.evaluate(**args)

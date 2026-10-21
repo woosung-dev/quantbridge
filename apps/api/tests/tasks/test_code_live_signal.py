@@ -1,6 +1,7 @@
 """코드 세션은 legacy Pine 경로에 들어가지 않는다. 모든 IO는 대역이다."""
 
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -9,7 +10,7 @@ from uuid import uuid4
 import pytest
 
 from src.strategy.code_runtime.models import CodeRuntimeError
-from src.tasks.code_live_signal import code_quantity
+from src.tasks.code_live_signal import code_quantity, completed_code_bars
 
 
 @pytest.mark.asyncio
@@ -48,7 +49,7 @@ def test_decimal_frozen_baseline_sizing_and_step_rounding():
         price=Decimal("30000"),
         step=Decimal("0.001"),
         minimum=Decimal("0.001"),
-    ) == Decimal("0.033")
+    ) == Decimal("0.032")
     assert code_quantity(
         capital=Decimal("10000"),
         percent=Decimal("10"),
@@ -56,6 +57,31 @@ def test_decimal_frozen_baseline_sizing_and_step_rounding():
         step=Decimal("0.001"),
         minimum=Decimal("0.001"),
     ) != Decimal("11000") * Decimal("0.1") / Decimal("30000")
+
+
+def test_incomplete_candle_cannot_enter_sl_or_size_reference():
+    raw = [
+        [0, 100, 102, 99, 101, 20],
+        [60000, 101, 103, 100, 102, 20],
+        [120000, 102, 999, 1, 500, 20],
+    ]
+    completed = completed_code_bars(
+        raw, now=datetime.fromtimestamp(150, tz=UTC), interval_seconds=60
+    )
+    assert len(completed) == 2
+    assert completed[-1]["close"] == "102"
+    assert [bar["low"] for bar in completed[-2:]] == ["99", "100"]
+
+
+def test_both_half_quantities_must_meet_minimum():
+    with pytest.raises(CodeRuntimeError, match="50%"):
+        code_quantity(
+            capital=Decimal("10000"),
+            percent=Decimal("1"),
+            price=Decimal("30000"),
+            step=Decimal("0.001"),
+            minimum=Decimal("0.002"),
+        )
 
 
 @pytest.mark.parametrize("value", ["NaN", "0", "-1", "Infinity"])

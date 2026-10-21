@@ -1,6 +1,6 @@
 """code_v1 전용 봉 평가 조립. 기존 Pine replay와 주문 outbox를 섞지 않는다."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 from typing import Any
 
@@ -38,12 +38,33 @@ def code_quantity(
         or percent > 100
     ):
         raise CodeRuntimeError("고정 기준선·비율·가격·수량 규칙이 유효하지 않습니다")
-    quantity = (capital * percent / 100 / price / step).to_integral_value(
+    split_step = 2 * step
+    quantity = (capital * percent / 100 / price / split_step).to_integral_value(
         rounding=ROUND_DOWN
-    ) * step
-    if quantity < minimum:
-        raise CodeRuntimeError("진입 수량이 거래소 최소 수량보다 작습니다")
+    ) * split_step
+    if quantity / 2 < minimum:
+        raise CodeRuntimeError("50% 익절과 잔여 수량이 모두 거래소 최소 수량 이상이어야 합니다")
     return quantity
+
+
+def completed_code_bars(
+    raw: list[list[Any]], *, now: datetime, interval_seconds: int
+) -> list[dict[str, Any]]:
+    """포지션 평가·수량 추정·손절 기준은 같은 완료 봉만 사용한다."""
+    return [
+        {
+            "timestamp": datetime.fromtimestamp(int(row[0]) / 1000, tz=UTC).isoformat(),
+            **{
+                key: str(value)
+                for key, value in zip(
+                    ("open", "high", "low", "close", "volume"), row[1:6], strict=True
+                )
+            },
+        }
+        for row in raw
+        if datetime.fromtimestamp(int(row[0]) / 1000, tz=UTC) + timedelta(seconds=interval_seconds)
+        <= now
+    ]
 
 
 async def evaluate_code_session(
@@ -77,8 +98,8 @@ async def evaluate_code_session(
     )
     code = read_code_version(version, strategy_id=live.strategy_id)
     frozen = StrategySettings.model_validate(snapshot.get("execution_settings"))
-    if frozen.fill_timing != "next_bar_open" or frozen.leverage != 1:
-        raise CodeRuntimeError("현재 code_v1 제품은 next_bar_open·1X 실행 설정이 필요합니다")
+    if frozen.fill_timing != "next_bar_open" or frozen.leverage != 1 or str(live.interval) != "1h":
+        raise CodeRuntimeError("현재 code_v1 demo는 1h·next_bar_open·1X 실행 설정이 필요합니다")
     state = await repo.get(live.id)
     credentials = await accounts.get_credentials_for_order(live.exchange_account_id)
     actual = await provider.fetch_position(credentials, live.symbol)
@@ -106,22 +127,11 @@ async def evaluate_code_session(
     market_provider = get_ccxt_provider_for_worker()
     symbol = to_ccxt_perpetual_symbol(live.symbol)
     raw = await market_provider.fetch_ohlcv(
-        symbol, str(live.interval), limit_bars=code.warmup_bars + 1
+        symbol, str(live.interval), limit_bars=code.warmup_bars + 2
     )
-    if len(raw) < 2:
+    bars = completed_code_bars(raw, now=at, interval_seconds=TIMEFRAME_SECONDS[str(live.interval)])
+    if len(bars) < 2:
         raise CodeRuntimeError("완료 봉과 손절 기준 2봉이 필요합니다")
-    bars = [
-        {
-            "timestamp": datetime.fromtimestamp(int(row[0]) / 1000, tz=UTC).isoformat(),
-            **{
-                key: str(value)
-                for key, value in zip(
-                    ("open", "high", "low", "close", "volume"), row[1:6], strict=True
-                )
-            },
-        }
-        for row in raw
-    ]
     await market_provider.exchange.load_markets()
     market = market_provider.exchange.market(symbol)
     if market_provider.exchange.precisionMode != TICK_SIZE:
@@ -132,13 +142,17 @@ async def evaluate_code_session(
     capital = live.equity_baseline_usdt
     if capital is None:
         raise CodeRuntimeError("세션 자본 기준선이 없습니다")
-    qty = code_quantity(
-        capital=capital,
-        percent=Decimal(str(frozen.position_size_pct)),
-        price=price,
-        step=step,
-        minimum=minimum,
-    )
+    try:
+        qty: Decimal | None = code_quantity(
+            capital=capital,
+            percent=Decimal(str(frozen.position_size_pct)),
+            price=price,
+            step=step,
+            minimum=minimum,
+        )
+    except CodeRuntimeError:
+        # 새 진입은 coordinator가 거부하되 hold/무효화 close는 최소 수량 오류에 막지 않는다.
+        qty = None
     kill_switch = await get_kill_switch_service(session, accounts)
     coordinator = CodeLiveExecutionService(
         repo, OrderRepository(session), risk, executor, entry_gate=kill_switch.ensure_not_gated

@@ -122,6 +122,10 @@ class CodeEvaluationService:
         if pending:
             if len(pending) != 1 or pending[0] != records[-1]:
                 raise CodeRuntimeError("미전달 의도 순서가 다릅니다")
+            if pending[0].intent in ("long", "short") and now >= pending[0].bar_time + 2 * width:
+                raise CodeRuntimeError(
+                    "다음 봉을 지난 오래된 진입 의도는 새 주문으로 재시도하지 않습니다"
+                )
             # 재시도에서는 새 포지션이나 새 수량을 과거 의도에 주입하지 않는다.
             await asyncio.to_thread(
                 replay_code_intents, code, records, transport_factory=self.transport_factory

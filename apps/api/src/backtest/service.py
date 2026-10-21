@@ -291,6 +291,10 @@ class BacktestService:
         body_hash: bytes | None,
     ) -> BacktestCreatedResponse:
         code = read_code_version(version, strategy_id=data.strategy_id)
+        if data.timeframe not in ("1h", "4h", "1d"):
+            raise CodeStrategyPolicyError(
+                "code_v1 1분 실행 백테스트는 현재 1h/4h/1d 신호 주기만 지원합니다"
+            )
         if (
             data.fill_timing != "next_bar_open"
             or data.leverage != Decimal("1")

@@ -29,7 +29,10 @@ class CreateBacktestRequest(BaseModel):
     """
 
     strategy_id: UUID
-    execution_policy: Literal["code_v1"] | None = None
+    execution_policy: Literal["code_v1"] | None = Field(
+        default=None,
+        description="code_v1은 명시적 opt-in이며 1h/4h/1d 신호 주기, next_bar_open, 1X만 지원합니다.",
+    )
     symbol: str = Field(min_length=3, max_length=32)
     timeframe: Literal["1m", "5m", "15m", "1h", "4h", "1d"]
     period_start: AwareDatetime
