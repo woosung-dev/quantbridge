@@ -74,12 +74,14 @@ fake 검사는 진입·종결 체결 VWAP 기준 고정 R·SL/추적 보호 파�
 
 ## 실행 기한과 제품 적합성 판단
 
-백테스트 transport 기본 전체 기한은 최대 900초, live는 **입력 전체 재생마다 30초**다
+백테스트 transport 기본 기한은 최대 900초, live는 **transport 생성부터 30초**다
 ([transport](../../apps/api/src/strategy/python_runtime/sandbox.py#L82),
 [live 재생](../../apps/api/src/strategy/code_live_replay.py#L58)).
 TypeScript 컴파일도 같은 전체 기한에 포함하며 별도 컴파일 제한은 60초다. live에서는
 전체 30초가 먼저 적용된다. Pine의 초기 import·coverage·콜드 parse와 Python/TS 기동 비용도
-기한에서 빠지지 않는다. 따라서 백테스트 실행 성공만으로 live 30초 적합성을 인정하지 않는다.
+기한에서 빠지지 않는다. 생성 전 입력 검증과 cleanup의 호스트 시간은 이 deadline 밖이다.
+[운영 gate](../development/sol-operational-gate.md)는 이 시간도 포함한 전체 30초를 별도로 판정한다.
+따라서 백테스트 실행 성공만으로 live 30초 적합성을 인정하지 않는다.
 저장된 입력을 매 평가마다 재생하므로 긴 세션의 지연·메모리 증가는 별도 확인 대상이다.
 Pine 콜드 parse를 포함한 언어별 p50/p95나 운영 비용 우열은 이 제품 여정에서 측정하지 않았다.
 
@@ -142,6 +144,8 @@ read-only, nonroot, CPU·메모리·PID·시간·출력 제한을 적용한다. 
 초기 R·수량 보존은 별도 Decimal 계산으로 검사한다. 이 범위를 거래소 실체결의 독립
 재현으로 확장하지 않는다. 4개 의도 중 관찰 기회가 없으면 미검증이며 0점이다.
 반복 생성은 같은 전략의 상관 표본이므로 전략 평균을 먼저 비교한다.
+선정용 `quality90`은 의미·원장·재현성 80점과 공개 실행 smoke의 일괄 proxy 10점이다.
+후자는 성공/실패에 10/0점을 주며 UI·SQL·실거래소 연결의 개별 측정 점수가 아니다.
 
 과거 24개월·실행 분봉 6개월은 회고 자료다. 실제 과거 펀딩 시각·비율을 사용해도 가격은
 OHLC 시가 proxy다. Bybit의 공식

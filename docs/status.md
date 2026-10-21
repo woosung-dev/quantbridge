@@ -1024,8 +1024,9 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 
 **다음 행동 = PRD §5의 결과·가정 공개에 따라 [다중 언어 실행 계약](./development/sol-strategy-lab.md)의 30전략·세 생성 방식·세 실행 언어를 독립 검증하고, 승자 기능과 주문 보호를 CI 통과 PR까지 구현한다.**
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
-Python 웹·API·작업 실행은 2026-10-21 사용자 최종 결정으로 제품에서 제외한다([ADR-045](./adr/045-python-strategy-research.md)).
-기존 DB 원장·마이그레이션 이력, 오프라인 연구 도구·공통 청산 계산은 보존하며 서비스 실행기 준비는 진행하지 않는다.
+기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.
+현재 [ADR-046](./adr/046-generated-strategy-language-evaluation.md)의 다중 언어 `code_v1`은 별도 경로다.
+PR #924는 draft이며 Sol 본 평가·최종 후보·생성 API 연결이 미완이다. 실제 거래소 주문·운영 DDL·배포는 하지 않았다.
 현재 서비스 경계: Python 화면·API·Celery 연결 철거와 기존 수정 9건은 #920으로 main에 반영됐다.
 2026-10-21 16:27 UTC 운영 확인에서 워커 4개·FE는 `sha-671e6c1`, 호스트 API는 active,
 DB는 `20261021_0002`, 내부·공개 `/health`는 200이다. Python API는 404이고 FE route manifest에
@@ -1036,9 +1037,9 @@ DB는 `20261021_0002`, 내부·공개 `/health`는 200이다. Python API는 404�
 이번 Pine 원문 코호트의 V2 적용·TradingView 직접 대조·비용 반영 성과 검증은 미완이다. #914의 별도 Python
 스윙 연구 검증을 이 코호트의 통과로 합산하지 않는다. 새 미사용 기간의 성과 검증은 별도 대상이다.
 로컬 근거는 `runs/trend-v2/REPORT.html`·`production-registration/FINAL.json`에 있으며 `runs/`는 gitignore다.
-Python 웹·서버 실행·자동매매는 제품에서 제외하며 신규 Pine 전략의 거래 활성화도 이번 범위 밖이다.
+이전 Pine 원문 검증에서 신규 전략의 거래 활성화는 범위 밖이다. 다중 언어 실행 범위는 ADR-046이 정한다.
 PRD **§5** 「결과와 가정이 얼마나 정직하게 보이는가」에 따라 원본 `pine_v2`·독립 Python·TradingView 관측을
-구분한다. 외부 LLM은 사용하지 않는다. 계약·실행 절차 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
+구분한다. 이 Pine 원문 검증에는 외부 LLM을 사용하지 않는다. 계약·실행 절차 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 수집 probe만 일치한 결과나 미지원 지표를 원본 검증 성공으로 승격하지 않는다. 원시 캡처 직접 검증과
 기존 출처 검토 사건의 일치를 구분한다. 운영 등록·엔진 배포는 완료됐으며 신규 전략의 거래 활성화는 범위 밖이다.
 2026-10-21 사용자 지시: 미지원 원문을 수리해 수를 채우지 않고 신규 추세 원문을 조사한다. 실행 가능한 고유 원문만

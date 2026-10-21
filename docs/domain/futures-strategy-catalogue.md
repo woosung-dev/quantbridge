@@ -20,6 +20,8 @@ HA나 미완료 상위 봉의 합성 가격으로 체결하지 않는다.
 
 `C`는 종가, `H/L`은 고가/저가다. 교차는 전봉 이하→현재 초과(상향), 전봉 이상→현재 미만(하향)이다.
 EMA는 대상 Pine 엔진의 SMA seed, RSI는 Wilder seed와 평탄 구간 100 계약을 따른다.
+본 평가의 유한 신호 비교는 [수치 계약 v2](../development/sol-strategy-lab.md#평가와-재현)의
+epsilon 동률을 적용한다. UTC timestamp는 봉 시작이며 신호는 그 봉 완료 뒤 확정한다.
 같은 봉의 양방향 진입은 보류하며, 반대 진입 → 보유 방향 무효화 → 유지 순으로 결정한다.
 
 | ID | 방법 | 롱 진입 | 숏 진입 | 롱 / 숏 무효화 | 공식 지표 정의 | 명세 컴파일 |
@@ -54,6 +56,15 @@ EMA는 대상 Pine 엔진의 SMA seed, RSI는 Wilder seed와 평탄 구간 100 �
 | 28 | Heikin Ashi 추세 확인 | 실제C>EMA200,HA양봉2개가처음연속확정 | 실제C<EMA200,HA음봉2개가처음연속확정 | HA음봉 확정 / HA양봉 확정 | [공식 문서](https://www.tradingview.com/pine-script-docs/concepts/non-standard-charts-data/) | 세 언어 지원 |
 | 29 | Chandelier 추세 전환 | C가전봉LL22+3ATR22 상향교차,C>EMA200 | C가전봉HH22-3ATR22 하향교차,C<EMA200 | C<전봉HH22-3ATR22 / C>전봉LL22+3ATR22 | [공식 문서](https://www.tradingview.com/support/solutions/43000773013-chandelier-exit/) | 세 언어 지원 |
 | 30 | 완료4h EMA regime | 직전완료4h C>4hEMA200,1hEMA9가EMA21 상향교차 | 직전완료4h C<4hEMA200,1hEMA9가EMA21 하향교차 | 완료4h regime하락 또는 1hEMA9<EMA21 / 완료4h regime상승 또는 1hEMA9>EMA21 | [공식 문서](https://www.tradingview.com/pine-script-docs/concepts/other-timeframes-and-data/) | 명시적 미지원 |
+
+09의 squeeze는 현재봉을 제외한 이전 유효 bandwidth 120개와 비교한다. event 봉에는 진입하지
+않고 이후 1..5봉의 첫 돌파를 포지션과 무관하게 한 번 소비한다. 새 event는 창을 재설정한다.
+16의 RSI strict 3/3 pivot은 우측 3봉 완료 후 확정하며 같은 유형의 연속 pivot 간격은 3..60봉이다.
+확정 다음 봉 한 번만 확인하고, 보유 중 같은 방향 신호도 최신 둘째 pivot의 무효화 기준을 갱신한다.
+초기 R은 바꾸지 않는다. 22의 anchor는 `2026-01-01T00:00:00Z`로 고정하고 그 봉부터 포함한다.
+30은 03:00 시작 1h봉 완료 시 00:00~04:00의 완료 4h봉을 즉시 참조한다.
+22는 anchor부터의 누적 이력, 30은 완료 4h봉 200개가 필요하다. 제품 초기화의 200개 1h봉만으로
+두 전략의 준비를 보장하지 않는다([운영 측정 범위](../development/sol-operational-gate.md)).
 
 ## 스크립트와 검증의 경계
 
