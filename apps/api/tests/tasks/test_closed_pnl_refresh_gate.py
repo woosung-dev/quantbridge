@@ -224,6 +224,8 @@ async def test_code_terminal_partial_fill_enters_existing_refresh_only_with_posi
     order.state = OrderState(state)
     order.filled_quantity = Decimal(quantity)
     order.risk_context = {"session_id": "code"} if code else None
+    order.created_at = order.filled_at
+    order.submitted_at = None
     repo = _install(monkeypatch, order)
     provider = _provider(_snapshot())
     if code:

@@ -1617,7 +1617,7 @@ async def _refresh_closed_pnl_with_session(
             order_id=exchange_order_id,
             symbol=symbol,
             side=order.side,
-            since=filled_at,
+            since=min(order.created_at, order.submitted_at or order.created_at),
         )
         async with sm() as session:
             repo = OrderRepository(session)
@@ -2327,7 +2327,7 @@ async def _sweep_closed_pnl_with_session(
                             order_id=order.exchange_order_id,
                             symbol=order.symbol,
                             side=order.side,
-                            since=order.filled_at,
+                            since=min(order.created_at, order.submitted_at or order.created_at),
                         )
                     except ProviderError as exc:
                         # 다음 주문 조회 실패로 앞서 관측한 다른 주문의 충돌을 버리지 않는다.

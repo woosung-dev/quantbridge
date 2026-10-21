@@ -1565,7 +1565,11 @@ class BybitFuturesProvider:
         side: OrderSide,
         since: datetime,
     ) -> CodeClosedPnlRead:
-        """완료된 제한 조회의 단일 거래소 관측만 지원한다. 서로 다른 snapshot은 합산하지 않는다."""
+        """주문 생성·제출 하한부터 완료된 제한 조회의 단일 관측만 지원한다.
+
+        createdTime의 생성 대상은 공식 문서가 특정하지 않는다. 호출자가 전달한 이른 주문
+        시각에 기존 lookback을 적용하되 최근 7일만 조회하며 서로 다른 snapshot은 합산하지 않는다.
+        """
         require_bybit_demo_account(creds.exchange, creds.environment)
         exchange = ccxt_async.bybit(
             {

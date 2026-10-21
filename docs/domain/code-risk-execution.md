@@ -257,7 +257,12 @@ orderId·closedSize·fillCount·updatedTime을 제공하지만 행별 체결 ID�
 legacy는 raw=None의 기존 합산과 서로 다른 행 합산을 유지하며, 전체 cursor 철거/교체는 별도다.
 
 코드 전용 조회는 원본 V5 linear·symbol·account credentials 범위에서 기존 최근 7일·
-100행/최대 5페이지 예산을 재사용한다. 명시적 빈 nextPageCursor까지 읽고 cursor 누락·
+100행/최대 5페이지 예산을 재사용한다. refresh와 sweep의 코드 조회 시작점은 로컬 주문의
+created_at과 존재하는 submitted_at 중 이른 시각에 기존 1시간 lookback을 적용하고 최근
+7일로 제한한다. 공식 문서의 createdTime은 생성 대상을 특정하지 않으므로, 체결·취소까지
+오래 대기한 주문의 생성 시각과 청산 기록 생성 시각 양쪽을 포괄하려는 정책이다. 실제
+거래소 필터 의미를 관측·확정한 것은 아니며, 7일 밖의 생성 시각이나 페이지 예산 초과는
+여전히 미확정이다. legacy 조회 창은 유지한다. 명시적 빈 nextPageCursor까지 읽고 cursor 누락·
 반복·예산 소진·잘못된 응답이면 새 확정을 보류한다. matching order의 서로 다른 raw가
 정확히 한 개이며 Trade·반대 청산 side·양수 유한 closedSize·유한 closedPnl이어야 한다.
 0/음수 손익은 유효하다. 수량은 실제 terminal Order.filled_quantity와 Decimal로 정확히
