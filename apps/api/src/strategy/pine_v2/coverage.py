@@ -38,13 +38,15 @@ from src.strategy.pine_v2._names import (
 # 갱신 의무는 본 SSOT 통합으로 폐지 — `_names.py` 한 곳만 갱신 + invariant
 # 자동 검증 (test_ssot_invariants.py).
 
-# strategy.* — interpreter._exec_strategy_call (entry/close/close_all/exit)
+# strategy.* — interpreter._exec_strategy_call (entry/close/close_all/exit/cancel)
 _STRATEGY_FUNCTIONS: frozenset[str] = frozenset(
     {
         "strategy.entry",
         "strategy.close",
         "strategy.close_all",
         "strategy.exit",
+        "strategy.cancel",
+        "strategy.cancel_all",
     }
 )
 

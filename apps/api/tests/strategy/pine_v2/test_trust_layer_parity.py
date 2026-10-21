@@ -106,10 +106,10 @@ def test_p2_stdlib_names_equals_coverage_ta_plus_utility() -> None:
 
 
 def test_p2_coverage_strategy_functions_match_spec() -> None:
-    """P-2: `coverage._STRATEGY_FUNCTIONS` 가 4개 핵심 호출 (entry/close/close_all/exit).
+    """P-2: `coverage._STRATEGY_FUNCTIONS`가 진입·청산·취소 6개 호출과 일치한다.
 
-    interpreter 의 `_exec_strategy_call` 및 관련 핸들러가 이 4 함수를 처리.
-    새로운 strategy.* 함수 추가 시 (예: strategy.cancel) 여기도 갱신 필요.
+    interpreter의 `_exec_strategy_call` 및 관련 핸들러가 이 6 함수를 처리.
+    새 strategy.* 함수 추가 시 지원 집합과 이 계약을 함께 갱신한다.
     """
     expected = frozenset(
         {
@@ -117,6 +117,8 @@ def test_p2_coverage_strategy_functions_match_spec() -> None:
             "strategy.close",
             "strategy.close_all",
             "strategy.exit",
+            "strategy.cancel",
+            "strategy.cancel_all",
         }
     )
     assert expected == cov._STRATEGY_FUNCTIONS, (

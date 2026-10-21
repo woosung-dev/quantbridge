@@ -19,8 +19,9 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal, NamedTuple
 
 from src.strategy.pine_v2.exit_orders import SAME_BAR_FILL_PRIORITY, ExitOrderKind
@@ -143,11 +144,24 @@ class ExitOrder:
     trail_offset: float | None = None
     trail_anchor: float | None = None  # trailing 최적가 추적 (runtime)
     comment: str = ""
+    qty: float | None = None  # 한 exit_id 브래킷의 예약 수량. None은 기존 전량 계약.
+    trail_price: float | None = None  # 절대 활성화 가격. offset은 기존 가격 거리 계약.
+    trail_active: bool = False
 
     def update_trailing(self, high: float, low: float) -> None:
         """trailing anchor 를 유리방향으로만 갱신 (ratchet). 비-trailing 은 no-op."""
         if self.kind != ExitOrderKind.TRAILING_STOP or self.trail_offset is None:
             return
+        if not self.trail_active:
+            if self.trail_price is not None:
+                reached = (
+                    high >= self.trail_price
+                    if self.position_direction == "long"
+                    else low <= self.trail_price
+                )
+                if not reached:
+                    return
+            self.trail_active = True
         if self.position_direction == "long":
             self.trail_anchor = high if self.trail_anchor is None else max(self.trail_anchor, high)
         else:
@@ -160,7 +174,9 @@ class ExitOrder:
             return self.trail_anchor - self.trail_offset
         return self.trail_anchor + self.trail_offset
 
-    def try_fill_exit(self, *, bar: int, open_: float, high: float, low: float) -> float | None:
+    def try_fill_exit(
+        self, *, bar: int, open_: float, high: float, low: float, allow_open_gap: bool = True
+    ) -> float | None:
         """이 bar OHLC 로 exit 체결 가능한지 판단. 체결가 반환, 아니면 None.
 
         placed_bar >= bar 면 같은 bar 즉시 체결 금지 (entry 관례 일치).
@@ -185,9 +201,10 @@ class ExitOrder:
         level = self._trail_stop_level()
         if level is None:
             return None
+        # 이 봉 도중 처음 활성화된 주문은 활성화 전 시가로 소급 체결할 수 없다.
         if self.position_direction == "long":
-            return min(open_, level) if low <= level else None
-        return max(open_, level) if high >= level else None
+            return (min(open_, level) if allow_open_gap else level) if low <= level else None
+        return (max(open_, level) if allow_open_gap else level) if high >= level else None
 
 
 @dataclass
@@ -364,6 +381,8 @@ class StrategyState:
     # BL-104 — pending exit 브래킷: from_entry(trade id) → OCO leg 리스트.
     # 비어있으면 check_exit_fills no-op → strategy.exit 미사용 시 byte-identical.
     pending_exits: dict[str, list[ExitOrder]] = field(default_factory=dict)
+    # 라이브 surface가 표현하지 못하는 부분/복수/활성화/취소 전략을 구분한다.
+    used_advanced_exits: bool = False
     # 경고/미지원 파라미터 추적 (`limit=`, `trail_points=` 등) — 사용자에게 알림용
     warnings: list[str] = field(default_factory=list)
     # 진입이 엔진 게이트에서 삼켜진 구조화된 기록. warnings 소비처와 분리한다.
@@ -1009,19 +1028,39 @@ class StrategyState:
         comment: str = "",
         broker_filled: bool = False,
         fill_phase: FillPhase = "bar_close",
+        qty: float | None = None,
     ) -> Trade | None:
-        """id 기준 포지션 청산. open 없으면 None.
+        """id 기준 포지션 청산. qty 지정 시 종료 leg와 잔량으로 분리한다.
+
+        open 없으면 None. 부분 leg의 진입 시점/가격은 원래 거래와 같다.
 
         broker_filled=True 는 이 청산이 **거래소가 이미 실행한 체결**에서 파생됐다는
         뜻이다 (BL-560). 원장 갱신(closed_trades / PnL / running_equity)은 전혀 다르지
         않고, 남기는 close 이벤트에만 표시가 붙어 라이브 재발신에서 제외된다.
         """
-        trade = self.open_trades.pop(trade_id, None)
-        if trade is None:
+        position = self.open_trades.get(trade_id)
+        if position is None:
             return None
-        # BL-104 — 포지션 청산 시 그 entry 의 OCO exit 브래킷도 purge (반대신호/flip
-        # 시 stale exit leg 잔존 방지). pending_exits 비어있으면 무영향 (회귀 0).
-        self.pending_exits.pop(trade_id, None)
+        total = Decimal(str(position.qty))
+        amount = total if qty is None else min(Decimal(str(qty)), total)
+        if not amount.is_finite() or amount <= 0:
+            return None
+        if amount < total:
+            # 같은 진입 시점/가격의 독립 종료 leg로 분리한다. 진입비용과 funding은
+            # 기존 adapter가 각 leg 수량·보유구간에 비례해 합성한다.
+            self.used_advanced_exits = True
+            margin = position.margin_used
+            closed_margin = (
+                float(Decimal(str(margin)) * amount / total) if margin is not None else None
+            )
+            trade = replace(position, qty=float(amount), margin_used=closed_margin)
+            position.qty = float(total - amount)
+            if margin is not None and closed_margin is not None:
+                position.margin_used = float(Decimal(str(margin)) - Decimal(str(closed_margin)))
+        else:
+            trade = self.open_trades.pop(trade_id)
+            # 전량 close/반전은 기존 entry의 모든 청산 예약을 제거한다.
+            self.pending_exits.pop(trade_id, None)
         trade.exit_bar = bar
         trade.exit_price = fill_price
         trade.exit_phase = fill_phase
@@ -1301,6 +1340,9 @@ class StrategyState:
         profit_offset: float | None = None,
         loss_offset: float | None = None,
         trail_offset: float | None = None,
+        trail_price: float | None = None,
+        qty: float | None = None,
+        qty_percent: float | None = None,
         comment: str = "",
     ) -> None:
         """strategy.exit 브래킷 placement. from_entry="" → 모든 open 포지션.
@@ -1309,9 +1351,20 @@ class StrategyState:
         - 상대오프셋: profit(TP)/loss(SL) → target entry 가 기준 price-distance 로 환산.
           long: TP=entry+profit, SL=entry-loss. short: TP=entry-profit, SL=entry+loss.
           (pine_v2 는 mintick 모델 부재 → 1:1 price-distance 근사.)
-        Pine re-issue 의미론: 같은 from_entry 의 기존 브래킷을 교체(가격 갱신).
-        교체 시 동일 (exit_id, TRAILING_STOP) leg 의 trail_anchor 는 보존 (ratchet 유지).
+        같은 (from_entry, exit_id)만 교체하고 다른 ID의 예약 수량은 보존한다.
+        동일 exit_id의 OCO 형제는 예약 수량을 공유한다. 초과 요청은 잔여량으로 제한한다.
+        trail_price는 절대 활성화 가격이며 trail_offset은 가격 거리다.
+        동일 ID의 trail anchor/활성화 상태는 재발행 시 보존한다.
         """
+        if qty is not None or qty_percent is not None or trail_price is not None:
+            self.used_advanced_exits = True
+        for value in (qty, qty_percent):
+            if value is not None and (not math.isfinite(value) or value <= 0):
+                raise ValueError("strategy.exit 수량은 유한한 양수여야 합니다")
+        if trail_price is not None and (not math.isfinite(trail_price) or trail_offset is None):
+            raise ValueError("strategy.exit trail_price는 유한한 가격과 trail_offset을 요구합니다")
+        if trail_offset is not None and (not math.isfinite(trail_offset) or trail_offset <= 0):
+            raise ValueError("strategy.exit trail_offset은 유한한 양수여야 합니다")
         if from_entry:
             targets = [from_entry] if from_entry in self.open_trades else []
         else:
@@ -1330,10 +1383,33 @@ class StrategyState:
                 eff_limit = entry + profit_offset if pos_dir == "long" else entry - profit_offset
 
             prev_legs = self.pending_exits.get(tid, [])
+            other_legs = [leg for leg in prev_legs if leg.exit_id != exit_id]
+            if other_legs:
+                self.used_advanced_exits = True
+            # OCO 형제는 동일 예약을 공유한다. 다른 exit_id의 예약은 침범하지 않는다.
+            reservations = {
+                leg.exit_id: Decimal(str(leg.qty if leg.qty is not None else trade.qty))
+                for leg in other_legs
+            }
+            available = max(
+                Decimal("0"), Decimal(str(trade.qty)) - sum(reservations.values(), Decimal("0"))
+            )
+            requested = (
+                Decimal(str(qty))
+                if qty is not None
+                else (
+                    Decimal(str(trade.qty)) * Decimal(str(qty_percent)) / Decimal("100")
+                    if qty_percent is not None
+                    else available
+                )
+            )
+            reserved_qty = float(min(requested, available))
             prev_trail_anchor: float | None = None
+            prev_trail_active = False
             for pl in prev_legs:
                 if pl.exit_id == exit_id and pl.kind == ExitOrderKind.TRAILING_STOP:
                     prev_trail_anchor = pl.trail_anchor
+                    prev_trail_active = pl.trail_active
 
             legs: list[ExitOrder] = []
             if eff_stop is not None:
@@ -1370,11 +1446,39 @@ class StrategyState:
                         placed_bar=bar,
                         trail_offset=trail_offset,
                         trail_anchor=prev_trail_anchor,
+                        trail_price=trail_price,
+                        trail_active=prev_trail_active,
                         comment=comment,
                     )
                 )
             if legs:
-                self.pending_exits[tid] = legs
+                for leg in legs:
+                    leg.qty = reserved_qty
+                # 0 예약은 주문을 만들지 않는다. 다른 ID의 보호 주문은 유지한다.
+                self.pending_exits[tid] = other_legs + (legs if reserved_qty > 0 else [])
+                if not self.pending_exits[tid]:
+                    self.pending_exits.pop(tid)
+
+    def cancel(self, order_id: str) -> None:
+        """같은 ID의 미체결 entry/exit/시장가 intent만 제거한다."""
+        self.used_advanced_exits = True
+        self.pending_orders.pop(order_id, None)
+        self.pending_market_intents = [
+            intent for intent in self.pending_market_intents if intent.trade_id != order_id
+        ]
+        for tid, legs in list(self.pending_exits.items()):
+            kept = [leg for leg in legs if leg.exit_id != order_id]
+            if kept:
+                self.pending_exits[tid] = kept
+            else:
+                self.pending_exits.pop(tid)
+
+    def cancel_all(self) -> None:
+        """포지션을 유지하고 모든 미체결 주문만 취소한다."""
+        self.used_advanced_exits = True
+        self.pending_orders.clear()
+        self.pending_exits.clear()
+        self.pending_market_intents.clear()
 
     def check_exit_fills(
         self,
@@ -1389,8 +1493,9 @@ class StrategyState:
 
         - pending_exits 비어있으면 즉시 [] → strategy.exit 미사용 시 no-op (회귀 0).
         - BL-188 v3 session gate 재사용: disallowed bar 면 fill skip → carry-over.
-        - 한 entry 의 leg 가 체결되면 포지션 청산 + OCO 형제 전부 purge.
-        - 같은 bar 에 여러 leg trigger 시 체결 우선순위 = 거리순 (C4 에서 pessimistic 으로 교체).
+        - 체결된 exit_id의 예약 수량만 청산하고 해당 OCO 형제를 제거한다.
+        - 다른 exit_id의 잔량 보호 주문은 보존하며 전량 close는 모두 제거한다.
+        - 같은 bar에서는 SL→Trail→TP 우선. 실제 봉내 순서 재현은 아니다.
         """
         if not self.pending_exits:
             return []
@@ -1405,11 +1510,28 @@ class StrategyState:
             legs = self.pending_exits.get(entry_id)
             if not legs or entry_id not in self.open_trades:
                 continue
-            for leg in legs:
-                leg.update_trailing(high, low)
             candidates: list[tuple[ExitOrder, float]] = []
             for leg in legs:
-                fp = leg.try_fill_exit(bar=bar, open_=open_, high=high, low=low)
+                absolute_trail = (
+                    leg.kind == ExitOrderKind.TRAILING_STOP and leg.trail_price is not None
+                )
+                # 절대 trail은 이전 봉에서 존재하던 stop의 시가 갭만 먼저 확정한다.
+                fp = (
+                    leg.try_fill_exit(bar=bar, open_=open_, high=open_, low=open_)
+                    if absolute_trail and leg.trail_active
+                    else None
+                )
+                if fp is None:
+                    leg.update_trailing(high, low)
+                    # 이번 봉 극값으로 생긴 stop을 과거 시가에 소급 적용하지 않는다.
+                    # offset-only V1은 기존 갭/ratchet 근사를 그대로 유지한다.
+                    fp = leg.try_fill_exit(
+                        bar=bar,
+                        open_=open_,
+                        high=high,
+                        low=low,
+                        allow_open_gap=not absolute_trail,
+                    )
                 if fp is not None:
                     candidates.append((leg, fp))
             if not candidates:
@@ -1417,19 +1539,32 @@ class StrategyState:
             # 동시-bar trigger 시 SAME_BAR_FILL_PRIORITY(SL→Trail→TP) 순 = pessimistic.
             # intrabar path 미상 → SL 우선 = 실거래 최악가정 일치.
             candidates.sort(key=lambda c: SAME_BAR_FILL_PRIORITY.index(c[0].kind))
-            leg, fill_price = candidates[0]
-            trade = self.close(
-                entry_id,
-                bar=bar,
-                fill_price=fill_price,
-                comment=leg.comment,
-                fill_phase="intrabar_unknown",
-            )
-            if trade is not None:
-                trade.exit_kind = leg.kind
-                filled.append(trade)
-            # 포지션 청산 → OCO 형제 전부 purge.
-            self.pending_exits.pop(entry_id, None)
+            filled_groups: set[str] = set()
+            for leg, fill_price in candidates:
+                if entry_id not in self.open_trades or leg.exit_id in filled_groups:
+                    continue
+                filled_groups.add(leg.exit_id)
+                # 체결된 브래킷의 OCO 형제만 취소하고 다른 ID의 잔량 보호는 남긴다.
+                kept = [
+                    pending
+                    for pending in self.pending_exits.get(entry_id, [])
+                    if pending.exit_id != leg.exit_id
+                ]
+                if kept:
+                    self.pending_exits[entry_id] = kept
+                else:
+                    self.pending_exits.pop(entry_id, None)
+                trade = self.close(
+                    entry_id,
+                    bar=bar,
+                    fill_price=fill_price,
+                    comment=leg.comment,
+                    fill_phase="intrabar_unknown",
+                    qty=leg.qty,
+                )
+                if trade is not None:
+                    trade.exit_kind = leg.kind
+                    filled.append(trade)
         return filled
 
     def exit_levels_for(self, trade_id: str) -> ExitLevels:

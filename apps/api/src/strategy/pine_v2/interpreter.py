@@ -1200,7 +1200,14 @@ class Interpreter:
             )
 
         # strategy.* 실행 핸들러
-        if name in ("strategy.entry", "strategy.close", "strategy.close_all", "strategy.exit"):
+        if name in (
+            "strategy.entry",
+            "strategy.close",
+            "strategy.close_all",
+            "strategy.exit",
+            "strategy.cancel",
+            "strategy.cancel_all",
+        ):
             return self._exec_strategy_call(name, node)
 
         # 렌더링 scope A — line/box/label/table. 좌표 저장 + getter만, 렌더링 NOP.
@@ -1820,7 +1827,39 @@ class Interpreter:
             self.strategy.close_all(bar=bar_idx, fill_price=current_close)
             return None
 
+        if name in ("strategy.cancel", "strategy.cancel_all"):
+            allowed = {"id"} if name == "strategy.cancel" else set()
+            if set(kwargs) - allowed or len(positional) > (1 if allowed else 0):
+                raise PineRuntimeError(f"{name}: unsupported arguments")
+            if name == "strategy.cancel":
+                if not positional and "id" not in kwargs:
+                    raise PineRuntimeError("strategy.cancel requires id")
+                self.strategy.cancel(str(positional[0] if positional else kwargs["id"]))
+            else:
+                self.strategy.cancel_all()
+            return None
+
         if name == "strategy.exit":
+            supported = {
+                "id",
+                "from_entry",
+                "when",
+                "comment",
+                "stop",
+                "limit",
+                "profit",
+                "loss",
+                "trail_offset",
+                "trail_points",
+                "trail_price",
+                "qty",
+                "qty_percent",
+            }
+            unknown = sorted(set(kwargs) - supported)
+            if unknown or len(positional) > 2:
+                raise PineRuntimeError(
+                    f"strategy.exit unsupported arguments: {unknown or 'positional>2'}"
+                )
             # BL-104 — strategy.exit 본격 구현 (NOP 교체). Pine
             # `strategy.exit(id, from_entry, profit/limit/loss/stop/trail_*)` =
             # exit order 예약 (target price 도달 시 trigger). 매 bar 재호출 시 같은
@@ -1853,6 +1892,17 @@ class Interpreter:
             loss_offset = _num("loss")
             trail_offset = _num("trail_offset")
             trail_points = _num("trail_points")
+            trail_price = _num("trail_price")
+            if trail_points is not None and trail_price is not None:
+                raise PineRuntimeError(
+                    "strategy.exit: trail_points activation 조합은 미지원; 절대 trail_price와 trail_offset 사용"
+                )
+            if trail_price is not None and trail_offset is None:
+                raise PineRuntimeError("strategy.exit: trail_price requires trail_offset")
+            if trail_points is not None:
+                self.strategy.warnings.append(
+                    "strategy.exit: trail_points는 legacy 가격거리 근사입니다; trail_offset이 있으면 우선 사용하며 tick/activation 의미는 미지원입니다"
+                )
             trail = trail_offset if trail_offset is not None else trail_points
             self.strategy.place_exit(
                 from_entry=from_entry,
@@ -1863,6 +1913,9 @@ class Interpreter:
                 profit_offset=profit_offset,
                 loss_offset=loss_offset,
                 trail_offset=trail,
+                trail_price=trail_price,
+                qty=_num("qty"),
+                qty_percent=_num("qty_percent"),
                 comment=str(kwargs.get("comment", "")),
             )
             return None
