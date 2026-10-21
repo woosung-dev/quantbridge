@@ -279,6 +279,8 @@ refresh·backfill·correction·sweep는 같은 evidence envelope를 중앙 Repos
 관측의 hash도 보존해 이후 조회와 대조한다. 기존 ledger의 다른 원본도 무시하지 않는다.
 조회 완료 전의 matching 관측 hash도 별도로 보존하되 수량 일치 proof로 승격하지 않는다.
 완전히 matching한 단일 근거는 금액 no-op 재조회에도 최초 metadata로 기록한다.
+동시 관측은 Order 행 잠금과 identity map 재조회로 직렬화한다. 먼저 commit한 근거를
+다른 관측이 덮지 않고 충돌을 보존하며, 앞 트랜잭션이 rollback하면 뒤 근거만 반영한다.
 이전 금액·synced_at은 알려진 소계로 보존하지만 unpriced_exit_orders에 포함하여
 `pnl_complete=false`로 표시한다. 수량/보호에 따른 진입 권위나 계정 차단 범위를 늘리지 않는다.
 나중의 단일 snapshot으로 영속 충돌을 자동 해제하지 않으며 일반 해소 API는 제공하지 않는다.

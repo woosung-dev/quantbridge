@@ -75,8 +75,9 @@ FE·strategy journey·live-smoke 통과다. 미정산 계정 가드·전송 직�
 
 후속 코드 청산의 단일 원본 손익·충돌 보존·조회 예산·커밋 순서와 native WS 경계는 통합 슬롯에서
 `305 passed`(50.34초), mypy 286파일·ruff·OpenAPI drift 검사로 확인했다. 근거는
-`runs/sol-strategy-lab/pnl-query-budget-final/`이다. 이 손익 경로의 두 DB 연결 경합은
-별도 실측하지 않았으며, 단일 수량 일치 관측을 거래소 최종성 보장으로 해석하지 않는다.
+`runs/sol-strategy-lab/pnl-query-budget-final/`이다. 같은 경로의 별도 DB 두 연결에서
+`pg_blocking_pids`로 실제 대기를 확인한 commit·rollback 경합 2건도 통과했다(1.36초).
+단일 수량 일치 관측을 거래소 최종성 보장으로 해석하지 않는다.
 native SL 귀속의 별도 두 DB 연결 경합 근거는 `runs/sol-strategy-lab/native-sl-observation/`이다.
 
 ## 실행 기한과 제품 적합성 판단
