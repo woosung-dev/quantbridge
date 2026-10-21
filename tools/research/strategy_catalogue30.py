@@ -190,7 +190,7 @@ _ROWS = [
         "MACD12/26이 signal9 하향 교차하고 C<EMA200",
         "반대교차 또는 C<EMA200",
         "반대교차 또는 C>EMA200",
-        "43000502344-macd-moving-average-convergence-divergence/",
+        "43000502344-moving-average-convergence-divergence-macd-indicator/",
     ),
     (
         "14",
@@ -199,7 +199,7 @@ _ROWS = [
         "MACD12/26이0 하향 교차",
         "MACD<0",
         "MACD>0",
-        "43000502344-macd-moving-average-convergence-divergence/",
+        "43000502344-moving-average-convergence-divergence-macd-indicator/",
     ),
     (
         "15",
@@ -244,7 +244,7 @@ _ROWS = [
         "WPR14가-20 하향 교차,C<EMA200",
         "WPR<-80 또는 C<EMA200",
         "WPR>-20 또는 C>EMA200",
-        "43000501985-williams-r-wpr/",
+        "43000501985-williams-r-r/",
     ),
     (
         "20",
@@ -658,10 +658,6 @@ def candidates() -> list[dict]:
             details = " 기준1h에서UTC정렬된직전완료4h만사용;4hEMAseed와warmup동결;현재미완료4h사용금지."
         reference = _reference(number, name)
         limits = [unsupported[number]] if number in unsupported else []
-        if number in {"18", "24", "25", "26", "27"}:
-            limits.append(
-                "Pine lowering not yet implemented; Python/TypeScript supported"
-            )
         result.append(
             {
                 "id": number,
