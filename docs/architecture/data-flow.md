@@ -261,6 +261,13 @@ sequenceDiagram
     TP-->>Backtest: pd.DataFrame[time index, open/high/low/close/volume float]
 ```
 
+### 백테스트 데이터 구간 계약
+
+- 요청 `period_start/end`는 유지한다. 결과의 nullable `data_coverage` JSONB는 실행에 전달한 OHLCV index의 `actual_start/end`, `bar_count`, `expected_bars`, `missing_bars`를 보존하고 상세·공유 API가 같은 값을 반환한다.
+- UTC 캔들 개시 시각 기준으로 요청 양 끝을 포함한다. 예상 봉은 시작을 올림·끝을 내림한 timeframe 격자이며 중간 누락도 센다. 실제 시작·끝도 봉의 개시 시각이다.
+- 부족한 데이터로 계산한 결과도 반환하며 구간·누락을 표시한다. 누락을 채우거나 실행을 거부하는 정책은 아니다. 과거 행의 NULL은 미기록이며 요청 기간에서 복원하지 않는다.
+- Pine `time`과 `time[n]`은 주입된 OHLCV 시각의 epoch ms다. 시각·이력이 없으면 `na`다. 실제 현재 봉의 `time`은 기존 계약을 유지하며, 합성 날짜 fallback을 제거하고 이력 조회를 연결한다.
+
 ### 핵심 결정 (Sprint 5 M3)
 
 - **on-demand cache-first** — Backtest 실행 시점에 필요한 구간만 fetch. 별도 동기화 task 없음.

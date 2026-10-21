@@ -4,6 +4,7 @@ i1_utbot의 strategy() 버전 — alertcondition이 아닌 strategy.entry 직접
 가상 strategy 래퍼 불필요, run_historical 경로로 완주.
 6 corpus 매트릭스 4/6 → 5/6.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,17 +13,32 @@ import pandas as pd
 
 from src.strategy.pine_v2.event_loop import run_historical
 
-CORPUS = (
-    Path(__file__).parent.parent.parent / "fixtures" / "pine_corpus_v2" / "s2_utbot.pine"
-)
+CORPUS = Path(__file__).parent.parent.parent / "fixtures" / "pine_corpus_v2" / "s2_utbot.pine"
 
 
 def _make_trending_ohlcv() -> pd.DataFrame:
     """상승 → 하락 → 반등 reversal 시계열 20 bar."""
     closes = [
-        100.0, 102.0, 104.0, 106.0, 108.0, 110.0, 112.0, 114.0,
-        112.0, 108.0, 104.0, 100.0, 96.0, 92.0,
-        94.0, 98.0, 102.0, 106.0, 110.0, 114.0,
+        100.0,
+        102.0,
+        104.0,
+        106.0,
+        108.0,
+        110.0,
+        112.0,
+        114.0,
+        112.0,
+        108.0,
+        104.0,
+        100.0,
+        96.0,
+        92.0,
+        94.0,
+        98.0,
+        102.0,
+        106.0,
+        110.0,
+        114.0,
     ]
     return pd.DataFrame(
         {
@@ -31,7 +47,8 @@ def _make_trending_ohlcv() -> pd.DataFrame:
             "low": [c - 1.0 for c in closes],
             "close": closes,
             "volume": [100.0] * len(closes),
-        }
+        },
+        index=pd.date_range("2026-04-01", periods=len(closes), freq="h", tz="UTC"),
     )
 
 
@@ -57,7 +74,7 @@ def test_s2_utbot_generates_native_strategy_trades() -> None:
     tree = parse_to_ast(source)
 
     store = PersistentStore()
-    bar = BarContext(ohlcv.reset_index(drop=True))
+    bar = BarContext(ohlcv.reset_index(drop=True), timestamps=pd.DatetimeIndex(ohlcv.index))
     interp = Interpreter(bar, store)
     while bar.advance():
         store.begin_bar()

@@ -94,6 +94,7 @@ erDiagram
         varchar celery_task_id "nullable (max 64)"
         jsonb metrics "nullable (completed 시)"
         jsonb equity_curve "nullable (completed 시)"
+        jsonb data_coverage "nullable, 실행 당시 실제 구간·사용/예상/누락 봉; 과거 NULL 유지"
         text error "nullable (failed 시)"
         jsonb config "nullable, BacktestConfig 5가정 (Sprint 31)"
         varchar idempotency_key "nullable (max 128), unique"
@@ -471,6 +472,7 @@ erDiagram
 | `strategies` | `tags`         | 분류 태그 `["trend", "momentum"]`                                                  | —                                                    |
 | `backtests`  | `metrics`      | `{total_return: "0.12", sharpe: "1.5", max_drawdown: "0.08", num_trades: 42, ...}` | Decimal → str, `num_trades`는 int (cardinality 필드) |
 | `backtests`  | `equity_curve` | `[{"t": "2024-01-01T00:00:00Z", "v": "10120.50"}, ...]`                            | Decimal → str, datetime → ISO 8601 Z                 |
+| `backtests`  | `data_coverage` | `{actual_start, actual_end, bar_count, expected_bars, missing_bars}` 또는 NULL | 시각 → ISO 8601, 봉 개수 → int, 미기록 → NULL |
 
 > 직렬화: `backtest/serializers.py` (`metrics_to_jsonb`, `equity_curve_to_jsonb`).
 

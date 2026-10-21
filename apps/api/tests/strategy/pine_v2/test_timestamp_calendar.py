@@ -77,9 +77,12 @@ plotshape(time >= timestamp(2026, 1, 10, 0, 0))
     assert trace[-1].bar_open_time == datetime(2026, 1, 10, tzinfo=UTC)
 
 
-def test_legacy_synthetic_time_stays_within_existing_wide_date_filter() -> None:
+def test_missing_time_cannot_establish_inclusion_in_a_wide_date_filter() -> None:
+    """시각이 없으면 기간 포함 여부는 미상이며 필터를 통과시키지 않는다."""
+    assert math.isnan(_run("time"))
+    assert math.isnan(_run("time >= timestamp(1970, 1, 1, 0, 0)"))
     value = _run("time >= timestamp(1970, 1, 1, 0, 0) and time <= timestamp(2100, 1, 1, 0, 0)")
-    assert value is True
+    assert value is False
 
 
 @pytest.mark.parametrize("expression", ["timestamp(na, 1, 1)", "timestamp(1e309, 1, 1)"])

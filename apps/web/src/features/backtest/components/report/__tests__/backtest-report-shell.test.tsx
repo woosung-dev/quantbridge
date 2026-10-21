@@ -77,6 +77,30 @@ describe("BacktestReportShell (variant-c 번호 섹션 IA)", () => {
     expect(screen.getAllByText("초기 자본")).toHaveLength(1);
   });
 
+  it("로그인 리포트가 요청 기간과 저장된 실제 구간·누락을 구분한다", () => {
+    render(
+      <BacktestReportShell
+        backtest={{
+          ...BT,
+          period_start: "2025-01-01T00:00:00Z",
+          period_end: "2025-01-01T04:00:00Z",
+          data_coverage: {
+            actual_start: "2025-01-01T01:00:00Z",
+            actual_end: "2025-01-01T04:00:00Z",
+            bar_count: 4,
+            expected_bars: 5,
+            missing_bars: 1,
+          },
+        }}
+        currentId={BT.id}
+      />,
+    );
+    expect(screen.getByText("요청 기간")).toBeVisible();
+    expect(screen.getByText("2025-01-01 01:00 ~ 2025-01-01 04:00")).toBeVisible();
+    expect(screen.getByText("4 / 5")).toBeVisible();
+    expect(screen.getByTestId("backtest-data-incomplete-note")).toBeVisible();
+  });
+
   it("스트레스 테스트 섹션 앵커 id 가 CTA 링크와 일치", () => {
     const { container } = render(<BacktestReportShell backtest={BT} currentId={BT.id} />);
     expect(container.querySelector("#stress-test")).not.toBeNull();

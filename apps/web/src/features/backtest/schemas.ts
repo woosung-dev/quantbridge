@@ -325,6 +325,15 @@ export const BacktestConfigSchema = z.object({
 });
 export type BacktestConfig = z.infer<typeof BacktestConfigSchema>;
 
+export const DataCoverageSchema = z.object({
+  actual_start: z.iso.datetime({ offset: true }).nullable(),
+  actual_end: z.iso.datetime({ offset: true }).nullable(),
+  bar_count: z.number().int().nonnegative(),
+  expected_bars: z.number().int().nonnegative(),
+  missing_bars: z.number().int().nonnegative(),
+});
+export type DataCoverage = z.infer<typeof DataCoverageSchema>;
+
 export const BacktestDetailSchema = BacktestSummarySchema.extend({
   initial_capital: decimalString,
   config: BacktestConfigSchema.nullable().optional(),
@@ -338,6 +347,7 @@ export const BacktestDetailSchema = BacktestSummarySchema.extend({
   // ★`.nullable().optional()` 관용구 — 구 응답/fixture 회귀 방지. 새 필드를 non-nullable
   //   로 넣었다가 route mock 이 파싱에서 죽어 목록이 통째로 빈 화면이 된 사고가 하루 전에 있었다.
   warnings: z.array(z.string()).nullable().optional(),
+  data_coverage: DataCoverageSchema.nullable().optional(),
 });
 export type BacktestDetail = z.infer<typeof BacktestDetailSchema>;
 

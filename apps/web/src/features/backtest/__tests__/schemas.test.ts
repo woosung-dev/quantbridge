@@ -177,6 +177,20 @@ describe("BacktestDetailSchema", () => {
     expect(parsed.metrics?.total_return).toBeCloseTo(0.3, 6);
     expect(parsed.equity_curve?.length).toBe(2);
     expect(parsed.equity_curve?.[0]?.value).toBe(10000);
+    expect(parsed.data_coverage).toBeUndefined();
+    expect(BacktestDetailSchema.parse({ ...raw, data_coverage: null }).data_coverage).toBeNull();
+
+    const coverage = {
+      actual_start: "2024-01-02T00:00:00+00:00",
+      actual_end: "2024-01-30T00:00:00+00:00",
+      bar_count: 672,
+      expected_bars: 721,
+      missing_bars: 49,
+    };
+    const withCoverage = BacktestDetailSchema.parse({ ...raw, data_coverage: coverage });
+    expect(withCoverage.data_coverage).toEqual(coverage);
+    expect(withCoverage.period_start).toBe(raw.period_start);
+    expect(withCoverage.period_end).toBe(raw.period_end);
   });
 });
 

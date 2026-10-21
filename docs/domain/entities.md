@@ -62,6 +62,7 @@
   - 상태: `status: BacktestStatus` (QUEUED → RUNNING → COMPLETED/FAILED, 또는 CANCELLING transient → CANCELLED)
   - 진행: `progress: float` (0~1), `started_at`, `completed_at`
   - 결과: `metrics: JSONB` (sharpe, MDD, total_return, num_trades 등), `equity_curve: JSONB`
+  - 데이터 구간: `data_coverage: JSONB | None` — 실제 입력의 시작·끝, 사용·예상·누락 봉. 구 결과의 NULL은 미기록이며 소급 갱신하지 않는다.
   - 에러: `error_reason: str | None`, `error_traceback: str | None`
   - Cancel: `cancellation_requested_at: datetime | None`
 - **상태 머신:** [`state-machines.md`](./state-machines.md) §Backtest 6-state
