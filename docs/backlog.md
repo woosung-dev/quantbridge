@@ -758,7 +758,7 @@ KITPORT 의 `.topbar` 는 **110**, `.sidebar` 는 **120** 이다 — **문서의
 **Category:** Trading / 정산
 **Priority:** P1
 **Trigger:** 단일 계정의 closed-PnL 페이지 조회·손익 refresh
-**상태:** ACTIVE
+**상태:** PARTIAL
 **트리거 판정:** 도래 (2026-10-22 메모리 fake로 실제 메서드 재현)
 
 **증거:** `893643dc`의 `providers.py:1576`은 inclusive 경계행을 중복 반환하고
@@ -768,6 +768,9 @@ KITPORT 의 `.topbar` 는 **110**, `.sidebar` 는 **120** 이다 — **문서의
 BL-529의 계정 UID 거울과 다른 단일 계정 경로다. 근거는 control의
 `runs/sol-strategy-lab/native-sl-review/{reproduce.py,result.json}`이다(DB·네트워크·주문 0).
 
-**권장 접근:** 동일 raw만 dedup하고 다른 분할 행은 보존한다. 공식 cursor·조회 완료 증거로
-잘리거나 손상된 조회의 확정 CAS를 막는다. native SL의 별도 terminal-WS 손익 경로와 구분한다.
+**현재 경계:** 동일 raw 중복은 제거한다. code_v1은 완료 cursor·단일 원본·terminal 체결량이
+일치할 때만 확정하고, 다른 원본 관측은 기존 금액·시각을 보존한 미확정 상태로 남긴다.
+native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 206개가 통과했다.
+**잔여:** legacy의 서로 다른 raw 합산과 불완전 조회 CAS는 남아 있다. 공식 cursor 완료를
+입증하지 못한 자료의 legacy 확정 경로를 별도로 막아야 한다.
 **출처:** [Bybit Closed PnL](https://bybit-exchange.github.io/docs/v5/position/close-pnl).

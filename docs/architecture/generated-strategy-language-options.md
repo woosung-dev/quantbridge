@@ -79,6 +79,11 @@ ruff·OpenAPI drift 검사로 확인했다. 같은 거래소 체결을 두 DB �
 경합도 포함한다. 원시 근거는 `runs/sol-strategy-lab/native-sl-observation/`이며 실제
 Demo 자식 체결 관측이 아니다. 후속 head의 전체 판정은 PR CI를 따른다.
 
+코드 청산의 단일 원본 손익·충돌 보존과 native WS 경계는 `655f095f`의 통합 슬롯에서
+`206 passed`(12.73초), mypy 286파일·ruff·OpenAPI drift 검사로 확인했다. 근거는
+`runs/sol-strategy-lab/code-exit-pnl-evidence/`다. 이 손익 경로의 두 DB 연결 경합은
+별도 실측하지 않았으며, 단일 수량 일치 관측을 거래소 최종성 보장으로 해석하지 않는다.
+
 ## 실행 기한과 제품 적합성 판단
 
 백테스트 transport 기본 기한은 최대 900초, live는 **transport 생성부터 30초**다
