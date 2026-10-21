@@ -4,7 +4,8 @@
 // recharts BarChart + ReferenceLine. 데이터는 analytics.binReturnDistribution 파생.
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
+import { useChartWidth } from "@/hooks/use-chart-width";
 
 import { binReturnDistribution } from "@/features/backtest/analytics";
 import type { TradeItem } from "@/features/backtest/schemas";
@@ -59,13 +60,7 @@ export function PnlDistributionHistogram({
     });
   }, [trades]);
 
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [hasWidth, setHasWidth] = useState(false);
-  useEffect(() => {
-    const node = wrapperRef.current;
-    if (node === null) return;
-    if (node.getBoundingClientRect().width > 0) setHasWidth(true);
-  }, [data]);
+  const { wrapperRef, hasWidth } = useChartWidth();
 
   if (data.length === 0) {
     return (

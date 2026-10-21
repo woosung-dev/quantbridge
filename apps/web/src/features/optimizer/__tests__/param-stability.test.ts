@@ -153,3 +153,42 @@ describe("deriveParamStability — 방향/경계", () => {
     expect(result.canRenderBars).toBe(false);
   });
 });
+
+describe("deriveParamStability — 집계 경계", () => {
+  it("누락 파라미터는 제외하고 축퇴 전용 값과 동률의 첫 값을 보존한다", () => {
+    const result = deriveParamStability(
+      [
+        cell({ p: 3 }, 4, 2),
+        cell({ p: 1 }, 4, 2),
+        cell({ p: 2 }, null, 0),
+        cell({ other: 9 }, 100, 2),
+      ],
+      ["p"],
+      "maximize",
+    );
+    expect(result.params[0]?.values).toEqual([
+      { value: 1, average: 4, validCellCount: 1, widthPct: 100, isBest: true },
+      { value: 2, average: null, validCellCount: 0, widthPct: 0, isBest: false },
+      { value: 3, average: 4, validCellCount: 1, widthPct: 100, isBest: false },
+    ]);
+  });
+
+  it("서로 다른 값이 많아도 셀 접근량이 제곱으로 증가하지 않는다", () => {
+    let reads = 0;
+    const cells = Array.from({ length: 1000 }, (_, value) =>
+      cell(
+        {
+          get p() {
+            reads += 1;
+            return value;
+          },
+        },
+        value,
+        1,
+      ),
+    );
+    const result = deriveParamStability(cells, ["p"], "maximize");
+    expect(result.globalMaxAverage).toBe(999);
+    expect(reads).toBeLessThanOrEqual(cells.length * 10);
+  });
+});

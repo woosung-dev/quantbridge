@@ -6,7 +6,8 @@
 // abs 필드 null(구 백테스트) 시 잠금 empty state — 가짜 값 렌더 금지 (Surface Trust).
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
+import { useChartWidth } from "@/hooks/use-chart-width";
 
 import type { WaterfallDatum } from "@/features/backtest/components/report/profit-waterfall-plot";
 
@@ -77,13 +78,7 @@ export function ProfitWaterfall({
   }, [grossProfit, grossLoss, fees, slippage, netProfit]);
 
   // jsdom width(-1) warning 회피 (walk-forward-bar-chart 패턴).
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [hasWidth, setHasWidth] = useState(false);
-  useEffect(() => {
-    const node = wrapperRef.current;
-    if (node === null) return;
-    if (node.getBoundingClientRect().width > 0) setHasWidth(true);
-  }, [data]);
+  const { wrapperRef, hasWidth } = useChartWidth();
 
   if (data === null) {
     return (

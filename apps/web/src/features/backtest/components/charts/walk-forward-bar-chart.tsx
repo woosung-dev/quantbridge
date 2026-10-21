@@ -6,7 +6,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
+import { useChartWidth } from "@/hooks/use-chart-width";
 
 import type { WalkForwardResult } from "@/features/backtest/schemas";
 import type { WalkForwardBarDatum as BarDatum } from "@/features/backtest/components/charts/walk-forward-bar-plot";
@@ -31,7 +32,7 @@ export function WalkForwardBarChart({ result }: Props) {
       IS: f.in_sample_return * 100,
       OOS: f.out_of_sample_return * 100,
     }));
-  }, [result]);
+  }, [result.folds]);
 
   const degradationText = useMemo(() => {
     if (!result.valid_positive_regime) {
@@ -46,30 +47,7 @@ export function WalkForwardBarChart({ result }: Props) {
       : "";
 
   // jsdom width(-1) warning 회피.
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [hasWidth, setHasWidth] = useState(false);
-
-  useEffect(() => {
-    const node = wrapperRef.current;
-    if (node === null) return;
-    const initial = node.getBoundingClientRect().width;
-    if (initial >= 1) {
-      setHasWidth(true);
-      return;
-    }
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.contentRect.width >= 1) {
-          setHasWidth(true);
-          observer.disconnect();
-          break;
-        }
-      }
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []); // LESSON-004 준수
+  const { wrapperRef, hasWidth } = useChartWidth();
 
   if (data.length === 0) {
     return (

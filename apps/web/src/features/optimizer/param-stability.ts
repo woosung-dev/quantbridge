@@ -55,24 +55,27 @@ export function deriveParamStability(
   paramNames: readonly string[],
   direction: OptimizationDirection,
 ): ParamStabilityResult {
-  const validCells = cells.filter(isValidCell);
-
-  // 1차 패스 — 파라미터별·값별 평균(유효 셀만).
+  // 파라미터마다 한 번 순회해 값별 합계·건수를 만든다. 축퇴 셀도 축에는 남긴다.
   const drafts = paramNames.map((paramName) => {
-    // 축은 전 셀(축퇴 포함)의 값 집합에서 오름차순으로 뽑는다.
-    const axis = Array.from(
-      new Set(
-        cells.map((c) => c.param_values[paramName]).filter((v): v is number => v !== undefined),
-      ),
-    ).sort((a, b) => a - b);
-
-    const values = axis.map((value) => {
-      const group = validCells.filter((c) => c.param_values[paramName] === value);
-      const count = group.length;
-      const average =
-        count > 0 ? group.reduce((sum, c) => sum + (c.objective_value as number), 0) / count : null;
-      return { value, average, validCellCount: count };
-    });
+    const groups = new Map<number, { sum: number; count: number }>();
+    for (const cell of cells) {
+      const value = cell.param_values[paramName];
+      if (value === undefined) continue;
+      let group = groups.get(value);
+      if (!group) {
+        group = { sum: 0, count: 0 };
+        groups.set(value, group);
+      }
+      if (isValidCell(cell)) {
+        group.sum += cell.objective_value as number;
+        group.count += 1;
+      }
+    }
+    const values = Array.from(groups, ([value, { sum, count }]) => ({
+      value,
+      average: count > 0 ? sum / count : null,
+      validCellCount: count,
+    })).sort((a, b) => a.value - b.value);
     return { paramName, values };
   });
 
@@ -81,8 +84,12 @@ export function deriveParamStability(
     p.values.map((v) => v.average).filter((a): a is number => a !== null),
   );
   const hasData = allAverages.length > 0;
-  const globalMaxAverage = hasData ? Math.max(...allAverages) : 0;
-  const globalMinAverage = hasData ? Math.min(...allAverages) : 0;
+  const globalMaxAverage = hasData
+    ? allAverages.reduce((max, value) => Math.max(max, value), -Infinity)
+    : 0;
+  const globalMinAverage = hasData
+    ? allAverages.reduce((min, value) => Math.min(min, value), Infinity)
+    : 0;
   // 0 기준 막대는 전 평균이 비음수이고 최고 평균이 양수일 때만 정직하다(음수 목표값이면 오도).
   const canRenderBars = hasData && globalMaxAverage > 0 && globalMinAverage >= 0;
 
@@ -91,8 +98,12 @@ export function deriveParamStability(
       (v): v is { value: number; average: number; validCellCount: number } => v.average !== null,
     );
     const averages = computed.map((v) => v.average);
-    const maxAvg = averages.length ? Math.max(...averages) : null;
-    const minAvg = averages.length ? Math.min(...averages) : null;
+    const maxAvg = averages.length
+      ? averages.reduce((max, value) => Math.max(max, value), -Infinity)
+      : null;
+    const minAvg = averages.length
+      ? averages.reduce((min, value) => Math.min(min, value), Infinity)
+      : null;
     // 최적 값 = 최대화면 최고 평균, 최소화면 최저 평균(리더보드 정렬 방향과 일치).
     const bestAvg = direction === "minimize" ? minAvg : maxAvg;
     const bestValue =
