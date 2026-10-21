@@ -657,6 +657,7 @@ class StrategyService:
         if strategy is None:
             raise StrategyNotFoundError()
 
+        legacy_pine_source(strategy)
         strategy.settings = settings.model_dump()
         updated = await self.repo.update(strategy)
         await self.repo.commit()  # LESSON-019 — broken bug 재발 방어 (Sprint 6/13/15-A 패턴)

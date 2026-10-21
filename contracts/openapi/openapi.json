@@ -1814,6 +1814,16 @@
             "title": "Name",
             "type": "string"
           },
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "symbol": {
             "anyOf": [
               {
@@ -1847,6 +1857,7 @@
           "symbol",
           "timeframe",
           "is_archived",
+          "settings",
           "version"
         ],
         "title": "CodeStrategyResponse",
@@ -6389,6 +6400,16 @@
             "title": "Name",
             "type": "string"
           },
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "symbol": {
             "anyOf": [
               {
@@ -7091,6 +7112,77 @@
           "updated_at"
         ],
         "title": "StrategyResponse",
+        "type": "object"
+      },
+      "StrategySettings": {
+        "additionalProperties": false,
+        "description": "Sprint 26 — Live Signal Auto-Trading 의 trading params.\n\nschema_version: 향후 schema 변경 시 backward compat 식별 (P3 #2).\nleverage / margin_mode: Bybit Futures dispatch 분기 의무 (Sprint 22 BL-091).\nposition_size_pct: 가용 잔고 대비 포지션 크기 (0-100, 100 = all-in).\n\nextra=\"forbid\" 로 잘못된 필드 422 reject — codex G.0 P2 #4 malformed JSONB 방어.",
+        "properties": {
+          "fill_timing": {
+            "default": "bar_close",
+            "enum": [
+              "bar_close",
+              "next_bar_open"
+            ],
+            "title": "Fill Timing",
+            "type": "string"
+          },
+          "leverage": {
+            "maximum": 125.0,
+            "minimum": 1.0,
+            "title": "Leverage",
+            "type": "integer"
+          },
+          "margin_mode": {
+            "enum": [
+              "cross",
+              "isolated"
+            ],
+            "title": "Margin Mode",
+            "type": "string"
+          },
+          "max_reversal_overshoot_ratio": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Reversal Overshoot Ratio"
+          },
+          "max_trigger_breach_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Trigger Breach Pct"
+          },
+          "position_size_pct": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100.0,
+            "title": "Position Size Pct",
+            "type": "number"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "leverage",
+          "margin_mode",
+          "position_size_pct"
+        ],
+        "title": "StrategySettings",
         "type": "object"
       },
       "StressTestCreatedResponse": {

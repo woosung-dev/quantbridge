@@ -14,6 +14,7 @@ from src.strategy.code_schemas import (
 from src.strategy.exceptions import CodeStrategyPolicyError, StrategyNotFoundError
 from src.strategy.models import ParseStatus, Strategy, StrategyVersion
 from src.strategy.repository import StrategyRepository
+from src.strategy.schemas import StrategySettings
 
 
 class CodeStrategyService:
@@ -30,6 +31,9 @@ class CodeStrategyService:
             symbol=strategy.symbol,
             timeframe=strategy.timeframe,
             is_archived=strategy.is_archived,
+            settings=StrategySettings.model_validate(strategy.settings)
+            if strategy.settings is not None
+            else None,
             version=CodeVersionResponse(
                 **code.model_dump(),
                 id=version.id,
@@ -67,6 +71,7 @@ class CodeStrategyService:
             source_language=data.code.language.value,
             execution_policy="code_v1",
             parse_status=ParseStatus.unsupported,
+            settings=data.settings.model_dump(mode="json") if data.settings is not None else None,
         )
         strategy = await self.repo.create(strategy)
         version = await self.repo.create_code_version(strategy_id=strategy.id, code=data.code)
@@ -81,6 +86,10 @@ class CodeStrategyService:
         strategy.name, strategy.description = data.name, data.description
         strategy.symbol, strategy.timeframe = data.symbol, data.timeframe
         strategy.source_language = data.code.language.value
+        if "settings" in data.model_fields_set:
+            strategy.settings = (
+                data.settings.model_dump(mode="json") if data.settings is not None else None
+            )
         version = await self.repo.create_code_version(strategy_id=strategy.id, code=data.code)
         await self.repo.set_current_version(strategy.id, version.id)
         await self.repo.update(strategy)

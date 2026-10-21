@@ -2,7 +2,7 @@
 
 제품 결정은 [ADR-046](../adr/046-generated-strategy-language-evaluation.md)을 따른다. 승자 언어·생성 방법은 평가 후 별도로 정한다. 이 API는 수익성이나 지원 가능성을 저장만으로 보증하지 않는다.
 
-`POST /strategies/code`, `PUT /strategies/code/{id}`는 `name`, 선택적 `description/symbol/timeframe`, 필수 `code`를 받는다. `code`는 `schema_version:1`, **명시적** `execution_policy:"code_v1"`, `language:"pine"|"python"|"typescript"`, `source_code`, `warmup_bars`(1~10000), JSON `params`, JSON `provenance`다. `GET /strategies/code`와 `GET /strategies/code/{id}`는 소유자의 현재 불변 `version`을 반환한다. 다른 사용자와 없는 ID는 같은 404다.
+`POST /strategies/code`, `PUT /strategies/code/{id}`는 `name`, 선택적 `description/symbol/timeframe/settings`, 필수 `code`를 받는다. `settings`는 기존 `StrategySettings` 검증을 공유하며 응답에도 포함한다. 갱신에서 생략하면 유지하고 명시적 NULL이면 해제한다. 기존 Pine settings 경로는 code 행을 저장 전에 422로 거부한다. `code`는 `schema_version:1`, **명시적** `execution_policy:"code_v1"`, `language:"pine"|"python"|"typescript"`, `source_code`, `warmup_bars`(1~10000), JSON `params`, JSON `provenance`다. `GET /strategies/code`와 `GET /strategies/code/{id}`는 소유자의 현재 불변 `version`을 반환한다. 다른 사용자와 없는 ID는 같은 404다.
 
 기존 `StrategyVersion`에 코드를 저장하고 변경마다 새 행을 만든다. `source_hash`는 원문 SHA-256, `execution_hash`는 schema/policy/language/source/warmup/params/provenance의 canonical JSON SHA-256이다. 실행 시 둘을 다시 검증한다. `Strategy`의 현재 버전 포인터 변경은 이미 제출한 백테스트의 버전을 바꾸지 않는다. 코드 전략은 Pine 필드를 NULL로 두고, 기존 Pine 목록에서는 제외한다. 기존 get/brief/update/narrative 및 Pine 전용 실행은 코드 행에 422를 반환한다. 읽기 전용 Python View는 기존 Pine 경로에 유지한다. 기존 settings·삭제의 소유권 규칙은 동일하다.
 

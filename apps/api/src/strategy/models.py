@@ -65,7 +65,9 @@ class Strategy(SQLModel, table=True):
         ),
     )
     pine_version: PineVersion | None = Field(default=None, nullable=True)
-    source_language: str = Field(default="pine", max_length=16, nullable=False)
+    source_language: str = Field(
+        default="pine", sa_column=Column(String(16), nullable=False, server_default="pine")
+    )
     execution_policy: str | None = Field(default=None, max_length=16, nullable=True)
     parse_status: ParseStatus = Field(index=True, nullable=False)
     parse_errors: list[dict[str, object]] | None = Field(

@@ -88,6 +88,28 @@ async def test_create_and_update_append_versions_commit_once_each():
 
 
 @pytest.mark.asyncio
+async def test_code_settings_are_validated_saved_and_returned():
+    repo, strategy, _ = fixture()
+    req = SaveCodeStrategyRequest(
+        name="code",
+        code=snapshot(),
+        settings={
+            "leverage": 1,
+            "margin_mode": "isolated",
+            "position_size_pct": 10,
+            "fill_timing": "next_bar_open",
+        },
+    )
+    result = await CodeStrategyService(repo).create(req, owner_id=strategy.user_id)
+    assert result.settings is not None and result.settings.position_size_pct == 10
+    repo.commit.assert_awaited_once()
+    repo.commit.reset_mock()
+    updated = await CodeStrategyService(repo).update(strategy.id, req, owner_id=strategy.user_id)
+    assert updated.settings.fill_timing == "next_bar_open"
+    repo.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_unknown_owner_has_no_snapshot_or_write_access():
     repo, strategy, _ = fixture()
     repo.find_by_id_and_owner.return_value = None

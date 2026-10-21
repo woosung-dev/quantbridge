@@ -9,6 +9,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, JsonValue
 
 from src.strategy.code_contract import CodeSnapshot
 from src.strategy.code_runtime.models import CodeLanguage
+from src.strategy.schemas import StrategySettings
 
 
 class SaveCodeStrategyRequest(BaseModel):
@@ -18,6 +19,7 @@ class SaveCodeStrategyRequest(BaseModel):
     symbol: str | None = Field(default=None, max_length=32)
     timeframe: str | None = Field(default=None, max_length=16)
     code: CodeSnapshot
+    settings: StrategySettings | None = None
 
 
 class CodeVersionResponse(BaseModel):
@@ -41,6 +43,7 @@ class CodeStrategyResponse(BaseModel):
     symbol: str | None
     timeframe: str | None
     is_archived: bool
+    settings: StrategySettings | None
     version: CodeVersionResponse
 
 
