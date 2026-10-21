@@ -97,7 +97,13 @@ async def test_exit_partial_fill_uses_original_order_role_and_cumulative_quantit
     handler, repo, risk, order, session_id, payload, commands = setup_handler(role="partial_tp")
     assert await handler.handle_order_event(order.exchange_account_id, payload) == commands
     risk.record_exit_fill.assert_awaited_once_with(
-        session_id, 3, order.id, role="partial_tp", cumulative_quantity=Decimal("1"), commit=False
+        session_id,
+        3,
+        order.id,
+        role="partial_tp",
+        cumulative_quantity=Decimal("1"),
+        terminal=False,
+        commit=False,
     )
     risk.record_entry_fill.assert_not_awaited()
     repo.commit.assert_awaited_once()

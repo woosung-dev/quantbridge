@@ -68,6 +68,7 @@ def _session(*, last_evaluated_bar_time: datetime | None) -> SimpleNamespace:
         # BL-544 — SessionScope.from_live_session 이 읽는다. 없으면 원장 조회가 조용히
         # AttributeError 로 죽어 "seed 없음" 이 되고, 그러면 seed 테스트가 무엇도 안 잰다.
         deactivated_at=None,
+        execution_snapshot=None,
         last_evaluated_bar_time=last_evaluated_bar_time,
         equity_baseline_usdt=Decimal("8192"),
     )
