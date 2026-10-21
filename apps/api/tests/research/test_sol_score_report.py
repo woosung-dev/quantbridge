@@ -159,6 +159,7 @@ def test_missing_semantic_scores_zero_even_after_public_pass(tmp_path):
     report = subject.build_report(tmp_path, draws=100)
     assert report["score100_ranking"][0]["score100"] == 0
     assert report["observations"] == {"semantic_missing": 1}
+    assert report["artifact_scores"][0]["public_status"] == "public_pass"
 
 
 def test_replica_correlation_uses_strategy_means_before_bootstrap(tmp_path):

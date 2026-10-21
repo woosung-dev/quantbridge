@@ -199,6 +199,7 @@ def _trial(
             raise ValueError("실행 source hash가 다릅니다")
         evidence[str(source_path.relative_to(root))] = file_hash(source_path)
     row.update(trial)
+    row["public_status"] = trial["status"]
     row["initial_public_pass"] = attempts[0].get("validation", {}).get("passed") is True
     row["repair_calls"] = len(attempts) - 1
     row.update(
@@ -471,7 +472,7 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
                         "observation",
                     )
                 },
-                "public_status": row["status"],
+                "public_status": row.get("public_status", row["status"]),
                 "semantic_status": row["semantic"].get("status", "not_evaluated"),
                 "score100": paired_summary([row])["cell_means"][
                     f"{row['arm']}/{row['language']}"
