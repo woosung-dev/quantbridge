@@ -13,7 +13,8 @@ test("코크핏 잔고·포지션 섹션과 진단 카드 2장을 렌더한다",
   await expect(page.getByText("총 세션")).toHaveCount(0);
   await expect(page.getByTestId("account-balance-section")).toBeVisible();
   await expect(page.getByTestId("open-positions-table")).toBeVisible();
-  await expect(page.getByText("활성 라이브 세션이 없습니다.").first()).toBeVisible();
+  // c491b13d(demo 전용 경계) 이후 빈 상태 문구 — 잔고 섹션은 활성 Bybit 데모 세션만 본다.
+  await expect(page.getByText("활성 Bybit 데모 세션이 없습니다.").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "포지션 동기화" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "알림 규칙" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "실시간 가격 스트림" })).toBeVisible();
@@ -33,6 +34,10 @@ test("코크핏 §03 포지션 표는 TP/SL·청산 열 구조를 갖는다", as
     await expect(section.getByRole("columnheader", { name: "손절" })).toBeVisible();
     await expect(section.getByRole("columnheader", { name: "청산", exact: true })).toBeVisible();
   } else {
-    await expect(page.getByText("활성 라이브 세션이 없습니다.").first()).toBeVisible();
+    await expect(
+      section
+        .getByText(/운영 가능한 Bybit 데모 라이브 세션이 없습니다\.|열린 포지션이 없습니다\./)
+        .first(),
+    ).toBeVisible();
   }
 });

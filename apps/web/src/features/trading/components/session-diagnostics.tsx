@@ -225,7 +225,9 @@ function AlertRulesDiagnostic({ session }: { session: LiveSession | null }) {
 
 function relativeEventTime(lastEventTs: number | null): string {
   if (lastEventTs === null) return "이벤트 대기 중";
-  const seconds = Math.max(0, Math.floor(Date.now() / 1000) - lastEventTs);
+  // ★`lastEventTs` 는 WS envelope 의 epoch-**ms** 다(BE `realtime/schemas.py`). 종전에는 초로 빼서
+  //   언제나 음수 → 0 → 「방금 전 이벤트」였다 — 스트림이 멈춰도 카드가 신선해 보였다.
+  const seconds = Math.max(0, Math.floor((Date.now() - lastEventTs) / 1000));
   if (seconds < 60) return "방금 전 이벤트";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}분 전 이벤트`;
   return `${Math.floor(seconds / 3600)}시간 전 이벤트`;

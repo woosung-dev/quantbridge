@@ -85,7 +85,7 @@ describe("useAutoSaveDraft (debounce + userId scoping)", () => {
     expect(parsed.pineSource).toBe(next.pineSource);
   });
 
-  it("metadata 는 ref 를 통해 최신 값이 저장 payload 에 반영된다", () => {
+  it("metadata 변경도 500ms debounce 후 최신 값을 저장한다", () => {
     const { rerender } = renderHook(({ uid, draft }) => useAutoSaveDraft(uid, draft), {
       initialProps: { uid: USER_A, draft: baseDraft },
     });
@@ -100,12 +100,35 @@ describe("useAutoSaveDraft (debounce + userId scoping)", () => {
     rerender({ uid: USER_A, draft: metaUpdated });
 
     act(() => {
-      vi.advanceTimersByTime(200);
+      vi.advanceTimersByTime(499);
+    });
+    expect(window.localStorage.getItem(draftKeyFor(USER_A))).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
     });
     const parsed = JSON.parse(
       window.localStorage.getItem(draftKeyFor(USER_A)) as string,
     ) as WizardDraft;
     expect(parsed.metadata).toEqual({ name: "renamed" });
+  });
+
+  it.each([
+    { name: "renamed" },
+    { description: "설명" },
+    { symbol: "ETH/USDT" },
+    { timeframe: "4h" },
+    { tags: ["추세"] },
+  ])("첫 저장 이후 metadata 만 바뀌어도 다시 저장한다: %j", (changed) => {
+    const { rerender } = renderHook(({ draft }) => useAutoSaveDraft(USER_A, draft), {
+      initialProps: { draft: baseDraft },
+    });
+    act(() => vi.advanceTimersByTime(500));
+    expect(loadWizardDraft(USER_A)?.metadata.name).toBe("s1");
+
+    const metadata = { ...baseDraft.metadata, ...changed };
+    rerender({ draft: { ...baseDraft, metadata } });
+    act(() => vi.advanceTimersByTime(500));
+    expect(loadWizardDraft(USER_A)?.metadata).toEqual(metadata);
   });
 
   it("userId 가 null 이면 저장하지 않는다 (로그아웃 레이스)", () => {
@@ -255,5 +278,67 @@ describe("useDraftSnapshot (render-time localStorage derive)", () => {
       clearWizardDraft(USER_A);
     });
     expect(result.current).toBeNull();
+  });
+});
+
+describe("best-effort behavior when storage is unavailable", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+  });
+
+  it("getItem SecurityError returns null instead of exposing another user's cached draft", () => {
+    saveWizardDraft(USER_A, baseDraft);
+    const first = renderHook(() => useDraftSnapshot(USER_A));
+    expect(first.result.current?.pineSource).toBe(baseDraft.pineSource);
+    first.unmount();
+
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Storage access denied", "SecurityError");
+    });
+
+    const second = renderHook(() => useDraftSnapshot(USER_B));
+    expect(second.result.current).toBeNull();
+  });
+
+  it("localStorage getter SecurityError makes the snapshot null", () => {
+    saveWizardDraft(USER_A, baseDraft);
+    vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw new DOMException("Storage access denied", "SecurityError");
+    });
+
+    const { result } = renderHook(() => useDraftSnapshot(USER_A));
+    expect(result.current).toBeNull();
+  });
+
+  it("clearWizardDraft ignores localStorage getter and removeItem SecurityError", () => {
+    const getter = vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw new DOMException("Storage access denied", "SecurityError");
+    });
+    expect(() => clearWizardDraft(USER_A)).not.toThrow();
+    getter.mockRestore();
+
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("Storage access denied", "SecurityError");
+    });
+    expect(() => clearWizardDraft(USER_A)).not.toThrow();
+  });
+
+  it("clearOtherUsersDrafts ignores localStorage getter and removeItem SecurityError", () => {
+    const getter = vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw new DOMException("Storage access denied", "SecurityError");
+    });
+    expect(() => clearOtherUsersDrafts(USER_B)).not.toThrow();
+    getter.mockRestore();
+
+    saveWizardDraft(USER_A, baseDraft);
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("Storage access denied", "SecurityError");
+    });
+    expect(() => clearOtherUsersDrafts(USER_B)).not.toThrow();
   });
 });

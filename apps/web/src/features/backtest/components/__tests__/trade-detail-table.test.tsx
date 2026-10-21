@@ -294,3 +294,34 @@ describe("TradeDetailTable — 검색 디바운스 (BL-665)", () => {
     }
   });
 });
+
+// 필터를 정렬 **앞**으로 옮겼다(js-combine-iterations). 거른 뒤 정렬해도 순서가 같아야 한다.
+describe("TradeDetailTable — 검색 결과도 정렬 순서를 지킨다", () => {
+  it("검색으로 거른 행이 기본 정렬(진입 시각 내림차순) 그대로 나온다", () => {
+    vi.useFakeTimers();
+    try {
+      // trade_index 1..15 → 화면 번호 2..16. 검색어 "1" 은 10~16 에만 걸린다.
+      const trades = Array.from({ length: 15 }, (_, i) => mkTrade(i + 1));
+      render(
+        <TradeDetailTable
+          trades={trades}
+          isLoading={false}
+          isError={false}
+          endpoint={ENDPOINT}
+          filenamePrefix="bt-test"
+        />,
+      );
+      fireEvent.change(screen.getByLabelText("거래 검색"), { target: { value: "1" } });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      const firstCells = within(screen.getByRole("table"))
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.querySelector("td")?.textContent);
+      expect(firstCells).toEqual(["16", "15", "14", "13", "12", "11", "10"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

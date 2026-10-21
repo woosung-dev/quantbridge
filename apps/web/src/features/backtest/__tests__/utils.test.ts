@@ -67,6 +67,21 @@ describe("formatCurrency", () => {
   it("returns em dash for non-finite", () => {
     expect(formatCurrency(Number.POSITIVE_INFINITY)).toBe("—");
   });
+  // 포매터를 자릿수별로 캐시한다 — 출력은 종전 toLocaleString 과 같아야 하고,
+  // 자릿수를 바꿔 부를 때 앞 호출의 포매터가 새면 안 된다.
+  it("자릿수별 캐시 포매터 출력이 toLocaleString 과 같다", () => {
+    const values = [0, -0.005, 1234.5, -98765.4321, 0.12345678];
+    for (const digits of [2, 4, 0, 2, 8, 4]) {
+      for (const v of values) {
+        expect(formatCurrency(v, digits)).toBe(
+          v.toLocaleString("en-US", {
+            minimumFractionDigits: digits,
+            maximumFractionDigits: digits,
+          }),
+        );
+      }
+    }
+  });
 });
 
 describe("formatDate", () => {

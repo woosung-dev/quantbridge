@@ -99,53 +99,56 @@ export function TradeDetailTable({
   // 정렬·필터를 다시 도는 것은 늦춘다. 레포에 이미 있는 훅을 쓴다(선례: diagnostics-strip 500ms).
   const debouncedSearch = useDebouncedValue(filters.search, SEARCH_DEBOUNCE_MS);
 
-  // 기본 sort/filter(방향/결과) → 추가 filter(검색/기간/PnL) 적용.
+  // 추가 filter(검색/기간/PnL) → 기본 filter(방향/결과)+sort 순서로 적용한다.
+  // ★필터를 **먼저** 한다(js-combine-iterations · js-early-exit). 종전엔 2000건 전량을 정렬한 뒤
+  //   걸렀으므로 검색어 한 글자마다 걸러질 행까지 정렬했다. 정렬은 입력 순서 index 로 tiebreak 하는
+  //   안정 정렬이고 필터는 순서를 보존하므로 결과는 같다.
+  // ★검색어 정규화(trim/소문자)는 행마다가 아니라 **한 번만** 한다.
   // ★dep 은 객체 `filters` 가 아니라 **스칼라 필드**다(H-1 "scalar dep 선호"). 객체를 쓰면
   //   키 한 글자마다 identity 가 갈려 이 memo 가 사실상 없는 것과 같아진다.
   const filtered = useMemo(() => {
-    const base = applyTradeFilterSort(
-      trades,
+    const rawQuery = debouncedSearch.trim();
+    const q = rawQuery.toLowerCase();
+    const periodStart = filters.periodStart;
+    const periodEnd = filters.periodEnd;
+    const pnlMin =
+      filters.pnlMinPct !== null && Number.isFinite(filters.pnlMinPct) ? filters.pnlMinPct : null;
+    const pnlMax =
+      filters.pnlMaxPct !== null && Number.isFinite(filters.pnlMaxPct) ? filters.pnlMaxPct : null;
+    const needsFilter =
+      rawQuery !== "" ||
+      periodStart !== "" ||
+      periodEnd !== "" ||
+      pnlMin !== null ||
+      pnlMax !== null;
+    const narrowed = !needsFilter
+      ? trades
+      : trades.filter((t) => {
+          if (rawQuery !== "") {
+            // [BL-860] 화면 번호는 1-based(리포트 원장과 같은 기준). 검색어도 그 번호로 받는다.
+            const idxStr = (t.trade_index + 1).toString();
+            // 번호 / 원시 enum(long·short) / 한국어 방향 라벨(롱·숏) 모두 검색 대상.
+            const dirLabel = TRADE_DIRECTION_LABEL[t.direction];
+            if (
+              !idxStr.includes(q) &&
+              !t.direction.toLowerCase().includes(q) &&
+              !dirLabel.includes(rawQuery)
+            ) {
+              return false;
+            }
+          }
+          if (periodStart !== "" && t.entry_time.slice(0, 10) < periodStart) return false;
+          if (periodEnd !== "" && t.entry_time.slice(0, 10) > periodEnd) return false;
+          if (pnlMin !== null && t.return_pct < pnlMin) return false;
+          if (pnlMax !== null && t.return_pct > pnlMax) return false;
+          return true;
+        });
+    return applyTradeFilterSort(
+      narrowed,
       { direction: filters.direction, result: filters.result },
       sortField,
       sortDir,
     );
-    return base.filter((t) => {
-      if (debouncedSearch.trim() !== "") {
-        const q = debouncedSearch.trim().toLowerCase();
-        // [BL-860] 화면 번호는 1-based(리포트 원장과 같은 기준). 검색어도 그 번호로 받는다.
-        const idxStr = (t.trade_index + 1).toString();
-        // 번호 / 원시 enum(long·short) / 한국어 방향 라벨(롱·숏) 모두 검색 대상.
-        const dirLabel = TRADE_DIRECTION_LABEL[t.direction];
-        if (
-          !idxStr.includes(q) &&
-          !t.direction.toLowerCase().includes(q) &&
-          !dirLabel.includes(debouncedSearch.trim())
-        ) {
-          return false;
-        }
-      }
-      if (filters.periodStart !== "" && t.entry_time.slice(0, 10) < filters.periodStart) {
-        return false;
-      }
-      if (filters.periodEnd !== "" && t.entry_time.slice(0, 10) > filters.periodEnd) {
-        return false;
-      }
-      if (
-        filters.pnlMinPct !== null &&
-        Number.isFinite(filters.pnlMinPct) &&
-        t.return_pct < filters.pnlMinPct
-      ) {
-        return false;
-      }
-      if (
-        filters.pnlMaxPct !== null &&
-        Number.isFinite(filters.pnlMaxPct) &&
-        t.return_pct > filters.pnlMaxPct
-      ) {
-        return false;
-      }
-      return true;
-    });
   }, [
     trades,
     filters.direction,

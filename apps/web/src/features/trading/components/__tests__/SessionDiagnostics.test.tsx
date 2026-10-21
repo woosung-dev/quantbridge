@@ -235,4 +235,15 @@ describe("SessionDiagnostics", () => {
     render(<SessionDiagnostics session={session} />);
     expect(screen.getByText(new RegExp(heading))).toBeInTheDocument();
   });
+
+  // envelope `ts` 는 epoch-ms 다. 초로 계산하면 언제나 「방금 전」이 나온다(회귀 가드).
+  test.each([
+    [10_000, "방금 전 이벤트"],
+    [5 * 60_000, "5분 전 이벤트"],
+    [2 * 3_600_000, "2시간 전 이벤트"],
+  ])("마지막 이벤트가 %ims 전이면 %s 로 표시한다", (ageMs, label) => {
+    realtime = { status: "authed", lastEventTs: Date.now() - ageMs };
+    render(<SessionDiagnostics session={session} />);
+    expect(screen.getByText(new RegExp(label))).toBeInTheDocument();
+  });
 });

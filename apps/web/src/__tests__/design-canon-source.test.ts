@@ -221,11 +221,11 @@ const RADIUS_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
 /**
  * 하드코딩 hex. `brand-palette.ts`(토큰 정의 SSOT)는 스캔에서 아예 제외한다 — 설계상 hex 집합.
  *   - layout 2건 = S1a 가 `BRAND_PALETTE.dark.bg/light.bg` 참조로 교체 완료 (2026-07-20, 0으로 내림).
- *   - monaco 4건 = Monaco 에디터 테마 색(에디터 API 가 hex 문자열을 받는다). P1 밖, 이연.
+ *   - monaco 2건 = Monaco 에디터 웰/gutter 배경 hex 문자열. P1 밖, 이연.
  */
 const HEX_EXCLUDED = new Set(["lib/brand-palette.ts"]);
 const HEX_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
-  ["components/monaco/pine-language.ts", 4],
+  ["components/monaco/pine-language.ts", 2],
 ];
 
 /**

@@ -39,6 +39,7 @@ import {
   updateStrategySettings,
 } from "./api";
 import { strategyKeys } from "./query-keys";
+import { useDebouncedValue } from "./utils";
 import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
@@ -341,15 +342,46 @@ export function useParseStrategy(
 // ⌘+Enter 수동 재파싱은 useParseStrategy mutation을 그대로 사용.
 export function usePreviewParse(pineSource: string): UseQueryResult<ParsePreviewResponse, Error> {
   const { uid, getToken } = useAuthCtx();
-  const trimmed = pineSource.trim();
+  const hasSource = pineSource.trim().length > 0;
   return useQuery({
-    queryKey: strategyKeys.parsePreview(uid, trimmed),
-    queryFn: makeParsePreviewFetcher(trimmed, getToken),
-    enabled: trimmed.length > 0,
+    queryKey: strategyKeys.parsePreview(uid, pineSource),
+    queryFn: makeParsePreviewFetcher(pineSource, getToken),
+    enabled: hasSource,
     // 같은 pine_source 문자열 자체가 식별자라 재검증 불필요.
     staleTime: Infinity,
     // 같은 소스가 다시 필요해지면 캐시 히트로 즉시 서빙.
     gcTime: 5 * 60 * 1000,
     retry: false,
   });
+}
+
+/** 현재 원문의 응답만 판정에 사용한다. 이전 요청은 완료되어도 새 원문을 덮지 못한다. */
+export function useCurrentSourceParse(pineSource: string) {
+  const debounced = useDebouncedValue(pineSource, 300);
+  const autoParse = usePreviewParse(debounced);
+  const manualParse = useParseStrategy();
+  const hasSource = pineSource.trim().length > 0;
+  const manualIsCurrent = hasSource && manualParse.variables === pineSource;
+  const autoIsCurrent = hasSource && debounced === pineSource;
+  const manualHasResult = manualIsCurrent && manualParse.data !== undefined;
+  const manualIsSettled = manualIsCurrent && (manualParse.isSuccess || manualParse.isError);
+
+  return {
+    result:
+      (manualIsCurrent ? manualParse.data : null) ??
+      (autoIsCurrent ? autoParse.data : null) ??
+      null,
+    loading:
+      hasSource &&
+      ((manualIsCurrent && manualParse.isPending) ||
+        (!manualIsSettled && (!autoIsCurrent || autoParse.isFetching))),
+    error:
+      (
+        (manualIsCurrent ? manualParse.error : null) ??
+        (autoIsCurrent && !manualHasResult ? autoParse.error : null)
+      )?.message ?? null,
+    parse: () => {
+      if (hasSource) manualParse.mutate(pineSource);
+    },
+  };
 }

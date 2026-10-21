@@ -12,12 +12,9 @@ const LIGHT = BRAND_PALETTE.light;
 // 에디터 웰 전용 로컬 상수 — brand-palette 파생 (Monaco 소비처 한정).
 // 다크: 카드(#141619)보다 깊은 웰 배경으로 코드 영역을 한 단계 가라앉힘.
 //   #111316 = dark.bg(#0b0d0f) ↔ dark.card(#141619) 사이 보간.
-//   #0e1013 = 웰보다 살짝 깊은 gutter. #565d66 = dark.textMuted 보다 낮은 대비의 라인 번호.
-// 라이트: #9aa1a9 = light.textMuted 보다 낮은 대비의 라인 번호.
+//   #0e1013 = 웰보다 살짝 깊은 gutter. 라인 번호는 팔레트의 textMuted 를 쓴다.
 const EDITOR_DARK_BG = "#111316";
 const EDITOR_DARK_GUTTER_BG = "#0e1013";
-const EDITOR_DARK_LINE_NUMBER = "#565d66";
-const EDITOR_LIGHT_LINE_NUMBER = "#9aa1a9";
 
 /** Monarch token rule 은 `#` 없는 hex 문자열을 기대한다. */
 function hex(color: string): string {
@@ -172,7 +169,7 @@ export function registerPineLanguage(monaco: Monaco): void {
       "editor.background": EDITOR_DARK_BG,
       "editor.foreground": DARK.textPrimary,
       "editor.lineHighlightBackground": DARK.cardRaised,
-      "editorLineNumber.foreground": EDITOR_DARK_LINE_NUMBER,
+      "editorLineNumber.foreground": DARK.textMuted,
       "editorGutter.background": EDITOR_DARK_GUTTER_BG,
     },
   });
@@ -197,7 +194,7 @@ export function registerPineLanguage(monaco: Monaco): void {
       "editor.background": LIGHT.card,
       "editor.foreground": LIGHT.textPrimary,
       "editor.lineHighlightBackground": LIGHT.bgAlt,
-      "editorLineNumber.foreground": EDITOR_LIGHT_LINE_NUMBER,
+      "editorLineNumber.foreground": LIGHT.textMuted,
       "editorGutter.background": LIGHT.bg,
     },
   });
