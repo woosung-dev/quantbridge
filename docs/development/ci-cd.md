@@ -11,24 +11,40 @@
 flowchart TB
     Trigger[PR → main / stage/**\n+ merge_group + workflow_dispatch]
     CH[changes\n경로 스코프 판정 ~30초]
-    BE[backend\nruff + pytest 전량]
+    BE[backend\nruff + OpenAPI + mypy + pytest 전량]
     FE[frontend\nbiome + tsc + vitest + build]
+    SJ[strategy-journey\n인증 → 임포트 → 백테스트 → Monte Carlo]
 
     Trigger --> CH
     CH -->|backend == true| BE
     CH -->|frontend == true| FE
+    CH -->|backend 또는 frontend == true| SJ
 ```
 
-★**2026-08-19 [ADR-037] 제로베이스 — 잡은 이 2개가 전부다.** 구 구조(changes paths-filter ·
+**현행 실행 잡은 backend · frontend · strategy-journey다.** 구 구조(changes paths-filter ·
 documentation · backend_static · backend ×3샤드 · backend_coverage · e2e · ci summary) 원문 =
 `git show harness-v1:.github/workflows/ci.yml`.
 
-- **경로 스코프 실행** — `changes` 잡이 정한다(2026-08-26 재입힘 · 아래 절). docs only PR 은 두 잡 다 skip 이고, **판정이 애매하면 둘 다 돈다.**
-- **병렬 2잡** — 서로 `needs` 없음. 집계(summary) 잡도 없다.
+- **경로 스코프 실행** — `changes` 잡이 정한다(2026-08-26 재입힘 · 아래 절). docs only PR은 세 잡 모두 skip이고, **판정이 애매하면 세 잡 모두 돈다.**
+- **병렬 3잡** — 셋은 `changes`만 기다리고 서로를 기다리지 않는다. 집계(summary) 잡도 없다.
 - **branch protection required check 이름 = `backend` · `frontend`** — 구 `ci` 집계 check 는
   더 이상 생성되지 않으므로, required check 에 그 이름을 남겨두면 영구 pending 이다(ADR-037).
 - `tools/scripts/ledger-vitals.sh`(원장 기계 집행 3축)는 **CI 잡이 아니라 pre-commit 훅**이다 —
   CI 에 이 노드를 그리지 마라.
+
+### 실제 전략 여정
+
+`strategy-journey`는 임시 TimescaleDB·Redis와 실제 Better Auth·FastAPI·Celery·브라우저를 사용한다.
+앱 기동 전 `alembic upgrade head`로 현재 단일 migration chain을 적용한다. 외부 시장 조회는
+저장된 `BTCUSDT-RECENT_1h.csv`를 FixtureProvider에 연결하고, 생성한 로컬 테스트 계정으로
+대표 EMA 전략 한 개의 임포트·백테스트·데이터 구간 표시·Monte Carlo 완료를 확인한다.
+`/healthz`는 Celery inspect 수집 창이 끝나 응답을 돌려줄 수 있도록 outer timeout에 1초 여유를 둔다.
+
+- 실행: `pnpm exec playwright test --config playwright.journey.config.ts --grep s5_ema_trend`.
+- API/브라우저 포트는 CI 전용 8100/3100이다. 로컬 공유 스택에 이 잡을 대신 실행하지 않는다.
+- spec에 정의된 다섯 후보 전체를 CI가 실행한다고 해석하지 않는다. 리포트·API/worker 로그는
+  `strategy-journey-evidence` artifact로 7일 보존하고 잡 전체 시간은 15분으로 제한한다.
+- 이 검사는 서비스 배선과 고정 데이터의 여정을 확인한다. 실제 시장 데이터·주문·체결·독립 수익성 검증은 아니다.
 
 ### 트리거 — PR 만 (2026-08-06)
 

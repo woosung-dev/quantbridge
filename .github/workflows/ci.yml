@@ -177,3 +177,79 @@ jobs:
         env:
           BETTER_AUTH_SECRET: ci-build-only-placeholder-secret-000000
           BETTER_AUTH_URL: http://localhost:3000
+
+  strategy-journey:
+    # BL-845: 인증 이후 핵심 여정은 실제 서비스로 검사한다. 거래소 호출은 고정 OHLCV로 대체.
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      db:
+        image: timescale/timescaledb:2.14.2-pg15
+        env:
+          POSTGRES_USER: quantbridge
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: quantbridge_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U quantbridge"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+      TEST_DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+      BETTER_AUTH_DATABASE_URL: postgresql://quantbridge:password@localhost:5432/quantbridge_test
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      REDIS_LOCK_URL: redis://localhost:6379/3
+      TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
+      BETTER_AUTH_SECRET: ci-journey-only-placeholder-secret-00000
+      BETTER_AUTH_URL: http://localhost:3100
+      FRONTEND_URL: http://localhost:3100
+      NEXT_PUBLIC_API_URL: http://localhost:8100
+      NEXT_PUBLIC_WS_URL: ws://localhost:8100
+      PLAYWRIGHT_BASE_URL: http://localhost:3100
+      OHLCV_PROVIDER: fixture
+      OHLCV_FIXTURE_ROOT: /tmp/qb-journey-ohlcv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+      - run: uv sync --all-extras --dev --frozen
+        working-directory: apps/api
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Prepare isolated database and fixed market data
+        working-directory: apps/api
+        run: |
+          uv run alembic upgrade head
+          mkdir -p /tmp/qb-journey-ohlcv/BTC
+          cp data/fixtures/ohlcv/BTCUSDT-RECENT_1h.csv /tmp/qb-journey-ohlcv/BTC/USDT_1h.csv
+          cp data/fixtures/ohlcv/BTCUSDT-RECENT_1h.csv /tmp/qb-journey-ohlcv/BTCUSDT_1h.csv
+      - name: Start API and calculation worker
+        working-directory: apps/api
+        run: |
+          uv run uvicorn src.main:app --host 127.0.0.1 --port 8100 > /tmp/qb-journey-api.log 2>&1 &
+          uv run celery -A src.tasks worker --pool=prefork --concurrency=1 -Q celery > /tmp/qb-journey-worker.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8100/healthz; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Import, execute, inspect and stress-test a strategy
+        working-directory: apps/web
+        run: pnpm exec playwright test --config playwright.journey.config.ts --grep s5_ema_trend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: strategy-journey-evidence
+          path: |
+            apps/web/test-results/verified-journey/
+            /tmp/qb-journey-api.log
+            /tmp/qb-journey-worker.log
+          retention-days: 7
