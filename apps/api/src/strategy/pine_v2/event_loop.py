@@ -589,8 +589,11 @@ def run_live(
     strategy_state = result.strategy_state
     if strategy_state is None:
         raise RuntimeError("run_historical returned no strategy_state")
-    advanced_exit_unsupported = strategy_state.used_advanced_exits or _uses_advanced_exit_syntax(
-        source
+    pending_market_exit_unsupported = strategy_state.used_pending_market_exits
+    advanced_exit_unsupported = (
+        pending_market_exit_unsupported
+        or strategy_state.used_advanced_exits
+        or _uses_advanced_exit_syntax(source)
     )
 
     # MP-1 — closed_trade 의 realized PnL 을 trade_id 로 인덱싱 (close signal 에 부착).
@@ -849,7 +852,11 @@ def run_live(
             [
                 (
                     last_bar_index,
-                    "advanced_exit_unsupported_live: 부분/복수/활성화/취소 청산은 백테스트 전용",
+                    (
+                        "pending_market_exit_unsupported_live: 첫 체결 봉 브래킷은 백테스트 전용"
+                        if pending_market_exit_unsupported
+                        else "advanced_exit_unsupported_live: 부분/복수/활성화/취소 청산은 백테스트 전용"
+                    ),
                 )
             ]
             if advanced_exit_unsupported

@@ -29,6 +29,13 @@ PRD §5의 결과·가정 공개와 ADR-040/042의 결정론 판정 경계를 �
 기존 **Python View는 읽기 전용**이며 이 실행 경로와 별개다. 범용 Pine→Python 변환기는 아니다.
 기존 indicator→strategy 슬라이싱도 원본 조건식·범위를 보존할 수 없으면 성공을 반환하지 않는다.
 
+V2의 첫 체결 봉 보호에는 별도 위상 계약이 필요하다. 이미 제출한 `next_bar_open` 시장가 진입의
+명시적 `from_entry` 브래킷은 제출 봉에 평가한 유한 스칼라를 보존하고, 실제 시가 체결 뒤 OHLC
+청산 검사 전에 연결한다. 재진입 ID만 같다는 이유로 취소된 보호를 재사용하지 않는다. 이 기능은
+조건부 진입·wildcard 미래 진입을 지원하지 않으며, 체결가를 받아 R을 새로 계산하는 정책도 아니다.
+같은 봉에서 entry와 exit를 함께 제출하는 근거는 [TradingView 전략의 bracket 예제](https://www.tradingview.com/pine-script-docs/concepts/strategies/#strategyexit)다.
+수치 R·부분 익절·트레일 정책과 비용을 고정하기 전에는 전체 V2 성과로 표시하지 않는다.
+
 `strategy_adapter.adapt_strategy`는 검토한 manifest 위치의 신호를 실제 전략 진입으로 연결한다.
 원본 계산 body를 보존하고 선언과 선택 호출의 첫 인자만 AST의 정확한 범위로 편집한다. 조건은 호출 위치에서
 한 번 평가한 임시 변수로 원래 plot/alert와 진입문이 함께 읽는다. 원본 hash·변환 hash·변환 Pine·줄 대응표를

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
@@ -34,6 +34,28 @@ from src.strategy.pine_v2.leverage_model import (
 
 Direction = Literal["long", "short"]
 FillPhase = Literal["bar_open", "bar_close", "intrabar_unknown"]
+
+
+class PendingMarketExitError(ValueError):
+    """최소 pending market 브래킷 범위를 벗어난 연결이다."""
+
+
+@dataclass(frozen=True)
+class PendingMarketExit:
+    """신호봉에서 한 번 평가한 스칼라. bar는 실제 제출 봉이다."""
+
+    from_entry: str
+    exit_id: str
+    bar: int
+    stop: float | None
+    limit: float | None
+    profit_offset: float | None
+    loss_offset: float | None
+    trail_offset: float | None
+    trail_price: float | None
+    qty: float | None
+    qty_percent: float | None
+    comment: str
 
 
 @dataclass
@@ -51,6 +73,7 @@ class MarketIntent:
     qty: float | None = None  # None = 체결 시 default sizing
     comment: str = ""
     placed_bar: int = 0
+    exit_generation: int = 0  # 취소 후 같은 ID의 재진입과 구분한다.
 
 
 @dataclass
@@ -383,6 +406,9 @@ class StrategyState:
     pending_exits: dict[str, list[ExitOrder]] = field(default_factory=dict)
     # 라이브 surface가 표현하지 못하는 부분/복수/활성화/취소 전략을 구분한다.
     used_advanced_exits: bool = False
+    used_pending_market_exits: bool = False
+    pending_market_exits: dict[int, dict[str, PendingMarketExit]] = field(default_factory=dict)
+    _market_exit_generation: int = 0
     # 경고/미지원 파라미터 추적 (`limit=`, `trail_points=` 등) — 사용자에게 알림용
     warnings: list[str] = field(default_factory=list)
     # 진입이 엔진 게이트에서 삼켜진 구조화된 기록. warnings 소비처와 분리한다.
@@ -458,6 +484,11 @@ class StrategyState:
         """
         self.open_trades.clear()
         self.pending_exits.clear()
+        # epoch를 넘어 유지되는 미체결 intent의 보호만 함께 유지한다.
+        kept = {intent.exit_generation for intent in self.pending_market_intents}
+        self.pending_market_exits = {
+            key: value for key, value in self.pending_market_exits.items() if key in kept
+        }
         self.closed_trades.clear()
         self.liquidation_count = 0
         if self.running_equity is not None:
@@ -786,6 +817,16 @@ class StrategyState:
 
     def queue_market_intent(self, intent: MarketIntent) -> None:
         """next_bar_open 모드에서 시장가 entry/close/close_all 인텐트 등록."""
+        if intent.kind == "entry":
+            if any(
+                existing.kind == "entry"
+                and existing.trade_id == intent.trade_id
+                and existing.exit_generation in self.pending_market_exits
+                for existing in self.pending_market_intents
+            ):
+                raise PendingMarketExitError("multiple pending entries with one ID are unsupported")
+            self._market_exit_generation += 1
+            intent.exit_generation = self._market_exit_generation
         self.pending_market_intents.append(intent)
 
     def process_market_intents(
@@ -811,6 +852,7 @@ class StrategyState:
         intents = self.pending_market_intents
         self.pending_market_intents = []
         for intent in intents:
+            templates = self.pending_market_exits.pop(intent.exit_generation, {})
             if intent.kind == "entry":
                 if intent.qty is not None:
                     qty = intent.qty
@@ -839,7 +881,7 @@ class StrategyState:
                             )
                             continue
                     qty = self.compute_qty(fill_price=open_, equity_override=equity)
-                self.entry(
+                trade = self.entry(
                     intent.trade_id,
                     intent.direction,
                     qty=qty,
@@ -848,6 +890,10 @@ class StrategyState:
                     comment=intent.comment,
                     fill_phase="bar_open",
                 )
+                if trade is not None:
+                    for template in templates.values():
+                        # 제출시각을 보존하며 실제 체결 수량으로 예약한다. OHLC 재평가 없음.
+                        self.place_exit(**asdict(template))
             elif intent.kind == "close":
                 self.close(
                     intent.trade_id,
@@ -961,6 +1007,11 @@ class StrategyState:
             )
 
         if stop is not None or limit is not None:
+            if any(
+                intent.trade_id == trade_id and intent.exit_generation in self.pending_market_exits
+                for intent in self.pending_market_intents
+            ):
+                raise PendingMarketExitError("mixed conditional and market entry ID is unsupported")
             # Pending stop/limit 주문 — 기존 동일 id pending 있으면 갱신 (Pine re-issue 의미론).
             # flip 은 체결 시점(check_pending_fills)에서 처리 — pending 상태에서는 반대 포지션 유지.
             self.pending_orders[trade_id] = PendingOrder(
@@ -1366,6 +1417,41 @@ class StrategyState:
         if trail_offset is not None and (not math.isfinite(trail_offset) or trail_offset <= 0):
             raise ValueError("strategy.exit trail_offset은 유한한 양수여야 합니다")
         if from_entry:
+            waiting = [
+                intent
+                for intent in self.pending_market_intents
+                if intent.kind == "entry" and intent.trade_id == from_entry
+            ]
+            if waiting and self.fill_timing == "next_bar_open":
+                if len(waiting) != 1:
+                    raise PendingMarketExitError(
+                        "multiple pending entries with one ID are unsupported"
+                    )
+                if from_entry in self.pending_orders:
+                    raise PendingMarketExitError(
+                        "mixed conditional and market entry ID is unsupported"
+                    )
+                for value in (stop, limit, profit_offset, loss_offset):
+                    if value is not None and not math.isfinite(value):
+                        raise PendingMarketExitError("pending market exit prices must be finite")
+                self.used_pending_market_exits = True
+                template = PendingMarketExit(
+                    from_entry,
+                    exit_id,
+                    bar,
+                    stop,
+                    limit,
+                    profit_offset,
+                    loss_offset,
+                    trail_offset,
+                    trail_price,
+                    qty,
+                    qty_percent,
+                    comment,
+                )
+                self.pending_market_exits.setdefault(waiting[0].exit_generation, {})[exit_id] = (
+                    template
+                )
             targets = [from_entry] if from_entry in self.open_trades else []
         else:
             targets = list(self.open_trades.keys())
@@ -1466,6 +1552,15 @@ class StrategyState:
         self.pending_market_intents = [
             intent for intent in self.pending_market_intents if intent.trade_id != order_id
         ]
+        remaining = {intent.exit_generation for intent in self.pending_market_intents}
+        self.pending_market_exits = {
+            generation: {key: spec for key, spec in specs.items() if key != order_id}
+            for generation, specs in self.pending_market_exits.items()
+            if generation in remaining
+        }
+        self.pending_market_exits = {
+            key: specs for key, specs in self.pending_market_exits.items() if specs
+        }
         for tid, legs in list(self.pending_exits.items()):
             kept = [leg for leg in legs if leg.exit_id != order_id]
             if kept:
@@ -1479,6 +1574,7 @@ class StrategyState:
         self.pending_orders.clear()
         self.pending_exits.clear()
         self.pending_market_intents.clear()
+        self.pending_market_exits.clear()
 
     def check_exit_fills(
         self,

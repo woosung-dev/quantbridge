@@ -50,7 +50,7 @@ from src.strategy.pine_v2.rendering import (
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.signal_trace import SignalFunction, SignalObservation
 from src.strategy.pine_v2.stdlib import StdlibDispatcher
-from src.strategy.pine_v2.strategy_state import StrategyState
+from src.strategy.pine_v2.strategy_state import PendingMarketExitError, StrategyState
 
 # BL-200 (Sprint 47): STDLIB_NAMES 는 `_names.py` 에서 re-export.
 # 이전 inline frozenset 정의는 coverage.py 와 Triple SSOT 였음 (interpreter /
@@ -1384,7 +1384,10 @@ class Interpreter:
             "strategy.cancel",
             "strategy.cancel_all",
         ):
-            return self._exec_strategy_call(name, node)
+            try:
+                return self._exec_strategy_call(name, node)
+            except PendingMarketExitError as exc:
+                raise PineRuntimeError(str(exc)) from exc
 
         # 렌더링 scope A — line/box/label/table. 좌표 저장 + getter만, 렌더링 NOP.
         if name in _RENDERING_FACTORIES:
