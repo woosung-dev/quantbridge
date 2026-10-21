@@ -46,23 +46,34 @@ SUPPORTED_INDICATORS = frozenset(
 
 # 각 callback은 실제 런타임 안에서 한 봉만 추가한다. ctx.history는 현재 완료봉을 포함한다.
 _PY_RUNTIME = r"""
+def _qb_mean(values):
+    base = values[0]
+    return base + sum(value-base for value in values)/len(values)
+
+
+def _qb_compare(a, b):
+    if not (abs(a)<float("inf") and abs(b)<float("inf")): return None
+    epsilon = 1e-12*max(1.0,abs(a),abs(b))
+    return 0 if abs(a-b)<=epsilon else 1 if a>b else -1
+
+
 def _qb_update(q, row):
     p = q["prices"]
     for key in ("open", "high", "low", "close", "volume"):
         p[key].append(float(row[key]))
-    p["hlc3"].append((p["high"][-1]+p["low"][-1]+p["close"][-1])/3)
+    p["hlc3"].append(_qb_mean([p["high"][-1],p["low"][-1],p["close"][-1]]))
     o = q["outputs"]
     nan = float("nan")
     def avg(a, length):
-        return sum(a[-length:])/length if len(a)>=length else nan
+        return _qb_mean(a[-length:]) if len(a)>=length else nan
     def ema(value, previous, length, key="value"):
-        if value!=value: return previous if previous is not None else nan
-        if previous is None or previous!=previous:
+        if not abs(value)<float("inf"): return previous if previous is not None else nan
+        if previous is None or not abs(previous)<float("inf"):
             seed = mem.setdefault("ema_seed_"+key, [])
             seed.append(value)
-            return sum(seed)/length if len(seed)>=length else nan
+            return _qb_mean(seed) if len(seed)>=length else nan
         alpha = 2.0/(length+1.0)
-        return alpha*value+(1.0-alpha)*previous
+        return previous+alpha*(value-previous)
     for item in _QB_SPEC["indicators"]:
         ident, kind, length = item["id"], item["kind"], item["length"]
         s = p[item["source"]]
@@ -75,7 +86,7 @@ def _qb_update(q, row):
             window = s[-length:]
             value = nan
             if len(window) == length:
-                center = sum(window)/length
+                center = _qb_mean(window)
                 sd = (sum((x-center)**2 for x in window)/length)**0.5
                 if kind == "sma": value = center
                 elif kind == "highest": value = max(window)
@@ -108,8 +119,8 @@ def _qb_update(q, row):
                     mem.setdefault("gains", []).append(max(change,0))
                     mem.setdefault("losses", []).append(max(-change,0))
                 if len(mem.get("gains",[]))>=length:
-                    gain = avg(mem["gains"],length) if "gain" not in mem else (mem["gain"]*(length-1)+mem["gains"][-1])/length
-                    loss = avg(mem["losses"],length) if "loss" not in mem else (mem["loss"]*(length-1)+mem["losses"][-1])/length
+                    gain = avg(mem["gains"],length) if "gain" not in mem else mem["gain"]+(mem["gains"][-1]-mem["gain"])/length
+                    loss = avg(mem["losses"],length) if "loss" not in mem else mem["loss"]+(mem["losses"][-1]-mem["loss"])/length
                     mem.update(gain=gain,loss=loss)
                     values["value"] = 100-100/(1+gain/loss) if loss else 100.0
                 else: values["value"] = nan
@@ -120,7 +131,7 @@ def _qb_update(q, row):
                 mem.setdefault("tr",[]).append(tr)
                 atr = nan
                 if len(s)>=length:
-                    atr = avg(mem["tr"],length) if "atr" not in mem else (mem["atr"]*(length-1)+tr)/length
+                    atr = avg(mem["tr"],length) if "atr" not in mem else mem["atr"]+(tr-mem["atr"])/length
                     mem["atr"] = atr
                 if kind == "atr": values["value"] = atr
                 elif kind == "keltner":
@@ -217,13 +228,16 @@ def _qb_condition(q, node):
     if op == "any": return any(_qb_condition(q,c) for c in node["children"])
     if op == "not": return not _qb_condition(q,node["children"][0])
     a,b = _qb_ref(q,node["left"]),_qb_ref(q,node["right"])
-    if a!=a or b!=b: return False
-    if op == "gt": return a>b
-    if op == "gte": return a>=b
-    if op == "lt": return a<b
-    if op == "lte": return a<=b
+    comparison = _qb_compare(a,b)
+    if comparison is None: return False
+    if op == "gt": return comparison>0
+    if op == "gte": return comparison>=0
+    if op == "lt": return comparison<0
+    if op == "lte": return comparison<=0
     pa,pb = _qb_ref(q,node["left"],1),_qb_ref(q,node["right"],1)
-    return pa<=pb and a>b if op=="cross_up" else pa>=pb and a<b
+    previous = _qb_compare(pa,pb)
+    if previous is None: return False
+    return previous<=0 and comparison>0 if op=="cross_up" else previous>=0 and comparison<0
 
 
 def on_bar(ctx, state):
@@ -244,12 +258,14 @@ def on_bar(ctx, state):
 """
 
 _TS_RUNTIME = r"""
+function _qbMean(values:number[]):number{const base=values[0];return base+values.reduce((total,value)=>total+(value-base),0)/values.length;}
+function _qbCompare(a:number,b:number):number{if(!Number.isFinite(a)||!Number.isFinite(b))return NaN;const epsilon=1e-12*Math.max(1,Math.abs(a),Math.abs(b));return Math.abs(a-b)<=epsilon?0:a>b?1:-1;}
 function _qbUpdate(q:any,row:any):void {
  const p=q.prices,o=q.outputs, nan=NaN;
  for(const key of ["open","high","low","close","volume"]) p[key].push(Number(row[key]));
- p.hlc3.push((p.high.at(-1)+p.low.at(-1)+p.close.at(-1))/3);
- const avg=(a:number[],n:number)=>a.length>=n?a.slice(-n).reduce((x,y)=>x+y,0)/n:nan;
- const ema=(x:number,prev:number|undefined,n:number,seed:number[])=>{if(!Number.isFinite(x))return prev??nan;if(prev===undefined||!Number.isFinite(prev)){seed.push(x);return seed.length>=n?seed.reduce((a,b)=>a+b,0)/n:nan;}const alpha=2/(n+1);return alpha*x+(1-alpha)*prev;};
+ p.hlc3.push(_qbMean([p.high.at(-1),p.low.at(-1),p.close.at(-1)]));
+ const avg=(a:number[],n:number)=>a.length>=n?_qbMean(a.slice(-n)):nan;
+ const ema=(x:number,prev:number|undefined,n:number,seed:number[])=>{if(!Number.isFinite(x))return prev??nan;if(prev===undefined||!Number.isFinite(prev)){seed.push(x);return seed.length>=n?_qbMean(seed):nan;}const alpha=2/(n+1);return prev+alpha*(x-prev);};
  for(const item of _QB_SPEC.indicators){
   const id=item.id,kind=item.kind,n=item.length,s=p[item.source],last=s.at(-1),m=q.memory[id]??(q.memory[id]={});
   const vals:any={},prev=m.last;
@@ -272,9 +288,9 @@ function _qbUpdate(q:any,row:any):void {
   else if(["rsi","atr","chandelier","keltner","atr_breakout"].includes(kind)){
    if(kind==="rsi"){
     if(s.length>1){const d=last-s.at(-2);(m.gains??=[]).push(Math.max(d,0));(m.losses??=[]).push(Math.max(-d,0));}
-    if((m.gains?.length??0)>=n){m.gain=m.gain===undefined?avg(m.gains,n):(m.gain*(n-1)+m.gains.at(-1))/n;m.loss=m.loss===undefined?avg(m.losses,n):(m.loss*(n-1)+m.losses.at(-1))/n;vals.value=m.loss?100-100/(1+m.gain/m.loss):100;}else vals.value=nan;
+    if((m.gains?.length??0)>=n){m.gain=m.gain===undefined?avg(m.gains,n):m.gain+(m.gains.at(-1)-m.gain)/n;m.loss=m.loss===undefined?avg(m.losses,n):m.loss+(m.losses.at(-1)-m.loss)/n;vals.value=m.loss?100-100/(1+m.gain/m.loss):100;}else vals.value=nan;
    }else{const h=p.high.at(-1),l=p.low.at(-1),pc=s.length>1?p.close.at(-2):p.close.at(-1),tr=Math.max(h-l,Math.abs(h-pc),Math.abs(l-pc));(m.tr??=[]).push(tr);let atr=nan;
-    if(s.length>=n){atr=m.atr===undefined?avg(m.tr,n):(m.atr*(n-1)+tr)/n;m.atr=atr;}
+    if(s.length>=n){atr=m.atr===undefined?avg(m.tr,n):m.atr+(tr-m.atr)/n;m.atr=atr;}
     if(kind==="atr")vals.value=atr;else if(kind==="keltner"){const mid=ema(last,prev,n,(m.seedValue??=[]));Object.assign(vals,{value:mid,upper:mid+item.multiplier*atr,lower:mid-item.multiplier*atr});}else if(kind==="atr_breakout")Object.assign(vals,{upper:p.close.at(-1)+item.multiplier*atr,lower:p.close.at(-1)-item.multiplier*atr});else Object.assign(vals,{upper:Math.min(...p.low.slice(-n))+item.multiplier*atr,lower:Math.max(...p.high.slice(-n))-item.multiplier*atr});}
   }else if(kind==="obv"){const d=s.length>1?p.close.at(-1)-p.close.at(-2):0;vals.value=(prev??0)+p.volume.at(-1)*(d>0?1:d<0?-1:0);(m.obv??=[]).push(vals.value);vals.signal=avg(m.obv,n);}
   else if(kind==="macd"){m.fast=ema(last,m.fast,n,(m.seedFast??=[]));m.slow=ema(last,m.slow,item.slow,(m.seedSlow??=[]));vals.value=m.fast-m.slow;m.signal=ema(vals.value,m.signal,item.signal,(m.seedSignal??=[]));vals.signal=m.signal;}
@@ -300,8 +316,8 @@ function _qbUpdate(q:any,row:any):void {
 function _qbRef(q:any,r:any,extra=0):number{if(r.constant!==null)return r.constant;const a=q.prices[r.series]??q.outputs[r.series+"."+r.output]??[],offset=r.offset+extra;return a.length>offset?a[a.length-1-offset]:NaN;}
 function _qbCondition(q:any,c:any):boolean{
  const op=c.op;if(op==="true")return true;if(op==="false")return false;if(op==="all")return c.children.every((x:any)=>_qbCondition(q,x));if(op==="any")return c.children.some((x:any)=>_qbCondition(q,x));if(op==="not")return !_qbCondition(q,c.children[0]);
- const a=_qbRef(q,c.left),b=_qbRef(q,c.right);if(!Number.isFinite(a)||!Number.isFinite(b))return false;
- if(op==="gt")return a>b;if(op==="gte")return a>=b;if(op==="lt")return a<b;if(op==="lte")return a<=b;const pa=_qbRef(q,c.left,1),pb=_qbRef(q,c.right,1);return op==="cross_up"?pa<=pb&&a>b:pa>=pb&&a<b;
+ const a=_qbRef(q,c.left),b=_qbRef(q,c.right),comparison=_qbCompare(a,b);if(!Number.isFinite(comparison))return false;
+ if(op==="gt")return comparison>0;if(op==="gte")return comparison>=0;if(op==="lt")return comparison<0;if(op==="lte")return comparison<=0;const previous=_qbCompare(_qbRef(q,c.left,1),_qbRef(q,c.right,1));if(!Number.isFinite(previous))return false;return op==="cross_up"?previous<=0&&comparison>0:previous>=0&&comparison<0;
 }
 export function onBar(ctx:any,state:any):{action:string}{
  const q=state._qb??(state._qb={prices:{open:[],high:[],low:[],close:[],volume:[],hlc3:[]},outputs:{},memory:{},last:-1});
@@ -312,14 +328,22 @@ export function onBar(ctx:any,state:any):{action:string}{
 """
 
 
+def _pine_at(name: str, offset: int | str) -> str:
+    if name == "qb_hlc3":
+        return f"(high[{offset}] + ((low[{offset}] - high[{offset}]) + (close[{offset}] - high[{offset}])) / 3.0)"
+    return f"{name}[{offset}]"
+
+
 def _pine_ref(ref: ValueRef, extra: int = 0) -> str:
     if ref.constant is not None:
         return repr(ref.constant)
     name = ref.series or ""
-    if name not in {"open", "high", "low", "close", "volume", "hlc3"}:
+    if name == "hlc3":
+        name = "qb_hlc3"
+    elif name not in {"open", "high", "low", "close", "volume"}:
         name = f"qb_{name}_{ref.output}"
     offset = ref.offset + extra
-    return f"{name}[{offset}]" if offset else name
+    return _pine_at(name, offset) if offset else name
 
 
 def _pine_condition(condition: Condition) -> str:
@@ -333,13 +357,41 @@ def _pine_condition(condition: Condition) -> str:
         return "(" + joiner.join(_pine_condition(c) for c in condition.children) + ")"
     assert condition.left is not None and condition.right is not None
     a, b = _pine_ref(condition.left), _pine_ref(condition.right)
+
+    def compare(left: str, right: str, operator: str) -> str:
+        return f"(qb_finite({left}) and qb_finite({right}) and qb_compare({left}, {right}) {operator} 0)"
+
     if op in ("cross_up", "cross_down"):
         pa, pb = _pine_ref(condition.left, 1), _pine_ref(condition.right, 1)
         return (
-            f"({pa} <= {pb} and {a} > {b})" if op == "cross_up" else f"({pa} >= {pb} and {a} < {b})"
+            f"({compare(pa, pb, '<=')} and {compare(a, b, '>')})"
+            if op == "cross_up"
+            else f"({compare(pa, pb, '>=')} and {compare(a, b, '<')})"
         )
     operator = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}[op]
-    return f"({a} {operator} {b})"
+    return compare(a, b, operator)
+
+
+def _pine_window(target: str, source: str, length: int, *, stdev: bool = False) -> list[str]:
+    """NA를 무시한 극값만으로 상수 창을 주장하지 않는다. n개 유한 관측이 모두 필요하다."""
+    calculation = "stdev" if stdev else "sma"
+    constant = "0.0" if stdev else source
+    return [
+        f"{target}_raw = ta.{calculation}({source}, {length})",
+        f"{target}_finite = ta.sma(qb_finite({source}) ? 1.0 : 0.0, {length})",
+        f"{target}_hi = ta.highest({source}, {length})",
+        f"{target}_lo = ta.lowest({source}, {length})",
+        f"{target} = {target}_finite == 1.0 ? ({target}_hi == {target}_lo ? {constant} : {target}_raw) : na",
+    ]
+
+
+def _pine_smooth(target: str, source: str, length: int, *, rma: bool = False) -> list[str]:
+    alpha = f"1.0 / {length}" if rma else f"2.0 / ({length} + 1.0)"
+    return [
+        *_pine_window(target + "_seed", source, length),
+        f"var float {target} = na",
+        f"{target} := not qb_finite({source}) ? {target}[1] : (not qb_finite({target}[1]) ? {target}_seed : {target}[1] + ({alpha}) * ({source} - {target}[1]))",
+    ]
 
 
 def _compile_pine(spec: StrategySpec) -> str:
@@ -348,29 +400,58 @@ def _compile_pine(spec: StrategySpec) -> str:
         "strategy("
         + json.dumps(spec.title, ensure_ascii=False)
         + ", process_orders_on_close=false)",
+        "qb_finite(value) => not na(value) and math.abs(value) <= 1.7976931348623157e308",
+        "qb_compare(a, b) =>",
+        "    epsilon = 1e-12 * math.max(1.0, math.max(math.abs(a), math.abs(b)))",
+        "    math.abs(a - b) <= epsilon ? 0 : (a > b ? 1 : -1)",
+        "qb_hlc3 = high + ((low - high) + (close - high)) / 3.0",
     ]
     for item in spec.indicators:
-        name, kind, source, n = f"qb_{item.id}", item.kind, item.source, item.length
+        name, kind, n = f"qb_{item.id}", item.kind, item.length
+        source: str = "qb_hlc3" if item.source == "hlc3" else item.source
         v = f"{name}_value"
-        if kind in {"ema", "sma", "rsi", "highest", "lowest", "stdev"}:
+        if kind in {"sma", "stdev"}:
+            lines.extend(_pine_window(v, source, n, stdev=kind == "stdev"))
+        elif kind == "ema":
+            lines.extend(_pine_smooth(v, source, n))
+        elif kind == "rsi":
+            lines.extend(
+                [
+                    f"{name}_change = {source} - {source}[1]",
+                    f"{name}_gain = math.max({name}_change, 0.0)",
+                    f"{name}_loss = math.max(-{name}_change, 0.0)",
+                    *_pine_smooth(name + "_avg_gain", name + "_gain", n, rma=True),
+                    *_pine_smooth(name + "_avg_loss", name + "_loss", n, rma=True),
+                    f"{v} = na({name}_avg_gain) or na({name}_avg_loss) ? na : ({name}_avg_loss == 0 ? 100.0 : 100.0 - 100.0 / (1.0 + {name}_avg_gain / {name}_avg_loss))",
+                ]
+            )
+        elif kind in {"highest", "lowest"}:
             lines.append(f"{v} = ta.{kind}({source}, {n})")
         elif kind == "atr":
-            lines.append(f"{v} = ta.atr({n})")
+            lines.extend(
+                [
+                    f"{name}_tr = math.max(high - low, math.max(math.abs(high - nz(close[1], close)), math.abs(low - nz(close[1], close))))",
+                    *_pine_smooth(v, name + "_tr", n, rma=True),
+                ]
+            )
         elif kind == "obv":
-            lines.extend([f"{v} = ta.obv", f"{name}_signal = ta.sma({v}, {n})"])
+            lines.extend([f"{v} = ta.obv", *_pine_window(name + "_signal", v, n)])
         elif kind == "macd":
             lines.extend(
                 [
-                    f"{v} = ta.ema({source}, {n}) - ta.ema({source}, {item.slow})",
-                    f"{name}_signal = ta.ema({v}, {item.signal})",
+                    *_pine_smooth(name + "_fast", source, n),
+                    *_pine_smooth(name + "_slow", source, item.slow),
+                    f"{v} = {name}_fast - {name}_slow",
+                    *_pine_smooth(name + "_signal", v, item.signal),
                 ]
             )
         elif kind == "bollinger":
             lines.extend(
                 [
-                    f"{v} = ta.sma({source}, {n})",
-                    f"{name}_upper = {v} + {item.multiplier} * ta.stdev({source}, {n})",
-                    f"{name}_lower = {v} - {item.multiplier} * ta.stdev({source}, {n})",
+                    *_pine_window(v, source, n),
+                    *_pine_window(name + "_sd", source, n, stdev=True),
+                    f"{name}_upper = {v} + {item.multiplier} * {name}_sd",
+                    f"{name}_lower = {v} - {item.multiplier} * {name}_sd",
                 ]
             )
         elif kind == "roc":
@@ -388,8 +469,8 @@ def _compile_pine(spec: StrategySpec) -> str:
             else:
                 lines.extend(
                     [
-                        f"{v} = ta.sma({name}_raw, {item.slow})",
-                        f"{name}_signal = ta.sma({v}, {item.signal})",
+                        *_pine_window(v, name + "_raw", item.slow),
+                        *_pine_window(name + "_signal", v, item.signal),
                     ]
                 )
         elif kind == "donchian":
@@ -401,19 +482,29 @@ def _compile_pine(spec: StrategySpec) -> str:
                 ]
             )
         elif kind in {"keltner", "atr_breakout"}:
-            mid = f"ta.ema({source}, {n})" if kind == "keltner" else "close"
             lines.extend(
                 [
-                    f"{v} = {mid}",
-                    f"{name}_upper = {v} + {item.multiplier} * ta.atr({n})",
-                    f"{name}_lower = {v} - {item.multiplier} * ta.atr({n})",
+                    f"{name}_tr = math.max(high - low, math.max(math.abs(high - nz(close[1], close)), math.abs(low - nz(close[1], close))))",
+                    *_pine_smooth(name + "_atr", name + "_tr", n, rma=True),
+                ]
+            )
+            if kind == "keltner":
+                lines.extend(_pine_smooth(v, source, n))
+            else:
+                lines.append(f"{v} = close")
+            lines.extend(
+                [
+                    f"{name}_upper = {v} + {item.multiplier} * {name}_atr",
+                    f"{name}_lower = {v} - {item.multiplier} * {name}_atr",
                 ]
             )
         elif kind == "chandelier":
             lines.extend(
                 [
-                    f"{name}_lower = ta.highest(high, {n}) - {item.multiplier} * ta.atr({n})",
-                    f"{name}_upper = ta.lowest(low, {n}) + {item.multiplier} * ta.atr({n})",
+                    f"{name}_tr = math.max(high - low, math.max(math.abs(high - nz(close[1], close)), math.abs(low - nz(close[1], close))))",
+                    *_pine_smooth(name + "_atr", name + "_tr", n, rma=True),
+                    f"{name}_lower = ta.highest(high, {n}) - {item.multiplier} * {name}_atr",
+                    f"{name}_upper = ta.lowest(low, {n}) + {item.multiplier} * {name}_atr",
                 ]
             )
         elif kind == "heikin_ashi":
@@ -438,7 +529,7 @@ def _compile_pine(spec: StrategySpec) -> str:
             lines.extend(
                 [
                     f"if time >= {item.anchor_ms or 0}",
-                    f"    {name}_pv := {name}_pv + hlc3 * volume",
+                    f"    {name}_pv := {name}_pv + qb_hlc3 * volume",
                     f"    {name}_vol := {name}_vol + volume",
                     f"{v} = {name}_vol > 0 ? {name}_pv / {name}_vol : na",
                 ]
@@ -446,27 +537,30 @@ def _compile_pine(spec: StrategySpec) -> str:
         elif kind == "cci":
             lines.extend(
                 [
-                    f"{name}_mean = ta.sma({source}, {n})",
+                    *_pine_window(name + "_mean", source, n),
                     f"{name}_dev = 0.0",
                     f"for qb_i = 0 to {n - 1}",
-                    f"    {name}_dev := {name}_dev + math.abs({source}[qb_i] - {name}_mean)",
+                    f"    {name}_dev := {name}_dev + math.abs({_pine_at(source, 'qb_i')} - {name}_mean)",
                     f"{name}_mad = {name}_dev / {n}",
-                    f"{v} = {name}_mad > 0 ? ({source} - {name}_mean) / (0.015 * {name}_mad) : 0.0",
+                    f"{v} = na({name}_mean) ? na : ({name}_mad > 0 ? ({source} - {name}_mean) / (0.015 * {name}_mad) : 0.0)",
                 ]
             )
         elif kind == "cmf":
             lines.extend(
                 [
                     f"{name}_flow = high == low ? 0.0 : ((2 * close - high - low) / (high - low)) * volume",
-                    f"{name}_volume = ta.sma(volume, {n})",
-                    f"{v} = {name}_volume > 0 ? ta.sma({name}_flow, {n}) / {name}_volume : na",
+                    *_pine_window(name + "_volume", "volume", n),
+                    *_pine_window(name + "_mean_flow", name + "_flow", n),
+                    f"{v} = {name}_volume > 0 ? {name}_mean_flow / {name}_volume : na",
                 ]
             )
         elif kind == "mfi":
             lines.extend(
                 [
-                    f"{name}_pos = ta.sma(hlc3 > hlc3[1] ? hlc3 * volume : 0.0, {n})",
-                    f"{name}_neg = ta.sma(hlc3 < hlc3[1] ? hlc3 * volume : 0.0, {n})",
+                    f"{name}_positive = qb_hlc3 > qb_hlc3[1] ? qb_hlc3 * volume : 0.0",
+                    f"{name}_negative = qb_hlc3 < qb_hlc3[1] ? qb_hlc3 * volume : 0.0",
+                    *_pine_window(name + "_pos", name + "_positive", n),
+                    *_pine_window(name + "_neg", name + "_negative", n),
                     f"{v} = {name}_neg > 0 ? 100 - 100 / (1 + {name}_pos / {name}_neg) : ({name}_pos > 0 ? 100.0 : na)",
                 ]
             )
@@ -493,16 +587,16 @@ def _compile_pine(spec: StrategySpec) -> str:
             den = n * (n * n - 1) / 12
             lines.extend(
                 [
-                    f"{name}_mean = ta.sma({source}, {n})",
+                    *_pine_window(name + "_mean", source, n),
                     f"{name}_numerator = 0.0",
                     f"for qb_i = 0 to {n - 1}",
-                    f"    {name}_numerator := {name}_numerator + ({n - 1} - qb_i - {regression_mid}) * ({source}[qb_i] - {name}_mean)",
+                    f"    {name}_numerator := {name}_numerator + ({n - 1} - qb_i - {regression_mid}) * ({_pine_at(source, 'qb_i')} - {name}_mean)",
                     f"{name}_slope = {name}_numerator / {den}" if den else f"{name}_slope = 0.0",
                     f"{name}_intercept = {name}_mean - {name}_slope * {regression_mid}",
                     f"{v} = {name}_intercept + {name}_slope * {n - 1}",
                     f"{name}_residual = 0.0",
                     f"for qb_i = 0 to {n - 1}",
-                    f"    {name}_error = {source}[qb_i] - {name}_intercept - {name}_slope * ({n - 1} - qb_i)",
+                    f"    {name}_error = {_pine_at(source, 'qb_i')} - {name}_intercept - {name}_slope * ({n - 1} - qb_i)",
                     f"    {name}_residual := {name}_residual + {name}_error * {name}_error",
                     f"{name}_sd = math.sqrt({name}_residual / {n})",
                     f"{name}_upper = {v} + {item.multiplier} * {name}_sd",
