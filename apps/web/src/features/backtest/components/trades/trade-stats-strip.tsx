@@ -109,39 +109,60 @@ function aggregate(trades: readonly TradeItem[]): AggregatedStats {
   // ★미청산 거래는 `exit_time === null` 이고 pnl 이 진입 수수료만큼 **음수**라, 걸러내지
   //   않으면 패배로 세어진다(losses 필터가 이미 그렇게 하고 있었다). wins 도 같은 모수여야
   //   총계가 닫힌다 — 미청산은 별도로 센다(BL-822).
-  const closed = trades.filter((t) => t.exit_time !== null);
-  const wins = closed.filter((t) => t.pnl > 0);
-  const losses = closed.filter((t) => t.pnl <= 0);
-  const openCount = trades.length - closed.length;
+  let winCount = 0;
+  let lossCount = 0;
+  let openCount = 0;
+  let winPctCount = 0;
+  let lossPctCount = 0;
+  let winPctSum = 0;
+  let lossPctSum = 0;
+  let maxWinPct = -Infinity;
+  let minLossPct = Infinity;
+  let holdSum = 0;
+  const holdMinutes: number[] = [];
 
-  const winPcts = wins.map((t) => t.return_pct).filter((v) => Number.isFinite(v));
-  const lossPcts = losses.map((t) => t.return_pct).filter((v) => Number.isFinite(v));
+  // 승패·유한 수익률·보유 시간을 한 번에 모은다. 중앙값만 정렬이 필요하다.
+  for (const trade of trades) {
+    if (trade.exit_time === null) {
+      openCount += 1;
+    } else if (trade.pnl > 0) {
+      winCount += 1;
+      if (Number.isFinite(trade.return_pct)) {
+        winPctCount += 1;
+        winPctSum += trade.return_pct;
+        maxWinPct = Math.max(maxWinPct, trade.return_pct);
+      }
+    } else if (trade.pnl <= 0) {
+      lossCount += 1;
+      if (Number.isFinite(trade.return_pct)) {
+        lossPctCount += 1;
+        lossPctSum += trade.return_pct;
+        minLossPct = Math.min(minLossPct, trade.return_pct);
+      }
+    }
+    if (!trade.exit_time) continue;
+    const ms = new Date(trade.exit_time).getTime() - new Date(trade.entry_time).getTime();
+    const minutes = ms > 0 && Number.isFinite(ms) ? Math.round(ms / 60000) : 0;
+    if (minutes > 0) {
+      holdMinutes.push(minutes);
+      holdSum += minutes;
+    }
+  }
 
-  const avgWinPct = winPcts.length > 0 ? winPcts.reduce((a, b) => a + b, 0) / winPcts.length : 0;
-  const maxWinPct = winPcts.length > 0 ? Math.max(...winPcts) : 0;
-  const avgLossPct =
-    lossPcts.length > 0 ? lossPcts.reduce((a, b) => a + b, 0) / lossPcts.length : 0;
-  const minLossPct = lossPcts.length > 0 ? Math.min(...lossPcts) : 0;
-
-  const holdMinutes = trades
-    .map((t) => {
-      if (!t.exit_time) return 0;
-      const ms = new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime();
-      return ms > 0 && Number.isFinite(ms) ? Math.round(ms / 60000) : 0;
-    })
-    .filter((v) => v > 0);
-
-  const avgHoldMinutes =
-    holdMinutes.length > 0 ? holdMinutes.reduce((a, b) => a + b, 0) / holdMinutes.length : 0;
+  const avgWinPct = winPctCount > 0 ? winPctSum / winPctCount : 0;
+  const avgLossPct = lossPctCount > 0 ? lossPctSum / lossPctCount : 0;
+  if (winPctCount === 0) maxWinPct = 0;
+  if (lossPctCount === 0) minLossPct = 0;
+  const avgHoldMinutes = holdMinutes.length > 0 ? holdSum / holdMinutes.length : 0;
   const medianHoldMinutes =
     holdMinutes.length > 0
-      ? ([...holdMinutes].sort((a, b) => a - b)[Math.floor(holdMinutes.length / 2)] ?? 0)
+      ? (holdMinutes.sort((a, b) => a - b)[Math.floor(holdMinutes.length / 2)] ?? 0)
       : 0;
 
   return {
     totalCount: trades.length,
-    winCount: wins.length,
-    lossCount: losses.length,
+    winCount,
+    lossCount,
     openCount,
     avgWinPct,
     maxWinPct,

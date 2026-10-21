@@ -70,6 +70,23 @@ describe("GridSearchHeatmap — 칸 ↔ 셀 매핑", () => {
     expect(best[0]?.textContent).toBe(fmt(2.1));
   });
 
+  it("대량 셀에서도 전체 결과의 최솟값·최댓값으로 색을 정규화한다", () => {
+    const sample = cell({ fast: 10, slow: 40 }, 1);
+    const result: GridSearchResult = {
+      schema_version: 1,
+      kind: "grid_search",
+      param_names: ["fast", "slow"],
+      param_values: { fast: [10], slow: [40] },
+      cells: [...Array<GridSearchCell>(200_000).fill(sample), cell({ fast: 20, slow: 50 }, 3)],
+      objective_metric: "sharpe_ratio",
+      direction: "maximize",
+      best_cell_index: null,
+    };
+    const { container } = render(<GridSearchHeatmap result={result} pair={["fast", "slow"]} />);
+    expect(grid(container)).toEqual([[fmt(1)]]);
+    expect(container.querySelector(".hm-cell")?.getAttribute("style")).toContain("5.0%");
+  });
+
   it("같은 좌표에 셀이 여럿이면 먼저 나온 셀을 그린다 (2D)", () => {
     const result: GridSearchResult = {
       schema_version: 1,

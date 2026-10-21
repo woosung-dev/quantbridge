@@ -342,3 +342,39 @@ describe("best-effort behavior when storage is unavailable", () => {
     expect(() => clearOtherUsersDrafts(USER_B)).not.toThrow();
   });
 });
+
+describe("초안 storage 구독 공유", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("여러 구독자가 리스너 하나를 공유하고 마지막 해제 때 정리한다", () => {
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    const first = renderHook(() => useDraftSnapshot(USER_A));
+    const second = renderHook(() => useDraftSnapshot(USER_B));
+    expect(add.mock.calls.filter(([name]) => name === "storage")).toHaveLength(1);
+    first.unmount();
+    expect(remove.mock.calls.filter(([name]) => name === "storage")).toHaveLength(0);
+    second.unmount();
+    expect(remove.mock.calls.filter(([name]) => name === "storage")).toHaveLength(1);
+  });
+
+  it("외부 탭 변경을 모든 구독자에게 전달한다", () => {
+    saveWizardDraft(USER_A, baseDraft);
+    const first = renderHook(() => useDraftSnapshot(USER_A));
+    const second = renderHook(() => useDraftSnapshot(USER_A));
+    act(() => {
+      window.localStorage.setItem(
+        draftKeyFor(USER_A),
+        JSON.stringify({
+          ...baseDraft,
+          version: 1,
+          savedAt: Date.now(),
+          pineSource: "외부 탭 변경",
+        }),
+      );
+      window.dispatchEvent(new StorageEvent("storage", { key: draftKeyFor(USER_A) }));
+    });
+    expect(first.result.current?.pineSource).toBe("외부 탭 변경");
+    expect(second.result.current?.pineSource).toBe("외부 탭 변경");
+  });
+});

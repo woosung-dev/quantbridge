@@ -107,10 +107,10 @@ const draftListeners = new Set<() => void>();
 function subscribeDraft(listener: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   draftListeners.add(listener);
-  window.addEventListener("storage", listener);
+  if (draftListeners.size === 1) window.addEventListener("storage", notifyDraftChanged);
   return () => {
     draftListeners.delete(listener);
-    window.removeEventListener("storage", listener);
+    if (draftListeners.size === 0) window.removeEventListener("storage", notifyDraftChanged);
   };
 }
 

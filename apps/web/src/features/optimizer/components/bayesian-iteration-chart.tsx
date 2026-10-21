@@ -26,19 +26,18 @@ interface Props {
  */
 export function BayesianIterationChart({ result }: Props) {
   const data = useMemo(() => {
-    return result.iterations
-      .map((it) => ({
-        idx: it.idx,
-        bestSoFar: it.best_so_far,
-        isDegenerate: it.is_degenerate,
-        phase: it.phase,
-      }))
-      .filter((d) => d.bestSoFar !== null) as Array<{
-      idx: number;
-      bestSoFar: number;
-      isDegenerate: boolean;
-      phase: "random" | "acquisition";
-    }>;
+    return result.iterations.flatMap((it) =>
+      it.best_so_far === null
+        ? []
+        : [
+            {
+              idx: it.idx,
+              bestSoFar: it.best_so_far,
+              isDegenerate: it.is_degenerate,
+              phase: it.phase,
+            },
+          ],
+    );
   }, [result.iterations]);
 
   if (data.length === 0) {
@@ -55,8 +54,12 @@ export function BayesianIterationChart({ result }: Props) {
   const PAD = 28;
 
   const xMax = result.iterations.length - 1;
-  const yMin = Math.min(...data.map((d) => d.bestSoFar));
-  const yMax = Math.max(...data.map((d) => d.bestSoFar));
+  let yMin = Infinity;
+  let yMax = -Infinity;
+  for (const point of data) {
+    yMin = Math.min(yMin, point.bestSoFar);
+    yMax = Math.max(yMax, point.bestSoFar);
+  }
   const yRange = yMax - yMin || 1;
 
   const xScale = (x: number) => PAD + (x / Math.max(xMax, 1)) * (W - 2 * PAD);
