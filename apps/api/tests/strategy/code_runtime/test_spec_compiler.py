@@ -103,10 +103,6 @@ def test_supported_python_artifacts_compile_without_execution(row: dict) -> None
 
 @pytest.mark.parametrize("row", _REFERENCES, ids=lambda row: row["id"])
 def test_pine_export_is_runnable_or_explicitly_unsupported(row: dict) -> None:
-    if row["id"] in {"18", "24", "25", "26", "27"}:
-        with pytest.raises(UnsupportedStrategySpec, match="lowering"):
-            compile_strategy(row["reference_spec"], "pine")
-        return
     result = analyze_coverage(compile_strategy(row["reference_spec"], "pine"))
     assert result.is_runnable, result.all_unsupported
     assert not result.has_degraded
@@ -124,3 +120,95 @@ def test_title_is_data_and_cannot_add_python_statements(spec_data: dict) -> None
     assignment = tree.body[0]
     assert isinstance(assignment, ast.Assign)
     assert ast.literal_eval(assignment.value)["title"] == spec_data["title"]
+
+
+@pytest.fixture
+def real_gvisor() -> None:
+    """실제 이미지가 있을 때만 실행하며 호스트 fallback은 만들지 않는다."""
+    import shutil
+    import subprocess
+
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker CLI가 없습니다")
+    try:
+        result = subprocess.run(
+            [docker, "info", "--format", "{{json .Runtimes}}"],
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+        if "runsc" not in json.loads(result.stdout):
+            pytest.skip("runsc runtime이 없습니다")
+        for image in ("quantbridge-python-runner:local", "quantbridge-typescript-runner:local"):
+            subprocess.run(
+                [docker, "image", "inspect", image], capture_output=True, timeout=10, check=True
+            )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pytest.skip("연구용 gVisor 실행 이미지를 사용할 수 없습니다")
+
+
+@pytest.mark.parametrize("language", ["python", "typescript"])
+def test_native_artifact_obeys_external_position_invalidation_and_reversal(
+    real_gvisor: None, language: str
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from src.strategy.code_runtime.sandbox import create_transport
+
+    def ref(value: str | int) -> dict:
+        return {"series": value} if isinstance(value, str) else {"constant": value}
+
+    def condition(op: str, right: int) -> dict:
+        return {"op": op, "left": ref("close"), "right": ref(right)}
+
+    spec = {
+        "title": "external position contract",
+        "warmup_bars": 1,
+        "long_entry": condition("cross_up", 100),
+        "short_entry": condition("cross_down", 100),
+        "long_invalidation": condition("lt", 101),
+        "short_invalidation": condition("gt", 99),
+    }
+    transport = create_transport(language, timeout=60)
+    try:
+        assert transport.exchange(
+            {
+                "type": "init",
+                "protocol": 1,
+                "language": language,
+                "source": compile_strategy(spec, language),
+                "params": {},
+            }
+        ) == {"ready": 1}
+        direction = "flat"
+        trace = []
+        for i, price in enumerate((100, 102, 100, 99, 100)):
+            bar = {
+                "index": i,
+                "timestamp": (datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=i)).isoformat(),
+                "open": str(price),
+                "high": str(price + 1),
+                "low": str(price - 1),
+                "close": str(price),
+                "volume": "10",
+            }
+            intent = transport.exchange(
+                {
+                    "type": "bar",
+                    "bar": bar,
+                    "position": {
+                        "direction": direction,
+                        "size": "0" if direction == "flat" else "0.5",
+                        "average_price": None if direction == "flat" else "100",
+                    },
+                }
+            )["intent"]
+            trace.append(intent["action"])
+            if intent["action"] in ("long", "short"):
+                direction = intent["action"]
+            elif intent["action"] == "close":
+                direction = "flat"
+        assert trace == ["hold", "long", "close", "short", "close"]
+    finally:
+        transport.close()

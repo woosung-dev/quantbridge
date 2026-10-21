@@ -437,10 +437,71 @@ def _compile_pine(spec: StrategySpec) -> str:
                     f"{v} = {name}_vol > 0 ? {name}_pv / {name}_vol : na",
                 ]
             )
-        elif kind in {"cci", "cmf", "mfi", "aroon", "regression"}:
-            # 엄격한 명시: 구현되지 않은 Pine lowering은 다른 계산으로 위장하지 않는다.
-            raise UnsupportedStrategySpec(
-                f"Pine backend의 {kind} lowering은 아직 지원하지 않습니다"
+        elif kind == "cci":
+            lines.extend(
+                [
+                    f"{name}_mean = ta.sma({source}, {n})",
+                    f"{name}_dev = 0.0",
+                    f"for qb_i = 0 to {n - 1}",
+                    f"    {name}_dev := {name}_dev + math.abs({source}[qb_i] - {name}_mean)",
+                    f"{name}_mad = {name}_dev / {n}",
+                    f"{v} = {name}_mad > 0 ? ({source} - {name}_mean) / (0.015 * {name}_mad) : 0.0",
+                ]
+            )
+        elif kind == "cmf":
+            lines.extend(
+                [
+                    f"{name}_flow = high == low ? 0.0 : ((2 * close - high - low) / (high - low)) * volume",
+                    f"{name}_volume = ta.sma(volume, {n})",
+                    f"{v} = {name}_volume > 0 ? ta.sma({name}_flow, {n}) / {name}_volume : na",
+                ]
+            )
+        elif kind == "mfi":
+            lines.extend(
+                [
+                    f"{name}_pos = ta.sma(hlc3 > hlc3[1] ? hlc3 * volume : 0.0, {n})",
+                    f"{name}_neg = ta.sma(hlc3 < hlc3[1] ? hlc3 * volume : 0.0, {n})",
+                    f"{v} = {name}_neg > 0 ? 100 - 100 / (1 + {name}_pos / {name}_neg) : ({name}_pos > 0 ? 100.0 : 50.0)",
+                ]
+            )
+        elif kind == "aroon":
+            lines.extend(
+                [
+                    f"{name}_hi = high",
+                    f"{name}_lo = low",
+                    f"{name}_hi_age = 0",
+                    f"{name}_lo_age = 0",
+                    f"for qb_i = 1 to {n}",
+                    f"    if high[qb_i] > {name}_hi",
+                    f"        {name}_hi := high[qb_i]",
+                    f"        {name}_hi_age := qb_i",
+                    f"    if low[qb_i] < {name}_lo",
+                    f"        {name}_lo := low[qb_i]",
+                    f"        {name}_lo_age := qb_i",
+                    f"{name}_up = 100.0 * ({n} - {name}_hi_age) / {n}",
+                    f"{name}_down = 100.0 * ({n} - {name}_lo_age) / {n}",
+                ]
+            )
+        elif kind == "regression":
+            mid = (n - 1) / 2
+            den = n * (n * n - 1) / 12
+            lines.extend(
+                [
+                    f"{name}_mean = ta.sma({source}, {n})",
+                    f"{name}_numerator = 0.0",
+                    f"for qb_i = 0 to {n - 1}",
+                    f"    {name}_numerator := {name}_numerator + ({n - 1} - qb_i - {mid}) * ({source}[qb_i] - {name}_mean)",
+                    f"{name}_slope = {name}_numerator / {den}" if den else f"{name}_slope = 0.0",
+                    f"{name}_intercept = {name}_mean - {name}_slope * {mid}",
+                    f"{v} = {name}_intercept + {name}_slope * {n - 1}",
+                    f"{name}_residual = 0.0",
+                    f"for qb_i = 0 to {n - 1}",
+                    f"    {name}_error = {source}[qb_i] - {name}_intercept - {name}_slope * ({n - 1} - qb_i)",
+                    f"    {name}_residual := {name}_residual + {name}_error * {name}_error",
+                    f"{name}_sd = math.sqrt({name}_residual / {n})",
+                    f"{name}_upper = {v} + {item.multiplier} * {name}_sd",
+                    f"{name}_lower = {v} - {item.multiplier} * {name}_sd",
+                ]
             )
         else:
             raise UnsupportedStrategySpec(f"지원하지 않는 지표: {kind}")
