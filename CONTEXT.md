@@ -57,6 +57,8 @@ Pine AST 를 읽을 수 있는 Python 으로 렌더한 **읽기 전용** 산출�
 _Avoid_: transpile, Python 전략, "Python 으로 변환"(전부 실행을 함의한다)
 
 **Python Research Strategy**:
+**2026-10-22 [ADR-046]:** Sol 6.1 생성 전략의 Pine·Python·TypeScript 실제 실행을 비교한 뒤
+검증된 승자 언어를 제품에 도입한다. 아래의 철거 상태는 현재 코드 사실이며 영구 비범위가 아니다.
 **서비스에서 제공하지 않는다**(2026-10-21 사용자 결정, [ADR-045]). 웹 편집·저장·백테스트 API·
 Celery 작업·원격 실행기 연결은 제거했다. 기존 `PythonStrategy`·`PythonStrategyVersion`·`PythonBacktest`
 모델과 마이그레이션은 DB 이력 보존 전용이며 새 실행에 사용하지 않는다. 내부 오프라인 연구 도구와
