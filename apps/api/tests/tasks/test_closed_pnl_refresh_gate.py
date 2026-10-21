@@ -226,6 +226,20 @@ async def test_code_terminal_partial_fill_enters_existing_refresh_only_with_posi
     order.risk_context = {"session_id": "code"} if code else None
     repo = _install(monkeypatch, order)
     provider = _provider(_snapshot())
+    if code:
+        from src.trading.providers import CodeClosedPnlEvidence, CodeClosedPnlRead
+
+        evidence = CodeClosedPnlEvidence(
+            order.exchange_account_id,
+            order.exchange_order_id,
+            "BTCUSDT",
+            order.side,
+            Decimal("0.4"),
+            Decimal("-4.2"),
+            "proof",
+        )
+        provider.fetch_code_closed_pnl = AsyncMock(return_value=CodeClosedPnlRead(evidence))
+        repo.mark_code_pnl_conflict = AsyncMock(return_value=False)
     first, second = MagicMock(), MagicMock()
     first.get = AsyncMock(return_value=_account())
     second.commit = AsyncMock()
@@ -234,7 +248,9 @@ async def test_code_terminal_partial_fill_enters_existing_refresh_only_with_posi
     )
     if allowed:
         assert result["applied"] is True
-        provider.fetch_closed_pnl.assert_awaited_once()
+        (
+            provider.fetch_code_closed_pnl if code else provider.fetch_closed_pnl
+        ).assert_awaited_once()
         repo.backfill_exchange_realized_pnl.assert_awaited_once()
     else:
         assert result["skipped"] == "not_filled"

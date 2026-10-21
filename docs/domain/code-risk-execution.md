@@ -245,3 +245,42 @@ provider는 명시된 값만 `positionIdx`에 넣고 legacy의 기본 None은 �
 [공식 주문 계약](https://bybit-exchange.github.io/docs/v5/order/create-order)은 0을 one-way,
 1/2를 hedge-mode 양 방향으로 구별한다. 이는 one-way 요청을 명시한 것이며 단일 hedge leg나
 flat 계정의 포지션 모드를 `fetch_position`으로 독립 확인했다는 뜻은 아니다.
+
+
+## 코드 청산의 REST 손익 제한 지원
+
+code_v1의 로컬 reduce-only `partial_tp`/`close` 등은 legacy 행 합산을 확정 근거로
+사용하지 않는다. [Bybit closed-PnL 계약](https://bybit-exchange.github.io/docs/v5/position/close-pnl)은
+orderId·closedSize·fillCount·updatedTime을 제공하지만 행별 체결 ID나 수정 revision·
+최종성을 보장하지 않는다. 서로 다른 raw가 독립 분할인지 수정 snapshot인지 추론하지 않는다.
+동일 raw 전체의 canonical JSON만 중복 제거한다. updatedTime만 다른 행도 서로 다른 관측이다.
+legacy는 raw=None의 기존 합산과 서로 다른 행 합산을 유지하며, 전체 cursor 철거/교체는 별도다.
+
+코드 전용 조회는 원본 V5 linear·symbol·account credentials 범위에서 기존 최근 7일·
+100행/최대 5페이지 예산을 재사용한다. 명시적 빈 nextPageCursor까지 읽고 cursor 누락·
+반복·예산 소진·잘못된 응답이면 새 확정을 보류한다. matching order의 서로 다른 raw가
+정확히 한 개이며 Trade·반대 청산 side·양수 유한 closedSize·유한 closedPnl이어야 한다.
+0/음수 손익은 유효하다. 수량은 실제 terminal Order.filled_quantity와 Decimal로 정확히
+일치해야 한다. 이는 **수량 일치 단일 거래소 관측의 제한 지원**이며 거래소 최종성 보장이 아니다.
+서로 다른 두 행 이상은 수량 합계가 우연히 맞아도 불명이다. 합산·최신 행 선택으로 해결하지 않는다.
+
+refresh·backfill·correction·sweep는 같은 evidence envelope를 중앙 Repository에 전달한다.
+계정·외부 주문 ID·심볼·side·reduce-only·청산 역할·종결 실제 수량과 근거가 일치하지 않거나
+근거를 생략하면 코드 손익 CAS는 0행이다. 코드 진입/비축소 반전은 확정 대상이 아니다.
+기존 native_origin의 terminal exact WS 전용 손익은 이 경로와 분리한다.
+
+같은 코드 주문에 실제로 다른 raw나 부적합한 matching row가 관측되면
+`risk_context.pnl_evidence_conflict`에 원본 hash와 불명 사유를 영속화한다. 성공한 단일
+관측의 hash도 보존해 이후 조회와 대조한다. 기존 ledger의 다른 원본도 무시하지 않는다.
+조회 완료 전의 matching 관측 hash도 별도로 보존하되 수량 일치 proof로 승격하지 않는다.
+완전히 matching한 단일 근거는 금액 no-op 재조회에도 최초 metadata로 기록한다.
+이전 금액·synced_at은 알려진 소계로 보존하지만 unpriced_exit_orders에 포함하여
+`pnl_complete=false`로 표시한다. 수량/보호에 따른 진입 권위나 계정 차단 범위를 늘리지 않는다.
+나중의 단일 snapshot으로 영속 충돌을 자동 해제하지 않으며 일반 해소 API는 제공하지 않는다.
+통신 실패·단순 조회 미완료·미발견·7일 보존 소멸만으로 이전 관측을 삭제하거나 충돌로
+승격하지 않는다. 이전값이 없으면 NULL/미정산을 유지하고 재시도한다.
+
+스윕은 이번에 관측한 matching 코드 원본을 원장 적재와 같은 짧은 트랜잭션에서 대조한다.
+금액이 같아 기존 legacy 정정 후보에서 빠져도 충돌은 표시하며, 후보 상한을 이미 일치하는
+모든 코드 주문으로 채우지 않는다. strict 원격 조회는 mutation 트랜잭션 전에 수집하고
+주문별 ProviderError를 격리해 다음 주문 실패가 앞서 확인한 충돌을 버리지 않게 한다.

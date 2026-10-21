@@ -19,6 +19,7 @@ def _order() -> SimpleNamespace:
         id=uuid4(),
         state=OrderState.filled,
         risk_context=None,
+        side="sell",
         reduce_only=True,
         exchange_order_id="bybit-close-1",
         exchange_account_id=uuid4(),

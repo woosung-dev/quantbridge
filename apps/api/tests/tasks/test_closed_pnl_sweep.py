@@ -80,6 +80,7 @@ def _order(
         strategy_id=strategy_id or uuid4(),
         exchange_account_id=account_id,
         exchange_order_id=exchange_order_id,
+        risk_context=None,
         symbol="BTC/USDT",
         side=OrderSide.buy,
         reduce_only=reduce_only,

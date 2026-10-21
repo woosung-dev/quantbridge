@@ -414,6 +414,7 @@ async def test_code_state_reads_durable_ledger_without_legacy_cache_authority(
 async def test_code_scope_keeps_late_recovery_exits_and_excludes_manual_or_other_session(
     client, mock_authed_user, db_session
 ):
+    from src.trading.providers import CodeClosedPnlEvidence
     from src.trading.repositories.order_repository import OrderRepository, SessionScope
 
     strategy, account, session = await _seed_session(db_session, mock_authed_user)
@@ -439,6 +440,7 @@ async def test_code_scope_keeps_late_recovery_exits_and_excludes_manual_or_other
             realized_pnl=None if pnl is None else Decimal(pnl),
             filled_at=filled_at,
             risk_context=context,
+            exchange_order_id=str(uuid4()),
         )
 
     late_priced = order(context=own_context, pnl="-3", filled_at=end + timedelta(minutes=1))
@@ -473,7 +475,18 @@ async def test_code_scope_keeps_late_recovery_exits_and_excludes_manual_or_other
     assert body["total_closed_trades"] == 1
     assert body["pnl_complete"] is False and body["unpriced_exit_orders"] == 1
     await repo.backfill_exchange_realized_pnl(
-        late_unpriced.id, realized_pnl=Decimal(-2), synced_at=end + timedelta(minutes=3)
+        late_unpriced.id,
+        realized_pnl=Decimal(-2),
+        synced_at=end + timedelta(minutes=3),
+        code_evidence=CodeClosedPnlEvidence(
+            account.id,
+            late_unpriced.exchange_order_id,
+            "BTCUSDT",
+            late_unpriced.side,
+            late_unpriced.filled_quantity,
+            Decimal(-2),
+            "fixture-proof",
+        ),
     )
     await repo.commit()
     body = (await client.get(f"/api/v1/live-sessions/{session.id}/state")).json()

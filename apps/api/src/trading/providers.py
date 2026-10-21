@@ -7,12 +7,15 @@ Per-account ephemeral CCXT client 패턴 (spec §2.1):
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
 from typing import Any, Literal, NoReturn, Protocol
+from uuid import UUID
 
 import ccxt.async_support as ccxt_async
 
@@ -276,6 +279,44 @@ class ClosedPnlSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class CodeClosedPnlEvidence:
+    account_id: UUID
+    order_id: str
+    symbol: str
+    side: OrderSide
+    quantity: Decimal
+    pnl: Decimal
+    raw_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class CodeClosedPnlRead:
+    evidence: CodeClosedPnlEvidence | None = None
+    observed_hashes: tuple[str, ...] = ()
+    conflict: bool = False
+
+
+def closed_pnl_raw_hash(raw: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(raw, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    ).hexdigest()
+
+
+def _code_pnl_row_values(row: dict[str, Any], side: OrderSide) -> tuple[Decimal, Decimal] | None:
+    if row.get("execType") != "Trade" or row.get("side") != (
+        "Buy" if side == OrderSide.buy else "Sell"
+    ):
+        return None
+    try:
+        quantity, pnl = Decimal(str(row.get("closedSize"))), Decimal(str(row.get("closedPnl")))
+        return (
+            (quantity, pnl) if quantity.is_finite() and quantity > 0 and pnl.is_finite() else None
+        )
+    except InvalidOperation:
+        return None
+
+
+@dataclass(frozen=True, slots=True)
 class ClosedOrderMeta:
     """거래소 청산 주문의 출처 메타 — closed-pnl 행에 없는 createType/stopOrderType/orderLinkId 를 보강한다."""
 
@@ -320,7 +361,8 @@ def aggregate_closed_pnl_by_order(
 ) -> dict[str, ClosedPnlSnapshot]:
     """closedPnl 행을 orderId 별로 합산한다.
 
-    Bybit 는 한 청산 주문을 여러 closedPnl 행으로 쪼개 낼 수 있다. 마지막 행만 취하면
+    legacy는 서로 다른 원본 행을 합산한다. 공식 API는 분할 행과 수정 snapshot의
+    구별을 보장하지 않으므로 code_v1 확정에는 이 합계를 사용하지 않는다. 마지막 행만 취하면
     부분 손익이 저장되고, backfill CAS 가 realized_pnl_synced_at 을 채워 재시도를 막으므로
     그 부분값이 **영구 고정**된다. 단일 주문 조회(refresh)와 스윕이 반드시 같은 합산을
     쓰도록 여기 한 곳에 모은다.
@@ -331,7 +373,13 @@ def aggregate_closed_pnl_by_order(
     이 함수는 주문 단위 금액이 필요한 backfill 경로 전용이다.
     """
     grouped: dict[str, list[ClosedPnlSnapshot]] = {}
+    seen: set[tuple[str, str]] = set()
     for snapshot in snapshots:
+        if snapshot.raw is not None:
+            identity = (snapshot.order_id, closed_pnl_raw_hash(snapshot.raw))
+            if identity in seen:
+                continue
+            seen.add(identity)
         grouped.setdefault(snapshot.order_id, []).append(snapshot)
     merged: dict[str, ClosedPnlSnapshot] = {}
     for order_id, rows in grouped.items():
@@ -1506,6 +1554,131 @@ class BybitFuturesProvider:
                 await exchange.close()
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def fetch_code_closed_pnl(
+        self,
+        creds: Credentials,
+        *,
+        account_id: UUID,
+        order_id: str,
+        symbol: str,
+        side: OrderSide,
+        since: datetime,
+    ) -> CodeClosedPnlRead:
+        """완료된 제한 조회의 단일 거래소 관측만 지원한다. 서로 다른 snapshot은 합산하지 않는다."""
+        require_bybit_demo_account(creds.exchange, creds.environment)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        raw_symbol = _to_bybit_linear_symbol(symbol).split(":")[0].replace("/", "")
+        end = int(datetime.now(UTC).timestamp() * 1000)
+        start = max(
+            int(since.timestamp() * 1000) - _CLOSED_PNL_LOOKBACK_MS, end - _CLOSED_PNL_MAX_WINDOW_MS
+        )
+        candidates: dict[str, dict[str, Any]] = {}
+        invalid_matching = False
+        cursor = ""
+        seen_cursors: set[str] = set()
+        try:
+            for _ in range(_CLOSED_PNL_MAX_PAGES):
+                request: dict[str, Any] = {
+                    "category": "linear",
+                    "symbol": raw_symbol,
+                    "startTime": start,
+                    "endTime": end,
+                    "limit": 100,
+                }
+                if cursor:
+                    request["cursor"] = cursor
+                response = await exchange.privateGetV5PositionClosedPnl(request)
+                result = response.get("result")
+                if (
+                    str(response.get("retCode")) != "0"
+                    or not isinstance(result, dict)
+                    or result.get("category") != "linear"
+                    or not isinstance(result.get("list"), list)
+                    or len(result["list"]) > 100
+                ):
+                    return CodeClosedPnlRead(
+                        observed_hashes=tuple(sorted(candidates)),
+                        conflict=invalid_matching or len(candidates) > 1,
+                    )
+                for row in result["list"]:
+                    if (
+                        not isinstance(row, dict)
+                        or not isinstance(row.get("orderId"), str)
+                        or not row["orderId"]
+                    ):
+                        return CodeClosedPnlRead(
+                            observed_hashes=tuple(sorted(candidates)),
+                            conflict=invalid_matching or len(candidates) > 1,
+                        )
+                    matching = row["orderId"] == order_id
+                    if matching:
+                        candidates[closed_pnl_raw_hash(row)] = row
+                        invalid_matching = (
+                            invalid_matching or _code_pnl_row_values(row, side) is None
+                        )
+                    if row.get("symbol") != raw_symbol:
+                        return CodeClosedPnlRead(
+                            observed_hashes=tuple(sorted(candidates)),
+                            conflict=invalid_matching or matching or len(candidates) > 1,
+                        )
+                following = result.get("nextPageCursor")
+                if not isinstance(following, str):
+                    return CodeClosedPnlRead(
+                        observed_hashes=tuple(sorted(candidates)),
+                        conflict=invalid_matching or len(candidates) > 1,
+                    )
+                if following == "":
+                    break
+                if following in seen_cursors:
+                    return CodeClosedPnlRead(
+                        observed_hashes=tuple(sorted(candidates)),
+                        conflict=invalid_matching or len(candidates) > 1,
+                    )
+                seen_cursors.add(following)
+                cursor = following
+            else:
+                return CodeClosedPnlRead(
+                    observed_hashes=tuple(sorted(candidates)),
+                    conflict=invalid_matching or len(candidates) > 1,
+                )
+            hashes = tuple(sorted(candidates))
+            if len(candidates) != 1:
+                return CodeClosedPnlRead(
+                    observed_hashes=hashes, conflict=invalid_matching or len(candidates) > 1
+                )
+            raw_hash, row = next(iter(candidates.items()))
+            values = _code_pnl_row_values(row, side)
+            if values is None:
+                return CodeClosedPnlRead(observed_hashes=hashes, conflict=True)
+            quantity, pnl = values
+            return CodeClosedPnlRead(
+                CodeClosedPnlEvidence(
+                    account_id, order_id, raw_symbol, side, quantity, pnl, raw_hash
+                ),
+                hashes,
+            )
+        except Exception as exc:
+            if candidates:
+                return CodeClosedPnlRead(
+                    observed_hashes=tuple(sorted(candidates)),
+                    conflict=invalid_matching or len(candidates) > 1,
+                )
+            raise ProviderError(f"code closed PnL read failed: {type(exc).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("code_closed_pnl_close_failed")
 
     async def fetch_closed_pnl(
         self,

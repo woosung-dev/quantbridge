@@ -20,6 +20,7 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.order_fill_evidence import has_recorded_order_fill
+from src.trading.providers import CodeClosedPnlEvidence, closed_pnl_raw_hash
 from src.trading.repositories.order_repository import OrderRepository, SessionScope
 from src.trading.schemas import OrderResponse
 
@@ -86,10 +87,15 @@ async def test_code_partial_fills_enter_pnl_sweep_cas_session_and_kill_switch_qu
                 symbol="BTCUSDT",
                 side="Sell",
                 closed_pnl=D(-index - 3),
+                closed_size=quantity,
                 exchange_created_at=now,
                 classification=ExitClassification.ours,
                 attribution_confidence=ExitAttribution.exact,
-                raw={},
+                raw={
+                    "orderId": order.exchange_order_id,
+                    "closedPnl": str(-index - 3),
+                    "closedSize": str(quantity),
+                },
             )
         )
     await db_session.commit()
@@ -117,7 +123,26 @@ async def test_code_partial_fills_enter_pnl_sweep_cas_session_and_kill_switch_qu
     assert {order.id for order in await repo.list_filled_for_attribution(account.id)} == expected
     for index, order in enumerate(orders):
         changed = await repo.backfill_exchange_realized_pnl(
-            order.id, realized_pnl=D(-index - 3), synced_at=now
+            order.id,
+            realized_pnl=D(-index - 3),
+            synced_at=now,
+            code_evidence=CodeClosedPnlEvidence(
+                account.id,
+                order.exchange_order_id,
+                "BTCUSDT",
+                order.side,
+                order.filled_quantity,
+                D(-index - 3),
+                closed_pnl_raw_hash(
+                    {
+                        "orderId": order.exchange_order_id,
+                        "closedPnl": str(-index - 3),
+                        "closedSize": str(order.filled_quantity.normalize()),
+                    }
+                ),
+            )
+            if index < 2
+            else None,
         )
         assert changed == (1 if index < 2 else 0)
     await repo.commit()
@@ -134,7 +159,7 @@ async def test_code_partial_fills_enter_pnl_sweep_cas_session_and_kill_switch_qu
     assert await repo.list_synced_with_exchange_exit(account.id) == []
     assert (
         await repo.resync_exchange_realized_pnl(orders[0].id, realized_pnl=D(-5), synced_at=now)
-        == 1
+        == 0
     )
     assert (
         await repo.resync_exchange_realized_pnl(orders[0].id, realized_pnl=D(-5), synced_at=now)
@@ -145,9 +170,7 @@ async def test_code_partial_fills_enter_pnl_sweep_cas_session_and_kill_switch_qu
         == 0
     )
     await repo.commit()
-    assert {order.id for order in await repo.list_synced_with_exchange_exit(account.id)} == {
-        orders[0].id
-    }
+    assert await repo.list_synced_with_exchange_exit(account.id) == []
 
 
 @pytest.mark.parametrize(

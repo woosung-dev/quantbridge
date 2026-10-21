@@ -10,10 +10,12 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from sqlalchemy import Numeric, and_, func, or_, select, text, update
+from sqlalchemy import Numeric, and_, case, false, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import col
 
+from src.common.normalized_symbol import normalize_symbol_input
 from src.trading.models import (
     ExchangeAccount,
     ExchangeExit,
@@ -23,6 +25,7 @@ from src.trading.models import (
     OrderSide,
     OrderState,
 )
+from src.trading.providers import CodeClosedPnlEvidence, closed_pnl_raw_hash
 
 # legacy는 filled만, code_v1은 양수 체결분을 보존한 취소·거부도 실체결이다.
 # Python task 게이트의 has_recorded_order_fill과 같은 계약이며 SQL 회귀로 함께 검증한다.
@@ -709,7 +712,10 @@ class OrderRepository:
                     ),
                 ),
                 col(Order.reduce_only).is_(True),
-                col(Order.realized_pnl).is_(None),
+                or_(
+                    col(Order.realized_pnl).is_(None),
+                    col(Order.risk_context)["pnl_evidence_conflict"]["reason"].astext.is_not(None),
+                ),
             )
         )
         return int(result or 0)
@@ -935,17 +941,173 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
+    async def mark_code_pnl_conflict(
+        self,
+        order_id: UUID,
+        observed_hashes: Sequence[str] = (),
+        *,
+        invalid: bool = False,
+    ) -> bool:
+        order = await self.get_by_id(order_id)
+        if (
+            order is None
+            or order.risk_context is None
+            or not order.reduce_only
+            or (order.risk_context or {}).get("native_origin") == "bybit_attached_sl"
+        ):
+            return False
+        # 서로 다른 REST 관측이 동시 도착해도 이전 proof/불명 flag를 덮어쓰지 않는다.
+        result = await self.session.execute(
+            select(Order)
+            .where(col(Order.id) == order_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        order = result.scalar_one()
+        context = dict(order.risk_context or {})
+        hashes = set(observed_hashes)
+        observed = context.get("code_pnl_observed_hashes")
+        if isinstance(observed, list):
+            hashes.update(str(value) for value in observed)
+        previous = context.get("code_pnl_evidence")
+        if isinstance(previous, dict) and isinstance(previous.get("raw_hash"), str):
+            hashes.add(previous["raw_hash"])
+        rows = (
+            (
+                await self.session.execute(
+                    select(ExchangeExit).where(
+                        col(ExchangeExit.exchange_account_id) == order.exchange_account_id,
+                        col(ExchangeExit.exchange_order_id) == order.exchange_order_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for row in rows:
+            hashes.add(closed_pnl_raw_hash(row.raw))
+            if (
+                row.closed_size is None
+                or not row.closed_size.is_finite()
+                or row.closed_size <= 0
+                or not row.closed_pnl.is_finite()
+            ):
+                invalid = True
+        if len(hashes) > 1 or invalid:
+            old = context.get("pnl_evidence_conflict")
+            if isinstance(old, dict):
+                hashes.update(str(v) for v in old.get("raw_hashes", []))
+            context["pnl_evidence_conflict"] = {
+                "reason": "conflicting_closed_pnl_observations",
+                "raw_hashes": sorted(hashes),
+            }
+            order.risk_context = context
+            await self.save(order)
+            return True
+        if hashes and context.get("code_pnl_observed_hashes") != sorted(hashes):
+            # 관측 사실만 보존한다. 조회 완료/수량 일치 proof로 승격하지 않는다.
+            context["code_pnl_observed_hashes"] = sorted(hashes)
+            order.risk_context = context
+            await self.save(order)
+        return isinstance(context.get("pnl_evidence_conflict"), dict)
+
+    async def _code_pnl_predicate(
+        self,
+        order_id: UUID,
+        pnl: Decimal,
+        evidence: CodeClosedPnlEvidence | None,
+    ) -> ColumnElement[bool]:
+        await self.mark_code_pnl_conflict(order_id)
+        order = await self.get_by_id(order_id)
+        binding = bool(
+            evidence is not None
+            and order is not None
+            and order.exchange_account_id == evidence.account_id
+            and order.exchange_order_id == evidence.order_id
+            and order.side == evidence.side
+            and normalize_symbol_input(order.symbol) == normalize_symbol_input(evidence.symbol)
+        )
+        mismatch = bool(
+            binding
+            and evidence is not None
+            and order is not None
+            and order.filled_quantity != evidence.quantity
+        )
+        if binding and evidence is not None:
+            await self.mark_code_pnl_conflict(order_id, (evidence.raw_hash,), invalid=mismatch)
+        valid = (
+            evidence is not None
+            and evidence.quantity.is_finite()
+            and evidence.quantity > 0
+            and evidence.pnl.is_finite()
+            and pnl == evidence.pnl
+        )
+        code: ColumnElement[bool] = false()
+        if valid and evidence is not None:
+            symbol = evidence.symbol
+            canonical = normalize_symbol_input(symbol)
+            quote = canonical.split("/")[-1]
+            code = and_(
+                col(Order.reduce_only).is_(True),
+                col(Order.state).in_(
+                    [OrderState.filled, OrderState.cancelled, OrderState.rejected]
+                ),
+                col(Order.risk_context)["role"].astext.in_(
+                    ["partial_tp", "close", "stop_loss", "trailing_stop"]
+                ),
+                col(Order.risk_context)["pnl_evidence_conflict"]["reason"].astext.is_(None),
+                col(Order.exchange_account_id) == evidence.account_id,
+                col(Order.exchange_order_id) == evidence.order_id,
+                col(Order.symbol).in_(
+                    [symbol, canonical, f"{canonical}:{quote}", f"{symbol}:{quote}"]
+                ),
+                col(Order.side) == evidence.side,
+                col(Order.filled_quantity) == evidence.quantity,
+                col(Order.filled_quantity) > 0,
+            )
+            # 금액 no-op도 완전히 matching한 최초 proof는 남긴다. 금액·시각은 바꾸지 않는다.
+            await self.session.execute(
+                update(Order)
+                .where(col(Order.id) == order_id)
+                .where(code)
+                .where(_NON_NATIVE_PNL)
+                .where(col(Order.realized_pnl_synced_at).is_not(None))
+                .where(col(Order.realized_pnl) == pnl)
+                .where(col(Order.risk_context)["code_pnl_evidence"]["raw_hash"].astext.is_(None))
+                .values(
+                    risk_context=col(Order.risk_context).op("||")(
+                        {"code_pnl_evidence": {"raw_hash": evidence.raw_hash}}
+                    )
+                )
+            )
+        return or_(col(Order.risk_context).is_(None), code)
+
     async def backfill_exchange_realized_pnl(
-        self, order_id: UUID, *, realized_pnl: Decimal, synced_at: datetime
+        self,
+        order_id: UUID,
+        *,
+        realized_pnl: Decimal,
+        synced_at: datetime,
+        code_evidence: CodeClosedPnlEvidence | None = None,
     ) -> int:
         """거래소 확정 손익만 기록한다. 실패 조회가 kill-switch 입력을 NULL로 만들 수 없어야 한다."""
+        predicate = await self._code_pnl_predicate(order_id, realized_pnl, code_evidence)
+        values: dict[str, Any] = {"realized_pnl": realized_pnl, "realized_pnl_synced_at": synced_at}
+        if code_evidence is not None:
+            values["risk_context"] = case(
+                (col(Order.risk_context).is_(None), col(Order.risk_context)),
+                else_=col(Order.risk_context).op("||")(
+                    {"code_pnl_evidence": {"raw_hash": code_evidence.raw_hash}}
+                ),
+            )
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(_RECORDED_ORDER_FILL)
             .where(_NON_NATIVE_PNL)
+            .where(predicate)
             .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
-            .values(realized_pnl=realized_pnl, realized_pnl_synced_at=synced_at)
+            .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
@@ -1061,7 +1223,12 @@ class OrderRepository:
         return (await self.session.execute(stmt)).scalars().all()
 
     async def resync_exchange_realized_pnl(
-        self, order_id: UUID, *, realized_pnl: Decimal, synced_at: datetime
+        self,
+        order_id: UUID,
+        *,
+        realized_pnl: Decimal,
+        synced_at: datetime,
+        code_evidence: CodeClosedPnlEvidence | None = None,
     ) -> int:
         """원장 합계가 저장값과 다를 때만 확정 손익을 정정한다.
 
@@ -1069,14 +1236,24 @@ class OrderRepository:
         `state == filled` 와 `realized_pnl_synced_at IS NOT NULL` 을 함께 요구해
         미동기화 행의 정상 백필 경로(`backfill_exchange_realized_pnl`)와 겹치지 않게 한다.
         """
+        predicate = await self._code_pnl_predicate(order_id, realized_pnl, code_evidence)
+        values: dict[str, Any] = {"realized_pnl": realized_pnl, "realized_pnl_synced_at": synced_at}
+        if code_evidence is not None:
+            values["risk_context"] = case(
+                (col(Order.risk_context).is_(None), col(Order.risk_context)),
+                else_=col(Order.risk_context).op("||")(
+                    {"code_pnl_evidence": {"raw_hash": code_evidence.raw_hash}}
+                ),
+            )
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(_RECORDED_ORDER_FILL)
             .where(_NON_NATIVE_PNL)
+            .where(predicate)
             .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl.is_distinct_from(realized_pnl))  # type: ignore[union-attr]
-            .values(realized_pnl=realized_pnl, realized_pnl_synced_at=synced_at)
+            .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
