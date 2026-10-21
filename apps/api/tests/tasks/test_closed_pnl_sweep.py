@@ -198,6 +198,9 @@ def _install_repositories(monkeypatch: pytest.MonkeyPatch, state: _State) -> Non
             # 드러나야 BL-457 회귀가 조용히 통과하지 못한다.
             return frozenset(state.existing_order_ids) & frozenset(order_ids)
 
+        async def list_code_pnl_candidates(self, account_id: UUID, *, filled_since: datetime):
+            return []
+
         async def list_unsynced_with_exchange_exit(self, account_id: UUID):
             seen = ledger_order_ids(account_id)
             return [

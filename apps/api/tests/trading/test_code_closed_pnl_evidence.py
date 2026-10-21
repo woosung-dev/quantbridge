@@ -362,7 +362,7 @@ async def test_actual_sweep_cannot_promote_legacy_aggregate_into_code_pnl(
     assert order.realized_pnl == (evidence.pnl if consistent else None)
     assert summary["backfilled"] == int(consistent)
     assert bool(order.risk_context.get("pnl_evidence_conflict")) is not consistent
-    provider.fetch_code_closed_pnl.assert_awaited_once()
+    assert provider.fetch_code_closed_pnl.await_count == int(consistent)
 
 
 @pytest.mark.parametrize(

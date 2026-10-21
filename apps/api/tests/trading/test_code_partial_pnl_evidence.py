@@ -112,7 +112,7 @@ async def test_code_partial_fills_enter_pnl_sweep_cas_session_and_kill_switch_qu
         "risk_context" not in OrderResponse.model_validate(order).model_dump() for order in orders
     )
     assert {
-        order.id for order in await repo.list_unsynced_with_exchange_exit(account.id)
+        order.id for order in await repo.list_code_pnl_candidates(account.id, filled_since=now)
     } == expected
     assert {
         order.id

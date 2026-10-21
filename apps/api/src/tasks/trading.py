@@ -2294,6 +2294,9 @@ async def _sweep_closed_pnl_with_session(
                 exit_repo = ExchangeExitRepository(session)
                 unsynced_orders = await order_repo.list_unsynced_with_exchange_exit(account.id)
                 synced_orders = await order_repo.list_synced_with_exchange_exit(account.id)
+                code_orders = await order_repo.list_code_pnl_candidates(
+                    account.id, filled_since=datetime.fromtimestamp(start_ms / 1000, UTC)
+                )
                 sums = await exit_repo.aggregate_closed_pnl(
                     account.id,
                     [
@@ -2310,6 +2313,13 @@ async def _sweep_closed_pnl_with_session(
                         if order.exchange_order_id is not None
                     ],
                 )
+            # 코드 후보는 하나의 별도 예산을 공유하고 legacy SUM에는 넣지 않는다.
+            unsynced_orders = [
+                *unsynced_orders, *(o for o in code_orders if o.realized_pnl_synced_at is None)
+            ]
+            synced_orders = [
+                *synced_orders, *(o for o in code_orders if o.realized_pnl_synced_at is not None)
+            ]
             # 모든 원격 조회를 mutation TX 앞에서 마친다. 앞 주문의 rowlock으로 다음 IO를 감싸지 않는다.
             code_reads = {}
             for order in [*unsynced_orders, *synced_orders]:

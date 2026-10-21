@@ -1175,6 +1175,7 @@ class OrderRepository:
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
             .where(_RECORDED_ORDER_FILL)
             .where(_NON_NATIVE_PNL)
+            .where(col(Order.risk_context).is_(None))
             .where(_HAS_EXCHANGE_EXIT_ROW)
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
@@ -1213,11 +1214,43 @@ class OrderRepository:
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
             .where(_RECORDED_ORDER_FILL)
             .where(_NON_NATIVE_PNL)
+            .where(col(Order.risk_context).is_(None))
             .where(_HAS_EXCHANGE_EXIT_ROW)
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl.is_distinct_from(_EXCHANGE_EXIT_PNL_SUM))  # type: ignore[union-attr]
             .order_by(Order.filled_at.desc())  # type: ignore[union-attr]
+            .limit(limit)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
+    async def list_code_pnl_candidates(
+        self, account_id: UUID, *, filled_since: datetime, limit: int = 500
+    ) -> Sequence[Order]:
+        """legacy 예산과 분리한 최근 코드 청산의 단일 조회 후보.
+
+        영속 충돌과 strict 증거 완료 행은 다시 조회하지 않는다. 이후의 새 raw는
+        원장 upsert의 mark_code_pnl_conflict가 보존한다. 창은 caller의 정본을 받는다.
+        """
+        stmt = (
+            select(Order)
+            .where(col(Order.exchange_account_id) == account_id)
+            .where(_RECORDED_ORDER_FILL)
+            .where(_NON_NATIVE_PNL)
+            .where(_HAS_EXCHANGE_EXIT_ROW)
+            .where(col(Order.risk_context).is_not(None))
+            .where(
+                col(Order.risk_context)["role"].astext.in_(
+                    ["partial_tp", "close", "stop_loss", "trailing_stop"]
+                )
+            )
+            .where(col(Order.risk_context)["pnl_evidence_conflict"]["reason"].astext.is_(None))
+            .where(col(Order.risk_context)["code_pnl_evidence"]["raw_hash"].astext.is_(None))
+            .where(col(Order.reduce_only).is_(True))
+            .where(col(Order.filled_quantity) > 0)
+            .where(col(Order.exchange_order_id).is_not(None))
+            .where(col(Order.filled_at) >= filled_since)
+            .order_by(col(Order.filled_at).asc())
             .limit(limit)
         )
         return (await self.session.execute(stmt)).scalars().all()

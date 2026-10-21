@@ -289,3 +289,14 @@ refresh·backfill·correction·sweep는 같은 evidence envelope를 중앙 Repos
 금액이 같아 기존 legacy 정정 후보에서 빠져도 충돌은 표시하며, 후보 상한을 이미 일치하는
 모든 코드 주문으로 채우지 않는다. strict 원격 조회는 mutation 트랜잭션 전에 수집하고
 주문별 ProviderError를 격리해 다음 주문 실패가 앞서 확인한 충돌을 버리지 않게 한다.
+
+
+### 코드 PnL 후보와 legacy 예산
+
+legacy의 미확정·정정 조회는 각각 기존 500건 예산을 유지한다. 코드는 별도 500건의
+공유 예산으로 조회하며, 영속 충돌과 strict 증거 완료 주문을 제외한다. 기존 금액만
+있고 strict 증거가 없는 주문은 포함한다. 코드 후보의 종결 시각 `filled_at`은 sweep의
+기존 7일 창 안이어야 한다. 생성 시각이 오래돼도 최근 체결된 resting 주문은 포함한다.
+7일 밖에서 미확정인 코드는 표시를 유지하지만 주기적 strict RPC에서는 제외한다.
+이미 strict 증거가 있는 주문의 새 raw 충돌은 원장 upsert의 관측 표시가 계속 보존한다.
+원격 조회는 후보 read 세션 종료 후, 금액·충돌 mutation 트랜잭션 전에 수행한다.
