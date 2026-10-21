@@ -146,7 +146,7 @@ def _qb_update(q, row):
             value = nan
             if len(s)>=length:
                 hh, ll = max(p["high"][-length:]), min(p["low"][-length:])
-                value = 100*(p["close"][-1]-ll)/(hh-ll) if hh!=ll else 50.0
+                value = 100*(p["close"][-1]-ll)/(hh-ll) if hh!=ll else nan
             if kind == "williams_r": values["value"] = value-100
             else:
                 mem.setdefault("raw",[]).append(value)
@@ -182,7 +182,7 @@ def _qb_update(q, row):
                 mem.setdefault("positive",[]).append(flow if change>0 else 0)
                 mem.setdefault("negative",[]).append(flow if change<0 else 0)
                 pos,neg = sum(mem["positive"][-length:]),sum(mem["negative"][-length:])
-                values["value"] = (100-100/(1+pos/neg) if neg else 100.0 if pos else 50.0) if len(s)>length else nan
+                values["value"] = (100-100/(1+pos/neg) if neg else 100.0 if pos else nan) if len(s)>length else nan
         elif kind == "aroon":
             if len(s)>length:
                 highs,lows = p["high"][-length-1:],p["low"][-length-1:]
@@ -280,7 +280,7 @@ function _qbUpdate(q:any,row:any):void {
   else if(kind==="macd"){m.fast=ema(last,m.fast,n,(m.seedFast??=[]));m.slow=ema(last,m.slow,item.slow,(m.seedSlow??=[]));vals.value=m.fast-m.slow;m.signal=ema(vals.value,m.signal,item.signal,(m.seedSignal??=[]));vals.signal=m.signal;}
   else if(kind==="roc")vals.value=s.length>n&&s.at(-n-1)?100*(last/s.at(-n-1)-1):nan;
   else if(kind==="stochastic"||kind==="williams_r"){
-   let value=nan;if(s.length>=n){const hh=Math.max(...p.high.slice(-n)),ll=Math.min(...p.low.slice(-n));value=hh!==ll?100*(p.close.at(-1)-ll)/(hh-ll):50;}
+   let value=nan;if(s.length>=n){const hh=Math.max(...p.high.slice(-n)),ll=Math.min(...p.low.slice(-n));value=hh!==ll?100*(p.close.at(-1)-ll)/(hh-ll):nan;}
    if(kind==="williams_r")vals.value=value-100;else{(m.raw??=[]).push(value);const k=avg(m.raw,item.slow);(m.k??=[]).push(k);Object.assign(vals,{value:k,signal:avg(m.k,item.signal)});}
   }else if(kind==="vwap"||kind==="anchored_vwap"){
    const epoch=row.timestamp_ms??Date.parse(row.timestamp),day=Math.floor(epoch/86400000),eligible=kind==="vwap"||epoch>=Number(item.anchor_ms);
@@ -289,7 +289,7 @@ function _qbUpdate(q:any,row:any):void {
   }else if(kind==="cmf"||kind==="mfi"){
    const v=p.volume.at(-1);
    if(kind==="cmf"){const h=p.high.at(-1),l=p.low.at(-1),c=p.close.at(-1);(m.flow??=[]).push(h!==l?((2*c-h-l)/(h-l))*v:0);const den=p.volume.slice(-n).reduce((a:number,b:number)=>a+b,0);vals.value=s.length>=n&&den?m.flow.slice(-n).reduce((a:number,b:number)=>a+b,0)/den:nan;}
-   else{const d=s.length>1?p.hlc3.at(-1)-p.hlc3.at(-2):0,f=p.hlc3.at(-1)*v;(m.positive??=[]).push(d>0?f:0);(m.negative??=[]).push(d<0?f:0);const pos=m.positive.slice(-n).reduce((a:number,b:number)=>a+b,0),neg=m.negative.slice(-n).reduce((a:number,b:number)=>a+b,0);vals.value=s.length>n?(neg?100-100/(1+pos/neg):pos?100:50):nan;}
+   else{const d=s.length>1?p.hlc3.at(-1)-p.hlc3.at(-2):0,f=p.hlc3.at(-1)*v;(m.positive??=[]).push(d>0?f:0);(m.negative??=[]).push(d<0?f:0);const pos=m.positive.slice(-n).reduce((a:number,b:number)=>a+b,0),neg=m.negative.slice(-n).reduce((a:number,b:number)=>a+b,0);vals.value=s.length>n?(neg?100-100/(1+pos/neg):pos?100:nan):nan;}
   }else if(kind==="aroon"){
    if(s.length>n){const hs=p.high.slice(-n-1),ls=p.low.slice(-n-1);let hi=0,lo=0;for(let i=1;i<=n;i++){if(hs[i]>=hs[hi])hi=i;if(ls[i]<=ls[lo])lo=i;}Object.assign(vals,{up:100*hi/n,down:100*lo/n});}else Object.assign(vals,{up:nan,down:nan});
   }else if(kind==="heikin_ashi"){const hc=(p.open.at(-1)+p.high.at(-1)+p.low.at(-1)+p.close.at(-1))/4,ho=prev!==undefined?(m.open+prev)/2:(p.open.at(-1)+p.close.at(-1))/2;m.open=ho;Object.assign(vals,{value:hc,open:ho});}
@@ -380,7 +380,7 @@ def _compile_pine(spec: StrategySpec) -> str:
                 [
                     f"{name}_hh = ta.highest(high, {n})",
                     f"{name}_ll = ta.lowest(low, {n})",
-                    f"{name}_raw = {name}_hh == {name}_ll ? 50.0 : 100 * (close - {name}_ll) / ({name}_hh - {name}_ll)",
+                    f"{name}_raw = {name}_hh == {name}_ll ? na : 100 * (close - {name}_ll) / ({name}_hh - {name}_ll)",
                 ]
             )
             if kind == "williams_r":
@@ -467,7 +467,7 @@ def _compile_pine(spec: StrategySpec) -> str:
                 [
                     f"{name}_pos = ta.sma(hlc3 > hlc3[1] ? hlc3 * volume : 0.0, {n})",
                     f"{name}_neg = ta.sma(hlc3 < hlc3[1] ? hlc3 * volume : 0.0, {n})",
-                    f"{v} = {name}_neg > 0 ? 100 - 100 / (1 + {name}_pos / {name}_neg) : ({name}_pos > 0 ? 100.0 : 50.0)",
+                    f"{v} = {name}_neg > 0 ? 100 - 100 / (1 + {name}_pos / {name}_neg) : ({name}_pos > 0 ? 100.0 : na)",
                 ]
             )
         elif kind == "aroon":

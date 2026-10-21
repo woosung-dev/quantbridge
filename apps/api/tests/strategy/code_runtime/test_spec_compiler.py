@@ -352,3 +352,66 @@ def test_compiled_catalogue_languages_share_bipolar_trades_and_risk_ledger(
             "trace": trace,
         }
     assert outputs["pine"] == outputs["python"] == outputs["typescript"]
+
+
+@pytest.mark.parametrize("language", ["pine", "python", "typescript"])
+@pytest.mark.parametrize("kind", ["stochastic", "williams_r", "mfi", "cmf"])
+def test_zero_denominator_and_absent_money_flow_never_create_signals(
+    real_gvisor: None, language: str, kind: str
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    import pandas as pd
+
+    from src.strategy.code_runtime.pine import PineSignalTransport
+    from src.strategy.code_runtime.sandbox import create_transport
+
+    threshold = -101 if kind == "williams_r" else -1
+    spec = {
+        "title": "undefined denominator is NA",
+        "warmup_bars": 1,
+        "indicators": [{"id": "osc", "kind": kind, "length": 2, "slow": 1, "signal": 1}],
+        "long_entry": {"op": "gt", "left": {"series": "osc"}, "right": {"constant": threshold}},
+        "short_entry": {"op": "false"},
+    }
+    # MFI는 거래량이 있어도 가격이 평탄하면 양/음 흐름이 모두 0이다.
+    volume = "0" if kind == "cmf" else "10"
+    bars = [
+        {
+            "index": i,
+            "timestamp": (datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=i)).isoformat(),
+            "open": "100",
+            "high": "100",
+            "low": "100",
+            "close": "100",
+            "volume": volume,
+        }
+        for i in range(5)
+    ]
+    data = pd.DataFrame(bars, index=pd.date_range("2026-01-01", periods=5, freq="1h", tz="UTC"))
+    transport = (
+        PineSignalTransport(data) if language == "pine" else create_transport(language, timeout=60)
+    )
+    try:
+        transport.exchange(
+            {
+                "type": "init",
+                "protocol": 1,
+                "language": language,
+                "source": compile_strategy(spec, language),
+                "params": {},
+            }
+        )
+        trace = [
+            transport.exchange(
+                {
+                    "type": "bar",
+                    "bar": bar,
+                    "position": {"direction": "flat", "size": "0", "average_price": None},
+                }
+            )["intent"]["action"]
+            for bar in bars
+        ]
+        assert trace == ["hold"] * 5
+    finally:
+        transport.close()
