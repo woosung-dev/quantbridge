@@ -66,11 +66,12 @@ fake 검사는 진입·종결 체결 VWAP 기준 고정 R·SL/추적 보호 파�
 응답의 `pnl_complete=false`와 알려진 주문 손익 소계를 구분한다
 ([리스크 계약](../domain/code-risk-execution.md#native-청산-미정산과-손익-표시)).
 
-광역 CI 관측은 `d18aba62`의 BE `6738 passed, 70 skipped, 2 xfailed`까지다.
-후속 미정산·계정 가드 개선의 로컬 SQL 회귀 통과는 이 광역 CI의 포함 범위가 아니며,
-통합 head의 재CI가 필요하다. 해당 CI 통과도 실거래소 주문·native child 회계 검증을 대신하지 않는다.
+광역 CI 관측은 `e3ba66dc`의 BE `6804 passed, 70 skipped, 2 xfailed`(955.84초),
+FE·strategy journey·live-smoke 통과다. 미정산 계정 가드·전송 직전 재확인과 목록·대시보드
+표시가 포함된다. 후속 수치 v2·운영 측정기 통합 head는 재CI로 판정한다. 해당 CI 통과도
+실거래소 주문·native child 회계 검증을 대신하지 않는다.
 원시 관측 근거는 control의 `runs/sol-strategy-lab/native-product-journey-latest.json`과
-`ci-backend-d18aba62.log`에 보존한다.
+`ci-backend-e3ba66dc.log`에 보존한다.
 
 ## 실행 기한과 제품 적합성 판단
 
@@ -84,6 +85,13 @@ TypeScript 컴파일도 같은 전체 기한에 포함하며 별도 컴파일 �
 따라서 백테스트 실행 성공만으로 live 30초 적합성을 인정하지 않는다.
 저장된 입력을 매 평가마다 재생하므로 긴 세션의 지연·메모리 증가는 별도 확인 대상이다.
 Pine 콜드 parse를 포함한 언어별 p50/p95나 운영 비용 우열은 이 제품 여정에서 측정하지 않았다.
+
+별도의 수치 v2 개발 fixture 두 개를 세 언어의 새 gVisor guest에서 실행한 6건은 모두 통과했다.
+상수 지표/초기 NA와 epsilon 교차·작은 양의 분모를 검사한 범위다. Python은 0.744/1.077초,
+TypeScript는 2.105/2.038초, Pine은 151.684/133.055초의 **전체 실행**이 관측됐다.
+init·parser만의 시간이 아니며, 두 fixture의 시간으로 언어 일반의 지연 분포를 추정하지 않는다.
+별도 중단 1건은 성공으로 세지 않고 보존했다. 모델 품질 점수나 수익성 증거가 아니다.
+근거는 control의 `runs/sol-strategy-lab/numeric-v2-native-preflight/`다.
 
 [가정] Python은 기존 BE와 계산 생태계를 공유하는 유지보수 이점, TypeScript는 공개 컴파일
 진단을 B 수정에 활용하는 이점, Pine은 기존 사용자 입력·지표를 유지하는 이점이 있을 수 있다.
