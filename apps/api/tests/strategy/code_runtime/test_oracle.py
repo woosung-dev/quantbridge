@@ -131,3 +131,125 @@ def test_risk_closed_form_matches_hand_calculation(
 def test_unsupported_oracle_is_explicitly_unavailable() -> None:
     with pytest.raises(oracle.OracleUnavailable):
         action("unknown", history([100]))
+
+
+def wave_bars() -> list[dict[str, Any]]:
+    import math
+
+    bars: list[dict[str, Any]] = []
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    for index in range(720):
+        trend = (
+            100 + index * 0.07
+            if index < 240
+            else 116.8 - (index - 240) * 0.13
+            if index < 480
+            else 85.6 + (index - 480) * 0.1
+        )
+        close = trend + 6 * math.sin(index / 11) + 2 * math.sin(index / 3)
+        open_ = float(bars[-1]["close"]) if bars else close
+        bars.append(
+            {
+                "timestamp": (start + timedelta(hours=index)).isoformat(),
+                "open": str(open_),
+                "high": str(max(open_, close) + 0.3 + (index % 7) / 10),
+                "low": str(min(open_, close) - 0.3 - (index % 5) / 10),
+                "close": str(close),
+                "volume": str(10 + index % 19),
+            }
+        )
+    return bars
+
+
+_SIMPLE = (
+    "01",
+    "02",
+    "03",
+    "04",
+    "08",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "23",
+    "24",
+    "25",
+    "26",
+    "28",
+    "29",
+)
+
+
+@pytest.mark.parametrize("ident", _SIMPLE)
+def test_evaluation_rules_have_both_direction_opportunities_and_neutral_case(ident: str) -> None:
+    bars = wave_bars()
+    found: set[str] = set()
+    for tape in (bars, mirror(bars)):
+        state: dict[str, Any] = {}
+        for size in range(1, len(tape) + 1):
+            found.add(oracle.expected_action(ident, tape[:size], {"direction": "flat"}, state))
+    assert {"long", "short"} <= found
+    assert action(ident, history([100] * 300)) == "hold"
+
+
+@pytest.mark.parametrize("ident", _SIMPLE)
+def test_evaluation_streaming_prefix_and_price_scaling(ident: str) -> None:
+    bars = wave_bars()[:260]
+    scaled = [
+        {**bar, **{key: str(float(bar[key]) * 2) for key in ("open", "high", "low", "close")}}
+        for bar in bars
+    ]
+    left_state: dict[str, Any] = {}
+    right_state: dict[str, Any] = {}
+    for size in range(1, len(bars) + 1):
+        original = oracle.expected_action(ident, bars[:size], {"direction": "flat"}, left_state)
+        assert original == oracle.expected_action(
+            ident, scaled[:size], {"direction": "flat"}, right_state
+        )
+        if size in (10, 100, 200, 260):
+            assert original == action(ident, bars[:size])
+    assert action(ident, (bars + history([999, 1, 500]))[: len(bars)]) == original
+
+
+def test_independent_indicator_known_values() -> None:
+    data = oracle._Math()
+    data.extend(history([10, 12, 11, 11]))
+    assert data.obv() == [0, 10, 0, 0]
+    atr = oracle._Math()
+    atr.extend(history([10, 12, 14, 16]))
+    assert atr.atr(3)[2:] == pytest.approx([8 / 3, 25 / 9])
+    cci = oracle._Math()
+    cci.extend(history(list(range(1, 21))))
+    assert cci.cci()[-1] == pytest.approx(9.5 / (0.015 * 5))
+    aroon = oracle._Math()
+    aroon.extend(history(list(range(10, 36))))
+    assert aroon.aroon()[0][-1] == 100
+    assert aroon.aroon()[1][-1] == 0
+    flow = oracle._Math()
+    flow.extend(history(list(range(10, 60))))
+    assert flow.cmf()[-1] == 0
+    assert flow.mfi()[-1] == 100
+    assert flow.tsi()[0][-1] == pytest.approx(100)
+
+
+def test_oracle_never_imports_app_indicators_compiler_or_reference_specs() -> None:
+    import ast
+
+    tree = ast.parse(_PATH.read_text())
+    modules = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.extend(alias.name for alias in node.names)
+        if isinstance(node, ast.ImportFrom):
+            modules.append(node.module or "")
+    assert not any(
+        name.startswith(("src.", "tools.")) or "compiler" in name or "catalogue" in name
+        for name in modules
+    )

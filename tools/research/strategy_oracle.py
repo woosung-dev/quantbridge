@@ -13,6 +13,30 @@ from typing import Any
 
 _NAN = float("nan")
 _DEV = tuple(f"D{i:02}" for i in range(1, 7))
+_SIMPLE = (
+    "01",
+    "02",
+    "03",
+    "04",
+    "08",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "23",
+    "24",
+    "25",
+    "26",
+    "28",
+    "29",
+)
 
 
 class OracleUnavailable(ValueError):
@@ -20,7 +44,7 @@ class OracleUnavailable(ValueError):
 
 
 def supported_ids() -> tuple[str, ...]:
-    return _DEV
+    return _DEV + _SIMPLE
 
 
 def unsupported_reason(strategy_id: str) -> str | None:
@@ -140,7 +164,10 @@ class _Math:
     def macd(
         self, fast: int, slow: int, signal: int
     ) -> tuple[list[float], list[float]]:
-        line = [a - b for a, b in zip(self.ema(fast), self.ema(slow), strict=True)]
+        fast_values, slow_values = self.ema(fast), self.ema(slow)
+        line = self.cache.setdefault(f"macd{fast}:{slow}", [])
+        for index in range(len(line), len(self.times)):
+            line.append(fast_values[index] - slow_values[index])
         return line, self.smooth(f"macdsig{fast}:{slow}:{signal}", line, signal)
 
     def channel(self, length: int) -> tuple[list[float], list[float]]:
@@ -180,6 +207,171 @@ class _Math:
                 / 4
             )
         return opens, closes
+
+    def derived(self, key: str, formula: Any) -> list[float]:
+        result = self.cache.setdefault(key, [])
+        for index in range(len(result), len(self.times)):
+            result.append(float(formula(index)))
+        return result
+
+    def atr(self, length: int) -> list[float]:
+        high, low, close = (self.fields[key] for key in ("high", "low", "close"))
+        tr = self.derived(
+            "true_range",
+            lambda i: (
+                high[i] - low[i]
+                if i == 0
+                else max(
+                    high[i] - low[i],
+                    abs(high[i] - close[i - 1]),
+                    abs(low[i] - close[i - 1]),
+                )
+            ),
+        )
+        return self.smooth(f"atr{length}", tr, length, wilder=True)
+
+    def stochastic(self, *, rsi: bool = False) -> tuple[list[float], list[float]]:
+        source = self.rsi(14) if rsi else self.fields["close"]
+        top = self.rolling(
+            f"stoch_top:{rsi}", source if rsi else self.fields["high"], 14, "max"
+        )
+        bottom = self.rolling(
+            f"stoch_bottom:{rsi}", source if rsi else self.fields["low"], 14, "min"
+        )
+        raw = self.derived(
+            f"stoch_raw:{rsi}",
+            lambda i: (
+                100 * (source[i] - bottom[i]) / (top[i] - bottom[i])
+                if top[i] > bottom[i]
+                else _NAN
+            ),
+        )
+        k = self.rolling(f"stoch_k:{rsi}", raw, 3)
+        return k, self.rolling(f"stoch_d:{rsi}", k, 3)
+
+    def cci(self) -> list[float]:
+        typical = self.fields["hlc3"]
+        mean = self.rolling("cci_mean", typical, 20)
+
+        def formula(index: int) -> float:
+            if index < 19:
+                return _NAN
+            deviation = (
+                sum(
+                    abs(value - mean[index])
+                    for value in typical[index - 19 : index + 1]
+                )
+                / 20
+            )
+            return (
+                (typical[index] - mean[index]) / (0.015 * deviation)
+                if deviation > 0
+                else 0
+            )
+
+        return self.derived("cci20", formula)
+
+    def tsi(self) -> tuple[list[float], list[float]]:
+        close = self.fields["close"]
+        change = self.derived(
+            "momentum", lambda i: close[i] - close[i - 1] if i else _NAN
+        )
+        absolute = self.derived("abs_momentum", lambda i: abs(change[i]))
+        numerator = self.smooth("tsi_num13", self.smooth("tsi_num25", change, 25), 13)
+        denominator = self.smooth(
+            "tsi_den13", self.smooth("tsi_den25", absolute, 25), 13
+        )
+        line = self.derived(
+            "tsi",
+            lambda i: (
+                100 * numerator[i] / denominator[i]
+                if denominator[i] > 0
+                else 0
+                if denominator[i] == 0
+                else _NAN
+            ),
+        )
+        return line, self.smooth("tsi_signal7", line, 7)
+
+    def obv(self) -> list[float]:
+        close, volume = self.fields["close"], self.fields["volume"]
+        result = self.cache.setdefault("obv", [])
+        for index in range(len(result), len(self.times)):
+            sign = (
+                0
+                if index == 0 or close[index] == close[index - 1]
+                else 1
+                if close[index] > close[index - 1]
+                else -1
+            )
+            result.append((result[-1] if result else 0) + sign * volume[index])
+        return result
+
+    def cmf(self) -> list[float]:
+        high, low, close, volume = (
+            self.fields[key] for key in ("high", "low", "close", "volume")
+        )
+        flow = self.derived(
+            "cmf_flow",
+            lambda i: (
+                (2 * close[i] - high[i] - low[i]) / (high[i] - low[i]) * volume[i]
+                if high[i] != low[i]
+                else 0
+            ),
+        )
+        mean_flow = self.rolling("cmf_mean_flow", flow, 20)
+        mean_volume = self.rolling("cmf_mean_volume", volume, 20)
+        return self.derived(
+            "cmf20",
+            lambda i: mean_flow[i] / mean_volume[i] if mean_volume[i] > 0 else _NAN,
+        )
+
+    def mfi(self) -> list[float]:
+        typical, volume = self.fields["hlc3"], self.fields["volume"]
+        positive = self.derived(
+            "mfi_positive",
+            lambda i: (
+                typical[i] * volume[i] if i and typical[i] > typical[i - 1] else 0
+            ),
+        )
+        negative = self.derived(
+            "mfi_negative",
+            lambda i: (
+                typical[i] * volume[i] if i and typical[i] < typical[i - 1] else 0
+            ),
+        )
+        plus = self.rolling("mfi_positive_mean", positive, 14)
+        minus = self.rolling("mfi_negative_mean", negative, 14)
+        return self.derived(
+            "mfi14",
+            lambda i: (
+                100 - 100 / (1 + plus[i] / minus[i])
+                if minus[i] > 0
+                else 100
+                if minus[i] == 0 and plus[i] > 0
+                else _NAN
+            ),
+        )
+
+    def aroon(self) -> tuple[list[float], list[float]]:
+        high, low = self.fields["high"], self.fields["low"]
+
+        def value(index: int, maximum: bool) -> float:
+            if index < 25:
+                return _NAN
+            series = high if maximum else low
+            window = series[index - 25 : index + 1]
+            extreme = max(window) if maximum else min(window)
+            since = next(
+                offset
+                for offset, price in enumerate(reversed(window))
+                if price == extreme
+            )
+            return 100 * (25 - since) / 25
+
+        return self.derived("aroon_up", lambda i: value(i, True)), self.derived(
+            "aroon_down", lambda i: value(i, False)
+        )
 
 
 def _decision(
@@ -265,6 +457,207 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
             new_bear and current < ema,
             bear[-1],
             bull[-1],
+        )
+    if ident in {"01", "02"}:
+        fast, slow = data.ema(20), data.ema(50)
+        up, down = _cross(fast, slow), _cross(fast, slow, up=False)
+        if ident == "02":
+            up = fast[-1] > slow[-1] and _cross(close, fast)
+            down = fast[-1] < slow[-1] and _cross(close, fast, up=False)
+            return up, down, current < slow[-1], current > slow[-1]
+        return up, down, fast[-1] < slow[-1], fast[-1] > slow[-1]
+    if ident in {"03", "04"}:
+        upper, lower = data.channel(20 if ident == "03" else 55)
+        if ident == "03":
+            middle = (upper[-1] + lower[-1]) / 2
+            return (
+                _cross(close, upper),
+                _cross(close, lower, up=False),
+                current < middle,
+                current > middle,
+            )
+        exit_high, exit_low = data.channel(20)
+        return (
+            _cross(close, upper),
+            _cross(close, lower, up=False),
+            current < exit_low[-1],
+            current > exit_high[-1],
+        )
+    if ident in {"08", "10", "29"}:
+        if ident == "08":
+            ema, atr = data.ema(20), data.atr(20)
+            upper = [e + 2 * a for e, a in zip(ema, atr, strict=True)]
+            lower = [e - 2 * a for e, a in zip(ema, atr, strict=True)]
+            return (
+                _cross(close, upper) and len(ema) > 1 and ema[-1] > ema[-2],
+                _cross(close, lower, up=False) and len(ema) > 1 and ema[-1] < ema[-2],
+                current < ema[-1],
+                current > ema[-1],
+            )
+        if ident == "10":
+            atr, ema = data.atr(20), data.ema(20)[-1]
+            upper = [_NAN] + [
+                c + 0.5 * a for c, a in zip(close[:-1], atr[:-1], strict=True)
+            ]
+            lower = [_NAN] + [
+                c - 0.5 * a for c, a in zip(close[:-1], atr[:-1], strict=True)
+            ]
+            return (
+                _cross(close, upper),
+                _cross(close, lower, up=False),
+                current < ema,
+                current > ema,
+            )
+        high, low = data.channel(22)
+        atr, ema = data.atr(22), data.ema(200)[-1]
+        upper = [low[i] + 3 * atr[i - 1] if i else _NAN for i in range(len(close))]
+        lower = [high[i] - 3 * atr[i - 1] if i else _NAN for i in range(len(close))]
+        return (
+            _cross(close, upper) and current > ema,
+            _cross(close, lower, up=False) and current < ema,
+            current < lower[-1],
+            current > upper[-1],
+        )
+    if ident == "11":
+        rsi, ema = data.rsi(14), data.ema(200)[-1]
+        mid = [50.0] * len(close)
+        return (
+            _cross(rsi, mid) and current > ema,
+            _cross(rsi, mid, up=False) and current < ema,
+            rsi[-1] < 45 or current < ema,
+            rsi[-1] > 55 or current > ema,
+        )
+    if ident in {"12", "17"}:
+        k, d = data.stochastic(rsi=ident == "12")
+        ema = data.ema(200)[-1]
+        up, down = _cross(k, d), _cross(k, d, up=False)
+        if ident == "12":
+            return (
+                up and k[-1] <= 20 and current > ema,
+                down and k[-1] >= 80 and current < ema,
+                (down and k[-1] < 50) or current < ema,
+                (up and k[-1] > 50) or current > ema,
+            )
+        return (
+            up and 50 <= k[-1] <= 80 and current > ema,
+            down and 20 <= k[-1] <= 50 and current < ema,
+            down or current < ema,
+            up or current > ema,
+        )
+    if ident in {"13", "14"}:
+        macd, signal = data.macd(12, 26, 9)
+        if ident == "14":
+            zero = [0.0] * len(close)
+            return (
+                _cross(macd, zero),
+                _cross(macd, zero, up=False),
+                macd[-1] < 0,
+                macd[-1] > 0,
+            )
+        ema = data.ema(200)[-1]
+        up, down = _cross(macd, signal), _cross(macd, signal, up=False)
+        return (
+            up and current > ema,
+            down and current < ema,
+            down or current < ema,
+            up or current > ema,
+        )
+    if ident == "15":
+        roc = data.derived(
+            "roc12", lambda i: 100 * (close[i] / close[i - 12] - 1) if i >= 12 else _NAN
+        )
+        sma, zero = data.sma(50)[-1], [0.0] * len(close)
+        return (
+            _cross(roc, zero) and current > sma,
+            _cross(roc, zero, up=False) and current < sma,
+            roc[-1] < 0 or current < sma,
+            roc[-1] > 0 or current > sma,
+        )
+    if ident == "18":
+        cci, ema = data.cci(), data.ema(200)[-1]
+        return (
+            _cross(cci, [100.0] * len(close)) and current > ema,
+            _cross(cci, [-100.0] * len(close), up=False) and current < ema,
+            cci[-1] < 0 or current < ema,
+            cci[-1] > 0 or current > ema,
+        )
+    if ident == "19":
+        high = data.rolling("wpr_high", data.fields["high"], 14, "max")
+        low = data.rolling("wpr_low", data.fields["low"], 14, "min")
+        wpr = data.derived(
+            "wpr14",
+            lambda i: (
+                -100 * (high[i] - close[i]) / (high[i] - low[i])
+                if high[i] > low[i]
+                else _NAN
+            ),
+        )
+        ema = data.ema(200)[-1]
+        return (
+            _cross(wpr, [-80.0] * len(close)) and current > ema,
+            _cross(wpr, [-20.0] * len(close), up=False) and current < ema,
+            wpr[-1] < -80 or current < ema,
+            wpr[-1] > -20 or current > ema,
+        )
+    if ident == "20":
+        tsi, signal = data.tsi()
+        up, down = _cross(tsi, signal), _cross(tsi, signal, up=False)
+        return (
+            up and tsi[-1] > 0,
+            down and tsi[-1] < 0,
+            down or tsi[-1] < 0,
+            up or tsi[-1] > 0,
+        )
+    if ident == "21":
+        vwap, ema = data.vwap(), data.ema(200)[-1]
+        if len(vwap) < 2 or not math.isfinite(vwap[-1]):
+            return False, False, False, False
+        return (
+            _cross(close, vwap) and current > ema and vwap[-1] > vwap[-2],
+            _cross(close, vwap, up=False) and current < ema and vwap[-1] < vwap[-2],
+            current < vwap[-1],
+            current > vwap[-1],
+        )
+    if ident == "23":
+        obv = data.obv()
+        average = data.rolling("obv_sma20", obv, 20)[-1]
+        high, low = data.channel(20)
+        ema, ema50 = data.ema(200)[-1], data.ema(50)[-1]
+        return (
+            current > ema and current > high[-1] and obv[-1] > average,
+            current < ema and current < low[-1] and obv[-1] < average,
+            current < ema50 or obv[-1] < average,
+            current > ema50 or obv[-1] > average,
+        )
+    if ident == "24":
+        cmf, fast, slow = data.cmf(), data.ema(20)[-1], data.ema(50)[-1]
+        return (
+            _cross(cmf, [0.05] * len(close)) and fast > slow,
+            _cross(cmf, [-0.05] * len(close), up=False) and fast < slow,
+            cmf[-1] < 0 or fast < slow,
+            cmf[-1] > 0 or fast > slow,
+        )
+    if ident == "25":
+        mfi, ema = data.mfi(), data.ema(200)
+        if len(ema) < 2:
+            return False, False, False, False
+        return (
+            _cross(mfi, [20.0] * len(close))
+            and current > ema[-1]
+            and ema[-1] > ema[-2],
+            _cross(mfi, [80.0] * len(close), up=False)
+            and current < ema[-1]
+            and ema[-1] < ema[-2],
+            current < ema[-1] or mfi[-1] < 20,
+            current > ema[-1] or mfi[-1] > 80,
+        )
+    if ident == "26":
+        up, down = data.aroon()
+        return (
+            _cross(up, down) and up[-1] >= 70 and down[-1] <= 30,
+            _cross(down, up) and down[-1] >= 70 and up[-1] <= 30,
+            up[-1] < 50 or down[-1] > up[-1],
+            down[-1] < 50 or up[-1] > down[-1],
         )
     raise OracleUnavailable(f"전략 {ident}: 독립 수식 판정기가 없습니다")
 
