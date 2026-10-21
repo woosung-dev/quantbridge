@@ -50,7 +50,7 @@ def hidden_frame() -> pd.DataFrame:
             "close": close,
             "volume": np.where(t % 79 == 0, 0, 40 + (t * 13) % 113),
         },
-        index=pd.date_range("2025-11-01", periods=len(t), freq="1h", tz="UTC"),
+        index=pd.date_range("2025-12-20", periods=len(t), freq="1h", tz="UTC"),
     )
     # 지표 NA/0 분모 경계를 실제 평가 구간에도 넣는다.
     frame.loc[frame.index[:230], ["open", "high", "low", "close"]] = 180.0
@@ -380,7 +380,16 @@ def paired_summary(trials: list[dict[str, Any]]) -> dict[str, Any]:
             if unknown_usage
             else 5 * max(0, 1 - trial.get("generation_output_tokens", 16384) / 16384)
         )
-        efficiency += 5 * max(0, 1 - trial.get("generation_seconds", 180) / 180)
+        unknown_duration = trial.get(
+            "unknown_duration_calls",
+            sum(
+                "duration_seconds" not in row["generation"]
+                or row["generation"].get("status") == "interrupted"
+                for row in trial.get("attempts", [])
+            ),
+        )
+        if not unknown_duration:
+            efficiency += 5 * max(0, 1 - trial.get("generation_seconds", 180) / 180)
         if not passed_public:
             efficiency = 0
         score = semantic_score + integration + efficiency

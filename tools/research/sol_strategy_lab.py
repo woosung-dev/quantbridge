@@ -39,12 +39,23 @@ PUBLIC_CONTRACT = """
 공통 trusted broker가 처리한다. 신호는 다음 시가에 체결되며 같은 방향 추가 진입은 없다.
 반대 long/short 의도는 잔량 청산 확인 뒤 반전이다. 무효화는 close다. long과 short가
 동시에 참이면 hold. 이미 포지션이 있으면 반대 entry를 우선하고 다음으로 무효화를 평가한다.
+bar.timestamp는 UTC 봉 시작 시각이며 해당 봉 완료 후 판단한다. 1h의 03:00 시작봉이
+완료되면 00:00~04:00 구간의 4h봉도 완료되어 그 판단에 즉시 사용할 수 있다.
 EMA는 첫 length개 SMA seed, 이전에는NA, alpha=2/(length+1). Wilder RMA는 첫 length개 SMA seed,
 alpha=1/length. RSI는 첫 length개 변화량의 상승/하락 SMA seed이후 Wilder RMA,
 하락평균0이면100(평탄포함). 이는타깃pine_v2의계약이며TradingView전체동일주장이아니다.
+수치 계약 v2: 유한한 신호 비교값 a,b의 epsilon=1e-12*max(1,abs(a),abs(b)).
+abs(a-b)<=epsilon은 동률이다. >/<는 이 band 밖에서만 참이고 >=/<=는 동률을 포함한다.
+교차의 이전/현재 비교와 RSI pivot·divergence·Supertrend 방향 판정도 같은 규칙이다.
+원본 OHLC 극값 선택·Aroon 극값 동률·정수/시각 비교·지표 내부 분모0은 exact다.
+상수 입력의 rolling mean은 그 상수, std/MAD/회귀기울기는0을 보존한다. EMA/RMA도
+상수 seed와 정상 상태를 보존하는 안정식(예: anchored mean, previous+alpha*(x-previous))을 쓴다.
+정확한 분모0의 기존 NA/0 규칙은 유지하며 양의 작은 분모를 임의로 NA로 바꾸지 않는다.
 표준편차는 population(ddof=0). 모든 high/low breakout 창은 명시된 current봉 포함 여부를 따른다.
 Aroon25는현재포함26개봉창,극값동률은가장최근봉. Stoch/WPR의가격범위0과MFI의
 양음금액흐름둘다0은NA(조건거짓). CMF는H=L봉flow0,창총거래량0이면NA.
+CCI의MAD0은0, TSI의이중평활절대변화분모0은0이다. DMI의ATR0은DI를0으로,
+DI합0은DX를0으로계산한다. StochRSI의RSI범위0은NA다. 준비기간의NA는0으로대체하지않는다.
 history에는 현재까지 완료된 봉만 있고 미래정보는 없다. 코드에는 네트워크/파일/시계/난수/
 패키지설치/셸/외부프로세스 접근이 없다. 외부 라이브러리 기본 지표 의미를 추측하지 않는다.
 """
@@ -420,6 +431,7 @@ def evaluate_semantics(root: Path, selected: list[tuple], workers: int) -> None:
                 flush=True,
             )
     json_write(root / "semantic-summary.json", paired_summary(evaluated))
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)

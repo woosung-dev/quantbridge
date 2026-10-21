@@ -1,6 +1,7 @@
 """격리 엔진을 실행하지 않고 의미 채점의 동시성·증거·분모 계약을 검증한다."""
 
 import fcntl
+import hashlib
 import json
 import sys
 import threading
@@ -26,7 +27,7 @@ def make_trial(root, case_id, repetition=0, status="public_pass"):
         "repetition": repetition,
         "status": status,
         "input_identity": f"fixture-{case_id}-{repetition}",
-        "source_hash": "fixture-source-hash",
+        "source_hash": hashlib.sha256(case_id.encode()).hexdigest(),
         "generation_output_tokens": 0,
         "generation_seconds": 0,
     }
@@ -35,9 +36,10 @@ def make_trial(root, case_id, repetition=0, status="public_pass"):
     return (case, "A", "pine", repetition), folder
 
 
-def passing():
+def passing(source):
     return {
         "status": "passed",
+        "source_hash": hashlib.sha256(source.encode()).hexdigest(),
         "contract_points": 40,
         "ledger_points": 25,
         "reproducibility_points": 15,
@@ -67,7 +69,7 @@ def test_worker_bound_and_selected_order(tmp_path, monkeypatch, capsys, workers)
             active -= 1
         if source == "case-1":
             second_finished.set()
-        return passing()
+        return passing(source)
 
     monkeypatch.setattr(semantic, "evaluate", evaluate)
     ordered = []
@@ -94,7 +96,8 @@ def test_cache_resume_preserves_evidence_and_does_not_evaluate(tmp_path, monkeyp
         jobs.append(job)
         result = json.loads((folder / "trial.json").read_text())
         subject.json_write(
-            folder / "semantic.json", {**passing(), "input_identity": result["input_identity"]}
+            folder / "semantic.json",
+            {**passing(f"cached-{index}"), "input_identity": result["input_identity"]},
         )
         for name in ("trial.json", "source.txt", "semantic.json"):
             evidence[folder / name] = (folder / name).read_bytes()
@@ -109,7 +112,9 @@ def test_cache_resume_preserves_evidence_and_does_not_evaluate(tmp_path, monkeyp
 
 def test_cache_identity_mismatch_is_not_scored_as_failure(tmp_path, monkeypatch):
     job, folder = make_trial(tmp_path, "mismatch")
-    subject.json_write(folder / "semantic.json", {**passing(), "input_identity": "altered"})
+    subject.json_write(
+        folder / "semantic.json", {**passing("mismatch"), "input_identity": "altered"}
+    )
     with pytest.raises(ValueError, match="캐시"):
         subject.evaluate_semantics(tmp_path, [job], 2)
     assert not (tmp_path / "semantic-summary.json").exists()
@@ -121,15 +126,19 @@ def test_evaluation_and_generation_failures_stay_in_full_denominator(tmp_path, m
         for index in range(3)
     ]
     calls = []
-    (tmp_path / "trials/A/pine/D01/0/source.txt").write_text("raises")
-    (tmp_path / "trials/A/pine/D01/1/source.txt").write_text("passes")
+    for index, source in enumerate(("raises", "passes")):
+        folder = tmp_path / "trials/A/pine/D01" / str(index)
+        (folder / "source.txt").write_text(source)
+        result = json.loads((folder / "trial.json").read_text())
+        result["source_hash"] = hashlib.sha256(source.encode()).hexdigest()
+        subject.json_write(folder / "trial.json", result)
 
     def evaluate(source, *_args):
         # 동일 case의 두 호출 중 하나만 실패해도 두 결과와 생성 실패를 모두 센다.
         calls.append(source)
         if source == "raises":
             raise RuntimeError("fixture evaluation failure")
-        return passing()
+        return passing(source)
 
     monkeypatch.setattr(semantic, "evaluate", evaluate)
     subject.evaluate_semantics(tmp_path, jobs, 2)
