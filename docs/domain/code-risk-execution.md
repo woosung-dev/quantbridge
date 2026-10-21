@@ -128,7 +128,7 @@ legacy 세션의 `code_execution`은 null이다. 코크핏의 전략 이름은 �
 로컬 축소 주문의 누적 체결로 설명되지 않는 잔량이 거래소에서 flat으로 관측되면
 `LiveRiskState.unsettled_exit_quantity`에 그 잔량을 남긴다. 잔량은 실제 flat으로 갱신하되
 `native_exit_unsettled` 사유로 새 진입을 차단한다. 이는 native SL 체결 원인·가격·손익을
-확정한 것이 아니다. 미귀속 WS는 기존 orphan 정책으로 폐기하고, `ExchangeExit`의 native
+확정한 것이 아니다. 아래 attached SL 명시 귀속을 통과하지 못한 WS는 orphan으로 폐기하고, `ExchangeExit`의 native
 SL/trailing 분류·추정 전략 귀속을 정확한 세션/세대 체결이나 확정 손익으로 승격하지 않는다.
 
 같은 계정 ID와 알려진 `exchange_uid` 형제는 종료·archive된 세션의 미정산도 조회한다.
@@ -148,7 +148,8 @@ SL/trailing 분류·추정 전략 귀속을 정확한 세션/세대 체결이나
 
 뒤늦은 **기존 로컬 Order의 session·generation·reduce-only·terminal 누적 체결**만
 `exit_fills`에 아직 기록되지 않은 증가분으로 marker를 한 번 상쇄할 수 있다. 다른 이유의
-진입 차단은 해제하지 않는다. 미귀속 native 주문·inferred 원장 행에는 자동 해제가 없다.
+진입 차단은 해제하지 않는다. 검증된 attached SL 관측 행도 같은 정본을 사용한다.
+미귀속 native 주문·inferred 원장 행에는 자동 해제가 없다.
 marker 발생 뒤 새로 관측한 정확한 로컬 주문의 증가분은 주문별
 `exit_fills.unsettled_pending`으로 저장하고 terminal 수신 때만 한 번 상쇄한다.
 재시작·같은 누적값의 terminal 재관측에도 이 대기분을 복구한다. marker 이전에 이미
@@ -163,3 +164,57 @@ marker 발생 뒤 새로 관측한 정확한 로컬 주문의 증가분은 주�
 수익·손실 강조색과 자산 곡선을 보류한다. 숫자 0이나 confirmed 소계 0은 전체 손익 확정 0이 아니다.
 기존 fake native 여정은 보호 파라미터 ACK와 명시적 close 주문을 검증했으며,
 실제 native SL/trailing 자식 주문의 체결 회계·자동 귀속을 검증한 결과가 아니다.
+
+
+## 명시 부모가 있는 attached SL 관측
+
+Bybit의 `parentOrderLinkId`는 futures의 원래 attached TP/SL 부모 client ID다.
+원래 attached 보호를 trading-stop으로 변경한 경우에도 유지되지만, attached 보호가
+없던 포지션에 나중에 추가한 경우는 유효한 연결 증거가 아니다.
+이 계약을 native trailing 전체로 확대하지 않는다. 시간·가격·positionIdx만으로 귀속하지 않는다.
+공식 근거는 [private order WS](https://bybit-exchange.github.io/docs/v5/websocket/private/order),
+[실시간 주문](https://bybit-exchange.github.io/docs/v5/order/open-order),
+[주문 이력](https://bybit-exchange.github.io/docs/v5/order/order-list),
+[trading-stop](https://bybit-exchange.github.io/docs/v5/position/trading-stop)이다.
+
+현재 귀속 범위는 Bybit demo linear·one-way(`positionIdx=0`)의
+`StopLoss`/`CreateByStopLoss`·reduce-only 주문뿐이다. 같은 계정의 부모 UUID가
+현재 세대 entry이고 임시 SL이 부착되어 있어야 한다. 부모의 session·generation·전략·
+심볼·소유자와 자식의 반대 side를 대조한다. 자식 외부 ID는 부모 외부 ID와 달라야 한다.
+외부 ID 조회는 계정 범위를 포함하며, 부모 UUID가 자식 orderLinkId로 전달되어도 부모를 갱신하지 않는다.
+
+`Order`에 별도 관측 행을 만들며 `risk_context.native_origin=bybit_attached_sl`,
+불변 `native_binding`, `parent_order_id`, 정확한 `native_fill` 누적 수량·대금을 보존한다.
+부분 체결도 `filled_quantity`와 정확한 대금/수량 평균가를 보존한다. 반올림 avgPrice로
+대금을 합성하지 않는다. 계정+외부 ID의 transaction advisory lock과 결정적 UUID로
+WS/REST 중복을 직렬화하고, 현재 리스크 행을 잠근 뒤 관측 행·리스크 CAS·terminal·
+미정산 credit를 한 트랜잭션으로 확정한다. 충돌이나 commit 실패는 함께 rollback한다.
+
+미발동 New/Untriggered·누적 체결 0은 미종결 부분 진입을 취소하거나 청산하지 않는다.
+양수 SL 체결이 부모 terminal 증거보다 먼저 오면 exit counter를 소비하지 않고 기존
+close-request 경로로 미체결 진입 취소·잔량 축소를 요청한다. 부모 최종 누적 증거 뒤 같은
+자식을 재처리한다. 이 보수적 대기는 새 영구 failure를 만들거나 진짜 실패 사유를 해제하지 않는다.
+복구는 부모 진입을 먼저 조회한 후 자식 이력을 처리한다.
+
+관측 행은 처음부터 submitted 이상이며 새 주문으로 발주하지 않는다. 일반 주문의 실행·
+취소 worker와 일반 취소 API는 이 행을 거부한다. 전용 복구·취소는 자식의 실제 외부 ID로
+조회하며, 취소 전 신선한 부모/자식 증거를 다시 검증한다. 취소 ACK는 terminal 확인이 아니다.
+
+WS 누락 복구는 Demo 보존 범위인 최근 7일에서 realtime/history 각각 50행·최대 2페이지를
+조회한다. parent는 응답 필드이며 조회 필터로 전송하지 않는다. category·symbol·cursor를
+검증하고, 반복/누락 cursor·페이지 예산 소진·잘못된 응답은 정합을 보류한다. 빈 응답은
+청산 부재나 취소 완료 증거가 아니다. [Demo 범위](https://bybit-exchange.github.io/docs/v5/demo).
+
+수량 귀속과 손익 확정은 별개다. native 관측 행은 기존 closed-PnL aggregate 자동
+확정·sweep·백필·정정에서 제외한다. 검증된 terminal WS의 주문별 정확한 `closedPnl`만
+독립 CAS로 기록하며 중복 금액을 합산하지 않는다. REST terminal이 먼저 확정되어 Order
+상태 CAS가 0이어도 늦은 WS 금액은 보충한다. 이미 귀속된 과거 세대의 자식도 저장된
+account·external ID·부모 UUID·session·generation·SL identity·누적 증거가 동일하면
+손익만 보충한다. 현재 리스크·포지션·marker·명령은 변경하지 않는다. 새로 발견된
+미귀속 과거 세대 주문은 자동 귀속하지 않는다.
+
+REST로 수량을 복구해 marker가 0이어도 WS의 정확한 closedPnl가 없으면 손익은 NULL이며
+`pnl_complete=false`다. 부분 native 체결도 미정산 주문 개수에 포함한다. 손익 미정산만으로
+새로운 계정 전체 진입 차단을 만들지는 않는다. 수량 미귀속 차단은 기존 계약을 유지한다.
+실제 Demo native SL 자식 관측은 아직 검증하지 않았으며, 이번 근거는 가짜 Bybit 응답과
+슬롯 SQL의 양성·음성·두 트랜잭션 경합 검증이다. native trailing 자동 귀속 보장은 없다.

@@ -335,6 +335,9 @@ async def _execute_with_session(
         if order is None:
             raise OrderNotFound(order_id)
 
+        if (order.risk_context or {}).get("native_origin") == "bybit_attached_sl":
+            return {"order_id": str(order_id), "skipped": "native_observation_only"}
+
         # Guard: only process pending orders
         if order.state != OrderState.pending:
             logger.warning(
@@ -487,9 +490,10 @@ async def _execute_with_session(
             )
             # 큐 대기·이전 await 동안 marker가 생길 수 있어 실제 발주 직전에 재조회한다.
             # 청산·보호 주문은 미정산 계정에서도 반드시 통과한다.
-            if not order.reduce_only and (
-                await repo.has_unsettled_code_exit(order.exchange_account_id)
-            ) is True:
+            if (
+                not order.reduce_only
+                and (await repo.has_unsettled_code_exit(order.exchange_account_id)) is True
+            ):
                 error_msg = "native_exit_unsettled"
                 rows = await repo.transition_to_rejected(
                     order_id, error_message=error_msg, failed_at=datetime.now(UTC)
@@ -799,6 +803,8 @@ async def _fetch_order_status_with_session(
                 "skipped": "already_terminal",
             }
 
+        if (order.risk_context or {}).get("native_origin") == "bybit_attached_sl":
+            return {"order_id": str(order_id), "skipped": "native_risk_cancel_required"}
         if order.state != OrderState.submitted:
             return {
                 "order_id": str(order_id),
@@ -1092,6 +1098,8 @@ async def _cancel_order_with_session(order_id: UUID, sm: Any) -> dict[str, Any]:
         order = await repo.get_by_id(order_id)
         if order is None:
             return {"order_id": str(order_id), "skipped": "not_found"}
+        if (order.risk_context or {}).get("native_origin") == "bybit_attached_sl":
+            return {"order_id": str(order_id), "skipped": "native_risk_cancel_required"}
         if order.state != OrderState.submitted:
             return {
                 "order_id": str(order_id),
@@ -1274,6 +1282,8 @@ def _enqueue_conditional_reversal_measure(order: Any) -> None:
 def _enqueue_closed_pnl_refresh(order: Any) -> None:
     """fill-transition winner 가 reduce-only 주문이면 거래소 확정 손익 조회를 예약한다."""
     if not getattr(order, "reduce_only", False):
+        return
+    if (getattr(order, "risk_context", None) or {}).get("native_origin") == "bybit_attached_sl":
         return
     refresh_closed_pnl_task.apply_async(
         args=[str(order.id)], countdown=_CLOSED_PNL_ENQUEUE_COUNTDOWN
@@ -1540,6 +1550,8 @@ async def _refresh_closed_pnl_with_session(
             return {"skipped": "order_missing", "order_id": str(order_id)}
         if not has_recorded_order_fill(order):
             return {"skipped": "not_filled", "order_id": str(order_id)}
+        if (order.risk_context or {}).get("native_origin") == "bybit_attached_sl":
+            return {"skipped": "native_pnl_evidence_required", "order_id": str(order_id)}
         if not order.reduce_only and not reversal:
             # ★필터를 지우지 않고 **한 갈래만 연다**([BL-733]). 순수 선물 entry 는 여전히
             #   여기서 멈춘다 — 열면 `closed-pnl` 원장에 대응 행이 없어 `transient` 4회

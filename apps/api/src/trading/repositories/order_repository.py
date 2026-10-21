@@ -10,13 +10,14 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select, text, update
+from sqlalchemy import Numeric, and_, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
 from src.trading.models import (
     ExchangeAccount,
     ExchangeExit,
+    LiveRiskState,
     LiveSignalSession,
     Order,
     OrderSide,
@@ -32,6 +33,11 @@ _RECORDED_ORDER_FILL = or_(
         col(Order.risk_context).is_not(None),
         col(Order.filled_quantity) > 0,
     ),
+)
+
+# native 관측행은 legacy 페이지 합계로 확정/재정정하지 않는다.
+_NON_NATIVE_PNL = (
+    func.coalesce(col(Order.risk_context)["native_origin"].astext, "") != "bybit_attached_sl"
 )
 
 # 「이 주문이 청산했는가」의 정본 술어 — 거래소 원장이 그 주문의 청산 행을 갖고 있는가([BL-438]).
@@ -342,6 +348,28 @@ class OrderRepository:
         await self.session.flush()
         return order
 
+    async def native_sl_parent(
+        self, parent_id: UUID, account_id: UUID
+    ) -> tuple[Order, LiveSignalSession, LiveRiskState, ExchangeAccount] | None:
+        result = await self.session.execute(
+            select(Order, LiveSignalSession, LiveRiskState, ExchangeAccount)
+            .join(LiveRiskState, col(LiveRiskState.entry_order_id) == col(Order.id))
+            .join(LiveSignalSession, col(LiveSignalSession.id) == col(LiveRiskState.session_id))
+            .join(ExchangeAccount, col(ExchangeAccount.id) == col(Order.exchange_account_id))
+            .where(
+                col(Order.id) == parent_id,
+                col(Order.exchange_account_id) == account_id,
+                col(LiveSignalSession.exchange_account_id) == account_id,
+                col(LiveSignalSession.strategy_id) == col(Order.strategy_id),
+                col(LiveSignalSession.symbol) == col(Order.symbol),
+                col(LiveSignalSession.user_id) == col(ExchangeAccount.user_id),
+            )
+            .with_for_update(of=LiveRiskState)
+            .execution_options(populate_existing=True)
+        )
+        row = result.one_or_none()
+        return (row[0], row[1], row[2], row[3]) if row is not None else None
+
     async def get_by_id(self, order_id: UUID) -> Order | None:
         result = await self.session.execute(
             select(Order).where(Order.id == order_id)  # type: ignore[arg-type]
@@ -387,11 +415,16 @@ class OrderRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_by_exchange_order_id(self, exchange_order_id: str) -> Order | None:
+    async def get_by_exchange_order_id(
+        self, exchange_order_id: str, *, account_id: UUID
+    ) -> Order | None:
         result = await self.session.execute(
-            select(Order).where(
-                Order.exchange_order_id == exchange_order_id  # type: ignore[arg-type]
+            select(Order)
+            .where(
+                Order.exchange_order_id == exchange_order_id,  # type: ignore[arg-type]
+                col(Order.exchange_account_id) == account_id,
             )
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -656,7 +689,16 @@ class OrderRepository:
             select(func.count())
             .select_from(Order)
             .where(
-                *_session_scope_where(scope),
+                *_session_scope_where(scope, states=None, window="created")
+                if scope.session_id is not None
+                else _session_scope_where(scope),
+                or_(
+                    _RECORDED_ORDER_FILL,
+                    and_(
+                        col(Order.risk_context)["native_origin"].astext == "bybit_attached_sl",
+                        col(Order.risk_context)["native_fill"]["quantity"].astext.cast(Numeric) > 0,
+                    ),
+                ),
                 col(Order.reduce_only).is_(True),
                 col(Order.realized_pnl).is_(None),
             )
@@ -865,6 +907,25 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
+    async def record_native_sl_pnl(self, order: Order, *, quantity: Decimal, pnl: Decimal) -> int:
+        result = await self.session.execute(
+            update(Order)
+            .where(
+                col(Order.id) == order.id,
+                col(Order.exchange_account_id) == order.exchange_account_id,
+                col(Order.exchange_order_id) == order.exchange_order_id,
+                col(Order.risk_context)["native_origin"].astext == "bybit_attached_sl",
+                col(Order.filled_quantity) == quantity,
+                col(Order.filled_quantity) > 0,
+                col(Order.state).in_(
+                    [OrderState.filled, OrderState.cancelled, OrderState.rejected]
+                ),
+                col(Order.realized_pnl_synced_at).is_(None),
+            )
+            .values(realized_pnl=pnl, realized_pnl_synced_at=datetime.now(UTC))
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
     async def backfill_exchange_realized_pnl(
         self, order_id: UUID, *, realized_pnl: Decimal, synced_at: datetime
     ) -> int:
@@ -873,6 +934,7 @@ class OrderRepository:
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(_RECORDED_ORDER_FILL)
+            .where(_NON_NATIVE_PNL)
             .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
             .values(realized_pnl=realized_pnl, realized_pnl_synced_at=synced_at)
         )
@@ -941,6 +1003,7 @@ class OrderRepository:
             select(Order)
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
             .where(_RECORDED_ORDER_FILL)
+            .where(_NON_NATIVE_PNL)
             .where(_HAS_EXCHANGE_EXIT_ROW)
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
@@ -978,6 +1041,7 @@ class OrderRepository:
             select(Order)
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
             .where(_RECORDED_ORDER_FILL)
+            .where(_NON_NATIVE_PNL)
             .where(_HAS_EXCHANGE_EXIT_ROW)
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
@@ -1000,6 +1064,7 @@ class OrderRepository:
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(_RECORDED_ORDER_FILL)
+            .where(_NON_NATIVE_PNL)
             .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl.is_distinct_from(realized_pnl))  # type: ignore[union-attr]
             .values(realized_pnl=realized_pnl, realized_pnl_synced_at=synced_at)

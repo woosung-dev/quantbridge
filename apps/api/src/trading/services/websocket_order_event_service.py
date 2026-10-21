@@ -34,6 +34,11 @@ from src.trading.services.code_risk_service import (
     CodeRiskService,
     RiskCommand,
 )
+from src.trading.services.native_sl_observation_service import (
+    NativeSLObservationService,
+    NativeSLParentPending,
+    is_native_sl,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +72,23 @@ class WebSocketOrderEventService:
     async def handle_order_event(
         self, account_id: UUID, payload: dict[str, Any]
     ) -> list[RiskCommand] | None:
+        if self._risk_service is not None and (
+            payload.get("parentOrderLinkId")
+            or payload.get("createType") in {"CreateByStopLoss", "CreateByTrailingStop"}
+        ):
+            try:
+                binding = await NativeSLObservationService(self._repo).bind(account_id, payload)
+            except NativeSLParentPending as pending:
+                commands = await self._risk_service.request_signal(
+                    pending.session_id, pending.generation, "close", commit=False
+                )
+                await self._repo.commit()
+                return commands
+            if binding is not None:
+                return await self._handle_code_order(binding[0], binding[1], account_id)
+            # 부모 client ID가 child 자신의 ID처럼 실려도 부모 진입을 갱신하지 않는다.
+            self._discard_orphan(str(payload.get("orderId", "")), payload, account_id)
+            return None
         order_link_id = payload.get("orderLinkId")
         exchange_order_id = payload.get("orderId")
 
@@ -75,12 +97,18 @@ class WebSocketOrderEventService:
             with contextlib.suppress(ValueError):
                 order = await self._repo.get_by_id(UUID(str(order_link_id)))
         if order is None and exchange_order_id:
-            order = await self._repo.get_by_exchange_order_id(str(exchange_order_id))
+            order = await self._repo.get_by_exchange_order_id(
+                str(exchange_order_id), account_id=account_id
+            )
 
         if order is None:
             self._discard_orphan(str(order_link_id or exchange_order_id or ""), payload, account_id)
             return None
 
+        if order.exchange_account_id != account_id:
+            raise CodeRiskError("주문 계정 귀속이 올바르지 않습니다")
+        if is_native_sl(order):
+            raise CodeRiskReconciliationPending("native SL의 명시 부모 증거를 기다립니다")
         if order.risk_context is not None:
             return await self._handle_code_order(order, payload, account_id)
 
@@ -105,6 +133,8 @@ class WebSocketOrderEventService:
         if status == "PartiallyFilledCanceled":
             new_state = OrderState.cancelled
         if new_state is None and status != "PartiallyFilled":
+            if is_native_sl(order):
+                await self._repo.commit()
             return []
         context = order.risk_context or {}
         try:
@@ -119,6 +149,10 @@ class WebSocketOrderEventService:
             raise CodeRiskError(
                 "코드 주문의 누적 체결 또는 리스크 귀속이 올바르지 않습니다"
             ) from exc
+        if is_native_sl(order) and payload.get("_native_historical") is True:
+            await self._native_pnl(order, payload, quantity, new_state)
+            await self._repo.commit()
+            return []
         price = None
         if new_state in {OrderState.cancelled, OrderState.rejected} and quantity > 0:
             average = payload.get("avgPrice") or payload.get("average")
@@ -177,10 +211,27 @@ class WebSocketOrderEventService:
                 )
         elif new_state is not None:
             rowcount = await self._apply_transition(order.id, new_state, payload)
+        if is_native_sl(order):
+            await self._native_pnl(order, payload, quantity, new_state)
         await self._repo.commit()
         if rowcount == 1 and new_state is not None:
             await self._after_committed_winner(order, new_state, payload, account_id)
         return commands
+
+    async def _native_pnl(
+        self, order: Order, payload: dict[str, Any], quantity: Decimal, terminal: OrderState | None
+    ) -> None:
+        if terminal is None or quantity <= 0 or payload.get("closedPnl") in (None, ""):
+            return
+        try:
+            pnl = Decimal(str(payload["closedPnl"]))
+        except InvalidOperation as exc:
+            raise CodeRiskReconciliationPending("native SL 손익 증거를 기다립니다") from exc
+        if not pnl.is_finite():
+            raise CodeRiskReconciliationPending("native SL 손익이 유한하지 않습니다")
+        if order.realized_pnl_synced_at is not None and order.realized_pnl != pnl:
+            raise CodeRiskReconciliationPending("native SL의 확정 손익 증거가 다릅니다")
+        await self._repo.record_native_sl_pnl(order, quantity=quantity, pnl=pnl)
 
     def _discard_orphan(self, key: str, payload: dict[str, Any], account_id: UUID) -> None:
         """로컬 행 없는 이벤트는 집계·로그만 남기고 폐기한다."""
@@ -246,7 +297,8 @@ class WebSocketOrderEventService:
                 },
             )
 
-        record_metric_safely(qb_active_orders.dec)
+        if not is_native_sl(order):
+            record_metric_safely(qb_active_orders.dec)
         if new_state == OrderState.filled or has_recorded_order_fill(order):
             filled = payload.get("cumExecQty") or payload.get("filled")
             filled_quantity = Decimal(str(filled)) if filled else None

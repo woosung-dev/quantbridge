@@ -1827,6 +1827,84 @@ class BybitFuturesProvider:
             trigger=trigger,
         )
 
+    async def fetch_attached_sl_orders(
+        self, creds: Credentials, symbol: str, *, since: datetime
+    ) -> list[dict[str, Any]]:
+        """부모는 응답에서만 확인한다. Demo 최근 7일·각 endpoint 최대 2페이지다."""
+        require_bybit_demo_account(creds.exchange, creds.environment)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        raw_symbol = _to_bybit_linear_symbol(symbol).split(":")[0].replace("/", "")
+        start = max(
+            int(since.timestamp() * 1000), int(datetime.now(UTC).timestamp() * 1000) - 7 * 86400000
+        )
+        observed: list[dict[str, Any]] = []
+        try:
+            for fetch, history in (
+                (exchange.privateGetV5OrderRealtime, False),
+                (exchange.privateGetV5OrderHistory, True),
+            ):
+                cursor = ""
+                for _ in range(2):
+                    request: dict[str, Any] = {
+                        "category": "linear",
+                        "symbol": raw_symbol,
+                        "limit": 50,
+                    }
+                    if history:
+                        request["startTime"] = start
+                    if cursor:
+                        request["cursor"] = cursor
+                    response = await fetch(request)
+                    result = response.get("result")
+                    if (
+                        str(response.get("retCode")) != "0"
+                        or not isinstance(result, dict)
+                        or not isinstance(result.get("list"), list)
+                        or result.get("category") != "linear"
+                    ):
+                        raise ProviderError("malformed native SL history")
+                    for row in result["list"]:
+                        if not isinstance(row, dict):
+                            raise ProviderError("malformed native SL history row")
+                        if (
+                            isinstance(row, dict)
+                            and row.get("parentOrderLinkId")
+                            and row.get("stopOrderType") == "StopLoss"
+                        ):
+                            if (
+                                row.get("category", "linear") != "linear"
+                                or row.get("symbol") != raw_symbol
+                            ):
+                                raise ProviderError("native SL history scope mismatch")
+                            observed.append({**row, "category": "linear"})
+                    next_cursor = result.get("nextPageCursor")
+                    if not isinstance(next_cursor, str):
+                        raise ProviderError("malformed native SL history cursor")
+                    if not next_cursor:
+                        break
+                    if next_cursor == cursor:
+                        raise ProviderError("native SL history cursor repeated")
+                    cursor = str(next_cursor)
+                else:
+                    raise ProviderError("native SL history page budget exhausted")
+            # 전체 페이지를 읽어도 미관측을 체결 없음으로 사용하지 않는다.
+            return observed
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(f"native SL history failed: {type(exc).__name__}") from None
+        finally:
+            await exchange.close()
+
     async def fetch_order_by_client_id(
         self,
         creds: Credentials,

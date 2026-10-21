@@ -212,6 +212,8 @@ class CodeRiskService:
         session_id: UUID,
         generation: int,
         action: Literal["hold", "long", "short", "close"],
+        *,
+        commit: bool = True,
     ) -> list[RiskCommand]:
         state = await self._load(session_id, generation)
         if state is None or action == "hold" or action == state.direction:
@@ -220,7 +222,7 @@ class CodeRiskService:
             raise CodeRiskError("알 수 없는 신호입니다")
         state.close_requested = True
         state.pending_reversal = action if action in ("long", "short") else None
-        return await self._save(state)
+        return await self._save(state, commit=commit)
 
     async def record_exit_fill(
         self,

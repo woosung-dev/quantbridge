@@ -69,6 +69,9 @@ class FakeBybit:
     async def get_code_market_rules(self, *_):
         return {"price_tick": D("0.1"), "qty_step": D("0.1"), "min_qty": D("0.1")}
 
+    async def fetch_attached_sl_orders(self, _credentials, _symbol, *, since):
+        return []
+
     async def fetch_order_by_client_id(self, _credentials, identifier, _symbol):
         return self.statuses.get(identifier)
 

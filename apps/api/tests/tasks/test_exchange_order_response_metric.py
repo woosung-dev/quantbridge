@@ -71,6 +71,7 @@ def _order() -> SimpleNamespace:
         # 프로덕션 `Order.strategy_id` 는 FK `ondelete=RESTRICT` 로 NOT NULL 이다.
         strategy_id=uuid4(),
         state=OrderState.pending,
+        risk_context=None,
         symbol="BTC/USDT:USDT",
         side=OrderSide.buy,
         type=OrderType.market,

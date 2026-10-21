@@ -33,6 +33,11 @@ from src.trading.services.code_risk_service import (
     CodeRiskReconciliationPending,
     CodeRiskService,
 )
+from src.trading.services.native_sl_observation_service import (
+    NativeSLObservationService,
+    NativeSLParentPending,
+    is_native_sl,
+)
 
 
 class BybitCodeRiskVenue:
@@ -60,15 +65,35 @@ class BybitCodeRiskVenue:
         orders = await self._repo.child_orders(session.id, state.generation)
         entry = await self._repo.get_order(state.entry_order_id)
         if entry is not None:
-            orders.append(entry)
+            orders.insert(0, entry)
         for order in orders:
             if order.state != OrderState.pending:
-                status = await self._provider.fetch_order_by_client_id(
-                    creds, str(order.id), order.symbol
-                )
+                status = await self._fetch_status(creds, order)
                 if status is not None:
                     await self._sync(order, status)
         latest = await self._repo.get(session.id)
+        if latest is not None and latest.expected_quantity > 0:
+            observations = await self._provider.fetch_attached_sl_orders(
+                creds, session.symbol, since=session.created_at
+            )
+            for raw in observations:
+                if raw.get("parentOrderLinkId") != str(latest.entry_order_id):
+                    continue
+                try:
+                    binding = await NativeSLObservationService(self._orders).bind(
+                        session.exchange_account_id, raw
+                    )
+                except NativeSLParentPending as pending:
+                    await self._risk.request_signal(
+                        pending.session_id, pending.generation, "close", commit=False
+                    )
+                    await self._repo.commit()
+                    continue
+                if binding is not None:
+                    from src.trading.providers import _build_bybit_v5_order_status_fetch
+
+                    await self._sync(binding[0], _build_bybit_v5_order_status_fetch(binding[1]))
+            latest = await self._repo.get(session.id)
         if latest is not None and latest.entry_terminal and latest.position_quantity > 0:
             position = await self._provider.fetch_position(creds, session.symbol)
             if position is None:
@@ -224,6 +249,8 @@ class BybitCodeRiskVenue:
         return order
 
     async def _submit(self, creds: Credentials, order: Order) -> dict[str, Any]:
+        if is_native_sl(order):
+            raise CodeRiskError("관측된 native SL은 새로 발주할 수 없습니다")
         # UUID가 주문 id이자 Bybit orderLinkId다. 응답 유실 후 생성보다 조회가 먼저다.
         status = await self._provider.fetch_order_by_client_id(creds, str(order.id), order.symbol)
         if status is None:
@@ -257,9 +284,11 @@ class BybitCodeRiskVenue:
                 await self._orders.save(order)
             # 외부 조회 사이에 다른 세션의 미정산이 생겨도 새 진입을 보내지 않는다.
             # 아직 거래소에 없는 주문은 pending으로 남겨 취소 확인이 막히지 않게 한다.
-            if not order.reduce_only and (
-                await self._repo.has_unsettled_exit_for_account(order.exchange_account_id)
-            ) is True:
+            if (
+                not order.reduce_only
+                and (await self._repo.has_unsettled_exit_for_account(order.exchange_account_id))
+                is True
+            ):
                 raise CodeRiskReconciliationPending("거래소 계정의 미정산 청산 증거를 기다립니다")
             await self._orders.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
             await self._repo.commit()
@@ -303,6 +332,30 @@ class BybitCodeRiskVenue:
         }
 
     async def _sync(self, order: Order, status: OrderStatusFetch) -> OrderStatusFetch:
+        if is_native_sl(order):
+            raw = status.raw.get("info")
+            raw = dict(raw) if isinstance(raw, dict) else dict(status.raw)
+            # 이 경로는 trusted linear provider의 외부 ID 조회다. category는 응답 envelope다.
+            raw.setdefault("category", "linear")
+            binding = await NativeSLObservationService(self._orders).bind(
+                order.exchange_account_id, raw
+            )
+            if binding is None or binding[0].id != order.id:
+                raise CodeRiskReconciliationPending("native SL의 명시 귀속 확인을 기다립니다")
+            order, raw = binding
+            if status.exchange_order_id != order.exchange_order_id:
+                raise CodeRiskReconciliationPending("native SL의 외부 주문 ID가 다릅니다")
+            if raw.get("_native_historical") is True:
+                return status
+            status = replace(
+                status,
+                raw=raw,
+                filled_quantity=Decimal(str(raw["cumExecQty"])),
+                cumulative_value=Decimal(str(raw["cumExecValue"])),
+                filled_price=Decimal(str(raw["avgPrice"]))
+                if Decimal(str(raw["cumExecQty"])) > 0
+                else None,
+            )
         # legacy mapper는 부분 체결 취소를 filled로 합친다. 새 원장은 취소 잔량을 보존한다.
         info = status.raw.get("info")
         native_status = status.raw.get("orderStatus") or (
@@ -391,6 +444,13 @@ class BybitCodeRiskVenue:
         await self._repo.commit()
         return status
 
+    async def _fetch_status(self, creds: Credentials, order: Order) -> OrderStatusFetch | None:
+        if is_native_sl(order):
+            if not order.exchange_order_id:
+                raise CodeRiskReconciliationPending("native SL의 외부 주문 ID가 없습니다")
+            return await self._provider.fetch_order(creds, order.exchange_order_id, order.symbol)
+        return await self._provider.fetch_order_by_client_id(creds, str(order.id), order.symbol)
+
     async def _cancel_confirm(self, creds: Credentials, order: Order) -> None:
         if order.state in {OrderState.filled, OrderState.cancelled, OrderState.rejected}:
             return
@@ -410,10 +470,13 @@ class BybitCodeRiskVenue:
                 )
             await self._repo.commit()
             return
-        status = await self._provider.fetch_order_by_client_id(creds, str(order.id), order.symbol)
+        status = await self._fetch_status(creds, order)
         if status is None:
             # 검색 지연·응답 유실은 미발주 증거가 아니므로 취소 성공으로 간주하지 않는다.
             raise CodeRiskError("취소 대상의 거래소 상태를 확인할 수 없습니다")
+        if is_native_sl(order):
+            # 취소도 외부 응답의 동일 parent/child 귀속을 먼저 검증한다.
+            status = await self._sync(order, status)
         if status.status == "submitted":
             await self._provider.cancel_order(creds, status.exchange_order_id, order.symbol)
             status = await self._provider.fetch_order(creds, status.exchange_order_id, order.symbol)

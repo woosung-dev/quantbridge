@@ -36,6 +36,7 @@ from src.trading.models import ExchangeMode, Order, OrderState
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import OrderRequest, OrderResponse
 from src.trading.services.account_service import ExchangeAccountService, ExecutionAccount
+from src.trading.services.native_sl_observation_service import is_native_sl
 from src.trading.services.protocols import OrderDispatcher, StrategySessionsPort
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,9 @@ class OrderService:
         if order is None:
             return CancelOutcome("not_found")
 
+        if is_native_sl(order):
+            # 보호 주문은 전용 risk 경로에서 귀속·terminal을 확인하며 취소한다.
+            return CancelOutcome("conflict")
         if order.state == OrderState.submitted:
             from src.tasks.trading import cancel_order_task
 
@@ -394,9 +398,10 @@ class OrderService:
             else:
                 pre_existing = None
             if pre_existing is None:
-                if not req.reduce_only and (
-                    await self._repo.has_unsettled_code_exit(req.exchange_account_id)
-                ) is True:
+                if (
+                    not req.reduce_only
+                    and (await self._repo.has_unsettled_code_exit(req.exchange_account_id)) is True
+                ):
                     raise NativeExitUnsettled()
                 try:
                     await self._kill_switch.ensure_not_gated(
