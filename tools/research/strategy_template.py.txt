@@ -1,0 +1,114 @@
+# 공개 지표 원리를 조합한 미검증 연구 가설 v2. 영상 원본 재현물이 아니다.
+def mean(x):
+    return sum(x) / len(x)
+
+def ema(x, n):
+    value = x[0]
+    for item in x[1:]:
+        value += (item - value) * 2 / (n + 1)
+    return value
+
+def wma(x):
+    return sum((i + 1) * item for i, item in enumerate(x)) / (len(x) * (len(x) + 1) / 2)
+
+def vwap(h, l, c, v, n):
+    volume = sum(v[-n:])
+    return sum((h[i] + l[i] + c[i]) / 3 * v[i] for i in range(len(c) - n, len(c))) / volume if volume else c[-1]
+
+def cloud(h, l):
+    hh, ll = h[:-26], l[:-26]
+    tenkan = (max(hh[-9:]) + min(ll[-9:])) / 2
+    kijun = (max(hh[-26:]) + min(ll[-26:])) / 2
+    return ((tenkan + kijun) / 2, (max(hh[-52:]) + min(ll[-52:])) / 2)
+
+def obv(c, v, n):
+    return sum(v[i] if c[i] > c[i - 1] else -v[i] if c[i] < c[i - 1] else 0 for i in range(len(c) - n, len(c)))
+
+def slope(x):
+    mid = (len(x) - 1) / 2
+    return sum((i - mid) * value for i, value in enumerate(x))
+
+def kama(x):
+    value = x[10]
+    for i in range(11, len(x)):
+        volatility = sum(abs(x[j] - x[j - 1]) for j in range(i - 9, i + 1))
+        er = abs(x[i] - x[i - 10]) / volatility if volatility else 0
+        value += (er * (2 / 3 - 2 / 31) + 2 / 31) ** 2 * (x[i] - value)
+    return value
+
+def rsi(c):
+    differences = [c[i] - c[i - 1] for i in range(1, len(c))]
+    gain = mean([max(d, 0) for d in differences[:14]])
+    loss = mean([max(-d, 0) for d in differences[:14]])
+    for d in differences[14:]:
+        gain = (gain * 13 + max(d, 0)) / 14
+        loss = (loss * 13 + max(-d, 0)) / 14
+    return 100 - 100 / (1 + gain / loss) if loss else 100 if gain else 50
+
+def stoch(h, l, c):
+    low, high = min(l[-14:]), max(h[-14:])
+    return 100 * (c[-1] - low) / (high - low) if high != low else 50
+
+def stoch_d(h, l, c):
+    return mean([stoch(h, l, c), stoch(h[:-1], l[:-1], c[:-1]), stoch(h[:-2], l[:-2], c[:-2])])
+
+def cci(h, l, c):
+    typical = [(h[i] + l[i] + c[i]) / 3 for i in range(len(c) - 20, len(c))]
+    center = mean(typical)
+    deviation = mean([abs(x - center) for x in typical])
+    return (typical[-1] - center) / (0.015 * deviation) if deviation else 0
+
+def macd_hist(c):
+    fast, slow = c[0], c[0]
+    macd = []
+    for price in c:
+        fast += (price - fast) * 2 / 13
+        slow += (price - slow) * 2 / 27
+        macd.append(fast - slow)
+    return macd[-1] - ema(macd, 9)
+
+def bb(c, deviations):
+    center = mean(c[-20:])
+    variance = mean([(x - center) ** 2 for x in c[-20:]])
+    return center + deviations * variance ** 0.5
+
+def atr(h, l, c):
+    tr = [max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1])) for i in range(1, len(c))]
+    value = mean(tr[:14])
+    for x in tr[14:]:
+        value = (value * 13 + x) / 14
+    return value
+
+def mfi(h, l, c, v):
+    typical = [(h[i] + l[i] + c[i]) / 3 for i in range(len(c))]
+    positive = sum(typical[i] * v[i] for i in range(len(c) - 14, len(c)) if typical[i] > typical[i - 1])
+    negative = sum(typical[i] * v[i] for i in range(len(c) - 14, len(c)) if typical[i] < typical[i - 1])
+    return 100 - 100 / (1 + positive / negative) if negative else 100 if positive else 50
+
+def on_bar(ctx, state):
+    history = ctx["history"][-201:]
+    if len(history) < 201:
+        return {"action": "hold"}
+    c = [float(bar["close"]) for bar in history]
+    h = [float(bar["high"]) for bar in history]
+    l = [float(bar["low"]) for bar in history]
+    v = [float(bar["volume"]) for bar in history]
+    long_filter = __LONG_FILTER__
+    short_filter = __SHORT_FILTER__
+    long_signal = __LONG_SIGNAL__
+    short_signal = __SHORT_SIGNAL__
+    position = ctx.get("position") or {}
+    side = position.get("direction", "flat")
+    if side == "long":
+        entry = float(position["average_price"])
+        risk_exit = c[-1] <= entry * 0.98 or c[-1] >= entry * 1.04
+        return {"action": "close" if short_signal or not long_filter or risk_exit else "hold"}
+    if side == "short":
+        entry = float(position["average_price"])
+        risk_exit = c[-1] >= entry * 1.02 or c[-1] <= entry * 0.96
+        return {"action": "close" if long_signal or not short_filter or risk_exit else "hold"}
+    if long_filter and long_signal:
+        return {"action": "long"}
+    if short_filter and short_signal:
+        return {"action": "short"}
+    return {"action": "hold"}

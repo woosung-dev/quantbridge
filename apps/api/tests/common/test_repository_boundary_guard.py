@@ -186,8 +186,8 @@ def test_dependencies_do_not_contain_scoped_select_calls() -> None:
         if _select_calls(path)
     }
 
-    # 9 = 2026-10-02 `notifications/dependencies.py`(PWA 웹 푸시) 편입.
-    assert len(dependency_paths) == 9
+    # 10 = ADR-045의 `python_strategy/dependencies.py`도 같은 경계를 검사한다.
+    assert len(dependency_paths) == 10
     assert paths_with_calls == set()
 
 

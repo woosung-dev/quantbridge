@@ -424,6 +424,10 @@ def create_app() -> FastAPI:
 
     app.include_router(strategy_router, prefix="/api/v1")
 
+    from src.python_strategy.router import router as python_strategy_router
+
+    app.include_router(python_strategy_router, prefix="/api/v1")
+
     from src.backtest.router import router as backtest_router
 
     app.include_router(backtest_router, prefix="/api/v1")

@@ -29,6 +29,7 @@ from src.notifications import models as _notifications_models  # noqa: F401
 # ★2026-08-17 [BL-770] — optimizer·waitlist 가 빠져 있었다. `table=True` 모델이 metadata 에
 #   등록되지 않으니 `alembic check` 가 그 두 테이블을 **removed table** 로 보고 rc=255 로 죽었다.
 from src.optimizer import models as _optimizer_models  # noqa: F401
+from src.python_strategy import models as _python_strategy_models  # noqa: F401
 from src.strategy import models as _strategy_models  # noqa: F401
 from src.stress_test import models as _stress_test_models  # noqa: F401
 from src.trading import models as _trading_models  # noqa: F401

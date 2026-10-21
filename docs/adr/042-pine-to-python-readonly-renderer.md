@@ -1,6 +1,8 @@
 # ADR-042 — Pine AST → Python **읽기 전용** 렌더러. 실행 경로를 만들지 않는다
 
 - **상태:** Accepted (2026-08-27, 사용자 결정)
+- **부분 개정:** 2026-10-21 [ADR-045](./045-python-strategy-research.md)는 별도 Python 연구 전략의 격리
+  백테스트를 허용한다. 본 ADR의 Pine AST 렌더러와 그 출력은 계속 읽기 전용이다.
 - **범위:** `apps/api/src/strategy/pine_v2/py_renderer.py` (신규)
 - **관련:** [ADR-004](./004-pine-parser-approach-selection.md)(§"접근 2가 탈락한 상세 근거" — 이 대안의 출처) · [ADR-003](./003-pine-runtime-safety-and-parser-scope.md)(exec/eval 금지) · [ADR-040](./040-strategy-brief-outside-trust-layer.md) · [ADR-041](./041-ai-strategy-generation.md)
 
@@ -12,7 +14,7 @@
 3. **부재를 테스트가 집행한다** — 관례가 아니라 집행이다:
    - 렌더러 산출물에 `import`/`exec`/`eval`/dunder 가 나타나지 않는다는 AST 단언
    - 렌더러 출력이 **어떤 실행 경로에도 배선되지 않는다**는 호출그래프 부재 단언
-4. **Python 실행기는 만들지 않는다.** 사용자 Python 전략도, LLM 이 쓴 Python 도 실행하지 않는다.
+4. **렌더러 출력은 실행하지 않는다.** 별도 작성된 Python 연구 전략의 실행 경계는 ADR-045가 갖는다.
 
 ## 이유
 
