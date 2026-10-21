@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 
 import pandas as pd
@@ -183,7 +184,7 @@ monthly = timeframe.ismonthly
     assert state["monthly"] is False
 
 
-def test_missing_context_preserves_legacy_time_and_timeframe_defaults() -> None:
+def test_missing_time_is_na_and_preserves_legacy_timeframe_defaults() -> None:
     source = """//@version=5
 indicator("t")
 t = time
@@ -191,7 +192,9 @@ p = timeframe.period
 m = timeframe.multiplier
 """
     state = run_historical(source, _ohlcv([10.0], dated=False)).final_state
-    assert state == {"t": 50 * 365 * 86_400 * 1000, "p": "1D", "m": 0}
+    assert math.isnan(state["t"])
+    assert state["p"] == "1D"
+    assert state["m"] == 0
 
 
 @pytest.mark.parametrize("version", [4, 5, 6])
