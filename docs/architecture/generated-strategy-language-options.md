@@ -73,6 +73,12 @@ FE·strategy journey·live-smoke 통과다. 미정산 계정 가드·전송 직�
 원시 관측 근거는 control의 `runs/sol-strategy-lab/native-product-journey-latest.json`과
 `ci-backend-44f93d68.log`에 보존한다.
 
+후속 `7e00442b`의 명시 부모 attached SL·미정산·물리 계정/심볼 소유권·최종 발주 경계는
+control 슬롯 SQL과 가짜 공급자를 사용한 독립 검사 `116 passed`(12.11초), mypy 286파일,
+ruff·OpenAPI drift 검사로 확인했다. 같은 거래소 체결을 두 DB 연결이 동시에 처리하는
+경합도 포함한다. 원시 근거는 `runs/sol-strategy-lab/native-sl-observation/`이며 실제
+Demo 자식 체결 관측이 아니다. 후속 head의 전체 판정은 PR CI를 따른다.
+
 ## 실행 기한과 제품 적합성 판단
 
 백테스트 transport 기본 기한은 최대 900초, live는 **transport 생성부터 30초**다
