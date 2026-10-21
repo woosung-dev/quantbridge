@@ -9,6 +9,7 @@
 //   (Track S 의 `if cond` 형태), 그때 「신호 없음」이라고 쓰면 거짓이다.
 
 import Link from "next/link";
+import { memo } from "react";
 
 import { StateBox } from "@/components/state-box";
 import { describeApiError } from "@/lib/api-client";
@@ -33,7 +34,10 @@ const ORDER_LABEL: Record<string, string> = {
   "strategy.close_all": "전량 청산",
 };
 
-export function StrategyBriefPanel({
+// ★`memo` — 편집 화면에서는 키 입력마다 다시 그려지는 진단 띠(`DiagnosticsStrip`) 안에 있다.
+//   props 가 원시값 둘뿐이라 얕은 비교로 충분하고, 브리핑·해설·파이썬 뷰 하위 트리 전체를
+//   입력마다 다시 그리지 않게 한다(rerender-memo).
+export const StrategyBriefPanel = memo(function StrategyBriefPanel({
   strategyId,
   editHref,
 }: {
@@ -65,7 +69,7 @@ export function StrategyBriefPanel({
   }
 
   return <BriefBody brief={query.data} editHref={editHref} />;
-}
+});
 
 function BriefBody({ brief, editHref }: { brief: StrategyBrief; editHref?: string }) {
   const { parse, orders, signals, track } = brief;

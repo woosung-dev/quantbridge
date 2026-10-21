@@ -55,15 +55,18 @@ export function Step3Backtest({
   const progress = useBacktestProgress(backtestId ?? undefined);
 
   // 마운트 시 1회만 create 요청 — strategyId 가 있고 아직 trigger 안 된 경우.
-  // LESSON-004: effect deps 는 primitive/stable 참조만.
+  // LESSON-004(H-1): effect deps 는 primitive/stable 참조만. ★`create`(useMutation 결과 객체)를
+  //   통째로 dep 에 두면 진행률 폴링으로 재렌더될 때마다 effect 가 다시 돈다 — 원시값 `isPending`
+  //   과 안정 참조 `mutate` 만 꺼내 쓴다.
+  const { isPending: isCreatePending, mutate: createBacktest } = create;
   useEffect(() => {
     if (!strategyId) return;
     if (hasTriggeredRef.current) return;
-    if (create.isPending) return;
+    if (isCreatePending) return;
     if (backtestId !== null) return;
     hasTriggeredRef.current = true;
     const window = buildDefaultWindow();
-    create.mutate({
+    createBacktest({
       strategy_id: strategyId,
       symbol: "BTCUSDT",
       timeframe: "1h",
@@ -79,7 +82,7 @@ export function Step3Backtest({
       include_funding: true,
       fill_timing: "bar_close",
     });
-  }, [strategyId, create, backtestId]);
+  }, [strategyId, isCreatePending, createBacktest, backtestId]);
 
   // completed 시 부모에게 한 번만 알림 (hasPropagatedRef 로 idempotent).
   const progressStatus = progress.data?.status;

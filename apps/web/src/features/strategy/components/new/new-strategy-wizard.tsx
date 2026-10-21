@@ -44,6 +44,32 @@ const TIMEFRAME_OPTIONS = ["15m", "1h", "4h", "1d"] as const;
 // 지원 함수 사전(04 진단) — pine-lexicon 정적 상수를 삽입 순서대로 나열한다. 동기 데이터라
 // 로딩/스켈레톤 상태가 없다(§4.9 가짜 로딩 금지). 실제 지원 여부 판정은 서버 파서가 한다.
 const LEXICON_ENTRIES = Object.entries(PINE_FUNCTION_LEXICON);
+// 지원 함수 사전 목록 — 입력과 무관한 정적 JSX 라 모듈 스코프로 올린다(rendering-hoist-jsx).
+// ★위저드는 Monaco 키 입력마다 다시 그려지므로, 컴포넌트 안에 두면 사전 항목 전부를
+//   입력마다 다시 만든다.
+// ★tabIndex/role — 이 목록은 `max-height: 236px` 안에서 1,102px 를 스크롤한다.
+// 포커스 가능한 자식이 하나도 없어서 **키보드 사용자는 866px 를 읽을 방법이
+// 없었다**(2026-09-06 실측, axe `scrollable-region-focusable` serious).
+// ★`role="region"` 을 붙이지 않는다 — `ul` 의 list 롤을 덮어써 「N개 항목」
+// 안내가 사라진다. 포커스 가능성만 주고 이름은 `aria-label` 로 단다.
+// ★`TableScrollRegion` 을 못 쓴다 — 그것은 `div` 래퍼이고 여기는 `ul` 자신이
+// 스크롤 컨테이너다(래퍼를 끼우면 list 롤과 항목 수 안내가 갈라진다).
+const LEXICON_LIST = (
+  <ul
+    className="lexicon-list"
+    data-testid="lexicon-list"
+    // biome-ignore lint/a11y/noNoninteractiveTabindex: 스크롤 컨테이너는 tabindex=0 이 있어야 키보드로 스크롤된다(WCAG 2.1.1). 위젯화가 아니다.
+    tabIndex={0}
+    aria-label={`지원 함수 사전 ${LEXICON_ENTRIES.length}종`}
+  >
+    {LEXICON_ENTRIES.map(([fnName, desc]) => (
+      <li key={fnName}>
+        <code className="mono">{fnName}</code>
+        <span>{desc.summary}</span>
+      </li>
+    ))}
+  </ul>
+);
 // 레포 내 실존 예제 스크립트. apps/web/public/samples/ema-crossover.pine (정적 자산).
 const EXAMPLE_PINE_URL = "/samples/ema-crossover.pine";
 
@@ -440,27 +466,7 @@ export function NewStrategyWizard() {
               </div>
             </div>
             <div className="card-body">
-              {/* ★tabIndex/role — 이 목록은 `max-height: 236px` 안에서 1,102px 를 스크롤한다.
-                  포커스 가능한 자식이 하나도 없어서 **키보드 사용자는 866px 를 읽을 방법이
-                  없었다**(2026-09-06 실측, axe `scrollable-region-focusable` serious).
-                  ★`role="region"` 을 붙이지 않는다 — `ul` 의 list 롤을 덮어써 「N개 항목」
-                  안내가 사라진다. 포커스 가능성만 주고 이름은 `aria-label` 로 단다.
-                  ★`TableScrollRegion` 을 못 쓴다 — 그것은 `div` 래퍼이고 여기는 `ul` 자신이
-                  스크롤 컨테이너다(래퍼를 끼우면 list 롤과 항목 수 안내가 갈라진다). */}
-              <ul
-                className="lexicon-list"
-                data-testid="lexicon-list"
-                // biome-ignore lint/a11y/noNoninteractiveTabindex: 스크롤 컨테이너는 tabindex=0 이 있어야 키보드로 스크롤된다(WCAG 2.1.1). 위젯화가 아니다.
-                tabIndex={0}
-                aria-label={`지원 함수 사전 ${LEXICON_ENTRIES.length}종`}
-              >
-                {LEXICON_ENTRIES.map(([fnName, desc]) => (
-                  <li key={fnName}>
-                    <code className="mono">{fnName}</code>
-                    <span>{desc.summary}</span>
-                  </li>
-                ))}
-              </ul>
+              {LEXICON_LIST}
               <p className="state-note">
                 <InfoIcon aria-hidden="true" />
                 미지원 함수가 하나라도 있으면 부분 실행 없이 전체를 지원되지 않음으로 처리합니다.

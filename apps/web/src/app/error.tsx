@@ -5,7 +5,7 @@
 // 상태 코드 500, 발생 시각(렌더 시각), 요청 ID(error.digest, 없으면 무데이터 셀).
 // HTTP 재시도는 리로드일 뿐 트레이딩 주문 재시도(3회 · 지수 백오프)와 다른 개념이라 섞지 않는다(§4.7).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { HomeIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
@@ -27,8 +27,10 @@ export default function GlobalError({
 
   // digest 가 있으면 서버 로그 검색 키(요청 ID)로 노출. 없으면 무데이터 셀 — 지어내지 않는다.
   const requestId = error.digest ?? "";
-  // 발생 시각 — 렌더 시점 1회 고정(재렌더 흔들림 방지).
-  const occurredAt = useMemo(() => formatNowKst(), []);
+  // 발생 시각 — 렌더 시점 1회 고정(재렌더 흔들림 방지). ★`useMemo` 가 아니라 lazy `useState` 다
+  //   (`rerender-lazy-state-init`) — React 는 memo 캐시를 버릴 수 있다고 명시하므로 「1회 고정」을
+  //   보장하는 것은 state 초기화뿐이다.
+  const [occurredAt] = useState(formatNowKst);
   // 복사 후 짧게 완료 라벨을 노출한다(무한 애니메이션 없이 상태만 바꾼다).
   const [hasCopied, setHasCopied] = useState(false);
   // "다시 시도" 는 reset() 이 즉시 언마운트할 수도 외부 fetch 가 또 실패할 수도 있어

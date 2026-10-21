@@ -64,8 +64,11 @@ const STATE_FILTERS: readonly OrderStateFilter[] = ["all", "filled", "open", "cl
 //   바뀐다. 부모(블로터 전체)가 이를 구조분해하면 5초 폴링마다 표 전체가 리렌더된다 —
 //   같은 쿼리 키라 추가 fetch 는 없고 이 chip 만 리렌더된다 (/vercel-react-best-practices).
 // dataUpdatedAt 0(미수신)이면 그리지 않는다. UTC 고정(formatTimeSeconds SSOT).
+// ★`notifyTransitions: false` — `useOrders` 는 인스턴스마다 자기 `prevStatesRef` 로 전환을
+//   감지해 toast 를 낸다. 이 chip 이 기본값(true)으로 부르면 본문 `OrdersBlotter` 와 **같은 주문
+//   전환에 toast 가 두 번** 뜬다. 전환 알림은 본문 인스턴스 하나가 소유한다.
 function OrdersLastUpdatedChip() {
-  const { dataUpdatedAt } = useOrders(FETCH_LIMIT);
+  const { dataUpdatedAt } = useOrders(FETCH_LIMIT, { notifyTransitions: false });
   if (!dataUpdatedAt) return null;
   return (
     <span className="chip" data-testid="orders-last-updated">

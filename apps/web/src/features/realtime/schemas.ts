@@ -78,10 +78,14 @@ export type RealtimeEnvelope = z.infer<typeof RealtimeEnvelopeSchema>;
 export function parseRealtimeEnvelope(value: unknown): RealtimeEnvelope | null {
   if (typeof value !== "string") return null;
   try {
-    const raw: unknown = JSON.parse(value);
-    const result = RealtimeEnvelopeSchema.safeParse(raw);
-    return result.success ? result.data : null;
+    return validateRealtimeEnvelope(JSON.parse(value));
   } catch {
     return null;
   }
+}
+
+/** 이미 `JSON.parse` 한 값을 검증한다 — ws-client 가 프레임당 한 번만 파싱하도록 분리했다. */
+export function validateRealtimeEnvelope(raw: unknown): RealtimeEnvelope | null {
+  const result = RealtimeEnvelopeSchema.safeParse(raw);
+  return result.success ? result.data : null;
 }

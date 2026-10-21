@@ -1,5 +1,5 @@
 // 인증된 실시간 이벤트 연결의 재연결·heartbeat 수명을 관리하는 프레임워크 무관 클라이언트.
-import { parseRealtimeEnvelope, type RealtimeEnvelope } from "./schemas";
+import { validateRealtimeEnvelope, type RealtimeEnvelope } from "./schemas";
 
 export type WsStatus = "idle" | "connecting" | "authed" | "closed";
 
@@ -122,11 +122,13 @@ export class RealtimeWsClient implements RealtimeClient {
       void this.authenticate(socket);
     };
     socket.onmessage = (event) => {
-      if (isReadyMessage(event.data)) {
+      // 프레임당 `JSON.parse` 는 한 번 — ticker 가 초당 여러 번 오는 핫 경로다.
+      const raw = parseJsonFrame(event.data);
+      if (isReadyMessage(raw)) {
         this.handleReady();
         return;
       }
-      const parsed = parseRealtimeEnvelope(event.data);
+      const parsed = validateRealtimeEnvelope(raw);
       if (parsed) this.options.onEvent(parsed);
     };
     socket.onclose = (event) => {
@@ -211,12 +213,17 @@ export class RealtimeWsClient implements RealtimeClient {
   }
 }
 
-function isReadyMessage(value: string): boolean {
+function parseJsonFrame(value: unknown): unknown {
+  if (typeof value !== "string") return undefined;
   try {
-    return JSON.parse(value).type === "ready";
+    return JSON.parse(value);
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+function isReadyMessage(raw: unknown): boolean {
+  return typeof raw === "object" && raw !== null && "type" in raw && raw.type === "ready";
 }
 
 export function createRealtimeWsClient(options: RealtimeWsClientOptions): RealtimeWsClient {
