@@ -133,12 +133,12 @@ def test_unsupported_oracle_is_explicitly_unavailable() -> None:
         action("unknown", history([100]))
 
 
-def wave_bars() -> list[dict[str, Any]]:
+def wave_bars(count: int = 720) -> list[dict[str, Any]]:
     import math
 
     bars: list[dict[str, Any]] = []
     start = datetime(2026, 1, 1, tzinfo=UTC)
-    for index in range(720):
+    for index in range(count):
         trend = (
             100 + index * 0.07
             if index < 240
@@ -253,3 +253,66 @@ def test_oracle_never_imports_app_indicators_compiler_or_reference_specs() -> No
         name.startswith(("src.", "tools.")) or "compiler" in name or "catalogue" in name
         for name in modules
     )
+
+
+@pytest.mark.parametrize("ident", ["05", "06", "07", "27", "30"])
+def test_complex_equations_have_positive_negative_and_no_future_access(ident: str) -> None:
+    bars = wave_bars(1440 if ident == "30" else 720)
+    found: set[str] = set()
+    for tape in (bars, mirror(bars)):
+        state: dict[str, Any] = {}
+        for size in range(1, len(tape) + 1):
+            observed = oracle.expected_action(ident, tape[:size], {"direction": "flat"}, state)
+            found.add(observed)
+            if size in (200, len(tape)):
+                assert observed == action(ident, tape[:size])
+    assert {"long", "short"} <= found
+    assert action(ident, history([100] * 900)) == "hold"
+    assert action(ident, (bars + history([9999, 1]))[: len(bars)]) == action(ident, bars)
+
+
+def test_supertrend_band_ratchet_and_adx_known_trend() -> None:
+    trend = oracle._Math()
+    trend.extend(history([100] * 10 + [110, 90]))
+    assert trend.supertrend()[-3:] == [-1, 1, -1]
+    dmi = oracle._Math()
+    dmi.extend(history(list(range(100, 140))))
+    plus, minus, adx = dmi.dmi()
+    assert plus[-1] > 0
+    assert minus[-1] == 0
+    assert adx[-1] == pytest.approx(100)
+
+
+def test_ichimoku_uses_displayed_cloud_from_26_bars_ago() -> None:
+    data = oracle._Math()
+    data.extend(history(list(range(100, 180))))
+    tenkan, kijun, upper, lower = data.ichimoku()
+    assert tenkan[-1] == 175
+    assert kijun[-1] == 166.5
+    assert upper[-1] == 144.75
+    assert lower[-1] == 127.5
+    assert __import__("math").isnan(upper[76])
+
+
+def test_regression_known_line_and_htf_only_complete_buckets() -> None:
+    data = oracle._Math()
+    data.extend(history(list(range(100, 150))))
+    slopes, lower, upper = data.regression()
+    assert slopes[-1] == 1
+    assert lower[-1] == upper[-1] == 149
+    htf = oracle._Math()
+    bars = history(list(range(100, 902)))
+    bars[800]["close"] = "1"
+    bars[801]["close"] = "1"
+    htf.extend(bars)
+    regimes = htf.htf_regime()
+    assert regimes[798] == 0
+    assert regimes[799:] == [1, 1, 1]
+    assert len(htf.cache["htf_closes"]) == 200
+
+
+@pytest.mark.parametrize("ident", ["09", "16", "22"])
+def test_ambiguous_rules_are_unavailable_instead_of_false_hold(ident: str) -> None:
+    assert oracle.unsupported_reason(ident)
+    with pytest.raises(oracle.OracleUnavailable):
+        action(ident, history([100] * 300))

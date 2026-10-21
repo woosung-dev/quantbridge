@@ -7,7 +7,7 @@ history는 현재 완료 봉을 포함한다. 상태에는 이 판정기의 증�
 from __future__ import annotations
 
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -44,14 +44,19 @@ class OracleUnavailable(ValueError):
 
 
 def supported_ids() -> tuple[str, ...]:
-    return _DEV + _SIMPLE
+    return _DEV + _SIMPLE + ("05", "06", "07", "27", "30")
 
 
 def unsupported_reason(strategy_id: str) -> str | None:
+    unavailable = {
+        "09": "squeeze 관찰창과 발동봉 포함 여부·소비/재설정 규칙의 동결이 필요합니다",
+        "16": "pivot의 가격/RSI 기준·동률·확인 후 진입 유효기간이 확정되지 않았습니다",
+        "22": "사전 고정 UTC anchor의 실제 시각이 요구에 없습니다",
+    }
     return (
         None
         if strategy_id in supported_ids()
-        else "독립 수식 판정기가 아직 구현되지 않았습니다"
+        else unavailable.get(strategy_id, "독립 수식 판정기가 아직 구현되지 않았습니다")
     )
 
 
@@ -373,6 +378,184 @@ class _Math:
             "aroon_down", lambda i: value(i, False)
         )
 
+    def supertrend(self) -> list[float]:
+        atr = self.atr(10)
+        upper = self.cache.setdefault("supertrend_upper", [])
+        lower = self.cache.setdefault("supertrend_lower", [])
+        direction = self.cache.setdefault("supertrend_direction", [])
+        close, high, low = (self.fields[key] for key in ("close", "high", "low"))
+        for index in range(len(direction), len(self.times)):
+            if not math.isfinite(atr[index]):
+                upper.append(_NAN)
+                lower.append(_NAN)
+                direction.append(_NAN)
+                continue
+            basic_upper = (high[index] + low[index]) / 2 + 3 * atr[index]
+            basic_lower = (high[index] + low[index]) / 2 - 3 * atr[index]
+            valid_previous = index > 0 and math.isfinite(upper[-1])
+            final_upper = (
+                basic_upper
+                if not valid_previous
+                or basic_upper < upper[-1]
+                or close[index - 1] > upper[-1]
+                else upper[-1]
+            )
+            final_lower = (
+                basic_lower
+                if not valid_previous
+                or basic_lower > lower[-1]
+                or close[index - 1] < lower[-1]
+                else lower[-1]
+            )
+            previous = direction[-1] if valid_previous else -1
+            current_direction = (
+                (1 if close[index] > final_upper else -1)
+                if previous < 0
+                else (-1 if close[index] < final_lower else 1)
+            )
+            upper.append(final_upper)
+            lower.append(final_lower)
+            direction.append(current_direction)
+        return direction
+
+    def dmi(self) -> tuple[list[float], list[float], list[float]]:
+        high, low = self.fields["high"], self.fields["low"]
+        plus = self.derived(
+            "dm_plus",
+            lambda i: (
+                max(high[i] - high[i - 1], 0)
+                if i and high[i] - high[i - 1] > low[i - 1] - low[i]
+                else 0
+            ),
+        )
+        minus = self.derived(
+            "dm_minus",
+            lambda i: (
+                max(low[i - 1] - low[i], 0)
+                if i and low[i - 1] - low[i] > high[i] - high[i - 1]
+                else 0
+            ),
+        )
+        plus_rma = self.smooth("dm_plus_rma", plus, 14, wilder=True)
+        minus_rma = self.smooth("dm_minus_rma", minus, 14, wilder=True)
+        atr = self.atr(14)
+        plus_di = self.derived(
+            "plus_di",
+            lambda i: (
+                100 * plus_rma[i] / atr[i] if atr[i] > 0 else 0 if atr[i] == 0 else _NAN
+            ),
+        )
+        minus_di = self.derived(
+            "minus_di",
+            lambda i: (
+                100 * minus_rma[i] / atr[i]
+                if atr[i] > 0
+                else 0
+                if atr[i] == 0
+                else _NAN
+            ),
+        )
+        dx = self.derived(
+            "dmi_dx",
+            lambda i: (
+                100 * abs(plus_di[i] - minus_di[i]) / (plus_di[i] + minus_di[i])
+                if plus_di[i] + minus_di[i] > 0
+                else 0
+                if plus_di[i] + minus_di[i] == 0
+                else _NAN
+            ),
+        )
+        return plus_di, minus_di, self.smooth("adx14", dx, 14, wilder=True)
+
+    def ichimoku(self) -> tuple[list[float], list[float], list[float], list[float]]:
+        high, low = self.fields["high"], self.fields["low"]
+        midpoints = []
+        for length in (9, 26, 52):
+            highest = self.rolling(f"ichi_high{length}", high, length, "max")
+            lowest = self.rolling(f"ichi_low{length}", low, length, "min")
+            midpoints.append(
+                self.derived(
+                    f"ichi_mid{length}",
+                    lambda i, maximum=highest, minimum=lowest: (
+                        (maximum[i] + minimum[i]) / 2
+                    ),
+                )
+            )
+        tenkan, kijun, span_b = midpoints
+        upper = self.derived(
+            "ichi_cloud_upper",
+            lambda i: (
+                max((tenkan[i - 26] + kijun[i - 26]) / 2, span_b[i - 26])
+                if i >= 77
+                else _NAN
+            ),
+        )
+        lower = self.derived(
+            "ichi_cloud_lower",
+            lambda i: (
+                min((tenkan[i - 26] + kijun[i - 26]) / 2, span_b[i - 26])
+                if i >= 77
+                else _NAN
+            ),
+        )
+        return tenkan, kijun, upper, lower
+
+    def regression(self) -> tuple[list[float], list[float], list[float]]:
+        slopes = self.cache.setdefault("ols_slope", [])
+        lower = self.cache.setdefault("ols_lower", [])
+        upper = self.cache.setdefault("ols_upper", [])
+        for index in range(len(slopes), len(self.times)):
+            if index < 49:
+                slopes.append(_NAN)
+                lower.append(_NAN)
+                upper.append(_NAN)
+                continue
+            prices = self.fields["close"][index - 49 : index + 1]
+            mean = sum(prices) / 50
+            slope = (
+                sum((x - 24.5) * (price - mean) for x, price in enumerate(prices))
+                / 10412.5
+            )
+            endpoint = mean + slope * 24.5
+            deviation = math.sqrt(
+                sum(
+                    (price - (mean + slope * (x - 24.5))) ** 2
+                    for x, price in enumerate(prices)
+                )
+                / 50
+            )
+            slopes.append(slope)
+            lower.append(endpoint - 2 * deviation)
+            upper.append(endpoint + 2 * deviation)
+        return slopes, lower, upper
+
+    def htf_regime(self) -> list[float]:
+        result = self.cache.setdefault("htf_regime", [])
+        closes = self.cache.setdefault("htf_closes", [])
+        for index in range(len(result), len(self.times)):
+            timestamp = self.times[index]
+            if timestamp.minute or timestamp.second:
+                raise OracleUnavailable("완료4h regime에는 UTC 정시 1h 봉이 필요합니다")
+            if (
+                index >= 3
+                and timestamp.hour % 4 == 3
+                and all(
+                    self.times[index - j] == timestamp - timedelta(hours=j)
+                    for j in range(4)
+                )
+            ):
+                closes.append(self.fields["close"][index])
+            ema = self.smooth("htf_ema200", closes, 200)
+            value = (
+                1
+                if closes and ema and closes[-1] > ema[-1]
+                else -1
+                if closes and ema and closes[-1] < ema[-1]
+                else 0
+            )
+            result.append(value)
+        return result
+
 
 def _decision(
     long: bool, short: bool, invalid_long: bool, invalid_short: bool, direction: str
@@ -658,6 +841,49 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
             _cross(down, up) and down[-1] >= 70 and up[-1] <= 30,
             up[-1] < 50 or down[-1] > up[-1],
             down[-1] < 50 or up[-1] > down[-1],
+        )
+    if ident == "05":
+        direction = data.supertrend()
+        changed = len(direction) > 1 and math.isfinite(direction[-2])
+        return (
+            changed and direction[-2] < 0 and direction[-1] > 0,
+            changed and direction[-2] > 0 and direction[-1] < 0,
+            direction[-1] < 0,
+            direction[-1] > 0,
+        )
+    if ident == "06":
+        plus, minus, adx = data.dmi()
+        return (
+            _cross(plus, minus) and adx[-1] > 25,
+            _cross(minus, plus) and adx[-1] > 25,
+            plus[-1] < minus[-1] or adx[-1] < 20,
+            minus[-1] < plus[-1] or adx[-1] < 20,
+        )
+    if ident == "07":
+        tenkan, kijun, upper, lower = data.ichimoku()
+        inside = lower[-1] <= current <= upper[-1]
+        return (
+            _cross(tenkan, kijun) and current > upper[-1],
+            _cross(tenkan, kijun, up=False) and current < lower[-1],
+            current < kijun[-1] or inside,
+            current > kijun[-1] or inside,
+        )
+    if ident == "27":
+        slope, lower, upper = data.regression()
+        return (
+            _cross(close, lower) and slope[-1] > 0,
+            _cross(close, upper, up=False) and slope[-1] < 0,
+            slope[-1] <= 0 or current < lower[-1],
+            slope[-1] >= 0 or current > upper[-1],
+        )
+    if ident == "30":
+        regime = data.htf_regime()[-1]
+        fast, slow = data.ema(9), data.ema(21)
+        return (
+            _cross(fast, slow) and regime > 0,
+            _cross(fast, slow, up=False) and regime < 0,
+            regime < 0 or fast[-1] < slow[-1],
+            regime > 0 or fast[-1] > slow[-1],
         )
     raise OracleUnavailable(f"전략 {ident}: 독립 수식 판정기가 없습니다")
 
