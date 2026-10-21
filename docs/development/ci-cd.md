@@ -42,6 +42,7 @@ documentation · backend_static · backend ×3샤드 · backend_coverage · e2e 
 
 - 실행: `pnpm exec playwright test --config playwright.journey.config.ts --grep s5_ema_trend`.
 - API/브라우저 포트는 CI 전용 8100/3100이다. 로컬 공유 스택에 이 잡을 대신 실행하지 않는다.
+- API/worker 준비 단계는 2분, 개별 health 요청은 연결 2초·전체 25초로 제한한다.
 - spec에 정의된 다섯 후보 전체를 CI가 실행한다고 해석하지 않는다. 리포트·API/worker 로그는
   `strategy-journey-evidence` artifact로 7일 보존하고 잡 전체 시간은 15분으로 제한한다.
 - 이 검사는 서비스 배선과 고정 데이터의 여정을 확인한다. 실제 시장 데이터·주문·체결·독립 수익성 검증은 아니다.

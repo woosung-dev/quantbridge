@@ -232,12 +232,13 @@ jobs:
           cp data/fixtures/ohlcv/BTCUSDT-RECENT_1h.csv /tmp/qb-journey-ohlcv/BTC/USDT_1h.csv
           cp data/fixtures/ohlcv/BTCUSDT-RECENT_1h.csv /tmp/qb-journey-ohlcv/BTCUSDT_1h.csv
       - name: Start API and calculation worker
+        timeout-minutes: 2
         working-directory: apps/api
         run: |
           uv run uvicorn src.main:app --host 127.0.0.1 --port 8100 > /tmp/qb-journey-api.log 2>&1 &
           uv run celery -A src.tasks worker --pool=prefork --concurrency=1 -Q celery > /tmp/qb-journey-worker.log 2>&1 &
           for attempt in $(seq 1 30); do
-            if curl -fsS http://localhost:8100/healthz; then exit 0; fi
+            if curl -fsS --connect-timeout 2 --max-time 25 http://localhost:8100/healthz; then exit 0; fi
             sleep 1
           done
           exit 1
