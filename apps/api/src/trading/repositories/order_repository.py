@@ -12,6 +12,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.trading.models import (
     ExchangeAccount,
@@ -20,6 +21,17 @@ from src.trading.models import (
     Order,
     OrderSide,
     OrderState,
+)
+
+# legacy는 filled만, code_v1은 양수 체결분을 보존한 취소·거부도 실체결이다.
+# Python task 게이트의 has_recorded_order_fill과 같은 계약이며 SQL 회귀로 함께 검증한다.
+_RECORDED_ORDER_FILL = or_(
+    col(Order.state) == OrderState.filled,
+    and_(
+        col(Order.state).in_([OrderState.cancelled, OrderState.rejected]),
+        col(Order.risk_context).is_not(None),
+        col(Order.filled_quantity) > 0,
+    ),
 )
 
 # 「이 주문이 청산했는가」의 정본 술어 — 거래소 원장이 그 주문의 청산 행을 갖고 있는가([BL-438]).
@@ -238,10 +250,11 @@ def _session_scope_where(
 ) -> list[Any]:
     """세션 스코프를 SQL 술어로 번역하는 **유일한** 자리.
 
-    기본값(`states=(filled,)`, `window="terminal"`)이 오늘의 동작 그대로라 기존 4 소비처
+    기본값(`states=(filled,)`, `window="terminal"`)은 legacy filled와 code_v1의
+    양수 부분 체결 종결을 포함한다. 기존 4 소비처
     (`list_filled_realized_for_session` · `list_fills_since` ·
     `realized_pnl_split_for_session` · `parity_repository`)는 인자를 주지 않아
-    **동작이 불변**이다. 술어를 복사해 두 벌로 만드는 대신 파라미터로 연 이유가 그것이다 —
+    **legacy 동작은 불변**이다. 술어를 복사해 두 벌로 만드는 대신 파라미터로 연 이유가 그것이다 —
     스코프 SQL 번역은 계속 이 자리 하나다.
 
     ★`filled_at` 은 이름과 달리 **terminal 시각**이다. `transition_to_{filled,rejected,
@@ -264,7 +277,11 @@ def _session_scope_where(
         Order.symbol == scope.symbol,
     ]
     if states is not None:
-        predicates.append(Order.state.in_(states))  # type: ignore[attr-defined]
+        predicates.append(
+            _RECORDED_ORDER_FILL
+            if tuple(states) == (OrderState.filled,)
+            else Order.state.in_(states)  # type: ignore[attr-defined]
+        )
     if window == "terminal":
         predicates.append(Order.filled_at.is_not(None))  # type: ignore[union-attr]
     predicates.append(time_column >= scope.started_at)  # type: ignore[operator]
@@ -367,7 +384,7 @@ class OrderRepository:
         stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
             and_(
                 Order.strategy_id == strategy_id,  # type: ignore[arg-type]
-                Order.state == OrderState.filled,  # type: ignore[arg-type]
+                _RECORDED_ORDER_FILL,
             )
         )
         raw = (await self.session.execute(stmt)).scalar_one()
@@ -384,7 +401,7 @@ class OrderRepository:
         stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
             and_(
                 Order.exchange_account_id == account_id,  # type: ignore[arg-type]
-                Order.state == OrderState.filled,  # type: ignore[arg-type]
+                _RECORDED_ORDER_FILL,
                 Order.filled_at >= started_at,  # type: ignore[arg-type,operator]
                 Order.filled_at < ended_at,  # type: ignore[arg-type,operator]
             )
@@ -827,7 +844,7 @@ class OrderRepository:
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(_RECORDED_ORDER_FILL)
             .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
             .values(realized_pnl=realized_pnl, realized_pnl_synced_at=synced_at)
         )
@@ -843,7 +860,7 @@ class OrderRepository:
             select(Order)
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
             .where(Order.exchange_order_id.in_(exchange_order_ids))  # type: ignore[union-attr]
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(_RECORDED_ORDER_FILL)
         )
         return (await self.session.execute(stmt)).scalars().all()
 
@@ -895,7 +912,7 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(_RECORDED_ORDER_FILL)
             .where(_HAS_EXCHANGE_EXIT_ROW)
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
@@ -932,7 +949,7 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(_RECORDED_ORDER_FILL)
             .where(_HAS_EXCHANGE_EXIT_ROW)
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
@@ -954,7 +971,7 @@ class OrderRepository:
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(_RECORDED_ORDER_FILL)
             .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl.is_distinct_from(realized_pnl))  # type: ignore[union-attr]
             .values(realized_pnl=realized_pnl, realized_pnl_synced_at=synced_at)
@@ -973,7 +990,7 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(_RECORDED_ORDER_FILL)
             .where(Order.filled_at.is_not(None))  # type: ignore[union-attr]
             .order_by(Order.filled_at.desc())  # type: ignore[union-attr]
             .limit(limit)
@@ -1176,7 +1193,7 @@ class OrderRepository:
 
         pnl_result = await self.session.execute(
             select(func.coalesce(func.sum(Order.realized_pnl), 0))
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(_RECORDED_ORDER_FILL)
             .where(Order.filled_at >= day_start)  # type: ignore[operator, arg-type]
             .where(Order.filled_at < day_end)  # type: ignore[operator, arg-type]
         )

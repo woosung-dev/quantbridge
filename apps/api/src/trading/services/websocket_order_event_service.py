@@ -24,6 +24,7 @@ from src.common.metrics import (
 from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.core.config import Settings
 from src.trading.models import Order, OrderState
+from src.trading.order_fill_evidence import has_recorded_order_fill
 from src.trading.providers import bybit_cumulative_execution_value
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.order_repository import OrderRepository
@@ -118,6 +119,15 @@ class WebSocketOrderEventService:
             raise CodeRiskError(
                 "코드 주문의 누적 체결 또는 리스크 귀속이 올바르지 않습니다"
             ) from exc
+        price = None
+        if new_state in {OrderState.cancelled, OrderState.rejected} and quantity > 0:
+            average = payload.get("avgPrice") or payload.get("average")
+            try:
+                price = Decimal(str(average)) if average not in (None, "") else None
+            except InvalidOperation as exc:
+                raise CodeRiskReconciliationPending("부분 체결 평균가 증거를 기다립니다") from exc
+            if price is None or not price.is_finite() or price <= 0:
+                raise CodeRiskReconciliationPending("부분 체결 평균가 증거를 기다립니다")
         if role == "entry":
             value = Decimal(0) if quantity == 0 else bybit_cumulative_execution_value(payload)
             if value is None:
@@ -145,7 +155,26 @@ class WebSocketOrderEventService:
         else:
             raise CodeRiskError("알 수 없는 코드 주문 역할입니다")
         rowcount = 0
-        if new_state is not None:
+        if new_state in {OrderState.cancelled, OrderState.rejected}:
+            exchange_id = payload.get("orderId")
+            if isinstance(exchange_id, str) and exchange_id:
+                await self._repo.attach_exchange_order_id(order.id, exchange_id)
+            if new_state == OrderState.cancelled:
+                rowcount = await self._repo.transition_to_cancelled(
+                    order.id,
+                    cancelled_at=datetime.now(UTC),
+                    filled_quantity=quantity,
+                    filled_price=price,
+                )
+            else:
+                rowcount = await self._repo.transition_to_rejected(
+                    order.id,
+                    error_message=f"ws_rejected: {payload.get('rejectReason', 'ws_rejected')}",
+                    failed_at=datetime.now(UTC),
+                    filled_quantity=quantity,
+                    filled_price=price,
+                )
+        elif new_state is not None:
             rowcount = await self._apply_transition(order.id, new_state, payload)
         await self._repo.commit()
         if rowcount == 1 and new_state is not None:
@@ -217,7 +246,7 @@ class WebSocketOrderEventService:
             )
 
         record_metric_safely(qb_active_orders.dec)
-        if new_state == OrderState.filled:
+        if new_state == OrderState.filled or has_recorded_order_fill(order):
             filled = payload.get("cumExecQty") or payload.get("filled")
             filled_quantity = Decimal(str(filled)) if filled else None
             if (
@@ -233,11 +262,13 @@ class WebSocketOrderEventService:
                 _enqueue_trailing_if_intended,
             )
 
-            if order.risk_context is None:
+            if new_state == OrderState.filled and order.risk_context is None:
                 _enqueue_trailing_if_intended(order)
             _enqueue_closed_pnl_refresh(order)
-            _enqueue_conditional_reversal_measure(order)
-            return
+            if new_state == OrderState.filled:
+                _enqueue_conditional_reversal_measure(order)
+            if new_state != OrderState.rejected:
+                return
 
         if new_state == OrderState.rejected:
             await self._alert_sender(

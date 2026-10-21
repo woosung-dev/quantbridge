@@ -207,3 +207,35 @@ async def test_reduce_only_without_ledger_row_still_retries(
     )
 
     assert result["transient"] == "closed_pnl_not_yet_available"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["cancelled", "rejected"])
+@pytest.mark.parametrize(
+    "code,quantity,allowed", [(True, "0.4", True), (True, "0", False), (False, "0.4", False)]
+)
+async def test_code_terminal_partial_fill_enters_existing_refresh_only_with_positive_evidence(
+    monkeypatch, state, code, quantity, allowed
+):
+    import src.tasks.trading as trading_mod
+    from src.trading.models import OrderState
+
+    order = _order()
+    order.state = OrderState(state)
+    order.filled_quantity = Decimal(quantity)
+    order.risk_context = {"session_id": "code"} if code else None
+    repo = _install(monkeypatch, order)
+    provider = _provider(_snapshot())
+    first, second = MagicMock(), MagicMock()
+    first.get = AsyncMock(return_value=_account())
+    second.commit = AsyncMock()
+    result = await trading_mod._refresh_closed_pnl_with_session(
+        order.id, _sessionmaker([first, second]), provider=provider
+    )
+    if allowed:
+        assert result["applied"] is True
+        provider.fetch_closed_pnl.assert_awaited_once()
+        repo.backfill_exchange_realized_pnl.assert_awaited_once()
+    else:
+        assert result["skipped"] == "not_filled"
+        provider.fetch_closed_pnl.assert_not_awaited()

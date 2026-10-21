@@ -629,3 +629,97 @@ async def test_native_partially_filled_tp_cancel_preserves_remaining_protection_
     await db_session.refresh(child)
     assert child.state == OrderState.cancelled and child.filled_quantity == D("0.4")
     provider.create_order.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", ["entry", "partial_tp"])
+@pytest.mark.parametrize("terminal", ["PartiallyFilledCanceled", "Rejected"])
+async def test_ws_terminal_partial_fill_survives_duplicate_foreign_and_rest(
+    prepared, db_session, monkeypatch, role, terminal
+):
+    from unittest.mock import Mock
+
+    import src.tasks.trading as tasks
+    from src.trading.providers import _build_bybit_v5_order_status_fetch
+    from src.trading.services.code_risk_service import CodeRiskError
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    risk = CodeRiskService(repo)
+    if role == "partial_tp":
+        await risk.record_entry_fill(
+            session.id,
+            1,
+            entry.id,
+            cumulative_quantity=D(2),
+            cumulative_value=D(200),
+            terminal=True,
+        )
+        order = Order(
+            strategy_id=session.strategy_id,
+            exchange_account_id=session.exchange_account_id,
+            symbol=session.symbol,
+            side=OrderSide.sell,
+            type=OrderType.limit,
+            quantity=D(1),
+            price=D(103),
+            state=OrderState.submitted,
+            reduce_only=True,
+            risk_context={"session_id": str(session.id), "generation": 1, "role": role},
+        )
+        db_session.add(order)
+        await db_session.commit()
+        quantity, price = D("0.4"), D(103)
+    else:
+        order = entry
+        await OrderRepository(db_session).transition_to_submitted(
+            order.id, submitted_at=datetime.now(UTC)
+        )
+        await db_session.commit()
+        quantity, price = D(1), D(100)
+    await db_session.refresh(order)
+    enqueue, trailing, reversal = Mock(), Mock(), Mock()
+    monkeypatch.setattr(tasks.refresh_closed_pnl_task, "apply_async", enqueue)
+    monkeypatch.setattr(tasks, "_enqueue_trailing_if_intended", trailing)
+    monkeypatch.setattr(tasks, "_enqueue_conditional_reversal_measure", reversal)
+    orders = OrderRepository(db_session)
+    handler = WebSocketOrderEventService(
+        repo=orders, risk_service=risk, settings=MagicMock(), alert_sender=AsyncMock()
+    )
+    raw = {
+        "orderLinkId": str(order.id),
+        "orderId": "partial-terminal",
+        "orderStatus": terminal,
+        "cumExecQty": str(quantity),
+        "cumExecValue": str(quantity * price),
+        "avgPrice": str(price),
+    }
+    original = (await repo.get(session.id)).model_dump()
+    with pytest.raises(CodeRiskError, match="계정 귀속"):
+        await handler.handle_order_event(uuid4(), raw)
+    assert (await repo.get(session.id)).model_dump() == original
+    await handler.handle_order_event(order.exchange_account_id, raw)
+    await db_session.refresh(order)
+    assert order.filled_quantity == quantity and order.filled_price == price
+    assert order.exchange_order_id == "partial-terminal"
+    assert order.state == (OrderState.rejected if terminal == "Rejected" else OrderState.cancelled)
+    after_ws = (await repo.get(session.id)).model_dump()
+    await handler.handle_order_event(order.exchange_account_id, raw)
+    assert (await repo.get(session.id)).model_dump() == after_ws
+    venue = BybitCodeRiskVenue(repo, orders, risk, AsyncMock(), AsyncMock())
+    await venue._sync(order, _build_bybit_v5_order_status_fetch(raw))
+    await db_session.refresh(order)
+    observed = await repo.get(session.id)
+    assert observed is not None
+    assert order.filled_quantity == quantity and order.filled_price == price
+    if role == "entry":
+        assert observed.cumulative_quantity == quantity and observed.position_quantity == quantity
+        enqueue.assert_not_called()  # 순수 진입은 closed-pnl 조회 대상이 아니다.
+    else:
+        assert (
+            observed.tp_filled_quantity == quantity
+            and observed.position_quantity == D(2) - quantity
+        )
+        enqueue.assert_called_once()
+    trailing.assert_not_called()
+    reversal.assert_not_called()

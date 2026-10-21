@@ -76,6 +76,7 @@ from src.trading.models import (
     OrderSide,
     OrderState,
 )
+from src.trading.order_fill_evidence import has_recorded_order_fill
 from src.trading.product_policy import is_bybit_demo_account, require_bybit_demo_account
 from src.trading.providers import (
     BybitFuturesProvider,
@@ -1524,7 +1525,7 @@ async def _refresh_closed_pnl_with_session(
         order = await repo.get_by_id(order_id)
         if order is None:
             return {"skipped": "order_missing", "order_id": str(order_id)}
-        if order.state != OrderState.filled:
+        if not has_recorded_order_fill(order):
             return {"skipped": "not_filled", "order_id": str(order_id)}
         if not order.reduce_only and not reversal:
             # ★필터를 지우지 않고 **한 갈래만 연다**([BL-733]). 순수 선물 entry 는 여전히
