@@ -1,17 +1,30 @@
 import { BacktestCreatedResponseSchema } from "@/features/backtest/schemas";
+import { LiveSessionSchema } from "@/features/live-sessions/schemas";
 import { apiFetch } from "@/lib/api-client";
 
 import {
   CodeStrategyListSchema,
+  CodeDemoRequestSchema,
   CodeStrategySchema,
   SaveCodeStrategySchema,
   type SaveCodeStrategy,
+  type CodeDemoRequest,
 } from "./code-schemas";
 
 const CODE_PATH = "/api/v1/strategies/code";
 
 export async function listCodeStrategies(token: string | null) {
   return CodeStrategyListSchema.parse(await apiFetch<unknown>(CODE_PATH, { token }));
+}
+
+export async function submitCodeDemo(body: CodeDemoRequest, token: string | null) {
+  return LiveSessionSchema.parse(
+    await apiFetch<unknown>("/api/v1/live-sessions", {
+      method: "POST",
+      token,
+      body: CodeDemoRequestSchema.parse(body),
+    }),
+  );
 }
 
 export async function saveCodeStrategy(

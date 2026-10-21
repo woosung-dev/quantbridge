@@ -24,11 +24,23 @@ import {
 import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
 import { ApiError, type RequestOptions } from "@/lib/api-client";
 import { CodeWorkspace } from "../code-workspace";
+import type { ExchangeAccount } from "@/features/trading/schemas";
 
 const STRATEGY_ID = "11111111-1111-4111-8111-111111111111";
 const SECOND_ID = "44444444-4444-4444-8444-444444444444";
 const BACKTEST_ID = "33333333-3333-4333-8333-333333333333";
 const clients: QueryClient[] = [];
+const ACCOUNT_ID = "66666666-6666-4666-8666-666666666666";
+const demoAccount: ExchangeAccount = {
+  id: ACCOUNT_ID,
+  exchange: "bybit",
+  mode: "demo",
+  label: "검증 계정",
+  api_key_masked: "***test",
+  exchange_uid: null,
+  read_only: false,
+  created_at: "2026-01-01T00:00:00Z",
+};
 
 function saved(name = "이전 전략", id = STRATEGY_ID): CodeStrategy {
   return {
@@ -63,10 +75,28 @@ function saved(name = "이전 전략", id = STRATEGY_ID): CodeStrategy {
   };
 }
 
-function setup(items: CodeStrategy[] = []) {
+function setup(
+  items: CodeStrategy[] = [],
+  accounts: ExchangeAccount[] = [],
+  initialStrategyId?: string,
+) {
   let stored = items;
   let version = 0;
   mocks.apiFetch.mockImplementation(async (path: string, options?: RequestOptions) => {
+    if (path === "/api/v1/exchange-accounts") return { items: accounts };
+    if (path === "/api/v1/live-sessions")
+      return {
+        id: SECOND_ID,
+        user_id: ACCOUNT_ID,
+        strategy_id: STRATEGY_ID,
+        exchange_account_id: ACCOUNT_ID,
+        symbol: "BTC/USDT",
+        interval: "1h",
+        is_active: true,
+        last_evaluated_bar_time: null,
+        created_at: "2026-01-01T00:00:00Z",
+        deactivated_at: null,
+      };
     if (path === "/api/v1/backtests") {
       return { backtest_id: BACKTEST_ID, status: "queued", created_at: "2026-01-01T00:00:00Z" };
     }
@@ -101,7 +131,7 @@ function setup(items: CodeStrategy[] = []) {
   clients.push(client);
   const view = render(
     <QueryClientProvider client={client}>
-      <CodeWorkspace />
+      <CodeWorkspace initialStrategyId={initialStrategyId} />
     </QueryClientProvider>,
   );
   return { ...view, client };
@@ -287,9 +317,88 @@ describe("코드 전략 작업 공간", () => {
     await waitFor(() =>
       expect(client.getQueryData(codeStrategyKeys.list("user-2"))).toEqual({ items: [], total: 0 }),
     );
-    expect(mocks.apiFetch).toHaveBeenLastCalledWith("/api/v1/strategies/code", {
+    expect(mocks.apiFetch).toHaveBeenCalledWith("/api/v1/strategies/code", {
       token: "second-token",
     });
     expect(client.getQueryData(codeStrategyKeys.list("user-1"))).toMatchObject({ total: 1 });
+  });
+
+  it("선택 링크의 저장 버전을 불러와 주문 가능한 Demo 계정과 버전을 고정한다", async () => {
+    setup([saved()], [demoAccount], STRATEGY_ID);
+    await ready();
+    expect(screen.getByLabelText("소스 코드")).toHaveValue("manual source 이전 전략");
+    const start = screen.getByRole("button", { name: "데모 자동매매 시작" });
+    expect(start).toBeDisabled();
+    await screen.findByRole("option", { name: "검증 계정 · ***test" });
+    fireEvent.change(screen.getByLabelText("Bybit Demo 계정"), { target: { value: ACCOUNT_ID } });
+    expect(start).toBeEnabled();
+    fireEvent.click(start);
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/trading"));
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      "/api/v1/live-sessions",
+      expect.objectContaining({
+        method: "POST",
+        body: {
+          strategy_id: STRATEGY_ID,
+          strategy_version_id: saved().version.id,
+          exchange_account_id: ACCOUNT_ID,
+          source_policy: "code_v1",
+          symbol: "BTC/USDT",
+          interval: "1h",
+        },
+      }),
+    );
+  });
+
+  it("실계정·조회 전용·권한 미확인 계정은 제외하고 dirty와 4h 전략은 데모 시작을 막는다", async () => {
+    setup(
+      [saved()],
+      [
+        demoAccount,
+        { ...demoAccount, id: SECOND_ID, mode: "live" },
+        { ...demoAccount, id: STRATEGY_ID, read_only: true },
+        { ...demoAccount, id: BACKTEST_ID, read_only: null },
+      ],
+      STRATEGY_ID,
+    );
+    await ready();
+    await screen.findByRole("option", { name: "검증 계정 · ***test" });
+    expect(screen.getByLabelText("Bybit Demo 계정").querySelectorAll("option")).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("Bybit Demo 계정"), { target: { value: ACCOUNT_ID } });
+    const start = screen.getByRole("button", { name: "데모 자동매매 시작" });
+    fireEvent.change(screen.getByLabelText("소스 코드"), { target: { value: "changed" } });
+    expect(start).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "이전 전략 · Python" }));
+    fireEvent.change(screen.getByLabelText("신호 주기"), { target: { value: "4h" } });
+    fireEvent.click(screen.getByRole("button", { name: "새 버전 저장" }));
+    await screen.findByText("저장한 원문과 일치합니다.");
+    expect(start).toBeDisabled();
+    expect(mocks.apiFetch.mock.calls.some(([path]) => path === "/api/v1/live-sessions")).toBe(
+      false,
+    );
+  });
+
+  it("직접 수정한 생성 코드는 수동 편집 출처로 기록하고 저장한 마진 모드를 보존한다", async () => {
+    const item = saved();
+    item.version.provenance = { origin: "sol_generation", model: "gpt-6.1-sol" };
+    item.settings!.margin_mode = "isolated";
+    setup([item], [], STRATEGY_ID);
+    await ready();
+    fireEvent.change(screen.getByLabelText("소스 코드"), {
+      target: { value: "edited generated source" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "새 버전 저장" }));
+    await screen.findByText("저장한 원문과 일치합니다.");
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      `/api/v1/strategies/code/${STRATEGY_ID}`,
+      expect.objectContaining({
+        body: expect.objectContaining({
+          settings: expect.objectContaining({ margin_mode: "isolated" }),
+          code: expect.objectContaining({
+            provenance: { origin: "manual_editor", parent_version_id: item.version.id },
+          }),
+        }),
+      }),
+    );
   });
 });

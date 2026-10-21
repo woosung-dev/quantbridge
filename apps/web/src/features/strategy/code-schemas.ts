@@ -33,6 +33,15 @@ export const SaveCodeStrategySchema = z.object({
   settings: StrategySettingsSchema,
 });
 export type SaveCodeStrategy = z.infer<typeof SaveCodeStrategySchema>;
+export const CodeDemoRequestSchema = z.object({
+  strategy_id: z.uuid(),
+  strategy_version_id: z.uuid(),
+  exchange_account_id: z.uuid(),
+  source_policy: z.literal("code_v1"),
+  symbol: z.string().min(3).max(32),
+  interval: z.literal("1h"),
+});
+export type CodeDemoRequest = z.infer<typeof CodeDemoRequestSchema>;
 export const CodeStrategySchema = z.object({
   id: z.uuid(),
   name: z.string(),

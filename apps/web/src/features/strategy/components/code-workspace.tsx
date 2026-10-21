@@ -8,7 +8,7 @@ import { useCodeWorkspace } from "@/features/strategy/code-hooks";
 import { describeApiError } from "@/lib/api-client";
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 
-export function CodeWorkspace() {
+export function CodeWorkspace({ initialStrategyId }: { initialStrategyId?: string }) {
   const { uid } = useAuthCtx();
   return (
     <Suspense
@@ -18,15 +18,18 @@ export function CodeWorkspace() {
         </main>
       }
     >
-      <CodeWorkspaceContent key={uid} />
+      <CodeWorkspaceContent
+        key={`${uid}:${initialStrategyId ?? ""}`}
+        initialStrategyId={initialStrategyId}
+      />
     </Suspense>
   );
 }
 
-function CodeWorkspaceContent() {
-  const work = useCodeWorkspace();
+function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: string }) {
+  const work = useCodeWorkspace(initialStrategyId);
   const { draft, period } = work;
-  const error = work.save.error ?? work.backtest.error;
+  const error = work.save.error ?? work.backtest.error ?? work.demo.error;
   return (
     <main className="page">
       <section className="card" aria-labelledby="code-title">
@@ -224,6 +227,57 @@ function CodeWorkspaceContent() {
             1분봉 실행과 수수료·슬리피지·실제 펀딩 비율을 반영합니다. 봉 내부 체결 순서는 시나리오
             가정입니다.
           </p>
+        </div>
+      </section>
+      <section className="section" aria-labelledby="code-demo-title">
+        <header className="section-head">
+          <h2 id="code-demo-title">3. 저장한 버전 데모 시작</h2>
+        </header>
+        <div className="card p-5 grid gap-4">
+          <p className="field-hint">
+            1시간 전략만 지원합니다. 시작하면 선택한 Bybit Demo 계정에 자동 주문을 보냅니다. 저장된
+            버전을 고정하며, 원문을 새로 저장해도 실행 중 세션은 바뀌지 않습니다.
+          </p>
+          <label className="field-label">
+            Bybit Demo 계정
+            <select
+              className="select"
+              value={work.accountId}
+              disabled={work.busy || work.accounts.isPending}
+              onChange={(event) => work.setAccountId(event.target.value)}
+            >
+              <option value="">계정을 선택하세요</option>
+              {work.demoAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.label ?? "Bybit Demo"} · {account.api_key_masked}
+                </option>
+              ))}
+            </select>
+          </label>
+          {work.accounts.error ? <p role="alert">{describeApiError(work.accounts.error)}</p> : null}
+          {!work.accounts.isPending && !work.accounts.error && work.demoAccounts.length === 0 ? (
+            <p className="field-hint">
+              주문 권한이 확인된 계정이 없습니다.{" "}
+              <Link href="/trading">트레이딩에서 계정을 연결하세요.</Link>
+            </p>
+          ) : null}
+          {draft.timeframe !== "1h" ? (
+            <p className="field-hint">4시간·1일 전략은 백테스트만 지원합니다.</p>
+          ) : null}
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={
+              work.busy ||
+              work.dirty ||
+              !work.selected ||
+              draft.timeframe !== "1h" ||
+              !work.demoAccounts.some((account) => account.id === work.accountId)
+            }
+            onClick={() => work.demo.mutate()}
+          >
+            {work.demo.isPending ? "시작 중…" : "데모 자동매매 시작"}
+          </button>
         </div>
       </section>
       {error ? (

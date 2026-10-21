@@ -5,8 +5,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
+import { useExchangeAccounts } from "@/features/trading/hooks";
+import { liveSessionKeys } from "@/features/live-sessions/query-keys";
 
-import { listCodeStrategies, saveCodeStrategy, submitCodeBacktest } from "./code-api";
+import {
+  listCodeStrategies,
+  saveCodeStrategy,
+  submitCodeBacktest,
+  submitCodeDemo,
+} from "./code-api";
 import {
   CodePeriodSchema,
   SaveCodeStrategySchema,
@@ -58,7 +65,7 @@ function defaultPeriod() {
   };
 }
 
-export function useCodeWorkspace() {
+export function useCodeWorkspace(initialStrategyId?: string) {
   const { uid, getToken } = useAuthCtx();
   const router = useRouter();
   const client = useQueryClient();
@@ -66,8 +73,15 @@ export function useCodeWorkspace() {
     queryKey: codeStrategyKeys.list(uid),
     queryFn: async () => listCodeStrategies(await getToken()),
   });
-  const [draft, setDraft] = useState(newDraft);
-  const [selected, setSelected] = useState<CodeStrategy | null>(null);
+  const initial = listing.data.items.find((item) => item.id === initialStrategyId) ?? null;
+  const [draft, setDraft] = useState(() => (initial ? fromSaved(initial) : newDraft()));
+  const [selected, setSelected] = useState<CodeStrategy | null>(initial);
+  const accounts = useExchangeAccounts();
+  const demoAccounts = (accounts.data ?? []).filter(
+    (account) =>
+      account.exchange === "bybit" && account.mode === "demo" && account.read_only === false,
+  );
+  const [accountId, setAccountId] = useState("");
   const [period, setPeriod] = useState(defaultPeriod);
   const dirty = selected === null || JSON.stringify(draft) !== JSON.stringify(fromSaved(selected));
   const save = useMutation({
@@ -83,12 +97,20 @@ export function useCodeWorkspace() {
           source_code: draft.source,
           warmup_bars: draft.warmup,
           params: JSON.parse(draft.params),
-          provenance: selected?.version.provenance ?? { origin: "manual_editor" },
+          provenance:
+            selected &&
+            draft.source === selected.version.source_code &&
+            draft.language === selected.version.language &&
+            draft.params === JSON.stringify(selected.version.params, null, 2) &&
+            draft.warmup === selected.version.warmup_bars
+              ? selected.version.provenance
+              : { origin: "manual_editor", parent_version_id: selected?.version.id ?? null },
         },
         settings: {
+          ...selected?.settings,
           schema_version: 1,
           leverage: 1,
-          margin_mode: "cross",
+          margin_mode: selected?.settings?.margin_mode ?? "cross",
           position_size_pct: draft.allocation,
           fill_timing: "next_bar_open",
         },
@@ -120,7 +142,32 @@ export function useCodeWorkspace() {
     },
     onSuccess: (result) => router.push(`/backtests/${result.backtest_id}`),
   });
-  const busy = save.isPending || backtest.isPending;
+  const demo = useMutation({
+    mutationFn: async () => {
+      if (dirty || !selected || draft.timeframe !== "1h") {
+        throw new Error("저장한 1시간 전략을 선택하세요.");
+      }
+      if (!demoAccounts.some((account) => account.id === accountId)) {
+        throw new Error("주문 권한이 확인된 Bybit Demo 계정을 선택하세요.");
+      }
+      return submitCodeDemo(
+        {
+          strategy_id: selected.id,
+          strategy_version_id: selected.version.id,
+          exchange_account_id: accountId,
+          source_policy: "code_v1",
+          symbol: draft.symbol,
+          interval: "1h",
+        },
+        await getToken(),
+      );
+    },
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: liveSessionKeys.all(uid) });
+      router.push("/trading");
+    },
+  });
+  const busy = save.isPending || backtest.isPending || demo.isPending;
   return {
     draft,
     selected,
@@ -129,6 +176,11 @@ export function useCodeWorkspace() {
     busy,
     save,
     backtest,
+    demo,
+    accounts,
+    demoAccounts,
+    accountId,
+    setAccountId,
     items: listing.data.items,
     change: (patch: Partial<Draft>) => setDraft((previous) => ({ ...previous, ...patch })),
     changePeriod: (patch: Partial<typeof period>) =>
@@ -138,12 +190,14 @@ export function useCodeWorkspace() {
       setDraft(fromSaved(item));
       save.reset();
       backtest.reset();
+      demo.reset();
     },
     reset: () => {
       setSelected(null);
       setDraft(newDraft());
       save.reset();
       backtest.reset();
+      demo.reset();
     },
   };
 }
