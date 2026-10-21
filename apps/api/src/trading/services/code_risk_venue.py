@@ -255,6 +255,12 @@ class BybitCodeRiskVenue:
                 }
                 order.risk_context = context
                 await self._orders.save(order)
+            # 외부 조회 사이에 다른 세션의 미정산이 생겨도 새 진입을 보내지 않는다.
+            # 아직 거래소에 없는 주문은 pending으로 남겨 취소 확인이 막히지 않게 한다.
+            if not order.reduce_only and (
+                await self._repo.has_unsettled_exit_for_account(order.exchange_account_id)
+            ) is True:
+                raise CodeRiskReconciliationPending("거래소 계정의 미정산 청산 증거를 기다립니다")
             await self._orders.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
             await self._repo.commit()
             receipt = await self._provider.create_order(

@@ -129,6 +129,9 @@ SL/trailing 분류·추정 전략 귀속을 정확한 세션/세대 체결이나
 
 같은 계정 ID와 알려진 `exchange_uid` 형제는 종료·archive된 세션의 미정산도 조회한다.
 미정산 계정은 legacy를 포함한 새 세션 등록과 코드 신규 진입 준비·전달을 거부한다.
+코드 venue도 거래소 주문 조회·시장 규칙 조회 뒤 `submitted` 전이 전에 재조회한다.
+새 진입만 보류하여 아직 거래소에 없는 주문은 pending을 유지한다. 이미 거래소에 존재하는
+같은 UUID 주문은 재생성하지 않고 체결 정합을 계속한다.
 수동·웹훅·legacy 신호의 `OrderService`도 비축소 신규 주문을 거부한다. 이미 생성된 큐
 주문은 실제 provider `create_order` 직전에 같은 정본 쿼리를 재조회하여
 `native_exit_unsettled`로 종결한다. 축소 주문·취소·보호 변경·기존 outbox 보호 복구는

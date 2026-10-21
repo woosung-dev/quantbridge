@@ -727,3 +727,89 @@ async def test_ws_terminal_partial_fill_survives_duplicate_foreign_and_rest(
         enqueue.assert_called_once()
     trailing.assert_not_called()
     reversal.assert_not_called()
+
+
+@pytest.mark.parametrize("reduce_only", [False, True])
+async def test_marker_during_market_rules_blocks_new_entry_before_submitted_but_not_reduction(
+    prepared, db_session, reduce_only
+):
+    from src.trading.providers import Credentials, OrderReceipt
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    await db_session.refresh(entry)
+    order = entry
+    if reduce_only:
+        order = Order(
+            strategy_id=session.strategy_id,
+            exchange_account_id=session.exchange_account_id,
+            symbol=session.symbol,
+            side=OrderSide.sell,
+            type=OrderType.market,
+            quantity=D(1),
+            reduce_only=True,
+            state=OrderState.pending,
+            risk_context={"session_id": str(session.id), "generation": 1, "role": "close"},
+        )
+        db_session.add(order)
+        await db_session.commit()
+    provider = AsyncMock()
+    provider.fetch_order_by_client_id.return_value = None
+
+    async def rules_after_marker(*_):
+        state = await repo.get(session.id)
+        state.unsettled_exit_quantity = D(1)
+        assert await repo.compare_and_swap(state, state.revision)
+        await repo.commit()
+        return {"price_tick": D("0.1"), "qty_step": D("0.1"), "min_qty": D("0.1")}
+
+    provider.get_code_market_rules.side_effect = rules_after_marker
+    provider.create_order.return_value = OrderReceipt(
+        exchange_order_id="fake-submitted", status="submitted", filled_price=None, raw={}
+    )
+    venue = BybitCodeRiskVenue(
+        repo, OrderRepository(db_session), CodeRiskService(repo), AsyncMock(), provider
+    )
+    creds = Credentials("fake", "fake")
+    if reduce_only:
+        await venue._submit(creds, order)
+        provider.create_order.assert_awaited_once()
+        await db_session.refresh(order)
+        assert order.state == OrderState.submitted
+    else:
+        with pytest.raises(CodeRiskReconciliationPending, match="미정산"):
+            await venue._submit(creds, order)
+        provider.create_order.assert_not_awaited()
+        await db_session.refresh(order)
+        assert order.state == OrderState.pending and order.submitted_at is None
+        assert order.exchange_order_id is None
+    provider.get_code_market_rules.assert_awaited_once()
+    assert await repo.has_unsettled_exit_for_account(session.exchange_account_id)
+
+
+async def test_existing_exchange_order_is_reconciled_without_duplicate_create_despite_marker(
+    prepared, db_session
+):
+    from src.trading.providers import Credentials, OrderStatusFetch
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    await db_session.refresh(entry)
+    state = await repo.get(session.id)
+    state.unsettled_exit_quantity = D(1)
+    assert await repo.compare_and_swap(state, state.revision)
+    await repo.commit()
+    provider = AsyncMock()
+    provider.fetch_order_by_client_id.return_value = OrderStatusFetch(
+        exchange_order_id="accepted-before-ack-loss", status="submitted"
+    )
+    venue = BybitCodeRiskVenue(
+        repo, OrderRepository(db_session), CodeRiskService(repo), AsyncMock(), provider
+    )
+    await venue._submit(Credentials("fake", "fake"), entry)
+    provider.create_order.assert_not_awaited()
+    provider.get_code_market_rules.assert_not_awaited()
+    await db_session.refresh(entry)
+    assert entry.exchange_order_id == "accepted-before-ack-loss"
+    assert entry.state == OrderState.submitted

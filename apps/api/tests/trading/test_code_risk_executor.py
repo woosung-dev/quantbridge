@@ -434,3 +434,17 @@ async def test_account_unsettled_exit_blocks_actual_entry_delivery_even_after_pr
         await executor.drain(session.id)
     venue.execute.assert_not_awaited()
     assert next(iter(outbox.values())).status == "pending"
+
+
+async def test_venue_late_marker_keeps_entry_outbox_retryable_without_flatten(runtime):
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+
+    executor, _, repo, venue, stored, outbox, session, *_ = runtime
+    repo.has_unsettled_exit_for_account.return_value = False
+    venue.execute.side_effect = CodeRiskReconciliationPending("미정산")
+    with pytest.raises(CodeRiskReconciliationPending, match="미정산"):
+        await executor.drain(session.id)
+    venue.execute.assert_awaited_once()
+    assert [(c.kind, c.status) for c in outbox.values()] == [("submit_entry", "pending")]
+    assert not stored["state"].close_requested
+    repo.rollback.assert_awaited_once()
