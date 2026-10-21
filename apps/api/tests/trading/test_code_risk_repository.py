@@ -703,6 +703,9 @@ async def test_ws_terminal_partial_fill_survives_duplicate_foreign_and_rest(
     await db_session.refresh(order)
     assert order.filled_quantity == quantity and order.filled_price == price
     assert order.exchange_order_id == "partial-terminal"
+    from src.trading.schemas import OrderResponse
+
+    assert OrderResponse.model_validate(order).has_recorded_fill is True
     assert order.state == (OrderState.rejected if terminal == "Rejected" else OrderState.cancelled)
     after_ws = (await repo.get(session.id)).model_dump()
     await handler.handle_order_event(order.exchange_account_id, raw)

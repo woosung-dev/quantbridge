@@ -2,15 +2,14 @@
 
 from decimal import Decimal
 
-from src.trading.models import Order, OrderState
 
-
-def has_recorded_order_fill(order: Order) -> bool:
-    if order.state == OrderState.filled:
+def has_recorded_order_fill(order: object) -> bool:
+    state = getattr(order, "state", None)
+    if state == "filled":
         return True
     quantity = getattr(order, "filled_quantity", None)
     return (
-        order.state in {OrderState.cancelled, OrderState.rejected}
+        state in {"cancelled", "rejected"}
         and getattr(order, "risk_context", None) is not None
         and isinstance(quantity, Decimal)
         and quantity.is_finite()

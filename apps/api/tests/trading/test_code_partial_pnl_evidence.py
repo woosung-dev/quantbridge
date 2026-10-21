@@ -21,6 +21,7 @@ from src.trading.models import (
 )
 from src.trading.order_fill_evidence import has_recorded_order_fill
 from src.trading.repositories.order_repository import OrderRepository, SessionScope
+from src.trading.schemas import OrderResponse
 
 
 @pytest.mark.asyncio
@@ -95,6 +96,15 @@ async def test_code_partial_fills_enter_pnl_sweep_cas_session_and_kill_switch_qu
     repo = OrderRepository(db_session)
     expected = {order.id for order in orders[:2]}
     assert [has_recorded_order_fill(order) for order in orders] == [True, True, False, False]
+    assert [OrderResponse.model_validate(order).has_recorded_fill for order in orders] == [
+        True,
+        True,
+        False,
+        False,
+    ]
+    assert all(
+        "risk_context" not in OrderResponse.model_validate(order).model_dump() for order in orders
+    )
     assert {
         order.id for order in await repo.list_unsynced_with_exchange_exit(account.id)
     } == expected
@@ -138,3 +148,32 @@ async def test_code_partial_fills_enter_pnl_sweep_cas_session_and_kill_switch_qu
     assert {order.id for order in await repo.list_synced_with_exchange_exit(account.id)} == {
         orders[0].id
     }
+
+
+@pytest.mark.parametrize(
+    "state,quantity,code,expected",
+    [
+        (OrderState.filled, None, False, True),
+        (OrderState.submitted, D("0.5"), True, False),
+        (OrderState.cancelled, D("0.5"), False, False),
+        (OrderState.rejected, None, True, False),
+        (OrderState.cancelled, D("NaN"), True, False),
+    ],
+)
+def test_order_response_property_preserves_legacy_fill_and_rejects_incomplete_evidence(
+    state, quantity, code, expected
+):
+    order = Order(
+        strategy_id=uuid4(),
+        exchange_account_id=uuid4(),
+        symbol="BTCUSDT",
+        side=OrderSide.sell,
+        type=OrderType.market,
+        quantity=D(1),
+        state=state,
+        filled_quantity=quantity,
+        risk_context={"session_id": str(uuid4())} if code else None,
+    )
+    assert order.has_recorded_fill is expected
+    if quantity is None or quantity.is_finite():
+        assert OrderResponse.model_validate(order).has_recorded_fill is expected

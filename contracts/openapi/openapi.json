@@ -4902,6 +4902,11 @@
             ],
             "title": "Filled Quantity"
           },
+          "has_recorded_fill": {
+            "default": false,
+            "title": "Has Recorded Fill",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",

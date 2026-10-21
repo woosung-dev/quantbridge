@@ -28,6 +28,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Index, LargeBinary, SQLModel
 
 from src.common.datetime_types import AwareDateTime
+from src.trading.order_fill_evidence import has_recorded_order_fill
 
 
 class ExchangeName(StrEnum):
@@ -368,6 +369,11 @@ class Order(SQLModel, table=True):
             onupdate=lambda: datetime.now(UTC),
         ),
     )
+
+    @property
+    def has_recorded_fill(self) -> bool:
+        """표시용 체결 근거. risk_context 원문을 응답에 노출하지 않는다."""
+        return has_recorded_order_fill(self)
 
 
 class KillSwitchEvent(SQLModel, table=True):

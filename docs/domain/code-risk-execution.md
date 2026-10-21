@@ -108,6 +108,9 @@ legacy 세션의 `code_execution`은 null이다. 코크핏의 전략 이름은 �
 코드 WS의 부분 체결 취소·거부는 `Order`에도 수량·평균가·거래소 ID를 같은 commit으로 보존한다.
 중복 terminal 수신은 상태 CAS로 부수효과를 반복하지 않는다. 기존 실패 주문의 추정 손익은
 제외하고, 코드 귀속과 양수 체결분이 있는 취소·거부만 실제 체결 조회에 추가한다.
+`OrderResponse.has_recorded_fill`은 같은 체결 증거를 서버에서 계산한 표시용 bool이며,
+`risk_context` 원문은 노출하지 않는다. 기존 filled와 코드 양수 부분 체결 종결은 true다.
+미체결·legacy 실패 주문은 false이며, 이 값만으로 손익 확정을 뜻하지 않는다.
 그 주문은 기존 closed-PnL refresh·원장 sweep·백필/정정 CAS·세션 손익·kill-switch 합계에
 포함한다. 순수 진입 주문은 기존 reduce-only 게이트에 따라 closed-PnL refresh를 예약하지 않는다.
 
