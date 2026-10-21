@@ -27,9 +27,14 @@ def code():
     )
 
 
+@pytest.fixture
+def quality_code(code):
+    return code.model_copy(update={"warmup_bars": 200})
+
+
 def payload(code):
     result = []
-    for index in range(3):
+    for index in range(max(3, code.warmup_bars + 1)):
         bar = {
             "index": index,
             "timestamp": (datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=index)).isoformat(),
@@ -39,7 +44,7 @@ def payload(code):
             "close": "100",
             "volume": "1",
         }
-        warmup = index == 0
+        warmup = index < code.warmup_bars
         result.append(
             {
                 "sequence": index,
@@ -114,6 +119,7 @@ def test_full_timing_and_test_double_are_explicit(code):
     assert result["construct_seconds"] == 2 and result["init_seconds"] == 1
     assert result["bars_seconds"] == 3 and result["cleanup_seconds"] == 1
     assert result["completed_bar_replies"] == 3 and transport.closed
+    assert result["last_observed_phase"] == "close" and result["failure_phase"] is None
     assert result["execution_backend"] == "injected_test_transport"
     assert result["native_executed"] is False
 
@@ -122,6 +128,7 @@ def test_successful_transport_but_total_including_cleanup_exceeds_30_fails(code)
     result, transport = measure(code, init=25, bar=0, close=4)
     assert result["status"] == "FAIL" and result["elapsed_seconds"] == 31
     assert result["error_type"] == "total_wall_budget_exceeded" and transport.closed
+    assert result["failure_phase"] == "total_gate"
 
 
 @pytest.mark.parametrize("failure,completed,phase", [("init", 0, "init"), (1, 1, "bar")])
@@ -129,7 +136,8 @@ def test_timeout_retains_partial_denominator_and_cleans_up(code, failure, comple
     result, transport = measure(code, fail=failure)
     assert result["status"] == "FAIL" and result["error_type"] == "PythonRunnerTimeout"
     assert result["input_bars"] == 3 and result["completed_bar_replies"] == completed
-    assert result["last_observed_phase"] == phase and transport.closed
+    assert result["last_observed_phase"] == "close" and transport.closed
+    assert result["failure_phase"] == phase
 
 
 def test_missing_recovery_stays_unknown_without_starting_transport(code):
@@ -152,6 +160,7 @@ def test_wrong_image_rejected_before_init_and_cleaned(code):
     )
     assert result["status"] == "FAIL" and result["error_type"] == "ValueError"
     assert result["completed_bar_replies"] == 0 and transport.closed
+    assert result["last_observed_phase"] == "close" and result["failure_phase"] == "construct"
 
 
 def test_unconfirmed_cleanup_never_passes(code):
@@ -166,6 +175,7 @@ def test_unconfirmed_cleanup_never_passes(code):
         removed_probe=lambda _: False,
     )
     assert result["status"] == "FAIL" and result["error_type"] == "cleanup_unconfirmed"
+    assert result["last_observed_phase"] == result["failure_phase"] == "close"
 
 
 @pytest.mark.parametrize("mutation", ["position", "hash", "gap", "warmup", "extra"])
@@ -186,7 +196,8 @@ def test_checkpoint_export_changes_fail_closed(code, mutation):
 
 
 @pytest.fixture
-def bound_inputs(tmp_path, code, monkeypatch):
+def bound_inputs(tmp_path, quality_code, monkeypatch):
+    code = quality_code
     import pandas as pd
     from tools.research.data import json_write
 
@@ -224,9 +235,9 @@ def bound_inputs(tmp_path, code, monkeypatch):
     frame = pd.DataFrame(
         [
             {key: row["bar"][key] for key in ("open", "high", "low", "close", "volume")}
-            for row in payload(code)[:2]
+            for row in payload(code)
         ],
-        index=pd.date_range("2026-01-01", periods=2, freq="h", tz="UTC"),
+        index=pd.date_range("2026-01-01", periods=code.warmup_bars + 1, freq="h", tz="UTC"),
     )
     monkeypatch.setattr(gate, "load_economic_cell", lambda *a, **kw: (frame, None, None))
     kwargs = {
@@ -244,8 +255,9 @@ def bound_inputs(tmp_path, code, monkeypatch):
 
 
 def test_first_activation_uses_warmup_plus_one_flat_and_does_not_invent_observed_intents(
-    bound_inputs, code
+    bound_inputs, quality_code
 ):
+    code = quality_code
     kwargs, validator = bound_inputs
     _, profiles, proof = gate.load_inputs(**kwargs)
     validator.assert_called_once()
@@ -259,8 +271,9 @@ def test_first_activation_uses_warmup_plus_one_flat_and_does_not_invent_observed
 
 @pytest.mark.parametrize("failure", ["selection", "source", "execution", "manifest"])
 def test_locked_selection_source_version_environment_fail_before_execution(
-    bound_inputs, code, failure
+    bound_inputs, quality_code, failure
 ):
+    code = quality_code
     kwargs, validator = bound_inputs
     if failure == "selection":
         validator.side_effect = ValueError("not the first semantic pass")
@@ -277,10 +290,11 @@ def test_locked_selection_source_version_environment_fail_before_execution(
 
 
 def test_observed_checkpoint_preserves_actual_historical_position_and_hash_binding(
-    bound_inputs, code, tmp_path
+    bound_inputs, quality_code, tmp_path
 ):
     import json
 
+    code = quality_code
     kwargs, _ = bound_inputs
     rows = payload(code)
     rows[-1]["position"] = {"direction": "short", "size": "0.5", "average_price": "100"}
@@ -423,3 +437,18 @@ def test_overall_recovery_unknown_and_interrupt_does_not_start_next_profile(
     assert measure.call_count == (1 if first_status == "INTERRUPTED" else 2)
     if first_status == "INTERRUPTED":
         assert result["profiles"]["observed_checkpoint"]["status"] == "NOT_RUN"
+
+
+@pytest.mark.parametrize(
+    "field,value", [("params", {"period": 3}), ("warmup_bars", 199), ("warmup_bars", 201)]
+)
+def test_source_matched_but_different_full_quality_inputs_rejected(
+    bound_inputs, quality_code, field, value
+):
+    kwargs, _ = bound_inputs
+    changed = quality_code.model_copy(update={field: value})
+    kwargs["code_path"].write_text(changed.model_dump_json())
+    # 새로운 execution hash까지 일치시켜도 품질 평가의 고정 입력과 달라 거부해야 한다.
+    kwargs["execution_hash"] = changed.execution_hash
+    with pytest.raises(ValueError, match=r"params=.*warmup_bars=200"):
+        gate.load_inputs(**kwargs)
