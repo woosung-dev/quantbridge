@@ -9,6 +9,10 @@
 Node에서 실행한다. Python은 CPython, Pine은 기존 `pine_v2`의 해석기를 사용한다.
 언어 실행기는 실제 소스로 신호를 계산하며 수익률이나 체결 결과를 대신 반환할 수 없다.
 
+부모봉의 완료 신호와 실행 봉은 구분한다. `execution_ohlcv`가 제공되면 검증된 1분봉으로
+보호·평가·펀딩을 순서대로 재생한다. 평가 곡선과 위험 통계의 표본 주기는 1분이고
+`config_used.freq`는 원래 신호 주기다. 분봉이 없는 상위봉 내부 펀딩은 임의 배분하지 않는다.
+
 프로토콜은 JSONL이다. `init`은 `protocol/source/params`, `bar`는 현재 완료 봉과 확정
 포지션을 전달한다. 시각은 UTC, 가격·수량은 decimal 문자열이다. 실행기는 현재 봉을 포함한
 과거 이력만 볼 수 있다. Python `on_bar(ctx, state)`, TypeScript `onBar(ctx, state)`의

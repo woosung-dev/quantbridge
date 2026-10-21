@@ -10,7 +10,7 @@ from typing import Any, cast
 import pandas as pd
 
 from src.backtest.engine.python_adapter import validate_python_data
-from src.backtest.engine.swing_risk_adapter import Direction, _Ledger, _raw_episode
+from src.backtest.engine.swing_risk_adapter import Direction, _execution_data, _Ledger, _raw_episode
 from src.backtest.engine.types import BacktestConfig, BacktestResult
 from src.backtest.engine.v2_adapter import _compute_metrics
 from src.strategy.code_runtime.models import (
@@ -25,6 +25,66 @@ from src.strategy.python_runtime.serialization import json_value
 from src.strategy.python_runtime.swing_risk import RiskEvent, apply_event, replay_candle
 
 _ZERO = Decimal("0")
+
+
+def _execute_bar(
+    ledger: _Ledger,
+    prices: dict[str, Decimal],
+    index: int,
+    timestamp: str,
+    rate: Decimal | None,
+    pending: tuple[str, list[dict[str, Decimal]]] | None,
+    trace: list[dict[str, Any]] | None,
+) -> bool:
+    """실행 시계의 확정 순서: 보유 펀딩 → 대기 시장가 → 보호 → 평가."""
+    fills_before = len(ledger.fills)
+    if rate is not None and ledger.current is not None:
+        sign = Decimal(1) if ledger.current.direction == "long" else Decimal(-1)
+        funding = prices["open"] * ledger.remaining_qty * rate * sign
+        ledger.cash -= funding
+        ledger.current.funding += funding
+        if trace is not None:
+            trace.append(
+                {
+                    "type": "funding",
+                    "bar_index": index,
+                    "timestamp": timestamp,
+                    "amount": str(funding),
+                }
+            )
+    if pending is not None:
+        action, references = pending
+        if action == "close":
+            if ledger.current is not None:
+                ledger.exit(
+                    RiskEvent(ledger.generation, "close", prices["open"], ledger.remaining_qty),
+                    index,
+                    timestamp,
+                    "bar_open",
+                )
+        else:
+            ledger.market(
+                cast(Direction, action), prices["open"], index, timestamp, "bar_open", references
+            )
+    ambiguous = False
+    if ledger.state is not None:
+        outcome = replay_candle(
+            ledger.state,
+            open_=prices["open"],
+            high=prices["high"],
+            low=prices["low"],
+            close=prices["close"],
+        )
+        ambiguous = outcome.ambiguous
+        for event in outcome.events:
+            assert ledger.state is not None
+            ledger.state = apply_event(ledger.state, event)
+            ledger.exit(event, index, timestamp, "intrabar_scenario")
+        if ledger.state is not None:
+            ledger.state = outcome.state
+    if trace is not None:
+        trace.extend({"type": "fill", **json_value(fill)} for fill in ledger.fills[fills_before:])
+    return ambiguous
 
 
 def _funding_rates(
@@ -70,6 +130,7 @@ def run_code_backtest(
     *,
     transport_factory: Callable[[], CodeTransport] | None = None,
     trace: list[dict[str, Any]] | None = None,
+    execution_ohlcv: pd.DataFrame | None = None,
 ) -> BacktestResult:
     """완료 봉 신호를 다음 시가에 체결하고 같은 봉부터 공통 SL을 적용한다.
 
@@ -87,7 +148,16 @@ def run_code_backtest(
         )
     if cfg.live_position_size_pct not in (None, 100):
         raise CodeRuntimeError("공통 실행기는 별도 라이브 수량 설정을 지원하지 않습니다")
-    rates = _funding_rates(funding_rates, ohlcv, cfg)
+    minutes, child_prices, child_index = 1, None, None
+    if execution_ohlcv is not None:
+        minutes, child_prices, child_index = _execution_data(
+            ohlcv, execution_ohlcv, cfg, warmup_bars
+        )
+    rates = _funding_rates(
+        funding_rates,
+        execution_ohlcv if execution_ohlcv is not None else ohlcv,
+        replace(cfg, freq="1min") if execution_ohlcv is not None else cfg,
+    )
     ledger = _Ledger(cfg, cfg.init_cash)
     values: list[Decimal] = []
     pending: tuple[str, list[dict[str, Decimal]]] | None = None
@@ -112,61 +182,37 @@ def run_code_backtest(
             bar_index = index - warmup_bars
             timestamp_str = pd.Timestamp(str(timestamp)).tz_convert("UTC").isoformat()
             prices = {name: Decimal(str(row[name])) for name in ("open", "high", "low", "close")}
-            fills_before = len(ledger.fills)
             ambiguous = False
             if bar_index >= 0:
-                rate = rates.get(pd.Timestamp(str(timestamp)).value)
-                if rate is not None and ledger.current is not None:
-                    sign = Decimal(1) if ledger.current.direction == "long" else Decimal(-1)
-                    funding = prices["open"] * ledger.remaining_qty * rate * sign
-                    ledger.cash -= funding
-                    ledger.current.funding += funding
-                    if trace is not None:
-                        trace.append(
-                            {"type": "funding", "bar_index": index, "amount": str(funding)}
-                        )
-                if pending is not None:
-                    action, references = pending
-                    if action == "close":
-                        if ledger.current is not None:
-                            ledger.exit(
-                                RiskEvent(
-                                    ledger.generation, "close", prices["open"], ledger.remaining_qty
-                                ),
-                                bar_index,
-                                timestamp_str,
-                                "bar_open",
-                            )
-                    else:
-                        ledger.market(
-                            cast(Direction, action),
-                            prices["open"],
-                            bar_index,
-                            timestamp_str,
-                            "bar_open",
-                            references,
-                        )
-                    pending = None
-                if ledger.state is not None:
-                    outcome = replay_candle(
-                        ledger.state,
-                        open_=prices["open"],
-                        high=prices["high"],
-                        low=prices["low"],
-                        close=prices["close"],
+                if child_prices is None or child_index is None:
+                    ambiguous = _execute_bar(
+                        ledger,
+                        prices,
+                        bar_index,
+                        timestamp_str,
+                        rates.get(pd.Timestamp(str(timestamp)).value),
+                        pending,
+                        trace,
                     )
-                    ambiguous = outcome.ambiguous
-                    for event in outcome.events:
-                        assert ledger.state is not None
-                        ledger.state = apply_event(ledger.state, event)
-                        ledger.exit(event, bar_index, timestamp_str, "intrabar_scenario")
-                    if ledger.state is not None:
-                        ledger.state = outcome.state
-                values.append(ledger.mark(prices["close"]))
-            if trace is not None:
-                trace.extend(
-                    {"type": "fill", **json_value(fill)} for fill in ledger.fills[fills_before:]
-                )
+                    values.append(ledger.mark(prices["close"]))
+                else:
+                    left = bar_index * minutes
+                    for child in range(left, left + minutes):
+                        current = {
+                            name: child_prices[name][child]
+                            for name in ("open", "high", "low", "close")
+                        }
+                        ambiguous |= _execute_bar(
+                            ledger,
+                            current,
+                            child,
+                            child_index[child].isoformat(),
+                            rates.get(child_index[child].value),
+                            pending if child == left else None,
+                            trace,
+                        )
+                        values.append(ledger.mark(current["close"]))
+                pending = None
             bar = {
                 "index": index,
                 "timestamp": timestamp_str,
@@ -207,7 +253,9 @@ def run_code_backtest(
     finally:
         transport.close()
     evaluated = ohlcv.iloc[warmup_bars:]
-    equity = pd.Series(values, index=evaluated.index, dtype=object)
+    equity = pd.Series(
+        values, index=child_index if child_index is not None else evaluated.index, dtype=object
+    )
     exit_phases = {
         fill["generation"]: "bar_open" if fill["phase"] == "bar_open" else "intrabar_unknown"
         for fill in ledger.fills
@@ -229,8 +277,8 @@ def run_code_backtest(
     metrics = _compute_metrics(
         trades,
         equity,
-        cfg,
-        evaluated,
+        replace(cfg, freq="1min") if child_index is not None else cfg,
+        execution_ohlcv if child_index is not None else evaluated,
         funding_data_incomplete=None if trades else False,
         total_funding=total_funding,
     )
