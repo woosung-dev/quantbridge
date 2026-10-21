@@ -384,3 +384,102 @@ async def test_sql_rollback_error_path_uses_detached_generation_and_halts(prepar
     assert state is not None and state.new_entries_blocked and state.close_requested
     assert state.failure_reason == "command_failed:CodeSnapshotError"
     venue.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_real_sql_tp_race_waits_for_fill_evidence_without_synthetic_native_exit(
+    prepared, db_session
+):
+    from src.trading.providers import OrderStatusFetch, PositionInfo
+    from src.trading.services.code_risk_executor import CodeRiskExecutor
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    session_id = session.id
+    risk = CodeRiskService(repo)
+    await risk.record_entry_fill(
+        session_id, 1, entry.id, cumulative_quantity=D(2), cumulative_value=D(200), terminal=True
+    )
+    state = await repo.get(session_id)
+    await risk.acknowledge_protection(
+        session_id, 1, token=state.protection_desired["token"], success=True
+    )
+    order_repo = OrderRepository(db_session)
+    await order_repo.transition_to_submitted(entry.id, submitted_at=datetime.now(UTC))
+    await order_repo.transition_to_filled(
+        entry.id,
+        exchange_order_id="entry",
+        filled_price=D(100),
+        filled_quantity=D(2),
+        filled_at=datetime.now(UTC),
+    )
+    child = Order(
+        strategy_id=session.strategy_id,
+        exchange_account_id=session.exchange_account_id,
+        symbol=session.symbol,
+        side=OrderSide.sell,
+        type=OrderType.limit,
+        quantity=D(1),
+        price=D("103.3"),
+        state=OrderState.submitted,
+        exchange_order_id="tp",
+        reduce_only=True,
+        risk_context={"session_id": str(session_id), "generation": 1, "role": "partial_tp"},
+    )
+    db_session.add(child)
+    await repo.commit()
+    provider, accounts = AsyncMock(), AsyncMock()
+    status = {
+        "tp": OrderStatusFetch(exchange_order_id="tp", status="submitted", filled_quantity=D(0))
+    }
+
+    async def read(_credentials, identifier, _symbol):
+        return (
+            status["tp"]
+            if identifier == str(child.id)
+            else OrderStatusFetch(
+                exchange_order_id="entry",
+                status="filled",
+                filled_quantity=D(2),
+                filled_price=D(100),
+            )
+        )
+
+    provider.fetch_order_by_client_id.side_effect = read
+    provider.fetch_position.return_value = PositionInfo(size=D(1), side="long")
+    provider.set_code_protection.return_value = {"accepted": True}
+    provider.fetch_open_conditional_orders.return_value = []
+    executor = CodeRiskExecutor(
+        repo, risk, BybitCodeRiskVenue(repo, order_repo, risk, accounts, provider)
+    )
+    with pytest.raises(CodeRiskReconciliationPending):
+        await executor.drain(session_id)
+    observed = await repo.get(session_id)
+    assert (
+        observed.position_quantity == 2
+        and observed.exit_fills == {}
+        and not observed.close_requested
+    )
+    provider.create_order.assert_not_awaited()
+    # 다음 확정 주문 응답으로만 부분 체결을 반영한다.
+    status["tp"] = OrderStatusFetch(
+        exchange_order_id="tp", status="filled", filled_quantity=D(1), filled_price=D("103.3")
+    )
+    await executor.drain(session_id)
+    observed = await repo.get(session_id)
+    assert observed.position_quantity == 1 and observed.tp_filled_quantity == 1
+    assert observed.exit_fills == {str(child.id): {"quantity": "1", "role": "partial_tp"}}
+    assert not observed.new_entries_blocked and not observed.close_requested
+    provider.create_order.assert_not_awaited()
+    # dict 누적 원장이 있어도 미확인 native 부분 감소를 두 번 관찰해 추측 차감하지 않는다.
+    provider.fetch_position.return_value = PositionInfo(size=D("0.5"), side="long")
+    for _ in range(2):
+        with pytest.raises(CodeRiskReconciliationPending):
+            await executor.drain(session_id)
+    assert (await repo.get(session_id)).position_quantity == 1
+    provider.fetch_position.return_value = None
+    await executor.drain(session_id)
+    observed = await repo.get(session_id)
+    assert observed.position_quantity == 0 and observed.cancels_confirmed
+    assert not observed.new_entries_blocked

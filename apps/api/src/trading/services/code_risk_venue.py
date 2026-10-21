@@ -21,7 +21,11 @@ from src.trading.providers import BybitFuturesProvider, Credentials, OrderStatus
 from src.trading.repositories.code_risk_repository import CodeRiskRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.services.account_service import ExchangeAccountService
-from src.trading.services.code_risk_service import CodeRiskError, CodeRiskService
+from src.trading.services.code_risk_service import (
+    CodeRiskError,
+    CodeRiskReconciliationPending,
+    CodeRiskService,
+)
 
 
 class BybitCodeRiskVenue:
@@ -44,7 +48,7 @@ class BybitCodeRiskVenue:
     async def _creds(self, session: LiveSignalSession) -> Credentials:
         return await self._accounts.get_credentials_for_order(session.exchange_account_id)
 
-    async def reconcile(self, session: LiveSignalSession, state: LiveRiskState) -> None:
+    async def reconcile(self, session: LiveSignalSession, state: LiveRiskState) -> bool:
         creds = await self._creds(session)
         orders = await self._repo.child_orders(session.id, state.generation)
         entry = await self._repo.get_order(state.entry_order_id)
@@ -67,17 +71,10 @@ class BybitCodeRiskVenue:
             elif position.side != latest.direction or position.size > latest.position_quantity:
                 await self._risk.halt(session.id, latest.generation, "position_ledger_mismatch")
             elif position.size < latest.position_quantity:
-                identifier = uuid5(
-                    NAMESPACE_URL, f"risk:{session.id}:{latest.generation}:native_exit"
-                )
-                previous = Decimal(str(latest.exit_fills.get(str(identifier), 0)))
-                await self._risk.record_exit_fill(
-                    session.id,
-                    latest.generation,
-                    order_id=identifier,
-                    role="stop_loss",
-                    cumulative_quantity=previous + latest.position_quantity - position.size,
-                )
+                # child REST 조회 직후 TP가 체결될 수 있다. 차이를 SL 체결로 합성하지 않는다.
+                # 다음 WS/REST의 주문 누적 증거가 올 때까지 보호 교체·축소도 보류한다.
+                return False
+        return True
 
     async def execute(
         self, command: CodeRiskCommand, session: LiveSignalSession, state: LiveRiskState
@@ -125,11 +122,11 @@ class BybitCodeRiskVenue:
             return await self._submit(creds, child)
         if command.kind == "apply_protection":
             position = await self._provider.fetch_position(creds, session.symbol)
-            if (
-                position is None
-                or position.side != state.direction
-                or position.size != state.position_quantity
+            if position is None or (
+                position.side == state.direction and position.size < state.position_quantity
             ):
+                raise CodeRiskReconciliationPending("보호 적용 전 늦은 청산 체결을 재조회합니다")
+            if position.side != state.direction or position.size != state.position_quantity:
                 raise CodeRiskError("보호 적용 시 포지션과 원장이 다릅니다")
             p = command.payload
             native_needed = (

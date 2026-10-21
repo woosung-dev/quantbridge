@@ -11,14 +11,19 @@ from src.trading.code_execution_snapshot import validate_code_snapshot
 from src.trading.models import CodeRiskCommand, LiveRiskState, LiveSignalSession
 from src.trading.product_policy import require_bybit_demo_account
 from src.trading.repositories.code_risk_repository import CodeRiskRepository
-from src.trading.services.code_risk_service import CodeRiskError, CodeRiskService, RiskCommand
+from src.trading.services.code_risk_service import (
+    CodeRiskError,
+    CodeRiskReconciliationPending,
+    CodeRiskService,
+    RiskCommand,
+)
 
 
 class CodeRiskVenue(Protocol):
     async def execute(
         self, command: CodeRiskCommand, session: LiveSignalSession, state: LiveRiskState
     ) -> dict[str, Any]: ...
-    async def reconcile(self, session: LiveSignalSession, state: LiveRiskState) -> None: ...
+    async def reconcile(self, session: LiveSignalSession, state: LiveRiskState) -> bool: ...
 
 
 class CodeRiskExecutor:
@@ -45,7 +50,10 @@ class CodeRiskExecutor:
         )
         require_bybit_demo_account(account.exchange, account.mode)
         # 소스 변조·세션 종료도 기존 포지션 축소·취소를 막지 않는다.
-        await self._venue.reconcile(session, state)
+        if await self._venue.reconcile(session, state) is False:
+            raise CodeRiskReconciliationPending(
+                "주문 체결과 거래소 포지션의 정합 확인을 기다립니다"
+            )
         recovered = await self._risk.recover(session_id)
         await self._repo.enqueue_commands(
             [
@@ -111,6 +119,13 @@ class CodeRiskExecutor:
                         )
                 await self._repo.finish_command(command.key, lease, status="applied", result=result)
                 await self._repo.commit()
+            except CodeRiskReconciliationPending:
+                await self._repo.rollback()
+                await self._repo.finish_command(
+                    command.key, lease, status="pending", error="CodeRiskReconciliationPending"
+                )
+                await self._repo.commit()
+                raise
             except Exception as exc:
                 # 외부 라이브러리 메시지에는 자격증명이 있을 수 있어 타입만 저장한다.
                 await self._repo.rollback()

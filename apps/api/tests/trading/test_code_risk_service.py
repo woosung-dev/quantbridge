@@ -307,3 +307,32 @@ async def test_short_risk_trails_in_favorable_direction_only(controller):
     await svc.mark_price(session_id, 1, D("92"))
     assert D(str(stored["state"].protection_desired["stop_loss"])) == D("96.4")
     assert await svc.mark_price(session_id, 1, D("94")) == []
+
+
+@pytest.mark.asyncio
+async def test_late_tp_after_observed_flat_only_settles_once_and_preserves_reversal(controller):
+    svc, _repo, stored, session_id, _ = controller
+    await prepare(controller)
+    await fill(controller, qty="2", value="200")
+    await svc.request_signal(session_id, 1, "short")
+    await svc.confirm_flat_and_cancelled(session_id, 1, flat=True, cancelled=True)
+    identifier = uuid4()
+    await svc.record_exit_fill(
+        session_id, 1, identifier, role="partial_tp", cumulative_quantity=D(1)
+    )
+    state = stored["state"]
+    assert state.position_quantity == 0 and state.tp_filled_quantity == 1
+    assert (
+        state.pending_reversal == "short"
+        and state.cancels_confirmed
+        and not state.new_entries_blocked
+    )
+    assert (
+        await svc.record_exit_fill(
+            session_id, 1, identifier, role="partial_tp", cumulative_quantity=D(1)
+        )
+        == []
+    )
+    # 실제 누적 청산 총량이 진입 총량을 넘는 모순은 여전히 차단한다.
+    await svc.record_exit_fill(session_id, 1, uuid4(), role="close", cumulative_quantity=D(2))
+    assert stored["state"].new_entries_blocked

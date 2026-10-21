@@ -353,3 +353,24 @@ async def test_register_builds_server_snapshot_and_rejects_unpinned_source_befor
     with pytest.raises(InvalidStrategySettings):
         await service.register(session.user_id, req)
     balance.get_balance.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_pending_tp_settlement_does_not_turn_into_failed_protection_or_flatten(runtime):
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+
+    executor, risk, _repo, venue, stored, outbox, session, *_ = runtime
+    await risk.record_entry_fill(
+        session.id,
+        1,
+        stored["state"].entry_order_id,
+        cumulative_quantity=D(2),
+        cumulative_value=D(200),
+        terminal=True,
+    )
+    venue.execute.side_effect = CodeRiskReconciliationPending("TP cumulative report pending")
+    with pytest.raises(CodeRiskReconciliationPending):
+        await executor.drain(session.id)
+    assert not stored["state"].new_entries_blocked and not stored["state"].close_requested
+    assert all(command.kind != "flatten" for command in outbox.values())
+    assert next(iter(outbox.values())).status == "pending"

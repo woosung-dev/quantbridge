@@ -1165,7 +1165,7 @@ def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
 
 
 def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """trading schema + 10 테이블이 upgrade head 후 존재하는지 검증.
+    """trading 스키마의 명시한 영속 테이블 집합이 upgrade head 후 존재하는지 검증.
 
     Sprint 26 Phase A 추가 — live_signal_sessions / live_signal_states /
     live_signal_events (Pine Signal Auto-Trading outbox + state).
@@ -1191,11 +1191,12 @@ def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
             "live_signal_events",
             "live_risk_states",
             "code_risk_commands",
+            "live_code_bars",
             # tier-c — 세션별 알림 규칙
             "alert_rules",
             # exit-attribution — 거래소 원본 청산 원장
             "exchange_exits",
-        }, f"예상 10 테이블과 불일치: {trading_tables}"
+        }, f"예상 테이블 집합과 불일치: {trading_tables}"
     finally:
         engine.dispose()
 

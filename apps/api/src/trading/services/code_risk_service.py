@@ -20,6 +20,10 @@ class CodeRiskError(ValueError):
     """부정확한 체결이나 경쟁 갱신을 성공으로 보고하지 않는다."""
 
 
+class CodeRiskReconciliationPending(CodeRiskError):
+    """거래소 포지션 차이를 아직 주문 누적 체결로 설명할 수 없다."""
+
+
 @dataclass(frozen=True)
 class RiskCommand:
     kind: str
@@ -249,13 +253,24 @@ class CodeRiskService:
             str(order_id): {"quantity": str(cumulative_quantity), "role": role},
         }
         remaining = state.position_quantity
+        # 실제 flat으로 이미 수렴한 뒤 도착한 체결도 총량 안에서는 기록만 보충한다.
+        flat_settlement = remaining == ZERO and state.entry_terminal
+        known_exits = sum(
+            (
+                Decimal(str(value["quantity"]))
+                for value in state.exit_fills.values()
+                if isinstance(value, dict)
+            ),
+            ZERO,
+        )
         state.position_quantity = max(ZERO, remaining - delta)
         if role == "partial_tp":
             state.tp_filled_quantity += delta
         else:
             state.close_requested = True
         if (
-            delta > remaining
+            (delta > remaining and not flat_settlement)
+            or known_exits > state.cumulative_quantity
             or state.tp_filled_quantity > state.cumulative_quantity * POLICY.partial_fraction
         ):
             return await self._fail(
@@ -263,7 +278,7 @@ class CodeRiskService:
             )
         if state.position_quantity > 0:
             self._desire_protection(state)
-        else:
+        elif not flat_settlement:
             state.cancels_confirmed = False
         return await self._save(state, commit=commit)
 

@@ -42,7 +42,7 @@ from src.trading.schemas import RegisterLiveSessionRequest
 from src.trading.services.account_exclusivity import AccountExclusivityService
 from src.trading.services.balance_service import AccountBalanceService
 from src.trading.services.code_risk_executor import CodeRiskExecutor
-from src.trading.services.code_risk_service import CodeRiskService
+from src.trading.services.code_risk_service import CodeRiskReconciliationPending, CodeRiskService
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +271,10 @@ class LiveSignalSessionService:
         if rowcount > 0:
             await self._repo.commit()  # LESSON-019
             if sess.execution_snapshot is not None and self._risk_executor is not None:
-                await self._risk_executor.drain(sess.id)
+                try:
+                    await self._risk_executor.drain(sess.id)
+                except CodeRiskReconciliationPending:
+                    logger.info("code_risk_stop_awaiting_fill_reconciliation")
             from src.tasks.live_signal import sweep_conditional_entries_task
 
             try:

@@ -24,6 +24,7 @@ from src.trading.repositories.order_repository import OrderRepository
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.code_evaluation_service import FLAT, CodeEvaluationService
 from src.trading.services.code_live_execution_service import CodeLiveExecutionService
+from src.trading.services.code_risk_service import CodeRiskReconciliationPending
 
 
 def code_quantity(
@@ -87,7 +88,10 @@ async def evaluate_code_session(
     )
     risk, executor = build_code_risk_executor(session, accounts, provider)
     # 소스·설정 오류도 이미 열린 포지션의 보호·취소 복구를 막지 않는다.
-    await executor.drain(live.id)
+    try:
+        await executor.drain(live.id)
+    except CodeRiskReconciliationPending:
+        return {"code_action": "awaiting_fill_reconciliation", "session_id": str(live.id)}
     if version is None or version.strategy_id != live.strategy_id:
         raise CodeRuntimeError("코드 실행 버전이 없습니다")
     snapshot = validate_code_snapshot(
@@ -158,23 +162,26 @@ async def evaluate_code_session(
         repo, OrderRepository(session), risk, executor, entry_gate=kill_switch.ensure_not_gated
     )
     evaluator = CodeEvaluationService(CodeCheckpointRepository(session), coordinator)
-    action = await evaluator.evaluate(
-        session_id=live.id,
-        code=code,
-        bars=bars,
-        position=position,
-        activated_at=live.created_at,
-        now=at,
-        interval_seconds=TIMEFRAME_SECONDS[str(live.interval)],
-        execution_args={
-            "estimated_entry": price,
-            "quantity": qty,
-            "qty_step": step,
-            "min_qty": minimum,
-            "previous_bars": [
-                {key: Decimal(str(bar[key])) for key in ("open", "high", "low", "close")}
-                for bar in bars[-2:]
-            ],
-        },
-    )
+    try:
+        action = await evaluator.evaluate(
+            session_id=live.id,
+            code=code,
+            bars=bars,
+            position=position,
+            activated_at=live.created_at,
+            now=at,
+            interval_seconds=TIMEFRAME_SECONDS[str(live.interval)],
+            execution_args={
+                "estimated_entry": price,
+                "quantity": qty,
+                "qty_step": step,
+                "min_qty": minimum,
+                "previous_bars": [
+                    {key: Decimal(str(bar[key])) for key in ("open", "high", "low", "close")}
+                    for bar in bars[-2:]
+                ],
+            },
+        )
+    except CodeRiskReconciliationPending:
+        return {"code_action": "awaiting_fill_reconciliation", "session_id": str(live.id)}
     return {"code_action": action, "session_id": str(live.id)}

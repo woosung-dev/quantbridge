@@ -172,3 +172,43 @@ async def test_cancelled_partial_tp_halts_instead_of_acknowledging_protection():
         await venue._submit(Credentials("fake", "fake"), order)
     risk.halt.assert_awaited_once_with(session_id, 1, "partial_tp_protection_lost", commit=False)
     provider.create_order.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tp_fill_between_child_rest_and_position_read_never_infers_stop_fill():
+    from src.trading.models import LiveRiskState, LiveSignalSession
+    from src.trading.providers import PositionInfo
+
+    repo, orders, risk, accounts, provider = (AsyncMock() for _ in range(5))
+    session = LiveSignalSession(
+        user_id=uuid4(),
+        strategy_id=uuid4(),
+        exchange_account_id=uuid4(),
+        symbol="BTC/USDT",
+        interval="1h",
+    )
+    state = LiveRiskState(
+        session_id=session.id,
+        entry_order_id=uuid4(),
+        direction="long",
+        expected_quantity=D(2),
+        cumulative_quantity=D(2),
+        cumulative_value=D(200),
+        position_quantity=D(2),
+        entry_terminal=True,
+        reference_bars=[],
+        qty_step=D("0.1"),
+        min_qty=D("0.1"),
+        provisional_stop=D(97),
+        exit_fills={str(uuid4()): {"quantity": "0.1", "role": "partial_tp"}},
+    )
+    repo.child_orders.return_value = []
+    repo.get_order.return_value = None
+    repo.get.return_value = state
+    provider.fetch_position.return_value = PositionInfo(size=D(1), side="long")
+    venue = BybitCodeRiskVenue(repo, orders, risk, accounts, provider)
+    assert await venue.reconcile(session, state) is False
+    assert await venue.reconcile(session, state) is False
+    risk.record_exit_fill.assert_not_awaited()
+    risk.halt.assert_not_awaited()
+    provider.create_order.assert_not_awaited()
