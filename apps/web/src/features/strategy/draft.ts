@@ -65,7 +65,11 @@ export function saveWizardDraft(
 export function clearWizardDraft(userId: string | null | undefined): void {
   if (typeof window === "undefined") return;
   if (!userId) return;
-  window.localStorage.removeItem(draftKeyFor(userId));
+  try {
+    window.localStorage.removeItem(draftKeyFor(userId));
+  } catch {
+    // storage 접근이 막혀도 위저드 동작은 계속한다.
+  }
   snapshotCache.delete(snapshotKey(userId));
   notifyDraftChanged();
 }
@@ -82,13 +86,18 @@ function snapshotKey(userId: string | null | undefined): string {
 function readSnapshot(userId: string | null | undefined): WizardDraft | null {
   if (typeof window === "undefined") return null;
   if (!userId) return null;
-  const key = draftKeyFor(userId);
-  const stamp = window.localStorage.getItem(key);
-  const cached = snapshotCache.get(snapshotKey(userId));
-  if (cached && cached.stamp === stamp) return cached.parsed;
-  const parsed = loadWizardDraft(userId);
-  snapshotCache.set(snapshotKey(userId), { stamp, parsed });
-  return parsed;
+  try {
+    const key = draftKeyFor(userId);
+    const stamp = window.localStorage.getItem(key);
+    const cached = snapshotCache.get(snapshotKey(userId));
+    if (cached && cached.stamp === stamp) return cached.parsed;
+    const parsed = loadWizardDraft(userId);
+    snapshotCache.set(snapshotKey(userId), { stamp, parsed });
+    return parsed;
+  } catch {
+    // 접근 실패 때 cached draft 를 반환하면 계정 전환 후 다른 사용자의 원문을 노출할 수 있다.
+    return null;
+  }
 }
 
 // 모듈 단위 subscriber — same-window mutation 을 useSyncExternalStore 가 알아차리도록
@@ -122,21 +131,31 @@ export function useDraftSnapshot(userId: string | null | undefined): WizardDraft
 // 현재 userId 를 제외한 모든 wizard draft 제거 — 계정 전환/공유 기기 대비.
 export function clearOtherUsersDrafts(currentUserId: string | null | undefined): void {
   if (typeof window === "undefined") return;
-  const storage = window.localStorage;
-  const prefix = `${DRAFT_KEY_VERSION_PREFIX}:`;
-  const keepKey = currentUserId ? draftKeyFor(currentUserId) : null;
-  const toRemove: string[] = [];
-  for (let i = 0; i < storage.length; i += 1) {
-    const key = storage.key(i);
-    if (!key) continue;
-    if (!key.startsWith(prefix)) continue;
-    if (key === keepKey) continue;
-    toRemove.push(key);
+  let removedAny = false;
+  try {
+    const storage = window.localStorage;
+    const prefix = `${DRAFT_KEY_VERSION_PREFIX}:`;
+    const keepKey = currentUserId ? draftKeyFor(currentUserId) : null;
+    const toRemove: string[] = [];
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i);
+      if (!key) continue;
+      if (!key.startsWith(prefix)) continue;
+      if (key === keepKey) continue;
+      toRemove.push(key);
+    }
+    if (toRemove.length === 0) return;
+    for (const key of toRemove) {
+      storage.removeItem(key);
+      removedAny = true;
+    }
+  } catch {
+    // 일부 키가 지워진 뒤 실패했을 수 있으므로 캐시를 무효화하고 구독자에게 알린다.
+    snapshotCache.clear();
+    notifyDraftChanged();
+    return;
   }
-  if (toRemove.length === 0) return;
-  for (const key of toRemove) {
-    storage.removeItem(key);
-  }
+  if (!removedAny) return;
   snapshotCache.clear();
   notifyDraftChanged();
 }
@@ -145,14 +164,15 @@ export function clearOtherUsersDrafts(currentUserId: string | null | undefined):
  * 입력 state를 500ms debounce로 자동 저장.
  *
  * - userId 변경 감지: 이전 userId 의 draft 를 best-effort 로 삭제 (signout 후 다른 계정 로그인 대비).
- * - dep는 primitive value (method + pineSource + userId)만 사용 — object literal을 그대로 dep에
- *   넣으면 매 render 새 참조라 debounce가 매번 리셋.
+ * - dep 는 원문·메타데이터의 primitive value 만 사용한다. object literal 을 dep 에 넣으면
+ *   매 render 새 참조라 debounce 가 매번 리셋된다.
  * - ref를 render 중에 직접 대입하면 React Compiler의 "Cannot access refs during render" rule 위반
  *   (LESSON-006). 따라서 sync 전용 useEffect (deps 없음) 에서 수행.
  */
 export function useAutoSaveDraft(
   userId: string | null | undefined,
   draft: Omit<WizardDraft, "version" | "savedAt">,
+  enabled = true,
 ): void {
   const draftRef = useRef(draft);
   const prevUserIdRef = useRef<string | null | undefined>(userId);
@@ -170,9 +190,11 @@ export function useAutoSaveDraft(
   }, [userId]);
 
   const { method, pineSource } = draft;
+  const { name, description, symbol, timeframe } = draft.metadata;
+  const tagsKey = JSON.stringify(draft.metadata.tags ?? []);
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !enabled) return;
     const t = setTimeout(() => saveWizardDraft(userId, draftRef.current), 500);
     return () => clearTimeout(t);
-  }, [method, pineSource, userId]);
+  }, [method, pineSource, userId, enabled, name, description, symbol, timeframe, tagsKey]);
 }

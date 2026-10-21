@@ -45,7 +45,6 @@ const REVIEWED: Record<string, string> = {
   "/strategies": "2026-09-06",
   "/strategies/new": "2026-09-06",
   // 실제 인증 브라우저·모의 연구 API로 320px/데스크톱 화면을 확인했다.
-  "/strategies/python": "2026-10-21",
   "/backtests": "2026-09-06",
   "/backtests/new": "2026-09-06",
   "/optimizer": "2026-09-06",

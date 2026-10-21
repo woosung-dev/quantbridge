@@ -193,9 +193,6 @@ export function StrategyList() {
             </div>
           </div>
           <div className="report-actions">
-            <Link className="btn" href="/strategies/python">
-              Python 전략 실험실
-            </Link>
             <button
               className="btn"
               type="button"

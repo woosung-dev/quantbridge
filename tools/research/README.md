@@ -2,6 +2,8 @@
 
 루트에서 `apps/api/.venv/bin/python tools/research/cli.py --help`로 명령을 확인한다.
 산출물은 `runs/`에만 기록하며 공유 DB·Celery·거래소 주문을 사용하지 않는다.
+사용자 Python의 웹·서버 실행 서비스는 제공하지 않는다([ADR-045](../../docs/adr/045-python-strategy-research.md)).
+이 문서의 명령은 내부 오프라인 연구 전용이며 서버 전략 등록·실행 경로와 연결되지 않는다.
 
 1. `sources`: 제공된 한국어 YouTube 6채널의 최초 공개 영상 목록 metadata를 수집한다. 페이지 변경·로그인·수집 실패는 `blocked`로 기록한다. 제목을 보고 진입·청산 규칙을 추정하지 않는다. 원본 코드 사용권과 영상 시각은 확인 전까지 unknown이다. 전체 채널 이력 수집을 주장하지 않는다.
 2. `catalogue`: 공개 지표의 서로 다른 역할을 조합한 연구 가설 100개와 파일럿 10개를 생성한다. 10종 추세·가치 필터 × 10종 진입 신호이며 파라미터만 다른 복제 후보를 세지 않는다. 영상 원본 재현 100개가 아니다. EMA·RSI 등의 초기화는 최대 최근 201봉으로 정의한 유한 이력 계산이므로 특정 라이브러리·TradingView와 숫자가 같다고 주장하지 않는다.
@@ -32,9 +34,10 @@ apps/api/.venv/bin/python tools/research/cli.py --run-dir runs/indicator-researc
 apps/api/.venv/bin/python tools/research/export_candidate.py --run-dir runs/indicator-research --output runs/indicator-candidate-review
 ```
 
-검토 묶음 내보내기는 단일 후보의 별도 기간 평가 완료 후 실행한다. 코드·API 저장 요청·네 가지 최종
+검토 묶음 내보내기는 단일 후보의 별도 기간 평가 완료 후 실행한다. 코드·과거 형식의 저장 요청 자료·네 가지 최종
 결과·데이터 명세와 hash를 포함하며 CSV·비밀 설정·영상을 복사하지 않는다. 실패 후보도 검토 가능하나
-수치선 통과·배포 승인을 부여하지 않는다. 기존 출력 디렉터리를 덮어쓰지 않는다.
+수치선 통과·배포 승인을 부여하지 않는다. 저장 요청 자료를 받는 Python 서비스 API는 없으며 자동 제출하지 않는다.
+기존 출력 디렉터리를 덮어쓰지 않는다.
 
 공개 API 계약: [Kline](https://bybit-exchange.github.io/docs/v5/market/kline), [Funding history](https://bybit-exchange.github.io/docs/v5/market/history-fund-rate). 시세 조회는 공개 거래 데이터이며 demo 계정 주문을 실행하지 않는다.
 

@@ -6,13 +6,15 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-const { strategyQuery, mutate, metadataRender } = vi.hoisted(() => ({
+const { strategyQuery, mutate, metadataRender, prefetchBrief } = vi.hoisted(() => ({
   strategyQuery: vi.fn(),
   mutate: vi.fn(),
   metadataRender: vi.fn(),
+  prefetchBrief: vi.fn(),
 }));
 vi.mock("@/features/strategy/hooks", () => ({
   useStrategy: strategyQuery,
+  usePrefetchStrategyBrief: prefetchBrief,
   useUpdateStrategy: () => ({ mutate, isPending: false }),
 }));
 
@@ -41,6 +43,7 @@ beforeEach(() => {
     lastSavedAt: null,
   });
   mutate.mockReset();
+  prefetchBrief.mockReset();
   metadataRender.mockReset();
 });
 
@@ -92,5 +95,14 @@ describe("EditorView 타이핑 구독", () => {
     expect(screen.getByRole("heading", { name: "Pine 소스 2줄" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^저장$/ }));
     expect(mutate).toHaveBeenCalledWith({ pine_source: "latest edit\nsecond line" });
+  });
+});
+
+describe("EditorView 브리핑 병렬 조회", () => {
+  it("상세 로딩 중에도 브리핑 요청을 시작한다", () => {
+    const id = "550e8400-e29b-41d4-a716-446655440000";
+    render(<EditorView id={id} />);
+    expect(screen.getByTestId("strategy-editor-skeleton")).toBeInTheDocument();
+    expect(prefetchBrief).toHaveBeenCalledWith(id);
   });
 });

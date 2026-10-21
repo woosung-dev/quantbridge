@@ -40,20 +40,22 @@ export function GridSearchHeatmap({ result, pair }: Props) {
     }
   }
 
+  const fixEntries = Object.entries(fixOthers);
+
   // cell lookup: (행, 열) → cell (fix other vars equal).
+  // ★칸마다 전 셀을 훑으면 O(행 × 열 × 셀) 이다 — 셀을 한 번만 훑어 좌표 색인을 만든다
+  //   (js-index-maps). 같은 좌표에 셀이 여럿이면 종전처럼 **먼저 나온 셀**이 이긴다.
+  const cellByCoord = new Map<string, GridSearchResult["cells"][number]>();
+  for (const c of result.cells) {
+    const rowV = c.param_values[rowName];
+    const colV = c.param_values[colName];
+    if (rowV === undefined || colV === undefined) continue;
+    if (!fixEntries.every(([k, v]) => c.param_values[k] === v)) continue;
+    const key = `${rowV}|${colV}`;
+    if (!cellByCoord.has(key)) cellByCoord.set(key, c);
+  }
   function findCell(rowV: number, colV: number): GridSearchResult["cells"][number] | null {
-    for (const c of result.cells) {
-      if (c.param_values[rowName] !== rowV || c.param_values[colName] !== colV) continue;
-      let match = true;
-      for (const k in fixOthers) {
-        if (c.param_values[k] !== fixOthers[k]) {
-          match = false;
-          break;
-        }
-      }
-      if (match) return c;
-    }
-    return null;
+    return cellByCoord.get(`${rowV}|${colV}`) ?? null;
   }
 
   // objective_value 선형 정규화 → 코퍼 알파 [0.05, 0.35]. 최적일수록 진하다(direction 반영).
@@ -113,8 +115,7 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                   bestParamValues != null &&
                   bestParamValues[rowName] === rowV &&
                   bestParamValues[colName] === colV &&
-                  (Object.keys(fixOthers).length === 0 ||
-                    Object.entries(fixOthers).every(([k, v]) => bestParamValues[k] === v));
+                  fixEntries.every(([k, v]) => bestParamValues[k] === v);
                 if (isDegenerate || objVal === null) {
                   return (
                     <td key={`${rowV}-${colV}`}>

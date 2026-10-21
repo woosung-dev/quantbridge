@@ -47,8 +47,7 @@ vi.mock("@/features/strategy/hooks", () => ({
     isError: false,
   }),
   useCreateStrategy: () => ({ mutate: vi.fn(), isPending: false }),
-  useParseStrategy: () => ({ mutate: vi.fn(), data: null, isPending: false, error: null }),
-  usePreviewParse: () => ({ data: null, isFetching: false, error: null }),
+  useCurrentSourceParse: () => ({ parse: vi.fn(), result: null, loading: false, error: null }),
 }));
 
 import { NewStrategyWizard } from "@/features/strategy/components/new/new-strategy-wizard";
@@ -88,13 +87,20 @@ describe("NewStrategyWizard — 복원 프롬프트 게이트 (BL-823)", () => {
     window.localStorage.clear();
   });
 
-  it("이 세션의 auto-save 초안에는 모달이 뜨지 않는다 (타이핑 → 500ms 경과)", () => {
+  // Regression: 이름만 먼저 입력해도 이번 세션 초안의 복원 창이 열리면 안 된다.
+  it.each(["pine", "name"] as const)("이 세션의 %s 자동저장에는 모달이 뜨지 않는다", (field) => {
     renderWizard();
     expect(screen.queryByText(DIALOG_TITLE)).toBeNull();
 
-    fireEvent.change(screen.getByTestId("pine-editor"), {
-      target: { value: "//@version=5\nstrategy('now')" },
-    });
+    if (field === "pine") {
+      fireEvent.change(screen.getByTestId("pine-editor"), {
+        target: { value: "//@version=5\nstrategy('now')" },
+      });
+    } else {
+      fireEvent.change(screen.getByLabelText("전략 이름"), {
+        target: { value: "이름부터 작성" },
+      });
+    }
     act(() => {
       vi.advanceTimersByTime(600);
     });
@@ -103,7 +109,11 @@ describe("NewStrategyWizard — 복원 프롬프트 게이트 (BL-823)", () => {
     // 「저장 자체가 안 돼서」 모달이 안 뜬 구현도 초록으로 통과한다.
     const stored = window.localStorage.getItem(draftKeyFor(USER_ID));
     expect(stored).not.toBeNull();
-    expect(JSON.parse(stored!).pineSource).toContain("strategy('now')");
+    if (field === "pine") {
+      expect(JSON.parse(stored!).pineSource).toContain("strategy('now')");
+    } else {
+      expect(JSON.parse(stored!).metadata.name).toBe("이름부터 작성");
+    }
 
     expect(screen.queryByText(DIALOG_TITLE)).toBeNull();
   });
@@ -112,6 +122,82 @@ describe("NewStrategyWizard — 복원 프롬프트 게이트 (BL-823)", () => {
     seedPriorDraft();
     renderWizard();
     expect(screen.getByText(DIALOG_TITLE)).toBeTruthy();
+  });
+
+  it("복원 선택을 기다리는 동안 이전 초안과 모달을 보존한다", () => {
+    seedPriorDraft();
+    renderWizard();
+    act(() => vi.advanceTimersByTime(1000));
+    expect(JSON.parse(window.localStorage.getItem(draftKeyFor(USER_ID))!).pineSource).toContain(
+      "strategy('prior')",
+    );
+    expect(screen.getByText(DIALOG_TITLE)).toBeTruthy();
+  });
+
+  it.each(["Escape", "Close"] as const)(
+    "%s 로 창만 닫으면 이전 초안을 보존하고 다음 의도적 입력부터 자동저장한다",
+    (dismiss) => {
+      seedPriorDraft();
+      const prior = window.localStorage.getItem(draftKeyFor(USER_ID));
+      renderWizard();
+      if (dismiss === "Escape") {
+        fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape", code: "Escape" });
+      } else {
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      }
+      act(() => vi.advanceTimersByTime(1000));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(JSON.parse(window.localStorage.getItem(draftKeyFor(USER_ID))!).pineSource).toBe(
+        "//@version=5\nstrategy('prior')",
+      );
+      expect(window.localStorage.getItem(draftKeyFor(USER_ID))).toBe(prior);
+      expect(screen.getByTestId("pine-editor")).toHaveValue("");
+
+      if (dismiss === "Escape") {
+        fireEvent.change(screen.getByTestId("pine-editor"), {
+          target: { value: "strategy('after-close')" },
+        });
+      } else {
+        fireEvent.change(screen.getByLabelText("전략 이름"), {
+          target: { value: "닫은 후 새 이름" },
+        });
+      }
+      act(() => vi.advanceTimersByTime(600));
+      const stored = JSON.parse(window.localStorage.getItem(draftKeyFor(USER_ID))!);
+      if (dismiss === "Escape") {
+        expect(stored.pineSource).toBe("strategy('after-close')");
+      } else {
+        expect(stored.metadata.name).toBe("닫은 후 새 이름");
+      }
+      expect(screen.queryByRole("dialog")).toBeNull();
+    },
+  );
+
+  it("복원한 초안은 이후 입력을 정상 자동저장한다", () => {
+    seedPriorDraft();
+    renderWizard();
+    act(() => vi.advanceTimersByTime(1000));
+    fireEvent.click(screen.getByRole("button", { name: "이어서 작성" }));
+    expect(screen.getByTestId("pine-editor")).toHaveValue("//@version=5\nstrategy('prior')");
+    fireEvent.change(screen.getByLabelText("전략 이름"), { target: { value: "복원 후 수정" } });
+    act(() => vi.advanceTimersByTime(600));
+    expect(JSON.parse(window.localStorage.getItem(draftKeyFor(USER_ID))!).metadata.name).toBe(
+      "복원 후 수정",
+    );
+  });
+
+  it("초안을 폐기한 뒤 새 입력을 정상 자동저장한다", () => {
+    seedPriorDraft();
+    renderWizard();
+    act(() => vi.advanceTimersByTime(1000));
+    fireEvent.click(screen.getByRole("button", { name: "새로 시작" }));
+    fireEvent.change(screen.getByTestId("pine-editor"), { target: { value: "strategy('new')" } });
+    act(() => vi.advanceTimersByTime(600));
+    expect(JSON.parse(window.localStorage.getItem(draftKeyFor(USER_ID))!).pineSource).toBe(
+      "strategy('new')",
+    );
+    expect(screen.queryByText(DIALOG_TITLE)).toBeNull();
   });
 
   it("수동 「초안 저장」 직후에도 모달이 뜨지 않는다", () => {

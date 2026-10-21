@@ -14,7 +14,7 @@ import Link from "next/link";
 
 import { StateBox } from "@/components/state-box";
 import { useAllBacktestTrades } from "@/features/backtest/hooks";
-import type { BacktestDetail } from "@/features/backtest/schemas";
+import type { BacktestDetail, TradeItem } from "@/features/backtest/schemas";
 
 import { AssumptionsCard } from "@/features/backtest/components/assumptions-card";
 import { StressTestPanel } from "@/features/backtest/components/stress-test-panel";
@@ -34,6 +34,9 @@ interface BacktestReportShellProps {
 }
 
 const STRESS_ANCHOR = "stress-test";
+// 로딩 중 `tradeItems ?? []` 가 렌더마다 새 배열을 만들면 자식 memo(closed/분포/원장 정렬)가
+// 매번 다시 돈다 — 모듈 상수 하나로 identity 를 고정한다(rerender-memo-with-default-value).
+const EMPTY_TRADES: readonly TradeItem[] = [];
 const REPORT_TRADE_SKELETON_ROWS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
 const REPORT_TRADE_SKELETON_CELLS = [
   "cell-1",
@@ -223,7 +226,7 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
           </div>
         ) : (
           <TradeLedgerTable
-            trades={tradeItems ?? []}
+            trades={tradeItems ?? EMPTY_TRADES}
             filenamePrefix={`backtest-${currentId.slice(0, 8)}`}
           />
         )}
@@ -242,7 +245,7 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
           <div className="card-body">
             <TradeAnalyticsSection
               metrics={metrics}
-              trades={tradeItems ?? []}
+              trades={tradeItems ?? EMPTY_TRADES}
               truncated={truncated}
             />
           </div>

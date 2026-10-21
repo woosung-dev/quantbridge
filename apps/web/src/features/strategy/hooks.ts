@@ -14,6 +14,7 @@
 
 import {
   useMutation,
+  usePrefetchQuery,
   useQuery,
   useQueryClient,
   type UseMutationResult,
@@ -38,6 +39,7 @@ import {
   updateStrategySettings,
 } from "./api";
 import { strategyKeys } from "./query-keys";
+import { useDebouncedValue } from "./utils";
 import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
@@ -198,6 +200,22 @@ export function useStrategyBrief(id: string | undefined): UseQueryResult<Strateg
   });
 }
 
+/**
+ * 브리핑을 **구독 없이** 미리 띄운다 — 편집 화면 진입 시 `GET /strategies/{id}` 와 병렬로.
+ *
+ * ★브리핑은 id 만 있으면 부를 수 있는데, 패널이 전략 상세 로드 **뒤에** 마운트되므로 그대로 두면
+ *   상세 왕복 → 콜드 파스(수십 초)가 직렬로 이어진다. 같은 query key 라 패널은 진행 중 요청을 잇는다.
+ * ★`usePrefetchQuery` 는 결과를 구독하지 않으므로 호출한 컴포넌트를 다시 그리지 않는다.
+ */
+export function usePrefetchStrategyBrief(id: string): void {
+  const { uid, getToken } = useAuthCtx();
+  usePrefetchQuery({
+    queryKey: strategyKeys.brief(uid, id),
+    queryFn: makeBriefFetcher(id, getToken),
+    retry: 1,
+  });
+}
+
 // T5에서 추가된 hook-level callback 옵션 — 공용 정의 re-export (호환성 유지).
 export type { MutationCallbacks };
 
@@ -324,15 +342,46 @@ export function useParseStrategy(
 // ⌘+Enter 수동 재파싱은 useParseStrategy mutation을 그대로 사용.
 export function usePreviewParse(pineSource: string): UseQueryResult<ParsePreviewResponse, Error> {
   const { uid, getToken } = useAuthCtx();
-  const trimmed = pineSource.trim();
+  const hasSource = pineSource.trim().length > 0;
   return useQuery({
-    queryKey: strategyKeys.parsePreview(uid, trimmed),
-    queryFn: makeParsePreviewFetcher(trimmed, getToken),
-    enabled: trimmed.length > 0,
+    queryKey: strategyKeys.parsePreview(uid, pineSource),
+    queryFn: makeParsePreviewFetcher(pineSource, getToken),
+    enabled: hasSource,
     // 같은 pine_source 문자열 자체가 식별자라 재검증 불필요.
     staleTime: Infinity,
     // 같은 소스가 다시 필요해지면 캐시 히트로 즉시 서빙.
     gcTime: 5 * 60 * 1000,
     retry: false,
   });
+}
+
+/** 현재 원문의 응답만 판정에 사용한다. 이전 요청은 완료되어도 새 원문을 덮지 못한다. */
+export function useCurrentSourceParse(pineSource: string) {
+  const debounced = useDebouncedValue(pineSource, 300);
+  const autoParse = usePreviewParse(debounced);
+  const manualParse = useParseStrategy();
+  const hasSource = pineSource.trim().length > 0;
+  const manualIsCurrent = hasSource && manualParse.variables === pineSource;
+  const autoIsCurrent = hasSource && debounced === pineSource;
+  const manualHasResult = manualIsCurrent && manualParse.data !== undefined;
+  const manualIsSettled = manualIsCurrent && (manualParse.isSuccess || manualParse.isError);
+
+  return {
+    result:
+      (manualIsCurrent ? manualParse.data : null) ??
+      (autoIsCurrent ? autoParse.data : null) ??
+      null,
+    loading:
+      hasSource &&
+      ((manualIsCurrent && manualParse.isPending) ||
+        (!manualIsSettled && (!autoIsCurrent || autoParse.isFetching))),
+    error:
+      (
+        (manualIsCurrent ? manualParse.error : null) ??
+        (autoIsCurrent && !manualHasResult ? autoParse.error : null)
+      )?.message ?? null,
+    parse: () => {
+      if (hasSource) manualParse.mutate(pineSource);
+    },
+  };
 }

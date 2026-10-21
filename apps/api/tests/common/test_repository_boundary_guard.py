@@ -186,8 +186,7 @@ def test_dependencies_do_not_contain_scoped_select_calls() -> None:
         if _select_calls(path)
     }
 
-    # 10 = ADR-045의 `python_strategy/dependencies.py`도 같은 경계를 검사한다.
-    assert len(dependency_paths) == 10
+    assert len(dependency_paths) == 9
     assert paths_with_calls == set()
 
 

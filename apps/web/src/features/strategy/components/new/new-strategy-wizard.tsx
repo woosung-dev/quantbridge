@@ -5,7 +5,7 @@
 // 초기 자본 필드는 CreateStrategyRequest 에 대응 필드가 0건이라 렌더하지 않는다(§4.9).
 // draft(localStorage) 복원과 create/parse 훅은 그대로 보존한다.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -19,13 +19,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { PineEditor } from "@/components/monaco/pine-editor";
+import { PineEditor, type PineEditorHandle } from "@/components/monaco/pine-editor";
 import { StateBox } from "@/components/state-box";
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import { formatDateTime } from "@/features/backtest/utils";
-import { useCreateStrategy, useParseStrategy, usePreviewParse } from "@/features/strategy/hooks";
+import { useCreateStrategy, useCurrentSourceParse } from "@/features/strategy/hooks";
 import { handleMutationError } from "@/features/strategy/error-handler";
-import { useDebouncedValue } from "@/features/strategy/utils";
 import { PINE_FUNCTION_LEXICON } from "@/features/strategy/pine-lexicon";
 import {
   clearOtherUsersDrafts,
@@ -44,6 +43,32 @@ const TIMEFRAME_OPTIONS = ["15m", "1h", "4h", "1d"] as const;
 // 지원 함수 사전(04 진단) — pine-lexicon 정적 상수를 삽입 순서대로 나열한다. 동기 데이터라
 // 로딩/스켈레톤 상태가 없다(§4.9 가짜 로딩 금지). 실제 지원 여부 판정은 서버 파서가 한다.
 const LEXICON_ENTRIES = Object.entries(PINE_FUNCTION_LEXICON);
+// 지원 함수 사전 목록 — 입력과 무관한 정적 JSX 라 모듈 스코프로 올린다(rendering-hoist-jsx).
+// ★위저드는 Monaco 키 입력마다 다시 그려지므로, 컴포넌트 안에 두면 사전 항목 전부를
+//   입력마다 다시 만든다.
+// ★tabIndex/role — 이 목록은 `max-height: 236px` 안에서 1,102px 를 스크롤한다.
+// 포커스 가능한 자식이 하나도 없어서 **키보드 사용자는 866px 를 읽을 방법이
+// 없었다**(2026-09-06 실측, axe `scrollable-region-focusable` serious).
+// ★`role="region"` 을 붙이지 않는다 — `ul` 의 list 롤을 덮어써 「N개 항목」
+// 안내가 사라진다. 포커스 가능성만 주고 이름은 `aria-label` 로 단다.
+// ★`TableScrollRegion` 을 못 쓴다 — 그것은 `div` 래퍼이고 여기는 `ul` 자신이
+// 스크롤 컨테이너다(래퍼를 끼우면 list 롤과 항목 수 안내가 갈라진다).
+const LEXICON_LIST = (
+  <ul
+    className="lexicon-list"
+    data-testid="lexicon-list"
+    // biome-ignore lint/a11y/noNoninteractiveTabindex: 스크롤 컨테이너는 tabindex=0 이 있어야 키보드로 스크롤된다(WCAG 2.1.1). 위젯화가 아니다.
+    tabIndex={0}
+    aria-label={`지원 함수 사전 ${LEXICON_ENTRIES.length}종`}
+  >
+    {LEXICON_ENTRIES.map(([fnName, desc]) => (
+      <li key={fnName}>
+        <code className="mono">{fnName}</code>
+        <span>{desc.summary}</span>
+      </li>
+    ))}
+  </ul>
+);
 // 레포 내 실존 예제 스크립트. apps/web/public/samples/ema-crossover.pine (정적 자산).
 const EXAMPLE_PINE_URL = "/samples/ema-crossover.pine";
 
@@ -56,6 +81,15 @@ export function NewStrategyWizard() {
   const [timeframe, setTimeframe] = useState<string>(TIMEFRAME_OPTIONS[1]);
   const [description, setDescription] = useState("");
   const [pineSource, setPineSource] = useState("");
+  const pineEditorRef = useRef<PineEditorHandle>(null);
+  const pineSourceSectionRef = useRef<HTMLElement>(null);
+
+  const handleRevealLine = useCallback((line: number) => {
+    const sourceSection = pineSourceSectionRef.current;
+    const revealed = pineEditorRef.current?.revealLine1(line) ?? false;
+    if (!revealed) sourceSection?.focus({ preventScroll: true });
+    sourceSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // 파일 열기(로컬 파일 선택 → 소스 주입) + 예제 불러오기(정적 자산 fetch → 소스 주입).
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,6 +103,7 @@ export function NewStrategyWizard() {
     availableDraft !== null &&
     (availableDraft.pineSource.trim().length > 0 || Boolean(availableDraft.metadata.name));
   const [promptDismissed, setPromptDismissed] = useState(false);
+  const [restorePromptHidden, setRestorePromptHidden] = useState(false);
   const shouldPromptRestore = !promptDismissed && hasMeaningfulDraft;
 
   // ★복원 모달은 **이전 세션의** 초안에만 뜬다(BL-823). useDraftSnapshot 이 라이브 구독이라
@@ -86,19 +121,23 @@ export function NewStrategyWizard() {
     clearOtherUsersDrafts(userId);
   }, [userId]);
 
-  useAutoSaveDraft(userId, {
-    method: "direct",
-    pineSource,
-    metadata: { name, description, symbol, timeframe },
-  });
+  useAutoSaveDraft(
+    userId,
+    {
+      method: "direct",
+      pineSource,
+      metadata: { name, description, symbol, timeframe },
+    },
+    !shouldPromptRestore,
+  );
 
   // 파싱 — debounce 후 자동(useQuery, StrictMode 안전) + ⌘+Enter 수동(mutation).
-  const debounced = useDebouncedValue(pineSource, 300);
-  const autoParse = usePreviewParse(debounced);
-  const manualParse = useParseStrategy();
-  const parseResult = manualParse.data ?? autoParse.data ?? null;
-  const parseLoading = manualParse.isPending || autoParse.isFetching;
-  const parseError = (manualParse.error ?? autoParse.error)?.message ?? null;
+  const {
+    result: parseResult,
+    loading: parseLoading,
+    error: parseError,
+    parse,
+  } = useCurrentSourceParse(pineSource);
 
   const create = useCreateStrategy();
 
@@ -189,7 +228,7 @@ export function NewStrategyWizard() {
   };
 
   return (
-    <main className="page">
+    <div className="page strategy-create">
       {/* ===== 화면 헤더 ===== */}
       <section className="card" aria-label="새 전략 개요">
         <div className="report">
@@ -199,7 +238,7 @@ export function NewStrategyWizard() {
               <span className="chip">{symbol}</span>
               <span className="chip">{timeframe}</span>
               <span className="chip">Bybit</span>
-              <span className="chip accent">바 단위 이벤트 루프</span>
+              <span className="chip accent">봉마다 원문 실행</span>
             </div>
           </div>
           <div className="report-actions">
@@ -223,7 +262,7 @@ export function NewStrategyWizard() {
               <p className="eyebrow">
                 <span className="num">01</span> 기본 정보
               </p>
-              <h2 className="section-title">전략 메타데이터</h2>
+              <h2 className="section-title">전략 이름과 시장</h2>
               <p className="section-desc">
                 여기서 고른 심볼과 타임프레임이 백테스트와 주문에 그대로 쓰입니다.
               </p>
@@ -242,7 +281,10 @@ export function NewStrategyWizard() {
                       type="text"
                       maxLength={120}
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        setPromptDismissed(true);
+                      }}
                       placeholder="예: MA Crossover Strategy"
                     />
                     <span className="field-hint">목록과 리포트 제목에 그대로 표시됩니다.</span>
@@ -283,7 +325,7 @@ export function NewStrategyWizard() {
                         </option>
                       ))}
                     </select>
-                    <span className="field-hint">봉 하나가 곧 인터프리터의 한 스텝입니다.</span>
+                    <span className="field-hint">선택한 봉 주기로 전략을 검사하고 실행합니다.</span>
                   </div>
 
                   <div className="field span-2">
@@ -306,7 +348,13 @@ export function NewStrategyWizard() {
           </section>
 
           {/* ===== 02 Pine 소스 ===== */}
-          <section className="section" aria-label="Pine 소스">
+          <section
+            className="section"
+            id="strategy-pine-source"
+            aria-label="Pine 소스"
+            tabIndex={-1}
+            ref={pineSourceSectionRef}
+          >
             <header className="section-head">
               <p className="eyebrow">
                 <span className="num">02</span> Pine 소스
@@ -322,7 +370,7 @@ export function NewStrategyWizard() {
               <div className="card-head">
                 <div>
                   <h3 className="card-title">Pine Script 원문</h3>
-                  <p className="card-sub">바 단위 이벤트 루프 · ⌘+Enter 로 즉시 파싱</p>
+                  <p className="card-sub">봉마다 원문 실행 · ⌘/Ctrl+Enter 로 즉시 파싱</p>
                 </div>
                 <div className="toolbar">
                   <input
@@ -344,48 +392,62 @@ export function NewStrategyWizard() {
                     disabled={exampleLoading}
                   >
                     <FileCode2Icon aria-hidden="true" />
-                    예제 불러오기
+                    예제로 원문 바꾸기
                   </button>
                   <button
                     className="btn btn-primary"
                     type="button"
-                    onClick={() => pineSource.trim() && manualParse.mutate(pineSource)}
+                    onClick={parse}
                     disabled={pineSource.trim().length === 0}
                   >
                     <SearchIcon aria-hidden="true" />
                     파싱 검사
                   </button>
+                  {pineSource.trim() ? (
+                    <a className="btn btn-ghost" href="#strategy-parse-result">
+                      판정 결과 보기
+                    </a>
+                  ) : null}
                 </div>
               </div>
 
               <div className="card-body">
                 <div className="editor-shell">
                   <PineEditor
+                    ref={pineEditorRef}
                     value={pineSource}
                     onChange={applyPineSource}
-                    onTriggerParse={() => pineSource.trim() && manualParse.mutate(pineSource)}
+                    onTriggerParse={parse}
                     height={360}
                   />
                 </div>
               </div>
 
               <p className="disclaimer">
-                <span>
-                  실제 판정은 서버의 지원 함수 사전으로 결정되며, 원문은 변환 없이 바 단위 이벤트
-                  루프 엔진이 그대로 실행합니다.
-                </span>
+                <span>지원 여부는 서버에서 판정하며, Pine 원문은 변환 없이 봉마다 실행됩니다.</span>
+              </p>
+              <p className="disclaimer">
+                키보드로 나가기: Mac Ctrl+Shift+M / Windows·Linux Ctrl+M 후 Tab을 누르세요.
               </p>
             </div>
 
             {/* [ADR-041] 자연어 → 전략 생성. ★결과는 **바로 저장되지 않는다** —
                 `applyPineSource` 로 편집기에 넣을 뿐이고 판정은 위 03 파싱 결과가 다시 낸다. */}
-            <GenerateWithAI symbol={symbol} timeframe={timeframe} onUsePine={applyPineSource} />
+            <details className="create-ai-tools">
+              <summary>AI 초안 작성 (선택)</summary>
+              <GenerateWithAI symbol={symbol} timeframe={timeframe} onUsePine={applyPineSource} />
+            </details>
           </section>
         </div>
 
         {/* ============ 우: 파싱 결과 ============ */}
         <div className="create-col">
-          <section className="section" aria-label="파싱 결과">
+          <section
+            className="section"
+            id="strategy-parse-result"
+            aria-label="파싱 결과"
+            tabIndex={-1}
+          >
             <header className="section-head">
               <p className="eyebrow">
                 <span className="num">03</span> 파싱 결과
@@ -394,6 +456,9 @@ export function NewStrategyWizard() {
               <p className="section-desc">
                 붙여넣은 스크립트를 서버가 파싱해 지원 여부를 판정합니다.
               </p>
+              <a className="btn btn-ghost" href="#strategy-pine-source">
+                원문 다시 보기
+              </a>
             </header>
 
             <ParseResultPanel
@@ -404,6 +469,7 @@ export function NewStrategyWizard() {
               saving={create.isPending}
               canSave={canSave}
               indicatorCode={pineSource}
+              onRevealLine={handleRevealLine}
               onConverted={(result) => {
                 applyPineSource(result.converted_code);
                 if (result.warnings.length > 0) {
@@ -421,10 +487,9 @@ export function NewStrategyWizard() {
           <p className="eyebrow">
             <span className="num">04</span> 진단
           </p>
-          <h2 className="section-title">준비 중이거나 비어 있는 항목</h2>
+          <h2 className="section-title">지원 함수와 저장된 초안</h2>
           <p className="section-desc">
-            지원 함수 사전과 저장된 초안은 아직 준비되지 않았거나 비어 있는 상태도 감추지 않고
-            그대로 보여줍니다.
+            지원 함수의 의미를 찾아보고, 이 브라우저에 저장된 초안을 이어서 작성할 수 있습니다.
           </p>
         </header>
 
@@ -434,33 +499,11 @@ export function NewStrategyWizard() {
             <div className="card-head">
               <div>
                 <h3 className="card-title">지원 함수 사전</h3>
-                <p className="card-sub">
-                  바 단위 이벤트 루프가 해석하는 함수 {LEXICON_ENTRIES.length}종
-                </p>
+                <p className="card-sub">지원 함수 {LEXICON_ENTRIES.length}종의 의미</p>
               </div>
             </div>
             <div className="card-body">
-              {/* ★tabIndex/role — 이 목록은 `max-height: 236px` 안에서 1,102px 를 스크롤한다.
-                  포커스 가능한 자식이 하나도 없어서 **키보드 사용자는 866px 를 읽을 방법이
-                  없었다**(2026-09-06 실측, axe `scrollable-region-focusable` serious).
-                  ★`role="region"` 을 붙이지 않는다 — `ul` 의 list 롤을 덮어써 「N개 항목」
-                  안내가 사라진다. 포커스 가능성만 주고 이름은 `aria-label` 로 단다.
-                  ★`TableScrollRegion` 을 못 쓴다 — 그것은 `div` 래퍼이고 여기는 `ul` 자신이
-                  스크롤 컨테이너다(래퍼를 끼우면 list 롤과 항목 수 안내가 갈라진다). */}
-              <ul
-                className="lexicon-list"
-                data-testid="lexicon-list"
-                // biome-ignore lint/a11y/noNoninteractiveTabindex: 스크롤 컨테이너는 tabindex=0 이 있어야 키보드로 스크롤된다(WCAG 2.1.1). 위젯화가 아니다.
-                tabIndex={0}
-                aria-label={`지원 함수 사전 ${LEXICON_ENTRIES.length}종`}
-              >
-                {LEXICON_ENTRIES.map(([fnName, desc]) => (
-                  <li key={fnName}>
-                    <code className="mono">{fnName}</code>
-                    <span>{desc.summary}</span>
-                  </li>
-                ))}
-              </ul>
+              {LEXICON_LIST}
               <p className="state-note">
                 <InfoIcon aria-hidden="true" />
                 미지원 함수가 하나라도 있으면 부분 실행 없이 전체를 지원되지 않음으로 처리합니다.
@@ -517,9 +560,10 @@ export function NewStrategyWizard() {
 
       {/* Draft 복원 Dialog */}
       <Dialog
-        open={shouldPromptRestore}
+        open={shouldPromptRestore && !restorePromptHidden}
         onOpenChange={(open) => {
-          if (!open) setPromptDismissed(true);
+          // 창을 닫는 동작은 기존 초안을 버리거나 새 입력을 시작한 결정이 아니다.
+          if (!open) setRestorePromptHidden(true);
         }}
       >
         <DialogContent>
@@ -540,6 +584,6 @@ export function NewStrategyWizard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </main>
+    </div>
   );
 }

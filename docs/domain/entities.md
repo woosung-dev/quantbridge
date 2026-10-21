@@ -157,7 +157,7 @@
 - **불변량:**
   - 동일 PK 중복 insert는 `ON CONFLICT DO NOTHING`으로 idempotent (Repository 정책)
   - Alembic migration이 schema/extension까지 책임 (test/fresh DB 단독 동작 보장)
-  - 동시 fetch race는 `pg_advisory_xact_lock(hashtext(symbol:tf:start:end))`로 직렬화
+  - 동시 fetch는 기존 `pg_advisory_xact_lock(hashtext(symbol:tf:start:end))`로 직렬화한다. Repository는 획득 대기에만 LOCAL lock timeout 10초를 적용한 뒤 기존 값을 복원하고, Provider는 cache hit/gap 모두 최종 DataFrame 생성 후 commit해 반환 전에 해제한다. 실패 시 commit하지 않으며, timeout 조회·적용·복원 및 락 획득 SQL의 DB 오류는 Repository가 rollback 후 전파한다(정본 flow = [`data-flow.md`](../architecture/data-flow.md) §6).
 
 ---
 

@@ -22,7 +22,9 @@ const SYMBOL = "BTC/USDT";
 
 const ACCOUNT = {
   id: ACCOUNT_ID,
-  exchange: "bybit_futures",
+  // 서버 enum 은 `bybit` 다(`trading/models.py:ExchangeName`). `bybit_futures` 는 와이어에 없는 값이라
+  // `isBybitDemoAccount` 가 걸러 청산 버튼이 아예 렌더되지 않았다(c491b13d 이후).
+  exchange: "bybit",
   mode: "demo",
   label: "Bybit Demo",
   api_key_masked: "***masked***",

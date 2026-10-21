@@ -547,10 +547,7 @@ class BacktestService:
         # → FE `trades.length` (open + closed) 와 1건 mismatch.
         # COMPLETED 상태일 때 trades 테이블에서 재집계해 사용자 시점 ("거래 목록"
         # 탭과 동일 모수) 으로 일관성 유지. 다른 상태는 trades 0건 → fallback.
-        direction_counts: tuple[int, int, int] | None = None
-        if bt.status == BacktestStatus.COMPLETED:
-            direction_counts = await self.repo.count_trades_by_direction(bt.id)
-        return self._to_detail(bt, direction_counts=direction_counts)
+        return self._to_detail(bt, direction_counts=await self._direction_counts(bt))
 
     async def list(
         self,
@@ -790,10 +787,7 @@ class BacktestService:
             raise BacktestShareRevoked()
         # 보안 — error stack trace 등 민감 정보 strip. status 만 노출.
         # Sprint 31-E direction count override 도 적용 (FE detail 페이지와 parity).
-        direction_counts: tuple[int, int, int] | None = None
-        if bt.status == BacktestStatus.COMPLETED:
-            direction_counts = await self.repo.count_trades_by_direction(bt.id)
-        detail = self._to_detail(bt, direction_counts=direction_counts)
+        detail = self._to_detail(bt, direction_counts=await self._direction_counts(bt))
         # 민감 필드 strip — public viewer 에 error 상세 노출 X.
         detail.error = None
         return detail
@@ -809,6 +803,12 @@ class BacktestService:
         if bt is None:
             raise BacktestNotFound()
         return bt
+
+    async def _direction_counts(self, bt: Backtest) -> tuple[int, int, int] | None:
+        """COMPLETED 일 때만 trades 테이블에서 (total, long, short) 재집계 — 아니면 None."""
+        if bt.status != BacktestStatus.COMPLETED:
+            return None
+        return await self.repo.count_trades_by_direction(bt.id)
 
     def _to_detail(
         self,
@@ -835,34 +835,30 @@ class BacktestService:
         # 자동 제거 (graceful upgrade). bt.config NULL (legacy / Sprint 30 이전)
         # 시 engine BacktestConfig default fallback (graceful degrade).
         _default = BacktestConfig()
-        if bt.config is not None:
-            # 사용자 입력값 — float coerce + 누락 키는 default 로 fallback (방어).
-            cfg_dict = bt.config
-            config_out = BacktestConfigOut(
-                leverage=float(cfg_dict.get("leverage", _default.leverage)),
-                fees=float(cfg_dict.get("fees", _default.fees)),
-                slippage=float(cfg_dict.get("slippage", _default.slippage)),
-                include_funding=bool(cfg_dict.get("include_funding", _default.include_funding)),
-                fill_timing=str(cfg_dict.get("fill_timing", _default.fill_timing)),
-            )
-        else:
-            config_out = BacktestConfigOut(
-                leverage=_default.leverage,
-                fees=_default.fees,
-                slippage=_default.slippage,
-                include_funding=_default.include_funding,
-                fill_timing=_default.fill_timing,
-            )
+        # 사용자 입력값 — float coerce + 누락 키(또는 NULL config 전체)는 default 로 fallback.
+        cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
+        config_out = BacktestConfigOut(
+            leverage=float(cfg_dict.get("leverage", _default.leverage)),
+            fees=float(cfg_dict.get("fees", _default.fees)),
+            slippage=float(cfg_dict.get("slippage", _default.slippage)),
+            include_funding=bool(cfg_dict.get("include_funding", _default.include_funding)),
+            fill_timing=str(cfg_dict.get("fill_timing", _default.fill_timing)),
+        )
         if bt.status == BacktestStatus.COMPLETED:
             if bt.metrics:
                 m = metrics_from_jsonb(bt.metrics)
                 # Sprint 31-E: direction count override.
                 # trades 테이블에 1건 이상 있을 때만 override (0건 = legacy 또는
                 # trades 비저장 케이스 → JSONB 값 유지로 backward-compat).
-                if direction_counts is not None and direction_counts[0] > 0:
-                    num_trades_out = direction_counts[0]
-                    long_count_out: int | None = direction_counts[1]
-                    short_count_out: int | None = direction_counts[2]
+                counts = (
+                    direction_counts
+                    if direction_counts is not None and direction_counts[0] > 0
+                    else None
+                )
+                if counts is not None:
+                    num_trades_out = counts[0]
+                    long_count_out: int | None = counts[1]
+                    short_count_out: int | None = counts[2]
                 else:
                     num_trades_out = m.num_trades
                     long_count_out = m.long_count
@@ -881,11 +877,7 @@ class BacktestService:
                     "completed_trades": m.num_trades,
                     "long_count": long_count_out,
                     "short_count": short_count_out,
-                    "total_trades": (
-                        num_trades_out
-                        if direction_counts is not None and direction_counts[0] > 0
-                        else m.total_trades
-                    ),
+                    "total_trades": num_trades_out if counts is not None else m.total_trades,
                 }
                 metrics_out = BacktestMetricsOut(**{**asdict(m), **overrides})
             if bt.equity_curve:
@@ -913,14 +905,6 @@ class BacktestService:
             error=bt.error,
             warnings=bt.warnings,
         )
-
-
-# ---------------------------------------------------------------------------
-# Sprint 31 BL-162a — timeframe / sizing canonical helpers.
-# Sprint 52 BL-222 P1 (2026-05-11): `_TIMEFRAME_TO_FREQ` / `_timeframe_to_freq` /
-# `_VALID_SIZING_BASIS` 는 `src/backtest/config_mapper.py` 로 이동. StressTestService
-# 의 worker entry 도 같은 매핑 필요 → module-level helper 분리.
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------

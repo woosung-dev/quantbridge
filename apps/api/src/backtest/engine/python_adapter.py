@@ -104,7 +104,7 @@ def run_python_backtest(
     *,
     transport_factory: Callable[[], PythonTransport] | None = None,
 ) -> BacktestResult:
-    """확정봉 1개씩 전달한다. transport_factory 는 신뢰된 테스트·gateway 주입점이다."""
+    """오프라인 연구에서 확정봉을 한 개씩 전달한다. transport_factory는 테스트 주입점이다."""
     cfg = replace(config or BacktestConfig(), fill_timing="next_bar_open")
     parameters = dict(params or {})
     validate_source_and_params(source, parameters)

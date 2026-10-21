@@ -761,15 +761,18 @@ def _compute_metrics(
     long_count = sum(1 for t in closed if t.direction == "long") if num_trades > 0 else 0
     short_count = sum(1 for t in closed if t.direction == "short") if num_trades > 0 else 0
 
+    # 절대금액 계열 (closed net pnl, Decimal 정확 합산). profit_factor 와 TV parity 팩이 공유한다.
+    net_profit_abs = sum((t.pnl for t in closed), start=Decimal("0"))
+    gross_profit_abs = sum((t.pnl for t in closed if t.pnl > 0), start=Decimal("0"))
+    gross_loss_abs = sum((-t.pnl for t in closed if t.pnl < 0), start=Decimal("0"))
+
     if num_trades > 0:
         wins = [t.return_pct for t in closed if t.pnl > 0]
         losses = [t.return_pct for t in closed if t.pnl < 0]
         avg_win = _mean(wins) if wins else None
         avg_loss = _mean(losses) if losses else None
-        gross_profit = sum((t.pnl for t in closed if t.pnl > 0), start=Decimal("0"))
-        gross_loss_abs = sum((-t.pnl for t in closed if t.pnl < 0), start=Decimal("0"))
         profit_factor: Decimal | None = (
-            gross_profit / gross_loss_abs if gross_loss_abs > 0 else None
+            gross_profit_abs / gross_loss_abs if gross_loss_abs > 0 else None
         )
     else:
         avg_win = None
@@ -794,10 +797,7 @@ def _compute_metrics(
     buy_and_hold_curve = _v2_buy_and_hold_curve(ohlcv, init_cash)
 
     # --- TV Strategy Tester parity 팩 ---
-    # 절대금액 계열 (closed net pnl, Decimal 정확 합산).
-    net_profit_abs = sum((t.pnl for t in closed), start=Decimal("0"))
-    gross_profit_abs = sum((t.pnl for t in closed if t.pnl > 0), start=Decimal("0"))
-    gross_loss_abs_v = sum((-t.pnl for t in closed if t.pnl < 0), start=Decimal("0"))
+    # 절대금액 합계(net/gross)는 위 profit_factor 블록 앞에서 한 번만 계산한다.
     win_pnls = [t.pnl for t in closed if t.pnl > 0]
     loss_pnls = [t.pnl for t in closed if t.pnl < 0]
     largest_win_abs = max(win_pnls) if win_pnls else None
@@ -936,7 +936,7 @@ def _compute_metrics(
         # TV parity 팩.
         net_profit_abs=net_profit_abs,
         gross_profit_abs=gross_profit_abs,
-        gross_loss_abs=gross_loss_abs_v,
+        gross_loss_abs=gross_loss_abs,
         open_pnl=open_pnl,
         largest_win_abs=largest_win_abs,
         largest_loss_abs=largest_loss_abs,

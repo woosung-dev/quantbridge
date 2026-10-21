@@ -1,7 +1,7 @@
 // 파싱 결과 패널(C 이식 screen-07 §03) 시맨틱 구조 테스트 — 상태 4종 + backed 값만 렌더 확인.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { ParseResultPanel } from "@/features/strategy/components/new/parse-result-panel";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
@@ -41,6 +41,53 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
     expect(screen.getByTitle(/Pine 스크립트에는 심볼이 없습니다/)).toBeTruthy();
   });
 
+  it("지원 함수 목록은 기본 접힘이며 펼치면 모두 보이고 판정과 저장은 유지된다", () => {
+    const functions = [
+      "ta.sma",
+      "ta.ema",
+      "ta.rsi",
+      "ta.atr",
+      "ta.crossover",
+      "ta.crossunder",
+      "math.abs",
+      "math.max",
+    ];
+    const onSave = vi.fn();
+    render(
+      <ParseResultPanel
+        result={makeResult({ functions_used: functions, entry_count: 3, exit_count: 2 })}
+        loading={false}
+        canSave
+        onSave={onSave}
+      />,
+    );
+    const summary = screen.getByText("감지된 함수 8종 보기");
+    const details = summary.closest("details")!;
+    expect(details).not.toHaveAttribute("open");
+    for (const name of functions) expect(within(details).getByText(name)).not.toBeVisible();
+    expect(screen.getByText("8 / 8")).toBeVisible();
+    expect(screen.getByText("100%")).toBeVisible();
+    expect(screen.getByText("진입 시그널").parentElement).toHaveTextContent("3");
+    expect(screen.getByText("청산 시그널").parentElement).toHaveTextContent("2");
+    expect(screen.getByText("파라미터").parentElement).toHaveTextContent("0");
+    const save = screen.getByRole("button", { name: "전략으로 저장" });
+    expect(save).toBeVisible();
+    expect(save).toBeEnabled();
+    fireEvent.click(summary);
+    for (const name of functions) expect(within(details).getByText(name)).toBeVisible();
+    fireEvent.click(summary);
+    for (const name of functions) expect(within(details).getByText(name)).not.toBeVisible();
+    fireEvent.click(save);
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
+  it("지원 함수가 없으면 접기 대신 빈 안내와 판정을 유지한다", () => {
+    render(<ParseResultPanel result={makeResult({ functions_used: [] })} loading={false} />);
+    expect(screen.getByText("감지된 함수가 없습니다.")).toBeVisible();
+    expect(screen.getByText("0 / 0")).toBeVisible();
+    expect(screen.queryByText(/감지된 함수 .*종 보기/)).toBeNull();
+  });
+
   it("canSave 가 false 면 저장 버튼이 비활성화된다", () => {
     render(<ParseResultPanel result={makeResult()} loading={false} canSave={false} />);
     expect((screen.getByTestId("parse-save") as HTMLButtonElement).disabled).toBe(true);
@@ -55,7 +102,8 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
     );
     const box = screen.getByTestId("parse-unsupported");
     expect(box.className).toContain("state-box failed");
-    expect(screen.getByText("request.security")).toBeTruthy();
+    expect(screen.getByText("request.security")).toBeVisible();
+    expect(screen.getByText("request.security").closest("details")).toBeNull();
     expect(screen.getByText(/부분 실행 없이 전체를 지원되지 않음으로 처리/)).toBeTruthy();
   });
 
@@ -81,6 +129,112 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
 
     expect(screen.getByText(/L12/)).toBeTruthy();
     expect(screen.getByText(/우회안: ta\.sma\(\) 또는 ta\.ema\(\)로 바꾸세요/)).toBeTruthy();
+    expect(screen.queryByText("Pine 구문을 확인해 주세요.")).toBeNull();
+    expect(screen.queryByText(/서버 진단 보기/)).toBeNull();
+  });
+
+  it("구문 오류는 한국어 복구 안내와 구조화된 위치를 보이고 원본 진단은 접어 보존한다", () => {
+    const messages = ["SyntaxError: no viable alternative", "unexpected token 'end'"];
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          status: "error",
+          errors: [
+            { code: "SYNTAX_ERROR", message: messages[0]!, line: 2 },
+            { code: "UNEXPECTED_TOKEN", message: messages[1]!, line: 7 },
+          ],
+        })}
+        loading={false}
+        canSave
+      />,
+    );
+    expect(screen.getByText("Pine 구문을 확인해 주세요.")).toBeVisible();
+    expect(screen.getByText(/괄호와 들여쓰기, Pine 버전 선언/)).toHaveTextContent(
+      "파싱 검사를 다시 실행",
+    );
+    expect(screen.getByText("서버가 보고한 위치: 2행, 7행.")).toBeVisible();
+    const summary = screen.getByText("서버 진단 보기 (2건)");
+    const details = summary.closest("details")!;
+    expect(details).not.toHaveAttribute("open");
+    expect(within(details).getAllByRole("listitem", { hidden: true })).toHaveLength(2);
+    for (const message of messages) {
+      expect(within(details).getByText(message)).not.toBeVisible();
+    }
+    fireEvent.click(summary);
+    for (const message of messages) {
+      expect(within(details).getByText(message)).toBeVisible();
+    }
+    expect(within(details).getByText("L2 · SYNTAX_ERROR")).toBeVisible();
+    expect(within(details).getByText("L7 · UNEXPECTED_TOKEN")).toBeVisible();
+    expect(screen.queryByTestId("parse-save")).toBeNull();
+    expect(screen.queryByText(/부분 실행 없이 전체를 지원되지 않음으로 처리/)).toBeNull();
+  });
+
+  it("구조화된 위치가 없으면 서버 문자열의 line 숫자를 추출하지 않는다", () => {
+    const message = 'SyntaxError: File "<unknown>", line 98';
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          status: "error",
+          errors: [{ code: "SYNTAX_ERROR", message, line: null }],
+        })}
+        loading={false}
+      />,
+    );
+    expect(screen.queryByText(/서버가 보고한 위치/)).toBeNull();
+    expect(screen.getByText(message)).toHaveTextContent(message);
+    expect(screen.getByText("서버 진단 보기 (1건)").closest("details")).not.toHaveAttribute("open");
+  });
+
+  it("이동 callback이 있을 때만 양의 safe integer 서버 행에 44px 이동 버튼을 보인다", () => {
+    const onRevealLine = vi.fn();
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          status: "error",
+          errors: [
+            { code: "SYNTAX_ERROR", message: "bad token", line: 7 },
+            { code: "SYNTAX_ERROR", message: "duplicate line", line: 7 },
+            { code: "INVALID_ZERO", message: "zero", line: 0 },
+            { code: "INVALID_NEGATIVE", message: "negative", line: -1 },
+            { code: "INVALID_FRACTION", message: "fraction", line: 1.5 },
+            { code: "INVALID_UNSAFE", message: "unsafe", line: Number.MAX_SAFE_INTEGER + 1 },
+            { code: "UNKNOWN", message: "unknown", line: null },
+          ],
+        })}
+        loading={false}
+        onRevealLine={onRevealLine}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "7행으로 이동" });
+    expect(button.className).toContain("min-h-[44px]");
+    expect(screen.getAllByRole("button", { name: /행으로 이동/ })).toHaveLength(1);
+    fireEvent.click(button);
+    expect(onRevealLine).toHaveBeenCalledOnce();
+    expect(onRevealLine).toHaveBeenCalledWith(7);
+  });
+
+  it("공용 소비처에 이동 callback이 없으면 기존 위치 문구만 보인다", () => {
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          status: "error",
+          errors: [{ code: "SYNTAX_ERROR", message: "bad token", line: 3 }],
+        })}
+        loading={false}
+      />,
+    );
+
+    expect(screen.getByText("서버가 보고한 위치: 3행.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "3행으로 이동" })).toBeNull();
+  });
+
+  it("세부 진단이 없는 오류도 복구 안내를 유지하고 저장하지 못한다", () => {
+    render(<ParseResultPanel result={makeResult({ status: "error" })} loading={false} canSave />);
+    expect(screen.getByText("Pine 구문을 확인해 주세요.")).toBeVisible();
+    expect(screen.queryByText(/서버 진단 보기/)).toBeNull();
+    expect(screen.queryByTestId("parse-save")).toBeNull();
   });
 
   it("로딩: .sk 스켈레톤", () => {
@@ -102,7 +256,7 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
 
   // [ADR-040] Stage 1 — 종전 이 패널은 「서버 응답에 파라미터 필드가 없어 표시하지
   // 않습니다」를 인쇄했다. `inputs` 가 열린 뒤 그 문장은 거짓이 되므로 실개수로 바꿨다.
-  it("파라미터 개수와 스윕 가능 수를 실데이터로 그린다", () => {
+  it("파라미터 개수와 최적화에서 비교할 설정 수를 실데이터로 그린다", () => {
     render(
       <ParseResultPanel
         result={makeResult({
@@ -118,6 +272,6 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
     );
     expect(screen.getByText("파라미터")).toBeTruthy();
     // 2개 중 int 하나만 최적화가 스윕할 수 있다(BE `_validate_grid_search_pre`).
-    expect(screen.getByText(/스윕할 수 있는 것은 1개/)).toBeTruthy();
+    expect(screen.getByText(/최적화에서 값을 바꿔 비교할 수 있는 설정은 1개/)).toBeVisible();
   });
 });

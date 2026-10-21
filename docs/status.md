@@ -1020,7 +1020,9 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 → **2026-10-21 사용자 지시로 두 봉 스윙 SL·1.5R 반익절·2R 본절 트레일링의 로컬 비교 검증을 우선한다. 서버 반영은 미승인 상태다.**
 
 **다음 행동 = PRD §5에 따라 공개 추세 원문 50개의 1h·4h·1d V1·선택형 스윙 청산 V2 검증을 이어간다.**
-실행 계약 = [Python 전략 연구](./development/python-strategy-research.md) · 결정 = [ADR-045](./adr/045-python-strategy-research.md).
+실행 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
+Python 웹·API·작업 실행은 2026-10-21 사용자 최종 결정으로 제품에서 제외한다([ADR-045](./adr/045-python-strategy-research.md)).
+기존 DB 원장·마이그레이션 이력, 오프라인 연구 도구·공통 청산 계산은 보존하며 서비스 실행기 준비는 진행하지 않는다.
 현재 상태: PR #915는 머지됐으며 통합 CI는 6,396개 통과다. 운영 전략은 기존 9개와 신규 V1 연구 초안
 5개를 합한 14개이며 기존 소스·설정은 보존됐다. 신규 5개의 운영 백테스트는 0회이고 거래를 활성화하지 않았다.
 운영 DB는 `20261021_0001`이며 Python 연구 원장 3테이블이 존재한다. 워커 4개·FE는 `sha-c1dca61`,
@@ -1033,12 +1035,12 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 `quantbridge-20261021T074315Z.dump`이며 OCI 업로드가 성공했다. 운영 근거는 서버
 `~/quantbridge/runs/db-engine-rollout-20261021/`의 `backup.log`·`restore-check.log`·`migrate.log`·
 `deploy.log`·`verification.log`·`status-after.log`에 있다. 승인된 DDL과 엔진 배포는 완료됐고
-Python 실행기의 서버 준비·연구 검증은 별도 미완 항목이다.
+Python 서비스 미도입 결정에 따라 실행기 서버 준비는 종료 대상이다. 기존 연구 원장 3테이블은 미사용 상태로 보존하며 삭제 DDL은 적용하지 않는다.
 로컬 원문 48개·144조건 중 세 주기 양방향 사건·체결 원장 일치 조건을 만족한 원문은 36개로 14개가 더 필요하다.
 이번 Pine 원문 코호트의 V2 적용·TradingView 직접 대조·비용 반영 성과 검증은 미완이다. #914의 별도 Python
-스윙 연구 검증을 이 코호트의 통과로 합산하지 않는다. 새 미사용 기간과 Python 실행기의 서버 준비는 별도 대상이다.
+스윙 연구 검증을 이 코호트의 통과로 합산하지 않는다. 새 미사용 기간의 성과 검증은 별도 대상이다.
 로컬 근거는 `runs/trend-v2/REPORT.html`·`production-registration/FINAL.json`에 있으며 `runs/`는 gitignore다.
-Python 자동매매와 거래 활성화는 이번 범위 밖이다.
+Python 웹·서버 실행·자동매매는 제품에서 제외하며 신규 Pine 전략의 거래 활성화도 이번 범위 밖이다.
 PRD **§5** 「결과와 가정이 얼마나 정직하게 보이는가」에 따라 원본 `pine_v2`·독립 Python·TradingView 관측을
 구분한다. 외부 LLM은 사용하지 않는다. 계약·실행 절차 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 수집 probe만 일치한 결과나 미지원 지표를 원본 검증 성공으로 승격하지 않는다. 원시 캡처 직접 검증과
@@ -1096,7 +1098,7 @@ FE **3101** · BE **8101**. ★**CSS 를 고쳤는데 화면이 안 바뀌면 Tu
 | **I**  | [BL-848] heartbeat/receive task 예외를 `asyncio.wait` done 집합에서 **아무도 안 꺼낸다** | P3 | ★ | 하 | S | **건드림** | **2026-08-31 등재** — [BL-837] 수리 중 인접 코드 대조에서 나왔다. `bybit_private_stream.py:281` 이 done 집합을 `_` 로 버려 소켓발 `OSError` 가 평범한 연결 끊김으로 읽힌다. ★**자가 치유된다**(재연결은 돈다) — 잃는 것은 침묵이 아니라 **원인**이라 P3 다. ★새 metric 전에 **그 경로가 실제로 발화하는지** 소크 로그에서 먼저 재라 |
 | **K**  | [BL-841] `codex-block-dangerous.sh` 가 `jq` 실패 시 **fail-open** | P2 | ★★★ | 하 | S | 0줄 | **2026-08-30 등재** — `hooks/codex-block-dangerous.sh:16` 이 파싱 실패를 통과로 떨어뜨린다. **차단기가 fail-open 이면 차단기가 아니다.** ★음성 대조(깨진 입력이 실제로 막히는가)를 먼저 재라 |
 | **L**  | [BL-740] stress_test 의 sharpe degenerate 판정이 convention 축을 안 읽어 **파산 셀이 「그냥 0」** | P2 | ★★ | 중 | M | **건드림** | **2026-08-30 승격** — 옵티마이저 절반은 PR #857 로 수리됐고 stress_test 3곳이 남았다(`grid_result.py:73` · `walk_forward.py:190` · `serializers.py:238`). ★**영속 스키마(`result_jsonb`) 변경 동반** — 구 행은 `None` = 소급 판정 안 함 |
-| **M**  | [BL-842] `TimescaleProvider` 가 갭을 못 메우면 **짧은 시리즈**를 요청 기간으로 라벨한다 | P2 | ★★ | 중 | M | **건드림** | **2026-08-30 등재 · 2026-09-06 PARTIAL** — `providers/timescale.py` 3증상 중 **⑶(빈 결과가 `RangeIndex`)은 수리**(PR #873). 남은 것: ⑴ 조용히 좁힌 창 ⑵ `pg_advisory_xact_lock` 이 **엔진 실행 전체**를 잡고 `lock_timeout` 없음. ⑴ 은 「채운 실제 구간」을 결과에 싣는 것이 먼저다 |
+| **M**  | [BL-842] `TimescaleProvider` 가 갭을 못 메우면 **짧은 시리즈**를 요청 기간으로 라벨한다 | P2 | ★★ | 중 | M | **건드림** | **PARTIAL** — ⑴ 실제로 채운 구간을 요청 기간으로 라벨하는 문제는 미수리. ⑵ cache hit/gap 모두 DataFrame 생성 뒤 commit해 반환 전에 xact lock을 해제하고 획득 대기에만 LOCAL timeout 10초 적용 후 기존 값을 복원한다. timeout 조회·적용·복원 및 락 획득 SQL의 DB 오류는 rollback 후 전파한다. 일반 BacktestService는 원래 엔진 전 commit했다. ⑶ 빈 결과 DatetimeIndex 수리(PR #873) |
 | **N**  | [BL-839] 느린 WS 클라이언트 1개가 **전 사용자** realtime listener 를 정지시킨다 | P2 | ★★ | 하 | S | **건드림** | **2026-08-30 등재** — `realtime/manager.py:72` 의 `send_to_user` 가 timeout 없이 `await` 하고 단일 listener 가 순차 배분한다. ★큐를 새로 만들지 말고 **timeout 부터** 재라 |
 | **P**  | ~~[BL-844] FE 실시간이 4401 재시도에서 **같은 캐시 토큰**을 다시 보내 영구 정지~~ → **2026-09-06 종결**(`fix/global-401-policy`) | P2 | ★★ | 하 | S | 0줄 | 4401 재시도 **전에** `onAuthFailure`→`clearAuthTokenCache`(ws-client.ts) · 동승분(세대 카운터)은 이미 코드에 있었다 · 같은 PR 이 `apiFetch` 전역 401 정책(재발급 1회 재시도 · 세션 없음 → /sign-in 1회 · single-flight)을 넣었다. ★**리뷰가 잡은 2차 결함** — 거절 축이 REST 401·WS 4401 **둘**인데 single-flight 를 REST 쪽에만 걸어 WS 가 `clearAuthTokenCache` 를 직접 부르면 in-flight 재발급의 세대를 밀어 **정상 사용자를 /sign-in 으로 튕겼다**(PR 자신의 주석이 경고한 바로 그 결함). `reissueAuthToken()` 단일 입구로 접었다 — 변이 5/5 red |
 | **Q**  | [BL-845] CI 가 Playwright spec **31개 중 1개**만 돈다 — 문서는 격차를 「1개」로 적었다 | P2 | ★★ | 하 | S | 0줄 | **2026-08-30 등재** — `ci.yml` 은 Playwright 를 아예 안 돌리고 `live-smoke.yml` 의 `testMatch` 가 **정확히 1파일**이다. ★수치를 고치는 것이 이 항목의 절반 — 지금 문서는 커버리지를 **30배 과대**로 읽게 한다 |

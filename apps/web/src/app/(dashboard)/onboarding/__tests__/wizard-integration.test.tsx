@@ -117,6 +117,18 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     cleanup();
   });
 
+  it("마운트 뒤 저장된 진행도를 복원한다(store 는 skipHydration — 첫 렌더는 SSR 과 같은 welcome)", () => {
+    window.localStorage.setItem(
+      "qb-onboarding-v1",
+      JSON.stringify({
+        state: { step: "strategy", strategyId: null, backtestId: null, startedAt: Date.now() },
+        version: 1,
+      }),
+    );
+    render(<OnboardingPage />);
+    expect(screen.getByTestId("onboarding-step-panel").getAttribute("data-step")).toBe("strategy");
+  });
+
   it("step 전진/후진: setStep 호출 시 렌더 패널이 바뀐다", () => {
     render(<OnboardingPage />);
     // 초기 welcome panel 이 렌더

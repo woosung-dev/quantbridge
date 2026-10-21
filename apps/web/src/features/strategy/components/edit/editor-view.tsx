@@ -19,7 +19,11 @@ import {
 import { toast } from "sonner";
 
 import { selectIsDirty, selectStrategyId, useEditStore } from "@/features/strategy/edit-store";
-import { useStrategy, useUpdateStrategy } from "@/features/strategy/hooks";
+import {
+  usePrefetchStrategyBrief,
+  useStrategy,
+  useUpdateStrategy,
+} from "@/features/strategy/hooks";
 import { PARSE_STATUS_LABEL } from "@/features/strategy/labels";
 import type { MarginMode } from "@/features/strategy/schemas";
 import { StateBox } from "@/components/state-box";
@@ -51,6 +55,8 @@ export function EditorView({ id }: { id: string }) {
   );
 
   const { data: strategy, isLoading, isError } = useStrategy(id);
+  // 상세 응답을 기다리지 않고 동일 query key의 브리핑 요청을 시작한다.
+  usePrefetchStrategyBrief(id);
 
   const storeStrategyId = useEditStore(selectStrategyId);
   const isDirty = useEditStore(selectIsDirty);

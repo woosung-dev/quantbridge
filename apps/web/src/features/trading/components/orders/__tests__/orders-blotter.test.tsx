@@ -570,6 +570,22 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     expect(time).toHaveClass("mono");
   });
 
+  // 전환 toast 는 `useOrders` 인스턴스마다 따로 발화한다. 같은 화면에 알림을 켠 인스턴스가
+  // 둘이면 한 번의 체결에 toast 가 두 번 뜬다 — 알림 소유자는 본문 하나여야 한다.
+  it("전환 toast 를 켠 useOrders 인스턴스는 화면당 하나다 — chip 은 알림을 끈다", () => {
+    mockReturn({
+      data: { items: [makeOrder()], total: 1 },
+      dataUpdatedAt: Date.UTC(2026, 3, 14, 21, 7, 3),
+    });
+    mockUseOrders.mockClear();
+    render(<OrdersBlotter />);
+    const calls = mockUseOrders.mock.calls as [number, { notifyTransitions?: boolean }?][];
+    const notifying = calls.filter(([, options]) => options?.notifyTransitions !== false);
+    const silent = calls.filter(([, options]) => options?.notifyTransitions === false);
+    expect(silent.length).toBeGreaterThan(0);
+    expect(notifying).toHaveLength(silent.length);
+  });
+
   it("아직 한 번도 수신하지 못했으면(dataUpdatedAt=0) 마지막 갱신 chip 을 그리지 않는다", () => {
     mockReturn({ data: { items: [], total: 0 }, dataUpdatedAt: 0 });
     render(<OrdersBlotter />);

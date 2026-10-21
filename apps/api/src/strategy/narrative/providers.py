@@ -171,7 +171,11 @@ def _call_openai(
     if choice and getattr(choice, "finish_reason", None) == "length":
         raise RuntimeError("응답이 길이 상한에서 잘렸습니다")
     content = (choice.message.content if choice and choice.message else None) or ""
-    payload = json.loads(content or "{}")
+    # ★거절(refusal)·빈 응답은 content 가 비어 온다. `{}` 로 받으면 빈 결과가 성공으로 나가고
+    #   다음 provider 로의 fallback 도 막힌다 — anthropic 어댑터와 같은 계약으로 실패시킨다.
+    if not content:
+        raise RuntimeError("응답 본문이 비어 있습니다")
+    payload = json.loads(content)
     if not isinstance(payload, dict):
         raise RuntimeError("JSON 객체가 아닙니다")
     usage = getattr(response, "usage", None)
@@ -197,7 +201,10 @@ def _call_gemini(
             response_schema=schema,
         ),
     )
-    payload = json.loads(response.text or "{}")
+    # ★안전 필터 차단 등으로 text 가 비면 실패다 — 위 openai 어댑터와 같은 이유.
+    if not response.text:
+        raise RuntimeError("응답 본문이 비어 있습니다")
+    payload = json.loads(response.text)
     if not isinstance(payload, dict):
         raise RuntimeError("JSON 객체가 아닙니다")
     usage = getattr(response, "usage_metadata", None)

@@ -34,7 +34,7 @@ import type {
   UTCTimestamp,
 } from "lightweight-charts";
 
-import { resolveChartTokens } from "@/lib/chart-tokens";
+import { resolveChartTokens, type ChartPalette } from "@/lib/chart-tokens";
 
 /**
  * 단순화된 시계열 포인트.
@@ -202,16 +202,28 @@ function toMarkers(markers: readonly ChartMarker[]): SeriesMarker<Time>[] {
  * series 추가/갱신 — init(비동기 chart 생성 직후) + data effect(prop 변경) 공용.
  * 모듈 레벨 함수: refs 번들을 인자로 받아 컴포넌트 스코프 클로저 dep 를 만들지 않는다.
  */
-function syncSeries(chart: IChartApi, refs: SeriesRefs, snapshot: SeriesSnapshot) {
+function syncSeries(
+  chart: IChartApi,
+  refs: SeriesRefs,
+  snapshot: SeriesSnapshot,
+  resolvedPalette?: ChartPalette,
+) {
   const { data, options, markers, benchmark, compare, area, histogram } = snapshot;
 
   // 시리즈 기본색 — chart-tokens SSOT (호출측 options 로 override 가능).
-  const palette = resolveChartTokens();
+  // ★지연 해석한다 — 색은 시리즈를 **새로 만들 때만** 쓰인다. `resolveChartTokens()` 는
+  //   `getComputedStyle` 이라 스타일 재계산을 강제할 수 있는데, 종전에는 데이터가 갱신될
+  //   때마다(폴링 포함) 무조건 불렀다. init 경로는 이미 해석한 팔레트를 넘겨 재사용한다.
+  let palette = resolvedPalette;
+  const paletteOf = (): ChartPalette => {
+    palette ??= resolveChartTokens();
+    return palette;
+  };
 
   // main line series — equity curve.
   if (refs.main.current === null) {
     refs.main.current = chart.addLineSeries({
-      color: palette.equity,
+      color: paletteOf().equity,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
@@ -232,7 +244,7 @@ function syncSeries(chart: IChartApi, refs: SeriesRefs, snapshot: SeriesSnapshot
   if (benchmark !== undefined) {
     if (refs.benchmark.current === null) {
       refs.benchmark.current = chart.addLineSeries({
-        color: palette.benchmark,
+        color: paletteOf().benchmark,
         lineWidth: 1,
         lineStyle: 2, // dashed
         priceLineVisible: false,
@@ -252,7 +264,7 @@ function syncSeries(chart: IChartApi, refs: SeriesRefs, snapshot: SeriesSnapshot
   if (compare !== undefined) {
     if (refs.compare.current === null) {
       refs.compare.current = chart.addLineSeries({
-        color: palette.compare,
+        color: paletteOf().compare,
         lineWidth: 2,
         priceLineVisible: false,
         lastValueVisible: false,
@@ -271,9 +283,9 @@ function syncSeries(chart: IChartApi, refs: SeriesRefs, snapshot: SeriesSnapshot
   if (area !== undefined) {
     if (refs.area.current === null) {
       refs.area.current = chart.addAreaSeries({
-        topColor: palette.ddTop,
-        bottomColor: palette.ddBottom,
-        lineColor: palette.ddLine,
+        topColor: paletteOf().ddTop,
+        bottomColor: paletteOf().ddBottom,
+        lineColor: paletteOf().ddLine,
         lineWidth: 1,
         priceLineVisible: false,
         lastValueVisible: false,
@@ -292,7 +304,7 @@ function syncSeries(chart: IChartApi, refs: SeriesRefs, snapshot: SeriesSnapshot
   if (histogram !== undefined) {
     if (refs.histogram.current === null) {
       refs.histogram.current = chart.addHistogramSeries({
-        color: palette.equity,
+        color: paletteOf().equity,
         priceLineVisible: false,
         lastValueVisible: false,
         ...histogram.options,
@@ -436,6 +448,7 @@ export function TradingChart({
           histogram: histogramSeriesRef,
         },
         propsRef.current,
+        palette,
       );
     });
 
