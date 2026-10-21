@@ -10,7 +10,8 @@
 `--execution-hash`, `--environment`, `--snapshot`, `--symbol`, `--start`, `--output`이다.
 `--environment`는 선정 보고서와 SHA가 같은 full manifest다. `--code-snapshot`은
 `CodeSnapshot` JSON 전체이며 language/source/params/warmup/provenance 및 execution hash를
-동결한다. 기존 경제 runner의 30개 분모·첫 pass·source SHA 선정 검증을 재사용한다.
+동결한다. 현재 full 평가와 동일한 `params={}`, `warmup_bars=200`만 허용하며 다른 입력은
+원문 SHA가 같아도 실행 전에 거부한다. 기존 경제 runner의 30개 분모·첫 pass·source SHA 선정 검증을 재사용한다.
 
 프로필은 다음 두 가지이며 새 컨테이너에서 직렬 실행한다.
 
@@ -36,6 +37,8 @@ close 및 자체 컨테이너 제거 확인까지 포함한다. 시세 로드·�
 별도다. construct에는 Pine의 load 전달도 포함된다. init에는 parser·TS 컴파일·사용자 init이
 함께 들어갈 수 있으며 내부 단계를 분리 계측했다고 주장하지 않는다. 완료한 봉 수와
 bar 누적/max/p95, 단계 시간, 전체 시간, 이미지 ID와 컨테이너 이름을 기록한다.
+`last_observed_phase`는 cleanup을 시도했으면 close다. `failure_phase`는 별도로 init/bar
+응답 검증 등 실패 문맥을 보존하며, cleanup 실패는 close, 전체 시간 초과 판정은 total_gate다.
 
 전체 30초 이하·모든 봉 응답·저장 intent 정합·동결 이미지 일치·cleanup 확인이 모두 있어야
 PASS다. transport가 성공해도 총 시간이 넘으면 FAIL이다. 중단은 INTERRUPTED로 보존한다.

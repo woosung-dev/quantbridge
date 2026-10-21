@@ -130,6 +130,8 @@ def load_inputs(
     selection = validate_selection(selection_path, artifacts)
     artifact = next(row for row in artifacts if row["case_id"] == case_id)
     code = CodeSnapshot.model_validate_json(code_path.read_text())
+    if code.params or code.warmup_bars != 200:
+        raise ValueError("동결 full 품질 계약의 params={}·warmup_bars=200이 필요합니다")
     if (
         artifact["source_error"] is not None
         or code.source_code != artifact["source_code"]
@@ -259,7 +261,12 @@ def measure_profile(
         "bars_seconds": 0.0,
         "cleanup_seconds": 0.0,
     }
-    observations = {"container_name": None, "image_id": None, "cleanup_confirmed": False}
+    observations = {
+        "container_name": None,
+        "image_id": None,
+        "cleanup_confirmed": False,
+        "cleanup_attempted": False,
+    }
     bar_times = []
     phase = "validation"
     injected_transport = transport_factory is not None
@@ -306,6 +313,7 @@ def measure_profile(
                 timings["init_seconds" if phase == "init" else "bars_seconds"] += clock() - begin
 
         def close(self):
+            observations["cleanup_attempted"] = True
             begin = clock()
             try:
                 self.inner.close()
@@ -337,7 +345,16 @@ def measure_profile(
         "transport_attempted": transport_attempted,
         "execution_backend": "injected_test_transport" if injected_transport else "native_gvisor",
         "error_type": error,
-        "last_observed_phase": phase,
+        "last_observed_phase": "close" if observations["cleanup_attempted"] else phase,
+        "failure_phase": (
+            "total_gate"
+            if error == "total_wall_budget_exceeded"
+            else "close"
+            if error == "cleanup_unconfirmed"
+            else phase
+        )
+        if status != "PASS"
+        else None,
         "product_budget_seconds": BUDGET_SECONDS,
         "research_budget_seconds": 900,
         "elapsed_seconds": elapsed,
