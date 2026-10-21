@@ -85,12 +85,13 @@ async def scope(db_session, user):
     "existing,incoming,allowed",
     [(True, True, False), (True, False, False), (False, True, False), (False, False, True)],
 )
+@pytest.mark.parametrize("stored_symbol", ["BTC/USDT", "BTCUSDT:USDT"])
 async def test_active_sessions_are_exclusive_when_either_side_is_code(
-    db_session, scope, existing, incoming, allowed
+    db_session, scope, existing, incoming, allowed, stored_symbol
 ):
     account, live, _ = scope
     account = await account()
-    await live(account, code=existing)
+    await live(account, code=existing, symbol=stored_symbol)
     assert (
         await LiveSignalSessionRepository(db_session).acquire_code_symbol_admission(
             account.id, "BTCUSDT", is_code=incoming
@@ -165,7 +166,12 @@ async def test_inactive_code_owner_retained_until_all_cleanup_is_confirmed(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "symbol,reduce_only,allowed",
-    [("BTC/USDT", False, False), ("ETH/USDT", False, True), ("BTC/USDT", True, True)],
+    [
+        ("BTC/USDT", False, False),
+        ("BTCUSDT:USDT", False, False),
+        ("ETH/USDT", False, True),
+        ("BTC/USDT", True, True),
+    ],
 )
 async def test_inactive_legacy_resting_entry_reserves_symbol(
     db_session, scope, symbol, reduce_only, allowed

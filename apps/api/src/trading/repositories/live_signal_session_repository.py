@@ -97,7 +97,8 @@ class LiveSignalSessionRepository:
             ),
         )
         # 오래된 영속 행의 raw 표기도 canonical 입력과 같은 소유권으로 묶는다.
-        aliases = [symbol, symbol.replace("/", ""), f"{symbol}:{symbol.split('/')[1]}"]
+        compact, quote = symbol.replace("/", ""), symbol.split("/")[1]
+        aliases = [symbol, compact, f"{symbol}:{quote}", f"{compact}:{quote}"]
         query = (
             select(LiveSignalSession)
             .outerjoin(LiveRiskState, col(LiveRiskState.session_id) == col(LiveSignalSession.id))
