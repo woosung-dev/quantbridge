@@ -109,6 +109,36 @@ describe("TradeStatsStrip", () => {
     expect(valueCard?.className).toContain("kpi");
   });
 
+  it("대량 거래에서도 인자 수 제한 없이 승패와 수익률을 집계한다", () => {
+    const win = mkTrade({ direction: "long", pnl: 10, return_pct: 0.04 });
+    const loss = mkTrade({ direction: "short", pnl: -5, return_pct: -0.02 });
+    const trades = [
+      ...Array<TradeItem>(200_000).fill(win),
+      ...Array<TradeItem>(200_000).fill(loss),
+    ];
+    render(<TradeStatsStrip trades={trades} />);
+    expect(screen.getByText("200000승 200000패")).toBeInTheDocument();
+    expect(screen.getByTestId("trade-stat-평균 수익")).toHaveTextContent("4.00%");
+    expect(screen.getByTestId("trade-stat-평균 손실")).toHaveTextContent("-2.00%");
+    expect(screen.getByText("최대 4.00%")).toBeInTheDocument();
+  });
+
+  it("비유한 수익률은 평균에서 제외하고 손익분기는 패배로 유지한다", () => {
+    render(
+      <TradeStatsStrip
+        trades={[
+          mkTrade({ direction: "long", pnl: 10, return_pct: Number.NaN }),
+          mkTrade({ direction: "long", pnl: 20, return_pct: 0.08 }),
+          mkTrade({ direction: "short", pnl: 0, return_pct: 0 }),
+          mkTrade({ direction: "short", pnl: -5, return_pct: -0.02 }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("2승 2패")).toBeInTheDocument();
+    expect(screen.getByTestId("trade-stat-평균 수익")).toHaveTextContent("8.00%");
+    expect(screen.getByTestId("trade-stat-평균 손실")).toHaveTextContent("-1.00%");
+  });
+
   it("평균 보유 시간 — 1h 단위 표시", () => {
     const trades: TradeItem[] = [
       mkTrade({

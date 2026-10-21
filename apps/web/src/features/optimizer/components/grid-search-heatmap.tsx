@@ -59,11 +59,19 @@ export function GridSearchHeatmap({ result, pair }: Props) {
   }
 
   // objective_value 선형 정규화 → 코퍼 알파 [0.05, 0.35]. 최적일수록 진하다(direction 반영).
-  const objNumbers = result.cells
-    .map((c) => c.objective_value)
-    .filter((v): v is number => v !== null);
-  const objMin = objNumbers.length > 0 ? Math.min(...objNumbers) : 0;
-  const objMax = objNumbers.length > 0 ? Math.max(...objNumbers) : 1;
+  let objMin = Infinity;
+  let objMax = -Infinity;
+  let hasObjective = false;
+  for (const cell of result.cells) {
+    if (cell.objective_value === null) continue;
+    hasObjective = true;
+    objMin = Math.min(objMin, cell.objective_value);
+    objMax = Math.max(objMax, cell.objective_value);
+  }
+  if (!hasObjective) {
+    objMin = 0;
+    objMax = 1;
+  }
   const objRange = objMax - objMin || 1;
 
   function bgFor(value: number | null): string | undefined {
