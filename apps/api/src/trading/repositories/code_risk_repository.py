@@ -26,6 +26,19 @@ class CodeRiskRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def acquire_entry_admission(self, session_id: UUID) -> bool:
+        """코드 신규 진입 정본. True 뒤 영속 진입 예약/상태 전이 commit까지 같은 TX다."""
+        from src.trading.repositories.live_signal_session_repository import (
+            LiveSignalSessionRepository,
+        )
+
+        live = await self.get_session(session_id)
+        if live is None:
+            return False
+        return await LiveSignalSessionRepository(self.session).acquire_code_symbol_admission(
+            live.exchange_account_id, live.symbol, is_code=True, session_id=session_id
+        )
+
     async def has_unsettled_exit_for_account(self, account_id: UUID) -> bool:
         from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 

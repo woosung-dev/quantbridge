@@ -108,6 +108,11 @@ class CodeLiveExecutionService:
         if (await self._repo.has_unsettled_exit_for_account(session.exchange_account_id)) is True:
             raise CodeRiskReconciliationPending("거래소 계정의 미정산 청산 증거를 기다립니다")
         await self._entry_gate(session.strategy_id, session.exchange_account_id)
+        # KillSwitch가 audit을 commit할 수 있으므로 그 뒤 같은 TX에서 재확인한다.
+        if not await self._repo.acquire_entry_admission(session_id):
+            raise CodeRiskReconciliationPending(
+                "같은 거래소 계정·심볼의 소유권이 확정되지 않았습니다"
+            )
         order = Order(
             id=identifier,
             strategy_id=session.strategy_id,

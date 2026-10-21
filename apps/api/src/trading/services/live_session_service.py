@@ -201,6 +201,13 @@ class LiveSignalSessionService:
         if current >= self._max_active_per_user:
             raise LiveSessionQuotaExceeded(current=current, cap=self._max_active_per_user)
 
+        if not await self._repo.acquire_code_symbol_admission(
+            account.id, req.symbol, is_code=snapshot is not None
+        ):
+            raise SessionAlreadyActive(
+                "같은 거래소 계정·심볼에 코드 세션과 양립할 수 없는 세션·미종결 진입이 있습니다"
+            )
+
         # 4. INSERT — partial unique IntegrityError catch
         sess = LiveSignalSession(
             user_id=user_id,

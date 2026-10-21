@@ -8,10 +8,21 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import String, and_, func, or_, select, text, update
+from sqlalchemy import cast as sql_cast
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
-from src.trading.models import LiveSignalEvent, LiveSignalSession, LiveSignalState
+from src.common.normalized_symbol import normalize_symbol_input
+from src.trading.models import (
+    LiveRiskState,
+    LiveSignalEvent,
+    LiveSignalSession,
+    LiveSignalState,
+    Order,
+    OrderState,
+)
+from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 
 # 창 조회가 훑을 세션 상한. 호출부가 **절단을 감지**할 수 있어야 하므로 조회는 이 값 + 1 건을
 # 가져온다 (BL-536 R3-⑥ — 주문 쪽 `ENTRY_ATTEMPT_SCAN_LIMIT` 와 같은 규율).
@@ -35,6 +46,104 @@ class LiveSignalSessionRepository:
 
     LESSON-019 commit-spy 의무 — Service mutation 메서드 마다 await commit().
     """
+
+    async def acquire_code_symbol_admission(
+        self,
+        account_id: UUID,
+        symbol: str,
+        *,
+        is_code: bool,
+        session_id: UUID | None = None,
+    ) -> bool:
+        """등록/새 코드 진입의 공통 xact 락. 보호·축소에는 호출하지 않는다.
+
+        True 뒤 INSERT 또는 prepare_entry의 commit까지 같은 트랜잭션이어야 한다.
+        legacy끼리는 기존 정책을 유지하고 한쪽이 code_v1일 때만 배타적이다.
+        """
+        scope = await ExchangeAccountRepository(self.session).physical_scope(account_id)
+        if scope is None:
+            return False
+        key, _ = scope
+        symbol = normalize_symbol_input(symbol)
+        await self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"code-position:{key}:{symbol}"},
+        )
+        # 락 대기 중 추가된 UID 형제도 포함한다. UID 정체성이 바뀌면 새 요청이 필요하다.
+        refreshed = await ExchangeAccountRepository(self.session).physical_scope(account_id)
+        if refreshed is None or refreshed[0] != key:
+            return False
+        _, account_ids = refreshed
+        if session_id is not None:
+            own_session = await self.session.scalar(
+                select(LiveSignalSession).where(
+                    col(LiveSignalSession.id) == session_id,
+                    col(LiveSignalSession.exchange_account_id) == account_id,
+                    col(LiveSignalSession.symbol) == symbol,
+                    col(LiveSignalSession.is_active).is_(True),
+                    col(LiveSignalSession.execution_snapshot)["source_policy"].astext == "code_v1",
+                )
+            )
+            if own_session is None:
+                return False
+        code = col(LiveSignalSession.execution_snapshot)["source_policy"].astext == "code_v1"
+        unfinished = and_(
+            code,
+            or_(
+                col(LiveRiskState.position_quantity) > 0,
+                col(LiveRiskState.entry_terminal).is_(False),
+                col(LiveRiskState.cancels_confirmed).is_(False),
+                col(LiveRiskState.unsettled_exit_quantity) > 0,
+            ),
+        )
+        # 오래된 영속 행의 raw 표기도 canonical 입력과 같은 소유권으로 묶는다.
+        aliases = [symbol, symbol.replace("/", ""), f"{symbol}:{symbol.split('/')[1]}"]
+        query = (
+            select(LiveSignalSession)
+            .outerjoin(LiveRiskState, col(LiveRiskState.session_id) == col(LiveSignalSession.id))
+            .where(
+                col(LiveSignalSession.exchange_account_id).in_(account_ids),
+                col(LiveSignalSession.symbol).in_(aliases),
+                or_(col(LiveSignalSession.is_active).is_(True), unfinished),
+            )
+        )
+        if session_id is not None:
+            query = query.where(col(LiveSignalSession.id) != session_id)
+        if not is_code:
+            query = query.where(code)
+        if await self.session.scalar(select(query.exists())):
+            return False
+        entries = select(Order).where(
+            col(Order.exchange_account_id).in_(account_ids),
+            col(Order.symbol).in_(aliases),
+            col(Order.reduce_only).is_(False),
+            col(Order.state).in_([OrderState.pending, OrderState.submitted]),
+        )
+        if not is_code:
+            entries = entries.join(
+                LiveSignalSession,
+                col(Order.risk_context)["session_id"].astext
+                == sql_cast(col(LiveSignalSession.id), String),
+            ).where(code)
+        if session_id is not None:
+            own_entry = select(col(LiveRiskState.entry_order_id)).where(
+                col(LiveRiskState.session_id) == session_id
+            )
+            own_generation = (
+                select(sql_cast(col(LiveRiskState.generation), String))
+                .where(col(LiveRiskState.session_id) == session_id)
+                .scalar_subquery()
+            )
+            # 최종 venue 재검사에서 이미 준비된 자기 세대 진입만 제외한다.
+            # COALESCE는 NULL risk_context의 legacy 주문이 NOT(NULL)로 사라지는 것을 막는다.
+            own = and_(
+                col(Order.id).in_(own_entry),
+                col(Order.risk_context)["session_id"].astext == str(session_id),
+                col(Order.risk_context)["role"].astext == "entry",
+                col(Order.risk_context)["generation"].astext == own_generation,
+            )
+            entries = entries.where(~func.coalesce(own, False))
+        return not bool(await self.session.scalar(select(entries.exists())))
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
