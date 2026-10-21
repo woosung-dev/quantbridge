@@ -180,7 +180,9 @@ class TestRunBacktestFaultInjection:
         repo.transition_to_running.return_value = 1
         repo.fail.return_value = 1
         strategy_repo = AsyncMock()
-        strategy_repo.get_version_by_id.return_value = SimpleNamespace(pine_source=SIMPLE_PINE_V5)
+        strategy_repo.get_version_by_id.return_value = SimpleNamespace(
+            pine_source=SIMPLE_PINE_V5, execution_policy=None
+        )
         service = BacktestService(
             repo=repo,
             strategy_repo=strategy_repo,

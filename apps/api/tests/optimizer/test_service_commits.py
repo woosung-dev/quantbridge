@@ -212,8 +212,9 @@ async def test_run_complete_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -
 
     backtest_repo = AsyncMock()
     backtest_repo.get_by_id.return_value = bt
-    strategy_mock = MagicMock(pine_source="// fake pine")
+    strategy_mock = MagicMock(pine_source="// fake pine", execution_policy=None)
     strategy_repo = AsyncMock()
+    strategy_repo.get_version_by_id.return_value = None
     strategy_repo.find_by_id_and_owner.return_value = strategy_mock
     provider = AsyncMock()
     provider.get_ohlcv.return_value = pd.DataFrame()
@@ -287,8 +288,9 @@ async def test_run_fail_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> No
 
     backtest_repo = AsyncMock()
     backtest_repo.get_by_id.return_value = bt
-    strategy_mock = MagicMock(pine_source="// fake pine")
+    strategy_mock = MagicMock(pine_source="// fake pine", execution_policy=None)
     strategy_repo = AsyncMock()
+    strategy_repo.get_version_by_id.return_value = None
     strategy_repo.find_by_id_and_owner.return_value = strategy_mock
     provider = AsyncMock()
     provider.get_ohlcv.return_value = pd.DataFrame()
@@ -323,6 +325,7 @@ async def test_run_fail_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> No
     from src.optimizer.exceptions import MAX_ERROR_MESSAGE_LEN
 
     assert len(call_kwargs["error_message"]) <= MAX_ERROR_MESSAGE_LEN
+    assert call_kwargs["error_message"].startswith("long internal stack")
 
 
 # ===========================================================================
@@ -451,7 +454,10 @@ async def test_run_bayesian_complete_calls_repo_commit(
     backtest_repo = AsyncMock()
     backtest_repo.get_by_id.return_value = bt
     strategy_repo = AsyncMock()
-    strategy_repo.find_by_id_and_owner.return_value = MagicMock(pine_source="// fake")
+    strategy_repo.get_version_by_id.return_value = None
+    strategy_repo.find_by_id_and_owner.return_value = MagicMock(
+        pine_source="// fake", execution_policy=None
+    )
     provider = AsyncMock()
     provider.get_ohlcv.return_value = pd.DataFrame()
 
@@ -533,7 +539,10 @@ async def test_run_bayesian_fail_calls_repo_commit(
     backtest_repo = AsyncMock()
     backtest_repo.get_by_id.return_value = bt
     strategy_repo = AsyncMock()
-    strategy_repo.find_by_id_and_owner.return_value = MagicMock(pine_source="// fake")
+    strategy_repo.get_version_by_id.return_value = None
+    strategy_repo.find_by_id_and_owner.return_value = MagicMock(
+        pine_source="// fake", execution_policy=None
+    )
     provider = AsyncMock()
     provider.get_ohlcv.return_value = pd.DataFrame()
 
@@ -564,6 +573,7 @@ async def test_run_bayesian_fail_calls_repo_commit(
     from src.optimizer.exceptions import MAX_ERROR_MESSAGE_LEN
 
     assert len(call_kwargs["error_message"]) <= MAX_ERROR_MESSAGE_LEN
+    assert call_kwargs["error_message"].startswith("long bayesian internal stack")
 
 
 # ===========================================================================
@@ -688,7 +698,10 @@ async def test_run_genetic_complete_calls_repo_commit(
     backtest_repo = AsyncMock()
     backtest_repo.get_by_id.return_value = bt
     strategy_repo = AsyncMock()
-    strategy_repo.find_by_id_and_owner.return_value = MagicMock(pine_source="// fake")
+    strategy_repo.get_version_by_id.return_value = None
+    strategy_repo.find_by_id_and_owner.return_value = MagicMock(
+        pine_source="// fake", execution_policy=None
+    )
     provider = AsyncMock()
     provider.get_ohlcv.return_value = pd.DataFrame()
 
@@ -763,7 +776,10 @@ async def test_run_genetic_fail_calls_repo_commit(
     backtest_repo = AsyncMock()
     backtest_repo.get_by_id.return_value = bt
     strategy_repo = AsyncMock()
-    strategy_repo.find_by_id_and_owner.return_value = MagicMock(pine_source="// fake")
+    strategy_repo.get_version_by_id.return_value = None
+    strategy_repo.find_by_id_and_owner.return_value = MagicMock(
+        pine_source="// fake", execution_policy=None
+    )
     provider = AsyncMock()
     provider.get_ohlcv.return_value = pd.DataFrame()
 
@@ -794,3 +810,4 @@ async def test_run_genetic_fail_calls_repo_commit(
     from src.optimizer.exceptions import MAX_ERROR_MESSAGE_LEN
 
     assert len(call_kwargs["error_message"]) <= MAX_ERROR_MESSAGE_LEN
+    assert call_kwargs["error_message"].startswith("long genetic internal stack")
