@@ -348,6 +348,7 @@ async def test_code_state_reads_durable_ledger_without_legacy_cache_authority(
         state=OrderState.filled,
         realized_pnl=Decimal("42.50"),
         filled_at=_SESSION_START + timedelta(hours=1),
+        risk_context={"session_id": str(session.id), "generation": 1, "role": "close"},
     )
     db_session.add(order)
     await db_session.flush()
@@ -408,3 +409,86 @@ async def test_code_state_reads_durable_ledger_without_legacy_cache_authority(
     assert summary["new_entries_blocked"] is True
     assert summary["failure_reason"] == "awaiting_protection_ack"
     assert summary["pending_reversal"] == "short"
+
+
+async def test_code_scope_keeps_late_recovery_exits_and_excludes_manual_or_other_session(
+    client, mock_authed_user, db_session
+):
+    from src.trading.repositories.order_repository import OrderRepository, SessionScope
+
+    strategy, account, session = await _seed_session(db_session, mock_authed_user)
+    end = _SESSION_START + timedelta(hours=2)
+    session.is_active = False
+    session.deactivated_at = end
+    session.execution_snapshot = {"source_policy": "code_v1"}
+    own_context = {"session_id": str(session.id), "generation": 1, "role": "close"}
+    foreign_context = {"session_id": str(uuid4()), "generation": 1, "role": "close"}
+
+    def order(*, context, pnl, filled_at, symbol="BTC/USDT", partial=False):
+        return Order(
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol=symbol,
+            side=OrderSide.sell,
+            type=OrderType.market,
+            quantity=Decimal(1),
+            state=OrderState.cancelled if partial else OrderState.filled,
+            reduce_only=True,
+            filled_quantity=Decimal("0.2"),
+            filled_price=Decimal(100),
+            realized_pnl=None if pnl is None else Decimal(pnl),
+            filled_at=filled_at,
+            risk_context=context,
+        )
+
+    late_priced = order(context=own_context, pnl="-3", filled_at=end + timedelta(minutes=1))
+    late_unpriced = order(
+        context=own_context, pnl=None, filled_at=end + timedelta(minutes=2), partial=True
+    )
+    rows = [
+        late_priced,
+        late_unpriced,
+        order(context=None, pnl="999", filled_at=end - timedelta(minutes=1)),
+        order(context=None, pnl=None, filled_at=end - timedelta(minutes=2)),
+        order(context=foreign_context, pnl="1000", filled_at=end - timedelta(minutes=3)),
+        order(context=foreign_context, pnl=None, filled_at=end - timedelta(minutes=4)),
+        order(
+            context=own_context, pnl="5000", filled_at=end - timedelta(minutes=5), symbol="ETH/USDT"
+        ),
+    ]
+    db_session.add_all(rows)
+    await db_session.commit()
+    repo = OrderRepository(db_session)
+    scope = SessionScope.from_live_session(session)
+    assert scope.session_id == session.id
+    assert {o.id for o in await repo.list_filled_realized_for_session(scope)} == {late_priced.id}
+    assert await repo.count_unpriced_exit_fills_for_session(scope) == 1
+    split = await repo.realized_pnl_split_for_session(scope)
+    assert split.total == Decimal(-3) and split.unrecorded_count == 1
+
+    response = await client.get(f"/api/v1/live-sessions/{session.id}/state")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert Decimal(body["total_realized_pnl"]) == -3
+    assert body["total_closed_trades"] == 1
+    assert body["pnl_complete"] is False and body["unpriced_exit_orders"] == 1
+    await repo.backfill_exchange_realized_pnl(
+        late_unpriced.id, realized_pnl=Decimal(-2), synced_at=end + timedelta(minutes=3)
+    )
+    await repo.commit()
+    body = (await client.get(f"/api/v1/live-sessions/{session.id}/state")).json()
+    assert Decimal(body["total_realized_pnl"]) == -5
+    assert body["pnl_complete"] is True and body["unpriced_exit_orders"] == 0
+
+    # 같은 행을 legacy로 조회하면 기존 반열림 시간창 계약을 그대로 적용한다.
+    session.execution_snapshot = None
+    await db_session.commit()
+    legacy_scope = SessionScope.from_live_session(session)
+    assert legacy_scope.session_id is None
+    assert (
+        sum(o.realized_pnl for o in await repo.list_filled_realized_for_session(legacy_scope))
+        == 1999
+    )
+    legacy = (await client.get(f"/api/v1/live-sessions/{session.id}/state")).json()
+    assert Decimal(legacy["total_realized_pnl"]) == 1999
+    assert legacy["pnl_complete"] is None

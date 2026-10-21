@@ -93,6 +93,8 @@ class SessionScope:
       닫았다**. dispatch 와 수동 청산은 세션 심볼을 그대로 복사하므로 구조적으로 항상
       일치한다. 술어를 느슨하게 바꿀 이유는 없다.
 
+    code_v1은 정확한 risk_context.session_id로 귀속하며 종료 후 복구 체결도 포함한다.
+    아래 시간창 트레이드오프는 legacy에만 적용한다.
     수용한 트레이드오프 1 종 — 되돌리기 전에 `docs/archive/sprints/exit-money-path/` 를 읽을 것.
 
     - 창은 `filled_at` 기준 반열림 `[started_at, ended_at)` 이다. 세션 종료 뒤에
@@ -105,6 +107,7 @@ class SessionScope:
     symbol: str
     started_at: datetime
     ended_at: datetime | None
+    session_id: UUID | None = None
 
     @classmethod
     def from_live_session(cls, session: LiveSignalSession) -> SessionScope:
@@ -115,6 +118,9 @@ class SessionScope:
             symbol=session.symbol,
             started_at=session.created_at,
             ended_at=session.deactivated_at,
+            session_id=session.id
+            if (session.execution_snapshot or {}).get("source_policy") == "code_v1"
+            else None,
         )
 
 
@@ -259,7 +265,8 @@ def _session_scope_where(
 
     ★`filled_at` 은 이름과 달리 **terminal 시각**이다. `transition_to_{filled,rejected,
     cancelled}` 가 모두 이 컬럼에 쓴다(`models.py:263-265` 주석이 명시한다). 그래서 창
-    술어(`>= started_at` / `< ended_at`)는 상태 집합을 넓혀도 그대로 유효하다.
+    술어(`>= started_at` / `< ended_at`)는 legacy 상태 집합을 넓혀도 그대로 유효하다.
+    code_v1은 시간 상하한 대신 정확한 session_id를 사용하며 같은 전략의 수동 주문을 제외한다.
 
     두 파라미터가 여는 것 (BL-536):
 
@@ -284,10 +291,14 @@ def _session_scope_where(
         )
     if window == "terminal":
         predicates.append(Order.filled_at.is_not(None))  # type: ignore[union-attr]
-    predicates.append(time_column >= scope.started_at)  # type: ignore[operator]
-    # 활성 세션은 `deactivated_at IS NULL` 이라 상한이 없다.
-    if scope.ended_at is not None:
-        predicates.append(time_column < scope.ended_at)  # type: ignore[operator]
+    if scope.session_id is not None:
+        # 코드 주문은 정확한 귀속이 있어 종료 뒤 recovery 청산도 원래 세션에 남긴다.
+        predicates.append(col(Order.risk_context)["session_id"].astext == str(scope.session_id))
+    else:
+        predicates.append(time_column >= scope.started_at)  # type: ignore[operator]
+        # legacy 활성 세션은 `deactivated_at IS NULL` 이라 상한이 없다.
+        if scope.ended_at is not None:
+            predicates.append(time_column < scope.ended_at)  # type: ignore[operator]
     return predicates
 
 
