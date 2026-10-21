@@ -11,10 +11,12 @@ from src.strategy.code_runtime.backtest import run_code_backtest
 from src.strategy.python_runtime.serialization import json_value
 from tests.strategy.code_runtime import test_sandbox
 from tests.strategy.code_runtime.test_backtest import cfg, frame
+from tests.strategy.code_runtime.test_pine_sandbox import require_pine_gvisor
 
 
 @pytest.mark.integration
 def test_three_executable_languages_share_fills_and_position_feedback() -> None:
+    require_pine_gvisor()
     try:
         test_sandbox.RealGvisorTests.setUpClass()
     except unittest.SkipTest as exc:

@@ -7,9 +7,22 @@ from typing import Any
 
 import pytest
 
-from src.strategy.code_runtime.backtest import run_code_backtest
+from src.strategy.code_runtime.backtest import run_code_backtest as _run_code_backtest
 from src.strategy.code_runtime.models import CodeRuntimeError
+from src.strategy.code_runtime.pine import _PineInterpreterTransport
 from tests.strategy.code_runtime.test_backtest import cfg, frame
+
+
+def run_code_backtest(source, language, data, config, **kwargs):
+    # 이 단위 검사는 외부 포지션 의미만 검증한다. 실제 격리 실행은 별도 통합 검사다.
+    return _run_code_backtest(
+        source,
+        language,
+        data,
+        config,
+        transport_factory=lambda: _PineInterpreterTransport(data),
+        **kwargs,
+    )
 
 
 def test_pine_entry_close_and_position_feedback_follow_external_ledger() -> None:
@@ -102,3 +115,16 @@ if bar_index == 2
     result = run_code_backtest(source, "pine", frame([(100, 110, 90, 100)] * 4), cfg())
     assert [trade.direction for trade in result.trades] == ["long", "short"]
     assert result.trades[0].exit_bar_index == result.trades[1].entry_bar_index == 3
+
+
+def test_same_direction_entry_does_not_hide_invalidation() -> None:
+    source = """//@version=5
+strategy("invalidate")
+if bar_index == 1 or bar_index == 2
+    strategy.entry("L", strategy.long)
+if bar_index == 2
+    strategy.close_all()
+"""
+    result = run_code_backtest(source, "pine", frame([(100, 110, 90, 100)] * 4), cfg())
+    assert len(result.trades) == 1
+    assert result.trades[0].exit_bar_index == 3

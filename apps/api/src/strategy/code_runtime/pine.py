@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any, cast
 
 import pandas as pd
@@ -13,11 +14,39 @@ from src.strategy.pine_v2.interpreter import BarContext, Interpreter, pine_versi
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.strategy_state import Trade
+from src.strategy.python_runtime.sandbox import DockerPythonTransport
 
 _ALLOWED_ORDERS = {"strategy.entry", "strategy.close", "strategy.close_all"}
 
 
-class PineSignalTransport:
+DEFAULT_PINE_IMAGE = "quantbridge-pine-runner:local"
+
+
+class PineSignalTransport(DockerPythonTransport):
+    """기존 Pine 해석기를 동일한 gVisor·900초·1GiB 경계에서 실행한다."""
+
+    def __init__(self, ohlcv: pd.DataFrame, timeout: float = 900) -> None:
+        from src.strategy.python_runtime.serialization import bars_payload
+
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise CodeRuntimeError("Pine 실행 제한은 유한한 양수여야 합니다")
+        super().__init__(image=DEFAULT_PINE_IMAGE, timeout=timeout)
+        try:
+            if self.exchange({"type": "load", "bars": bars_payload(ohlcv)}) != {"loaded": True}:
+                raise CodeRuntimeError("Pine worker 데이터 초기화 실패")
+        except Exception:
+            self.close()
+            raise
+
+    def exchange(self, message: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return super().exchange(message)
+        except Exception:
+            self.close()
+            raise
+
+
+class _PineInterpreterTransport:
     """외부에서 확정한 포지션을 주입한다. Pine 내부 체결 루프는 호출하지 않는다."""
 
     def __init__(self, ohlcv: pd.DataFrame) -> None:
