@@ -21,6 +21,7 @@ from typing import Literal, TypedDict
 from src.strategy.pine_v2._names import (
     ARRAY_FUNCTIONS as _ARRAY_FUNCTIONS,
 )
+from src.strategy.pine_v2._names import CAST_FUNCTIONS as _CAST_FUNCTIONS
 from src.strategy.pine_v2._names import (
     TA_FUNCTIONS as _TA_FUNCTIONS,
 )
@@ -38,13 +39,15 @@ from src.strategy.pine_v2._names import (
 # 갱신 의무는 본 SSOT 통합으로 폐지 — `_names.py` 한 곳만 갱신 + invariant
 # 자동 검증 (test_ssot_invariants.py).
 
-# strategy.* — interpreter._exec_strategy_call (entry/close/close_all/exit)
+# strategy.* — interpreter._exec_strategy_call (entry/close/close_all/exit/cancel)
 _STRATEGY_FUNCTIONS: frozenset[str] = frozenset(
     {
         "strategy.entry",
         "strategy.close",
         "strategy.close_all",
         "strategy.exit",
+        "strategy.cancel",
+        "strategy.cancel_all",
     }
 )
 
@@ -204,8 +207,8 @@ _HEIKINASHI_FUNCTIONS: frozenset[str] = frozenset(
 # Sprint 29 Slice B: unsupported 발견 시 사용자에게 우회 패턴 안내.
 # 80% coverage 임계 = DrFXGOD ~28 항목 중 23+ 등록.
 _UNSUPPORTED_WORKAROUNDS: dict[str, str] = {
-    "strategy.exit.qty": "Pine 부분 청산 수량은 미지원입니다. 전량 청산으로 대체하지 않습니다.",
-    "strategy.exit.qty_percent": "Pine 부분 청산 비중은 미지원입니다. 전량 청산으로 대체하지 않습니다.",
+    "strategy.exit.qty": "청산 수량의 위치 인자는 미지원입니다. qty= 이름 인자를 사용하세요.",
+    "strategy.exit.qty_percent": "청산 비중의 위치 인자는 미지원입니다. qty_percent= 이름 인자를 사용하세요.",
     # Data layer (request.* / syminfo.* / timeframe.*)
     "request.security_lower_tf": "다른 timeframe lower 데이터 미지원. 단일 timeframe 으로 전략 재구성 필요.",
     "request.dividends": "배당 데이터 미지원. 외부 source 연동 필요.",
@@ -313,6 +316,7 @@ _V4_ALIASES: frozenset[str] = frozenset(
 SUPPORTED_FUNCTIONS: frozenset[str] = (
     _TA_FUNCTIONS
     | _UTILITY_FUNCTIONS
+    | _CAST_FUNCTIONS
     | _STRATEGY_FUNCTIONS
     | _DECLARATION_FUNCTIONS
     | _PLOT_FUNCTIONS
@@ -650,8 +654,36 @@ def _strip_noise(source: str) -> str:
     return _STRING_RE.sub('""', no_comments)
 
 
+def _math_sum_has_wrong_arity(clean: str) -> bool:
+    """문자열·주석 제거 후 math.sum 호출의 최상위 인자 수만 확인한다."""
+    for match in _CALL_RE.finditer(clean):
+        if match.group(1) != "math.sum":
+            continue
+        stack: list[str] = []
+        start = match.end()
+        parts: list[str] = []
+        for index in range(start, len(clean)):
+            char = clean[index]
+            if char in "([{":
+                stack.append(char)
+            elif char == ")" and not stack:
+                parts.append(clean[start:index])
+                break
+            elif char in ")]}":
+                if stack:
+                    stack.pop()
+            elif char == "," and not stack:
+                parts.append(clean[start:index])
+                start = index + 1
+        else:
+            return True
+        if len(parts) != 2 or any(not part.strip() for part in parts):
+            return True
+    return False
+
+
 def _unsupported_exit_quantities(source: str) -> list[UnsupportedCall]:
-    """수량 인자를 무시한 전량 청산을 막는다. 인자는 캐시된 AST에서 읽는다."""
+    """미지원 위치 수량을 차단한다. 이름 수량은 실제 부분 청산으로 처리한다."""
     if not re.search(r"\bstrategy\.exit\s*\(", source):
         return []
     from pynescript.ast.error import SyntaxError as PyneSyntaxError
@@ -667,7 +699,7 @@ def _unsupported_exit_quantities(source: str) -> list[UnsupportedCall]:
     for call in calls:
         if call.name != "strategy.exit":
             continue
-        names = {arg.name for arg in call.args if arg.name in {"qty", "qty_percent"}}
+        names: set[str] = set()
         positional_count = sum(arg.name is None for arg in call.args)
         if positional_count > 2:
             names.add("qty")
@@ -698,6 +730,8 @@ def analyze_coverage(source: str) -> CoverageReport:
     Pine Script 미지원 함수 1개라도 포함 시 backtest 실행 차단 (CLAUDE.md Golden Rule).
     """
     clean = _strip_noise(source)
+    version_match = re.search(r"(?m)^[\t ]*//@version\s*=\s*(\d+)", _STRING_RE.sub('""', source))
+    pine_version = int(version_match.group(1)) if version_match else 1
 
     # 사용자 정의 함수: `myFunc(...) =>` 패턴
     user_defs = set()
@@ -737,6 +771,11 @@ def analyze_coverage(source: str) -> CoverageReport:
     unsupp_funcs_set = (
         set(unsupp_funcs_raw) | set(known_found) | {item["name"] for item in exit_quantities}
     )
+    # 명시적인 숫자 캐스트는 v4부터 지원한다. 문자열 속 버전 표기는 사용하지 않는다.
+    if pine_version < 4:
+        unsupp_funcs_set.update(f for f in used_funcs if f in _CAST_FUNCTIONS)
+    if "math.sum" in used_funcs and _math_sum_has_wrong_arity(clean):
+        unsupp_funcs_set.add("math.sum")
     unsupp_funcs = tuple(sorted(unsupp_funcs_set))
 
     # attributes (call site 제외 — `(` 직후 위치는 함수로 이미 잡힘)

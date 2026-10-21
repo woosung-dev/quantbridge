@@ -236,13 +236,13 @@ def run_historical(
         store.commit_bar()
         interp.append_var_series()  # 이번 bar의 user 변수 값을 시리즈에 append
         # persistent("main::name") + transient(bare name) 병합하여 스냅샷
-        combined = {**store.snapshot_dict(), **interp._transient}
+        combined = interp.global_state_snapshot()
         if capture_history:
             result.state_history.append(combined)
         result.bars_processed += 1
 
     # 마지막 bar의 병합 스냅샷
-    result.final_state = {**store.snapshot_dict(), **interp._transient}
+    result.final_state = interp.global_state_snapshot()
     # Sprint 8c: 테스트 접근용 — StrategyState + user 변수 시계열 복사.
     # deque → list 변환: RunResult.var_series 타입은 dict[str, list[Any]]
     result.strategy_state = interp.strategy
@@ -435,6 +435,37 @@ def _build_conditional_fill_authority(
     )
 
 
+def _uses_advanced_exit_syntax(source: str) -> bool:
+    """아직 실행되지 않은 분기도 검사해 미지원 라이브 포지션의 최초 진입을 막는다."""
+    from ast import literal_eval
+
+    from src.strategy.pine_v2.ast_extractor import extract_content
+
+    exit_ids: set[str] = set()
+    for call in extract_content(source).strategy_calls:
+        if call.name in ("strategy.cancel", "strategy.cancel_all"):
+            return True
+        if call.name != "strategy.exit":
+            continue
+        kwargs = {arg.name: arg.value for arg in call.args if arg.name is not None}
+        if {"qty", "qty_percent", "trail_price"} & kwargs.keys():
+            return True
+        positional = [arg.value for arg in call.args if arg.name is None]
+        exit_id = kwargs.get("id", positional[0] if positional else "default")
+        # extractor는 문자열 상수만 repr로 보존한다. 변수/표현식 ID는 향후
+        # 다른 ID로 바뀔 수 있으므로 첫 진입부터 보수적으로 차단한다.
+        try:
+            literal_id = literal_eval(exit_id)
+        except (ValueError, SyntaxError):
+            return True
+        if not isinstance(literal_id, str):
+            return True
+        exit_ids.add(literal_id)
+    # 빈 from_entry는 전체 포지션이고 동적 ID는 정적으로 분리할 수 없다.
+    # 서로 다른 exit ID 둘 이상은 보수적으로 백테스트 전용으로 제한한다.
+    return len(exit_ids) > 1
+
+
 def run_live(
     source: str,
     ohlcv: pd.DataFrame,
@@ -558,6 +589,12 @@ def run_live(
     strategy_state = result.strategy_state
     if strategy_state is None:
         raise RuntimeError("run_historical returned no strategy_state")
+    pending_market_exit_unsupported = strategy_state.used_pending_market_exits
+    advanced_exit_unsupported = (
+        pending_market_exit_unsupported
+        or strategy_state.used_advanced_exits
+        or _uses_advanced_exit_syntax(source)
+    )
 
     # MP-1 — closed_trade 의 realized PnL 을 trade_id 로 인덱싱 (close signal 에 부착).
     # 같은 trade_id 가 재사용되면 마지막 청산 PnL 이 우선 (dict overwrite) — 마지막 bar
@@ -608,7 +645,7 @@ def run_live(
     #   ⇒ fail-closed 를 **전략 단위**로 올린다. 지정가가 한 번이라도 발행됐으면 그 창의
     #   시뮬 상태 자체가 거래소와 갈라져 있으므로, 그 위에서 나온 어떤 지시도 신뢰할 수 없다.
     #   ★백테스트(`run_historical`)는 영향받지 않는다 — 이 분기는 `run_live` 전용이다.
-    if strategy_state.used_limit_entry:
+    if strategy_state.used_limit_entry or advanced_exit_unsupported:
         emitted_events = []
     for e in emitted_events:
         if e.action not in ("entry", "close") or e.broker_filled:
@@ -658,7 +695,13 @@ def run_live(
     # 비정상 레그 입력에서 깨진다. 드롭 사유는 live 전용 키로만 표면화한다.
     pending_orders: list[PendingOrderSnapshot] = []
     pending_order_skips: list[dict[str, Any]] = []
-    if strategy_state.used_limit_entry:
+    if advanced_exit_unsupported:
+        # 부분/복수 exit·활성화·취소는 라이브 단일 브래킷/원장 surface가 표현하지 못한다.
+        # 백테스트 상태는 보존하고 주문 발행만 명시적으로 차단한다.
+        pending_order_skips.append(
+            {"trade_id": "", "reason": "advanced_exit_unsupported_live", "invalid_fields": []}
+        )
+    elif strategy_state.used_limit_entry:
         # ★위 signal 억제와 **같은 사실**을 원장에도 남긴다. 억제만 하고 말하지 않으면
         #   운영자에게는 「이 창은 조용했다」로 보인다 — 이 회차가 고치는 병과 같은 모양이다.
         #   ★차단이 **전략 단위**이므로 행도 하나다(`trade_id=""`). leg 마다 한 줄씩 더 내면
@@ -804,7 +847,21 @@ def run_live(
         total_realized_pnl=total_pnl,
         entry_skips=last_bar_entry_skips,
         liquidations=last_bar_liquidations,
-        errors=result.errors,  # BL-362 — 삼켜진 발산 표면화
+        errors=result.errors
+        + (
+            [
+                (
+                    last_bar_index,
+                    (
+                        "pending_market_exit_unsupported_live: 첫 체결 봉 브래킷은 백테스트 전용"
+                        if pending_market_exit_unsupported
+                        else "advanced_exit_unsupported_live: 부분/복수/활성화/취소 청산은 백테스트 전용"
+                    ),
+                )
+            ]
+            if advanced_exit_unsupported
+            else []
+        ),  # BL-362 — 삼켜진 발산 및 라이브 미지원 표면화
         pending_orders=pending_orders,
         ledger_seed_applied=result.ledger_seed_applied,
     )

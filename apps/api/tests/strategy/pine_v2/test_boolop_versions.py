@@ -1,4 +1,7 @@
-"""Pine v4/v5의 eager 평가와 v6 단축 평가를 실제 호출 이력으로 구분한다."""
+"""미표기 기본 v1·v4/v5의 eager 평가와 v6 단축 평가를 구분한다.
+
+UDF·배열 예제는 인터프리터의 버전별 평가 경로 검사이며, native v1 문법 검증은 아니다.
+"""
 
 from __future__ import annotations
 
@@ -26,8 +29,8 @@ def _candles() -> pd.DataFrame:
 @pytest.mark.parametrize("version", [4, 5, 6, None])
 def test_rhs_crossover_history_is_eager_before_v6(version: int | None) -> None:
     header = f"//@version={version}\n" if version else ""
-    declaration = 'study("t")' if version == 4 else 'indicator("t")'
-    crossover = "crossover" if version == 4 else "ta.crossover"
+    declaration = 'study("t")' if version in (4, None) else 'indicator("t")'
+    crossover = "crossover" if version in (4, None) else "ta.crossover"
     source = (
         f"{header}{declaration}\n"
         f"signal = close > 100 and {crossover}(close, 100)\n"
@@ -36,15 +39,15 @@ def test_rhs_crossover_history_is_eager_before_v6(version: int | None) -> None:
     result = run_historical(source, _candles(), strict=True, capture_signals=True)
     assert result.errors == []
     indices = [row.bar_index for row in result.signal_trace if row.value]
-    assert indices == ([1, 3] if version in (4, 5) else [])
+    assert indices == ([1, 3] if version != 6 else [])
 
 
 @pytest.mark.parametrize("version", [4, 5, 6, None])
 def test_rhs_user_function_barssince_tracks_every_bar_before_v6(version: int | None) -> None:
     """RSI divergence 원본의 _inRange 호출이 조건부 호출 시계를 쓰지 않도록 한다."""
     header = f"//@version={version}\n" if version else ""
-    declaration = 'study("t")' if version == 4 else 'indicator("t")'
-    barssince = "barssince" if version == 4 else "ta.barssince"
+    declaration = 'study("t")' if version in (4, None) else 'indicator("t")'
+    barssince = "barssince" if version in (4, None) else "ta.barssince"
     source = (
         f"{header}{declaration}\n"
         "inRange(cond) =>\n"
@@ -56,13 +59,13 @@ def test_rhs_user_function_barssince_tracks_every_bar_before_v6(version: int | N
     result = run_historical(source, _candles(), strict=True, capture_signals=True)
     assert result.errors == []
     indices = [row.bar_index for row in result.signal_trace if row.value]
-    assert indices == ([1] if version in (4, 5) else [])
+    assert indices == ([1] if version != 6 else [])
 
 
 @pytest.mark.parametrize("version", [4, 5, 6, None])
 def test_division_by_zero_rhs_runs_only_in_eager_versions(version: int | None) -> None:
     header = f"//@version={version}\n" if version else ""
-    declaration = 'study("t")' if version == 4 else 'indicator("t")'
+    declaration = 'study("t")' if version in (4, None) else 'indicator("t")'
     source = (
         f"{header}{declaration}\n"
         "seen = array.new_float(0)\n"
@@ -77,6 +80,6 @@ def test_division_by_zero_rhs_runs_only_in_eager_versions(version: int | None) -
     assert result.errors == []
     assert result.final_state["a"] is False
     assert result.final_state["b"] is True
-    expected = 2 if version in (4, 5) else 0
+    expected = 2 if version != 6 else 0
     assert result.final_state["n"] == expected
     assert all(math.isnan(value) for value in result.final_state["seen"])

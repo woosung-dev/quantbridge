@@ -40,6 +40,12 @@ def test_stdlib_names_subset_of_supported_functions():
     assert not diff, f"STDLIB_NAMES not in SUPPORTED_FUNCTIONS: {sorted(diff)}"
 
 
+def test_cast_functions_are_registered_in_coverage():
+    """scalar 캐스트 이름을 interpreter와 coverage가 공유한다."""
+    assert pine_coverage._CAST_FUNCTIONS is pine_names.CAST_FUNCTIONS
+    assert pine_names.CAST_FUNCTIONS <= SUPPORTED_FUNCTIONS
+
+
 # ---------------------------------------------------------------------------
 # BL-200 (Sprint 47): pine_v2 STDLIB Triple SSOT 통합 invariants.
 # `_names.py` 가 단일 소스 — interpreter / coverage 는 re-export 만 (object

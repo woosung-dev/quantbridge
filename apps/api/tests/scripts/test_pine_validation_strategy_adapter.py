@@ -133,7 +133,7 @@ plotchar(bar_index == 2, "S", "↓")
             "unsupported_signal_binding",
         ),
         (
-            'indicator("X")\nplotshape(series=true)\n',
+            'indicator("X")\nplotshape(condition=true)\n',
             _bindings((2, "long")),
             "named_first_condition",
         ),

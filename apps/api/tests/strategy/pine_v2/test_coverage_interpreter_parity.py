@@ -9,6 +9,7 @@ coverage.py 가 supported 라고 약속하는 함수가 interpreter runtime 에�
   에서 NOP + unsupported_kwargs metadata 기록 (codex G.0 P1 #1+#2 — close-fallback
   은 wrong-id close + Pine semantic 위반, 보수적 NOP 채택).
 """
+
 from __future__ import annotations
 
 import pandas as pd
@@ -170,14 +171,14 @@ def test_all_string_functions_runnable(fn: str) -> None:
     _run_indicator_snippet(_STRING_FUNCTION_CALLS[fn])
 
 
-# math.pow/max/min 은 2 인자, 그 외는 1 인자.
+# math.sum은 길이 정수까지 받는 이동 합계이며 단항 산술 함수가 아니다.
 _MATH_TWO_ARG: frozenset[str] = frozenset({"math.pow", "math.max", "math.min"})
 
 
 @pytest.mark.parametrize("fn", sorted(_MATH_FUNCTIONS))
 def test_all_math_functions_runnable(fn: str) -> None:
     """coverage._MATH_FUNCTIONS 전 심볼이 interpreter math dispatch 에서 평가 가능 (math.log10 누출 검출)."""
-    args = "2.0, 3.0" if fn in _MATH_TWO_ARG else "2.0"
+    args = "2.0, 3" if fn == "math.sum" else "2.0, 3.0" if fn in _MATH_TWO_ARG else "2.0"
     _run_indicator_snippet(f"{fn}({args})")
 
 

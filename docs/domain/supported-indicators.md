@@ -30,15 +30,18 @@
 
 `ta.sma`, `ta.ema`, `ta.rma`, `ta.atr`, `ta.rsi`, `ta.crossover`, `ta.crossunder`, `ta.highest`, `ta.lowest`, `ta.change`, `ta.pivothigh`, `ta.pivotlow`, `ta.stdev`, `ta.variance`, `ta.sar`, `ta.barssince`, `ta.valuewhen`
 
+`ta.highest(length)` / `ta.lowest(length)`는 각각 현재 high / low를 기본 source로 사용한다.
+두 인자 호출과 기존 warmup·NA 처리는 그대로다. 인자 생략 지원이 TradingView 초기 이력 전체의 동치를 뜻하지 않는다.
+
 **Sprint 58 BL-241 신규:**
 `ta.wma` (Weighted MA), `ta.hma` (Hull MA), `ta.bb` (Bollinger Bands → [upper, basis, lower]), `ta.cross` (crossover or crossunder), `ta.mom` (Momentum)
 
 > **2026-07-05 TV-parity 정정:** `ta.hma` 마지막 WMA 길이가 `floor(sqrt(n))` 이던 것을 TV 빌트인 정의
 > `math.round(math.sqrt(n))` 로 수정 (예: n=15 → 4, n=34 → 6. 손유도 골든 = `test_stdlib.py`).
 > `ta.bb` 는 population stdev(TV `biased=true` 기본) 정합 확인. `ta.sar` 는 현재 봉의 반전을 먼저 판정하고 새 추세에서 직전 두 봉 가격으로 제한한다. 원본 대조 시 초기 이력 차이는 별도 구분한다.
-> **주의 (BL-393):** `strategy.exit` 의 `trail_points`/`profit`/`loss` 를 TV 는 **틱 단위**(× mintick)로
-> 해석하지만 QB 는 price-distance 로 해석 — ATR 등 가격 값을 넣는 전략은 TV 쪽이 초미세 트레일링이
-> 되어 성적이 왜곡될 수 있다 (QB 가 저자 의도에 근접).
+> **주의 (BL-393):** TradingView의 `profit`/`loss`/`trail_offset`은 틱 단위이고 `trail_points`는
+> 진입가에서 활성화 가격까지의 틱 수다. QB는 mintick 모델 없이 가격 거리로 근사한다.
+> `trail_points`는 활성화 의미를 구현하지 않으며 경고를 낸다. 두 엔진의 같은 숫자가 같은 주문을 뜻하지 않는다.
 
 ### 2.2 `ta.*` built-in series (attribute access)
 
@@ -46,9 +49,35 @@
 
 ### 2.3 `strategy.*`
 
-- 함수: `strategy.entry`, `strategy.close`, `strategy.close_all`, `strategy.exit`
+- 함수: `strategy.entry`, `strategy.close`, `strategy.close_all`, `strategy.exit`, `strategy.cancel`, `strategy.cancel_all`
 - 변수: `strategy.long`, `strategy.short`, `strategy.position_size`, `strategy.position_avg_price`
 - **Sprint 58 BL-242a 신규:** `strategy.equity` (running equity 반환)
+
+`strategy.exit`의 백테스트 계약은 다음과 같다. TradingView 전체 의미론의 동치를 보증하지 않는다.
+
+| 입력·동작 | QB 계약 |
+| --- | --- |
+| `stop` / `limit` | 절대 SL / TP 가격. 같은 exit ID의 형제 주문은 한 수량 예약을 공유한다. |
+| `qty` / `qty_percent` | 부분 청산. 둘 다 있으면 qty 우선, percent는 발행 시 현재 포지션 기준이다. 다른 exit ID의 예약 수량을 침범하지 않으며 초과 요청은 잔여량으로 제한한다. |
+| 다른 exit ID / 같은 exit ID 재발행 | 서로 다른 ID는 공존, 같은 ID만 교체. 체결된 브래킷의 형제만 취소하고 다른 ID의 잔량 보호는 유지한다. |
+| `trail_price` + `trail_offset` | 절대 가격에 도달한 후 가격 거리 offset으로 추적한다. 동일 ID 재발행 시 활성화 상태와 최적 가격을 보존한다. |
+| `strategy.cancel(id)` / `cancel_all()` | 미체결 진입·청산·시장가 인텐트를 취소한다. 열린 포지션은 유지한다. |
+
+종료 leg는 원래 진입가·시점·위상을 유지하며, 진입비용과 펀딩은 수량·보유 구간에 맞게 배분한다.
+부분 종료 leg 수와 최초 진입 포지션 수는 구분해야 한다. 같은 봉의 SL·Trail·TP 우선순위와 high/low
+추적은 봉내 순서의 근사이며 실제 하위봉 재현이 아니다. `next_bar_open` 시장가 진입을 이미 제출한 뒤
+명시적 `from_entry`로 발행한 유한 스칼라 브래킷은 해당 진입에 연결한다. 제출 봉의 가격·수량 요청을
+보존하고, 실제 체결 수량으로 예약한 뒤 첫 체결 봉의 청산 검사부터 적용한다. 취소·진입 거부 때는
+연결을 폐기하며 같은 ID를 재사용해도 이전 보호를 물려주지 않는다. 조건부 진입·wildcard 미래 진입·
+동일 ID 다중 대기 진입은 이 계약에 포함하지 않는다. 실제 체결가 기반 R 정책은 별도 미구현이다.
+
+부분·복수·절대 활성화·취소 청산은 **백테스트 전용**이다. 문자열 상수가 아닌 exit ID나 서로 다른
+exit ID 두 개 이상도 최초 라이브 진입부터 보수적으로 차단한다. 라이브의 단일 브래킷·전량 청산 경로로
+잘못 전달되지 않도록 `run_live`가 신호와 대기 주문을 차단하고 `advanced_exit_unsupported_live`를 남긴다.
+미지원 exit 인자와 잘못된 수량·트레일링 거리는 명시적으로 실패한다.
+대기 시장가 브래킷도 백테스트 전용이다. 실제 템플릿이 제출되면 해당 첫 진입부터 신호·대기 주문을
+차단하고 `pending_market_exit_unsupported_live`를 남긴다. 아직 실행하지 않은 미래 분기 사용을
+사전 예측하는 차단은 아니며, 기존 `bar_close` 단일 브래킷 라이브 계약은 유지한다.
 
 ### 2.4 유틸 함수
 
@@ -75,6 +104,10 @@
 `rma`, `sma`, `ema`, `rsi`, `atr`, `highest`, `lowest`, `crossover`, `crossunder`, `change`, `stdev`, `variance`, `iff`, `switch`
 
 **Sprint 21 추가** (`abs/max/min/pivothigh/pivotlow/barssince/valuewhen/timestamp`) — v4 no-namespace 형식. interpreter alias map 에서 `math.*` 또는 `ta.*` 로 재라우팅. **사용자 정의 함수 우선 dispatch** (Sprint 21 Phase A.1, codex G.0 P1 #1+#4 — `abs(x) =>` 정의 시 alias 압도 차단).
+
+v1~v3의 기본 색상 17종은 기존 `color.*`와 같은 표시 NOP로 해석한다. 색상 값 계산·렌더링의 동치를
+보증하지 않는다. 구버전 input의 `float`는 입력 타입 상수이며 `float(x)` 캐스팅 지원과 별개다.
+사용자 변수·로컬 이름이 우선하며 v4 이상에서 bare 색상·입력 타입을 새로 허용하지 않는다.
 
 ### 2.7 Explicit constant sets (Sprint 21 신규)
 

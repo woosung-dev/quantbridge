@@ -138,12 +138,41 @@ def adapt_strategy(
                     "non_chart_timeframe", "별도 resolution/timeframe 선언은 변환하지 않습니다"
                 )
             warnings.append(f"빈 {argument.name} 선언 인자만 제거했습니다")
+        elif argument.name == "timeframe_gaps":
+            chart_timeframes = [arg for arg in header.args if arg.name == "timeframe"]
+            if (
+                _name(header.func) != "indicator"
+                or len(chart_timeframes) != 1
+                or not isinstance(chart_timeframes[0].value, A.Constant)
+                or chart_timeframes[0].value.value != ""
+                or not isinstance(argument.value, A.Constant)
+                or type(argument.value.value) is not bool
+            ):
+                raise StrategyAdapterError(
+                    "unsupported_timeframe_gaps",
+                    "timeframe_gaps는 명시 timeframe=빈문자열의 bool 상수만 허용합니다",
+                )
+            warnings.append(
+                "차트 주기 기본값에서 timeframe_gaps 선언을 제거했습니다; "
+                "Timeframe/Wait for timeframe closes 설정 UI는 보존하지 않습니다"
+            )
         elif argument.name == "linktoseries":
             if not isinstance(argument.value, A.Constant) or type(argument.value.value) is not bool:
                 raise StrategyAdapterError(
                     "dynamic_declaration", "linktoseries는 상수만 허용합니다"
                 )
             warnings.append("화면 축 연결 전용 linktoseries 선언 인자만 제거했습니다")
+        elif argument.name is None and index == 2 and _name(header.func) == "indicator":
+            if (
+                not isinstance(argument.value, A.Constant)
+                or type(argument.value.value) is not bool
+                or any(arg.name == "overlay" for arg in header.args)
+            ):
+                raise StrategyAdapterError(
+                    "dynamic_declaration",
+                    "세 번째 positional overlay는 중복 없는 bool 상수만 허용합니다",
+                )
+            header_args.append(A.Arg(name="overlay", value=argument.value))
         elif argument.name in _HEADER_ARGS or (argument.name is None and index <= 1):
             if not _safe_calls(argument.value, display=True):
                 raise StrategyAdapterError(
@@ -221,11 +250,19 @@ def adapt_strategy(
                 "duplicate_signal_binding", "같은 호출을 중복 방향에 연결할 수 없습니다"
             )
         seen.add(key)
-        if not call.args or call.args[0].name is not None:
+        condition_name = "condition" if function == "alertcondition" else "series"
+        conditions = [arg for arg in call.args if arg.name == condition_name]
+        if call.args and call.args[0].name is None:
+            conditions.insert(0, call.args[0])
+        if not conditions:
             raise StrategyAdapterError(
-                "named_first_condition", "첫 positional 조건 인자만 지원합니다"
+                "named_first_condition", "첫 positional 또는 함수의 주조건 keyword가 필요합니다"
             )
-        argument = call.args[0]
+        if len(conditions) != 1:
+            raise StrategyAdapterError(
+                "ambiguous_signal_condition", "주조건 인자를 중복 지정할 수 없습니다"
+            )
+        argument = conditions[0]
         if not _safe_calls(argument.value, display=False) or any(
             isinstance(node, A.Call) and _name(node.func) in udf_names
             for node in A.walk(argument.value)
@@ -233,7 +270,9 @@ def adapt_strategy(
             raise StrategyAdapterError(
                 "unsupported_condition_call", "조건의 UDF/input/외부 호출은 변환하지 않습니다"
             )
-        if any(not _safe_calls(arg.value, display=True) for arg in call.args[1:]):
+        if any(
+            not _safe_calls(arg.value, display=True) for arg in call.args if arg is not argument
+        ):
             raise StrategyAdapterError(
                 "dynamic_signal_arguments", "다른 인자에 실행 부작용이 있는 호출이 있습니다"
             )
@@ -251,7 +290,7 @@ def adapt_strategy(
             raise StrategyAdapterError(
                 "condition_render_mismatch", "조건 표현식 구조가 달라졌습니다"
             )
-        arg_start, arg_end = _span(argument, lines, offsets)
+        arg_start, arg_end = _span(argument.value, lines, offsets)
         edits.append((call_start, call_start, f"{temp} = {condition}{newline}"))
         edits.append((arg_start, arg_end, temp))
         reviewed.append(

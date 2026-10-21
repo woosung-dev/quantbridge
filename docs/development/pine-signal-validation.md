@@ -29,15 +29,57 @@ PRD §5의 결과·가정 공개와 ADR-040/042의 결정론 판정 경계를 �
 기존 **Python View는 읽기 전용**이며 이 실행 경로와 별개다. 범용 Pine→Python 변환기는 아니다.
 기존 indicator→strategy 슬라이싱도 원본 조건식·범위를 보존할 수 없으면 성공을 반환하지 않는다.
 
+V2의 첫 체결 봉 보호에는 별도 위상 계약이 필요하다. 이미 제출한 `next_bar_open` 시장가 진입의
+명시적 `from_entry` 브래킷은 제출 봉에 평가한 유한 스칼라를 보존하고, 실제 시가 체결 뒤 OHLC
+청산 검사 전에 연결한다. 재진입 ID만 같다는 이유로 취소된 보호를 재사용하지 않는다. 이 기능은
+조건부 진입·wildcard 미래 진입을 지원하지 않으며, 체결가를 받아 R을 새로 계산하는 정책도 아니다.
+같은 봉에서 entry와 exit를 함께 제출하는 근거는 [TradingView 전략의 bracket 예제](https://www.tradingview.com/pine-script-docs/concepts/strategies/#strategyexit)다.
+수치 R·부분 익절·트레일 정책과 비용을 고정하기 전에는 전체 V2 성과로 표시하지 않는다.
+
 `strategy_adapter.adapt_strategy`는 검토한 manifest 위치의 신호를 실제 전략 진입으로 연결한다.
 원본 계산 body를 보존하고 선언과 선택 호출의 첫 인자만 AST의 정확한 범위로 편집한다. 조건은 호출 위치에서
 한 번 평가한 임시 변수로 원래 plot/alert와 진입문이 함께 읽는다. 원본 hash·변환 hash·변환 Pine·줄 대응표를
 보고서에 남긴다. 단독 최상위 호출이나 안전한 인자 평가를 증명하지 못하면 변환을 거부한다.
 방향은 manifest가 명시하며, 같은 방향 복수 표식은 추가 진입을 만들지 않는다.
+
+첫 조건은 `plotshape`·`plotchar`의 `series`, `alertcondition`의 `condition`을 positional 또는
+keyword로 지정할 수 있다. keyword 순서와 원문 구분자는 보존하고 AST의 값 범위만 임시 변수로
+바꾼다. 조건은 한 번 평가하며 조건 외 모든 인자의 부작용 검사는 유지한다. 중복 주조건은 거부한다.
+`indicator`의 세 번째 positional bool은 `overlay`로 명시 보존한다. `timeframe_gaps`는 명시적으로
+`timeframe=""`인 bool 상수만 제거할 수 있으며, 계산 주기와 종료 대기 설정 UI를 보존하지 않는다고
+경고한다. 별도 주기·동적 gaps는 거부한다. 이는 차트 주기 기본값의 로컬 측정 계약이며 사용자 UI에서
+다른 주기로 바꾼 native 실행과 동등하다는 뜻이 아니다.
+
 원본 실행·OHLCV·방향 바인딩의 선행 조건을 통과한 셀에서는 Python oracle 생성 여부와 별도로
 앱 백테스트를 시도한다. `app_status=ok` 또는
 `executed=true`는 앱 엔진 실행 사실이고, 독립 사건 원장과의 `exact_match`가 아니다. Python
 사건이 없으면 `missing_signal_ledger`로 남기며 앱 거래가 있었다는 이유로 신호 동등성을 주장하지 않는다.
+
+## 사용자 함수의 로컬 상태와 이력
+
+`pine_v2`는 사용자 함수 본문에 직접 선언한 scalar 일반 변수·`var`·`varip`와 positional
+매개변수를 호출 경로별로 분리한다. 경로에는 중첩 호출과 AST 줄·column을 포함하며 같은 줄의
+다른 호출은 상태를 공유하지 않는다. 일반 변수는 매 호출 다시 계산하고 `var`/`varip`는 해당
+호출 경로의 첫 실행에만 초기화한다. 전역 변수·snapshot과 기존 stdlib 호출별 상태는 별도로 유지한다.
+
+성공한 함수 호출의 최종 로컬 값은 봉 종료 때 한 번 확정한다. 실패한 부모 호출의 자식 staging도
+이력으로 승격하지 않는다. 이는 오류 전 persistent mutation을 전부 원복하는 트랜잭션을 뜻하지
+않는다. `strict=False`의 오류 결과는 성공 측정으로 인정하지 않는다. 일반 로컬 재귀식과 매개변수의
+`[1]`은 이전 확정 호출 봉을 읽고, 연속 평가된 이력은 더 큰 offset도 지원한다. 미검증인 sparse
+이력의 offset > 1, loop 안 로컬 history, reference-type history는 런타임 오류로 거부한다.
+
+loop의 같은 written call은 persistent 상태를 공유한다. 함수 내부 loop counter는 block 종료 때
+복원하며, if/loop에서 이미 선언된 함수 변수를 `:=`로 갱신할 수 있다. block 내부 새 변수 선언,
+함수 local/parameter를 가리는 loop counter, global/parameter 재할당, UDF named 인자는 명시적으로
+거부한다. 이 제한을 함수 전체 Pine 동치로 표현하지 않는다. `varip` 저장소 구분을 유지하더라도
+historical/replay 검사로 실제 realtime tick의 rollback 동작까지 입증한 것은 아니다.
+`+=` 등 compound assignment는 전역/함수 내부 모두 명시적 런타임 오류로 거부하며,
+현재 지원하는 `:=`와 구별한다. 정상 Pine compound 연산을 구현했다는 뜻은 아니다.
+
+근거는 [Pine v5 UDF](https://www.tradingview.com/pine-script-docs/v5/language/user-defined-functions/)와
+[실행 모델의 scope별 이력](https://www.tradingview.com/pine-script-docs/language/execution-model/#time-series-in-scopes)이다.
+함수 recurrence를 소비한 기존 결과는 코드 수리만으로 정답으로 승격하지 않는다. 독립 수식이나
+native 관측을 새 코드 hash와 대조하고, 외부 근거가 없는 원본 신호 판정은 미검증으로 남긴다.
 
 ## 비교 계약
 
@@ -46,7 +88,7 @@ PRD §5의 결과·가정 공개와 ADR-040/042의 결정론 판정 경계를 �
 | 시장 | `BYBIT:BTCUSDT.P` — BTC/USDT 무기한 선물 |
 | 기간 | 실행일의 최근 확정 UTC 일봉 경계까지 calendar 1년, 별도 warmup |
 | 타임프레임 | 1h·4h·1d, 누락·중복 없는 동일 OHLCV |
-| 후보 | Boost ≥100 공개 소스, 중복 id/URL·원본 SHA 중복 구분, 최대 100개 |
+| 최종 측정 대상 | Boost ≥100 공개 소스, 중복 id/URL·원본 SHA 중복 구분, 최대 100개. 수집·탐색 수는 별도 집계 |
 | 사건 | 조건 평가 봉·방향·확정 시각·표시 offset 시각을 각각 비교 |
 | 선물 | 롱/숏 반전, 단일 포지션, 같은 방향 추가 진입 없음, 명시 청산 지원 |
 | 신호·원장 대조 체결 가정 | 다음 봉 시가, 1배, 고정 1수량, 수수료·슬리피지·펀딩 0 |
@@ -93,6 +135,49 @@ UTC 일봉 경계의 train·validation·holdout, 초기자본, 자본 대비 포
 Pine↔Python 사건, 앱 원장 일치나 추천 적격을 뜻하지 않는다. 성과 임계값과 후보 선택 기준은 결과를
 보고 바꾸지 않고 회차 계획에 보존한다. 성과 수치·순위는 해당 실행의 입력·코드 hash와 가정을 함께
 제시하고, 투자 권유나 미래 수익 보장으로 표현하지 않는다.
+
+## 선택형 청산 정책의 비교
+
+표준 `math.sum(source, length)`는 호출 지점별 최근 비NA 표본의 이동 합계이며, 유효 표본이
+길이에 미달하면 NA를 반환한다. 길이는 양의 정수, 소스는 유한 숫자 또는 NA만
+지원한다. `source`/`length` keyword 순서를 보존하며, 동일 봉 반복 호출과 불연속 봉의 조건부
+호출은 아직 독립 native 근거가 없어 명시적으로 거부한다. 가변 길이를 위해 호출 지점별
+유효 표본 이력을 보관하므로 메모리는 봉수에 비례한다.
+근거는 [TradingView의 이동 합계·가변 길이 예제](https://www.tradingview.com/pine-script-docs/faq/techniques/#how-can-i-count-the-occurrences-of-a-condition-in-the-last-x-bars)다.
+
+버전 annotation이 없는 원문은 TradingView의 기본 버전인 v1로 해석한다. 직접 생성한
+`BarContext`의 기본 버전과 명시적 v4~v6 원문은 바꾸지 않는다. v1~v3의 `circles`는
+기존 표시 전용 상수와 같은 범위로 해석하며 렌더링 일치 검증을 뜻하지 않는다.
+버전 기본값의 근거는 [공식 스크립트 구조 문서](https://www.tradingview.com/pine-script-docs/language/script-structure/#version)다.
+
+`int()`, `float()`, `bool()`은 Pine v4 이상에서 scalar numeric/`na` 범위만 지원한다.
+정수 변환은 소수부를 반올림 없이 버리고, `bool(na)`는 v5/v6에서 false다. v4의
+`bool(na)`, 비유한 숫자 입력, bool→숫자 및 문자열·객체 변환은 거부한다. 색상은 기존
+표시 전용 NA 처리의 영향을 받으므로 색상 기반 계산을 검증 대상으로 승격하지 않는다.
+한 개의 positional 인자만 평가하며 named 인자는 명시 거부한다.
+이 cast 지원은 실행 문법 범위만 넓히며 원본 지표의 신호 재현이나 native 일치를 뜻하지 않는다.
+숫자·NA의 bool 변환 근거는 [TradingView CE10101](https://www.tradingview.com/pine-script-docs/errors/CE10101/)이다.
+
+추세 지표 확대는 **원문 수집 → 정적 선별 → 실제 실행 → 신호·원장 대조 → 비용 포함 성과**를
+각각 집계한다. 목표가 실행 가능한 50개라면 수집한 50개를 분모 충족으로 대신하지 않는다.
+원문 SHA 중복을 제외하고 같은 EMA·SSL 등의 계열 변형은 별도로 표시한다.
+파싱 시간 제한은 `parser_timeout`으로 보존하며 원문 문법 오류나 미지원 함수라고 단정하지 않는다.
+
+V1은 원래 방향 신호를 같은 선물 규칙으로 실행한다. V2는 **동일 신호에 별도 청산 정책을 적용한 실험**이다.
+V2의 SL·부분 익절·트레일링으로 달라진 청산을 원본 TradingView 지표와의 신호 불일치로 집계하지 않는다.
+두 봉의 주기·확정 범위, SL 여유 방향, 익절 R 배수·수량, 트레일링 활성화와 간격, 같은 방향 신호의
+재설정 여부를 성과 측정 전에 확정한다. 정해지지 않은 값을 기본값으로 숨기지 않는다.
+
+R은 실제 진입 체결가와 최초 SL 사이 거리로 계산해야 한다. 다음 봉 시가 체결을 종가 체결로 대신하거나,
+진입 봉의 미래 고저가로 SL을 계산하면 안 된다. 첫 진입 봉부터 보호되는지, 갭·동봉 SL/TP 충돌·반전 시
+이전 주문 취소·잔량·수량 보존을 수기 기대값으로 먼저 검증한다. 진입가 SL은 수수료·펀딩을 뺀 순손익
+본전을 뜻하지 않는다. 봉내 순서를 하위봉으로 재현하지 않았다면 OHLC 근사로 명시한다.
+
+V1/V2는 같은 OHLCV·초기 이력·진입 크기·비용·평가 구간을 사용한다. 부분 TP가 생기면 기존 시장가 전용
+실험의 `maker_fee=0`을 그대로 복사하지 않는다. 최초 진입 포지션 수와 부분 종료 leg 수, 닫힌 손익과
+열린 잔량 평가손익을 각각 공개한다. 공통 청산 프리미티브의 지원 범위와 라이브 차단은
+[지원 계약](../domain/supported-indicators.md#23-strategy)을 따른다. 정책 래퍼와 첫 진입 봉 보호를
+구현·검증하기 전에는 공통 엔진 검사 통과를 V2 성과 측정 완료로 보고하지 않는다.
 
 ## 수집과 실행
 

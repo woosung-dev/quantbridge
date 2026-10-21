@@ -517,7 +517,7 @@
       },
       "var_series_digest": "sha256:fe75653c6f4b87338ba434a30e480455be5b0eac18d40a482c79b35bb29501bb",
       "trades_digest": "sha256:ce065199ad2d8b2c1e92040b95495ffc5070dc61029e8a31d138179cdb92cce3",
-      "warnings_digest": "sha256:9ba2cdb07efc5e38d0934242497ca965a5c3afd0cbb599d9546e3ab51035b9b1",
+      "warnings_digest": "sha256:d1c3c5198097d95f2b0030ea77709ed756240b8d562d536a300a7e93f4a1aa98",
       "updated_at": "2026-10-20T17:27:44Z"
     },
     "s5_ema_trend": {
