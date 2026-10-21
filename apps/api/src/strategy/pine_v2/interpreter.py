@@ -340,6 +340,17 @@ _STATEMENT_EXPR_NODES = (
 )
 
 
+@dataclass
+class _FunctionFrame:
+    """호출 경로별 binding과 아직 확정되지 않은 scalar 이력."""
+
+    path: tuple[str, ...]
+    params: frozenset[str]
+    declarations: dict[str, str | None]
+    staged: dict[tuple[tuple[str, ...], str], Any] = field(default_factory=dict)
+    loop_names: set[str] = field(default_factory=set)
+
+
 class Interpreter:
     """Pine AST interpreter — per-bar 실행.
 
@@ -371,6 +382,11 @@ class Interpreter:
         self._user_functions: dict[str, Any] = {}
         # 함수 호출 중 로컬 스코프 스택. 최상단 = 현재 frame. 빈 리스트 = 최상위.
         self._scope_stack: list[dict[str, Any]] = []
+        self._function_frames: list[_FunctionFrame] = []
+        self._function_declarations: dict[str, dict[str, str | None]] = {}
+        self._local_history: dict[tuple[tuple[str, ...], str], deque[tuple[int, Any]]] = {}
+        self._local_pending: dict[tuple[tuple[str, ...], str], Any] = {}
+        self._loop_depth = 0
         # 재귀 depth guard (Pine은 공식 재귀 미지원; 무한 재귀 방지).
         self._max_call_depth: int = 32
         # ta.* stdlib 디스패처 (bar 교차 상태 유지)
@@ -398,6 +414,7 @@ class Interpreter:
 
     def reset_transient(self) -> None:
         self._transient = {}
+        self._local_pending.clear()
 
     def begin_bar_snapshot(self) -> None:
         """Bar 시작 시 호출 — ta.atr 등 prev-close 참조용.
@@ -421,10 +438,23 @@ class Interpreter:
             self._var_series[name].append(value)
         # persistent: "main::name" 접두어 제거
         for full_key, value in self.store.snapshot_dict().items():
+            if full_key.startswith("udf:"):
+                continue
             short = full_key.split("::", 1)[1] if "::" in full_key else full_key
             if short not in self._var_series:
                 self._var_series[short] = deque(maxlen=self._max_bars_back)
             self._var_series[short].append(value)
+        for key, value in self._local_pending.items():
+            history = self._local_history.setdefault(key, deque(maxlen=self._max_bars_back))
+            history.append((self.bar.bar_index, value))
+        self._local_pending.clear()
+
+    def global_state_snapshot(self) -> dict[str, Any]:
+        """함수 내부 슬롯은 기존 전역 진단 snapshot으로 유출하지 않는다."""
+        return {
+            key: value for key, value in self.store.snapshot_dict().items()
+            if not key.startswith("udf:")
+        } | self._transient
 
     # ---- 실행 엔트리 --------------------------------------------------
 
@@ -450,12 +480,14 @@ class Interpreter:
             self._exec_assign(node)
         elif isinstance(node, pyne_ast.ReAssign):
             self._exec_reassign(node)
+        elif isinstance(node, pyne_ast.AugAssign):
+            raise PineRuntimeError("compound assignment is not supported")
         elif isinstance(node, pyne_ast.If):
             self._exec_if(node)
         elif isinstance(node, pyne_ast.ForTo):
-            self._exec_for_to(node)
+            self._exec_scoped_loop(node, self._exec_for_to)
         elif isinstance(node, pyne_ast.ForIn):
-            self._exec_for_in(node)
+            self._exec_scoped_loop(node, self._exec_for_in)
         elif isinstance(node, pyne_ast.While):
             self._exec_while(node)
         elif isinstance(node, pyne_ast.Break):
@@ -513,7 +545,10 @@ class Interpreter:
 
         if var_kind is not None:
             # 영속: 첫 bar에서만 RHS 평가. PersistentStore.declare_if_new가 lazy 처리.
-            key = f"main::{target_name}"
+            key = (
+                self._local_persistent_key(target_name)
+                if self._function_frames else f"main::{target_name}"
+            )
             value_expr = node.value
 
             def factory() -> Any:
@@ -527,11 +562,13 @@ class Interpreter:
                 finally:
                     self._assignment_target_stack.pop()
 
-            self.store.declare_if_new(
+            value = self.store.declare_if_new(
                 key,
                 factory,
                 varip=(var_kind == "varip"),
             )
+            if self._scope_stack:
+                self._scope_stack[-1][target_name] = value
         else:
             # 비영속: 매 bar 평가. 함수 호출 중이면 로컬 frame에 기록.
             # Sprint 51 BL-220 (codex G.0 P1#2): input.* override 를 위해 RHS eval
@@ -561,10 +598,19 @@ class Interpreter:
         )
         if target_name is None:
             return
+        if self._function_frames:
+            frame = self._function_frames[-1]
+            if target_name in frame.params or target_name not in self._scope_stack[-1]:
+                raise PineRuntimeError(f"UDF cannot reassign parameter or nonlocal: {target_name}")
         value = self._eval_expr(node.value)
         # 로컬 scope 활성 & 해당 이름이 현재 frame에 존재 → frame에 재할당.
         if self._scope_stack and target_name in self._scope_stack[-1]:
             self._scope_stack[-1][target_name] = value
+            if (
+                self._function_frames
+                and self._function_frames[-1].declarations.get(target_name) in ("var", "varip")
+            ):
+                self.store.set(self._local_persistent_key(target_name), value)
             return
         key = f"main::{target_name}"
         if self.store.is_declared(key):
@@ -589,6 +635,27 @@ class Interpreter:
 
     # ---- 루프 (G1, 2026-07-12 pine-batch QA) ---------------------------
 
+    def _exec_scoped_loop(self, node: Any, execute: Callable[[Any], None]) -> None:
+        """UDF loop counter는 block 종료 시 복원한다. 전역 루프 경로는 그대로 둔다."""
+        if not self._function_frames:
+            execute(node)
+            return
+        target = node.target
+        targets = target.elts if isinstance(target, pyne_ast.Tuple) else [target]
+        names = {item.id for item in targets if isinstance(item, pyne_ast.Name)}
+        values = self._scope_stack[-1]
+        previous = {name: values[name] for name in names if name in values}
+        frame = self._function_frames[-1]
+        previous_names = frame.loop_names.copy()
+        frame.loop_names.update(names)
+        try:
+            execute(node)
+        finally:
+            for name in names:
+                values.pop(name, None)
+            values.update(previous)
+            frame.loop_names = previous_names
+
     def _set_loop_var(self, name: str, value: Any) -> None:
         """루프 카운터를 현재 스코프(함수 frame 또는 transient)에 기록."""
         if self._scope_stack:
@@ -598,6 +665,7 @@ class Interpreter:
 
     def _run_loop_body(self, body: list[Any]) -> bool:
         """루프 body 1회 실행. break 발생 시 True 반환 (루프 종료 신호)."""
+        self._loop_depth += 1
         try:
             for stmt in body:
                 self._exec_stmt(stmt)
@@ -605,6 +673,8 @@ class Interpreter:
             return False
         except LoopBreak:
             return True
+        finally:
+            self._loop_depth -= 1
         return False
 
     def _exec_for_to(self, node: Any) -> None:
@@ -935,6 +1005,29 @@ class Interpreter:
             offset = int(offset)
         if not isinstance(offset, int) or offset < 0:
             return float("nan")
+
+        if isinstance(value_node, pyne_ast.Name) and self._function_frames:
+            frame = self._function_frames[-1]
+            name = value_node.id
+            if name in frame.params or name in frame.declarations or name in frame.loop_names:
+                if offset == 0:
+                    return self._resolve_name(name)
+                if self._loop_depth:
+                    raise PineRuntimeError("UDF local history in loops is not supported")
+                current = self._scope_stack[-1].get(name)
+                if current is not None and not isinstance(current, (bool, int, float, str)):
+                    raise PineRuntimeError("UDF reference-type history is not supported")
+                history = self._local_history.get((frame.path, name), ())
+                if offset > 1 and history:
+                    recent = list(history)[-offset:]
+                    if any(
+                        bar != self.bar.bar_index - i
+                        for i, (bar, _) in enumerate(reversed(recent), 1)
+                    ):
+                        raise PineRuntimeError("UDF sparse history with offset > 1 is not supported")
+                if len(history) < offset:
+                    return float("nan")
+                return history[-offset][1]
 
         # built-in series: 직접 DataFrame 조회
         if isinstance(value_node, pyne_ast.Name) and value_node.id in _BUILTIN_SERIES:
@@ -1385,6 +1478,53 @@ class Interpreter:
             )
         )
 
+    def _local_persistent_key(self, name: str) -> str:
+        return f"udf:{'/'.join(self._function_frames[-1].path)}::{name}"
+
+    def _udf_declarations(self, fn_def: Any) -> dict[str, str | None]:
+        """함수 본문 scalar binding만 지원한다. block 선언은 scope를 흉내 내지 않는다."""
+        if fn_def.name in self._function_declarations:
+            return self._function_declarations[fn_def.name]
+        params = {param.name for param in fn_def.args}
+        declarations: dict[str, str | None] = {}
+        reassignments: set[str] = set()
+        loop_counters: set[str] = set()
+
+        def visit(node: Any, in_block: bool = False) -> None:
+            if isinstance(node, pyne_ast.AugAssign):
+                raise PineRuntimeError("UDF compound assignment is not supported")
+            if isinstance(node, pyne_ast.Assign):
+                if in_block:
+                    raise PineRuntimeError("UDF lexical block declarations are not supported")
+                targets = getattr(node, "targets", None) or [getattr(node, "target", None)]
+                for target in targets:
+                    names = target.elts if isinstance(target, pyne_ast.Tuple) else [target]
+                    for name in names:
+                        if isinstance(name, pyne_ast.Name):
+                            if name.id in params or name.id in declarations:
+                                raise PineRuntimeError(f"UDF duplicate binding: {name.id}")
+                            declarations[name.id] = self._detect_var_kind(node)
+            if isinstance(node, pyne_ast.ReAssign):
+                targets = getattr(node, "targets", None) or [getattr(node, "target", None)]
+                reassignments.update(t.id for t in targets if isinstance(t, pyne_ast.Name))
+            if isinstance(node, (pyne_ast.ForTo, pyne_ast.ForIn)):
+                target = node.target
+                targets = target.elts if isinstance(target, pyne_ast.Tuple) else [target]
+                loop_counters.update(t.id for t in targets if isinstance(t, pyne_ast.Name))
+            nested_block = in_block or isinstance(node, _STATEMENT_EXPR_NODES)
+            for child in pyne_ast.iter_child_nodes(node):
+                visit(child, nested_block)
+
+        for stmt in fn_def.body:
+            visit(stmt)
+        if loop_counters & (params | declarations.keys()):
+            raise PineRuntimeError("UDF loop-counter shadowing is not supported")
+        forbidden = reassignments - declarations.keys()
+        if forbidden:
+            raise PineRuntimeError(f"UDF cannot reassign parameter or nonlocal: {sorted(forbidden)[0]}")
+        self._function_declarations[fn_def.name] = declarations
+        return declarations
+
     def _call_user_function(self, fn_def: Any, call_node: Any) -> Any:
         """Pine user function 호출: 매개변수 바인딩 + body 실행 + 마지막 Expr 값 반환.
 
@@ -1397,6 +1537,9 @@ class Interpreter:
             raise PineRuntimeError(
                 f"user function call depth exceeded: {fn_def.name} (max={self._max_call_depth})"
             )
+        declarations = self._udf_declarations(fn_def)
+        if any(isinstance(arg, pyne_ast.Arg) and arg.name is not None for arg in call_node.args):
+            raise PineRuntimeError("UDF named arguments are not supported")
         # 실인자 평가 (positional only — named arg는 H2+).
         actual_args = [
             self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in call_node.args
@@ -1407,7 +1550,6 @@ class Interpreter:
                 f"user function {fn_def.name}: expected {len(params)} args, got {len(actual_args)}"
             )
         frame: dict[str, Any] = dict(zip(params, actual_args, strict=True))
-        self._scope_stack.append(frame)
         # ta.* 상태 격리: call-site별 고유 prefix push → 동일 함수의 서로 다른 호출 위치가
         # 각자 독립 상태를 가지게 됨.
         # ★BL-846 — 줄만으로는 call-site 가 안 갈린다. `pynescript` 의 `Call` 은
@@ -1423,6 +1565,10 @@ class Interpreter:
             or (f"{lineno}:{col_offset}" if lineno is not None else None)
             or id(call_node)
         )
+        parent_path = self._function_frames[-1].path if self._function_frames else ()
+        local_frame = _FunctionFrame((*parent_path, call_prefix), frozenset(params), declarations)
+        self._scope_stack.append(frame)
+        self._function_frames.append(local_frame)
         self.stdlib.push_call_prefix(call_prefix)
         try:
             last_expr_val: Any = None
@@ -1442,8 +1588,19 @@ class Interpreter:
                         last_expr_val = self._eval_expr(inner)
                 else:
                     self._exec_stmt(stmt)
+            local_frame.staged.update({
+                (local_frame.path, name): value for name, value in frame.items()
+                if value is None or isinstance(value, (bool, int, float, str))
+            })
+            # 부모가 실패하면 자식의 성공 이력도 버린다. 최상위 성공만 봉 staging에 넣는다.
+            destination = (
+                self._function_frames[-2].staged
+                if len(self._function_frames) > 1 else self._local_pending
+            )
+            destination.update(local_frame.staged)
             return last_expr_val
         finally:
+            self._function_frames.pop()
             self._scope_stack.pop()
             self.stdlib.pop_call_prefix()
 
@@ -1462,6 +1619,8 @@ class Interpreter:
         # 로컬 frame 우선 — user function 호출 중 매개변수/로컬 변수 lookup.
         if self._scope_stack and name in self._scope_stack[-1]:
             return self._scope_stack[-1][name]
+        if self._function_frames and name in self._function_frames[-1].declarations:
+            raise PineRuntimeError(f"UDF local referenced before declaration: {name}")
         if name in _BUILTIN_SERIES:
             return self.bar.current(name)
         if name == "tr":

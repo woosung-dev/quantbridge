@@ -236,13 +236,13 @@ def run_historical(
         store.commit_bar()
         interp.append_var_series()  # 이번 bar의 user 변수 값을 시리즈에 append
         # persistent("main::name") + transient(bare name) 병합하여 스냅샷
-        combined = {**store.snapshot_dict(), **interp._transient}
+        combined = interp.global_state_snapshot()
         if capture_history:
             result.state_history.append(combined)
         result.bars_processed += 1
 
     # 마지막 bar의 병합 스냅샷
-    result.final_state = {**store.snapshot_dict(), **interp._transient}
+    result.final_state = interp.global_state_snapshot()
     # Sprint 8c: 테스트 접근용 — StrategyState + user 변수 시계열 복사.
     # deque → list 변환: RunResult.var_series 타입은 dict[str, list[Any]]
     result.strategy_state = interp.strategy

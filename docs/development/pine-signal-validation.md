@@ -48,6 +48,32 @@ keyword로 지정할 수 있다. keyword 순서와 원문 구분자는 보존하
 `executed=true`는 앱 엔진 실행 사실이고, 독립 사건 원장과의 `exact_match`가 아니다. Python
 사건이 없으면 `missing_signal_ledger`로 남기며 앱 거래가 있었다는 이유로 신호 동등성을 주장하지 않는다.
 
+## 사용자 함수의 로컬 상태와 이력
+
+`pine_v2`는 사용자 함수 본문에 직접 선언한 scalar 일반 변수·`var`·`varip`와 positional
+매개변수를 호출 경로별로 분리한다. 경로에는 중첩 호출과 AST 줄·column을 포함하며 같은 줄의
+다른 호출은 상태를 공유하지 않는다. 일반 변수는 매 호출 다시 계산하고 `var`/`varip`는 해당
+호출 경로의 첫 실행에만 초기화한다. 전역 변수·snapshot과 기존 stdlib 호출별 상태는 별도로 유지한다.
+
+성공한 함수 호출의 최종 로컬 값은 봉 종료 때 한 번 확정한다. 실패한 부모 호출의 자식 staging도
+이력으로 승격하지 않는다. 이는 오류 전 persistent mutation을 전부 원복하는 트랜잭션을 뜻하지
+않는다. `strict=False`의 오류 결과는 성공 측정으로 인정하지 않는다. 일반 로컬 재귀식과 매개변수의
+`[1]`은 이전 확정 호출 봉을 읽고, 연속 평가된 이력은 더 큰 offset도 지원한다. 미검증인 sparse
+이력의 offset > 1, loop 안 로컬 history, reference-type history는 런타임 오류로 거부한다.
+
+loop의 같은 written call은 persistent 상태를 공유한다. 함수 내부 loop counter는 block 종료 때
+복원하며, if/loop에서 이미 선언된 함수 변수를 `:=`로 갱신할 수 있다. block 내부 새 변수 선언,
+함수 local/parameter를 가리는 loop counter, global/parameter 재할당, UDF named 인자는 명시적으로
+거부한다. 이 제한을 함수 전체 Pine 동치로 표현하지 않는다. `varip` 저장소 구분을 유지하더라도
+historical/replay 검사로 실제 realtime tick의 rollback 동작까지 입증한 것은 아니다.
+`+=` 등 compound assignment는 전역/함수 내부 모두 명시적 런타임 오류로 거부하며,
+현재 지원하는 `:=`와 구별한다. 정상 Pine compound 연산을 구현했다는 뜻은 아니다.
+
+근거는 [Pine v5 UDF](https://www.tradingview.com/pine-script-docs/v5/language/user-defined-functions/)와
+[실행 모델의 scope별 이력](https://www.tradingview.com/pine-script-docs/language/execution-model/#time-series-in-scopes)이다.
+함수 recurrence를 소비한 기존 결과는 코드 수리만으로 정답으로 승격하지 않는다. 독립 수식이나
+native 관측을 새 코드 hash와 대조하고, 외부 근거가 없는 원본 신호 판정은 미검증으로 남긴다.
+
 ## 비교 계약
 
 | 항목 | 기준 |
