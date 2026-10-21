@@ -49,6 +49,9 @@ class NativeExitUnsettled(KillSwitchActive):
 
     code = "native_exit_unsettled"
 
+    def __init__(self) -> None:
+        super().__init__("미정산 거래소 청산이 있어 새 진입이 차단됩니다")
+
 
 class WebhookUnauthorized(AppException):
     status_code = 401

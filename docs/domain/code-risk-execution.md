@@ -130,15 +130,19 @@ SL/trailing 분류·추정 전략 귀속을 정확한 세션/세대 체결이나
 주문은 실제 provider `create_order` 직전에 같은 정본 쿼리를 재조회하여
 `native_exit_unsettled`로 종결한다. 축소 주문·취소·보호 변경·기존 outbox 보호 복구는
 이 가드로 막지 않는다. 조회 직후 거래소 호출과 DB marker 변경을 원자화하지는 못한다.
-세션 FK는 RESTRICT로 보존하여 세션 삭제로 marker를 제거하지 못한다. 기존 Order FK도
+세션 FK는 RESTRICT로 보존하여 세션 삭제로 marker를 제거하지 못한다.
+0005 downgrade도 양수 marker가 있으면 필드·FK를 바꾸기 전에 거부한다. 기존 Order FK도
 전략·계정 삭제를 제한한다. UID가 불명인 새 계정 행이 같은 실제 계정인지 판별할 수 없는
-한계는 남는다. 권위 리스크 행의 임의 DB 삭제는 제품 API가 제공하지 않는다.
+한계는 남는다. NULL·빈 문자열·공백만 있는 UID는 모두 unknown으로 취급하며
+그 값만으로 다른 계정 행을 묶지 않는다. 권위 리스크 행의 임의 DB 삭제는 제품 API가 제공하지 않는다.
 
 뒤늦은 **기존 로컬 Order의 session·generation·reduce-only·terminal 누적 체결**만
 `exit_fills`에 아직 기록되지 않은 증가분으로 marker를 한 번 상쇄할 수 있다. 다른 이유의
 진입 차단은 해제하지 않는다. 미귀속 native 주문·inferred 원장 행에는 자동 해제가 없다.
-이미 비종결 누적 체결로 기록된 수량은 terminal 재관측만으로 재상쇄하지 않는 보수적
-한계가 있다. 이 경우 미정산을 유지하며 일반 resolve API를 제공하지 않는다.
+marker 발생 뒤 새로 관측한 정확한 로컬 주문의 증가분은 주문별
+`exit_fills.unsettled_pending`으로 저장하고 terminal 수신 때만 한 번 상쇄한다.
+재시작·같은 누적값의 terminal 재관측에도 이 대기분을 복구한다. marker 이전에 이미
+알던 TP/close 누적값은 credit하지 않는다. 일반 resolve API는 제공하지 않는다.
 
 코드 상태 응답의 `pnl_scope=known_order_subtotal`은 **알려진 주문 손익 소계**다.
 미정산 수량이 있거나 실제 축소 주문의 `realized_pnl`이 아직 없으면 `pnl_complete=false`다.

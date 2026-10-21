@@ -40,6 +40,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if (
+        op.get_bind()
+        .execute(
+            sa.text(
+                "SELECT EXISTS (SELECT 1 FROM trading.live_risk_states WHERE unsettled_exit_quantity > 0)"
+            )
+        )
+        .scalar_one()
+    ):
+        raise RuntimeError("미정산 native 청산이 있어 손실 없는 downgrade가 불가능합니다")
     op.drop_constraint(
         "fk_live_risk_states_session_id", "live_risk_states", schema="trading", type_="foreignkey"
     )

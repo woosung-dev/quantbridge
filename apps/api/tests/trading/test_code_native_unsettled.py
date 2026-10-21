@@ -266,9 +266,7 @@ async def test_manual_and_webhook_order_service_cannot_bypass_account_marker(
     _, session, _, _, _ = await unexplained_flat(prepared, db_session)
     dispatcher = AsyncMock()
     kill_switch = AsyncMock()
-    service = OrderService(
-        db_session, OrderRepository(db_session), dispatcher, kill_switch
-    )
+    service = OrderService(db_session, OrderRepository(db_session), dispatcher, kill_switch)
     request = OrderRequest(
         strategy_id=session.strategy_id,
         exchange_account_id=session.exchange_account_id,
@@ -290,7 +288,7 @@ async def test_manual_and_webhook_order_service_cannot_bypass_account_marker(
         kill_switch.ensure_not_gated.assert_not_awaited()
 
 
-@pytest.mark.parametrize("evidence", ["nonterminal", "not_reduce_only", "wrong_generation"])
+@pytest.mark.parametrize("evidence", ["not_reduce_only", "wrong_generation"])
 async def test_inexact_local_order_cannot_release_marker(prepared, db_session, evidence):
     repo, session, _, risk, _ = await unexplained_flat(prepared, db_session)
     child = Order(
@@ -311,13 +309,136 @@ async def test_inexact_local_order_cannot_release_marker(prepared, db_session, e
     db_session.add(child)
     await db_session.commit()
     await risk.record_exit_fill(
-        session.id, 1, child.id, role="close", cumulative_quantity=D(2),
+        session.id,
+        1,
+        child.id,
+        role="close",
+        cumulative_quantity=D(2),
         terminal=evidence != "nonterminal",
     )
     assert (await repo.get(session.id)).unsettled_exit_quantity == 2
-    if evidence == "nonterminal":
-        # 이미 기록한 누적값을 terminal 재관측만으로 두 번 상쇄하지 않는다.
-        await risk.record_exit_fill(
-            session.id, 1, child.id, role="close", cumulative_quantity=D(2), terminal=True
-        )
-        assert (await repo.get(session.id)).unsettled_exit_quantity == 2
+
+
+@pytest.mark.parametrize("unknown_uid", [None, "", "   ", "\t\r\n"])
+async def test_blank_uid_is_unknown_and_never_binds_unrelated_account(
+    prepared, db_session, unknown_uid
+):
+    repo, session, _, _, _ = await unexplained_flat(prepared, db_session)
+    account = await repo.get_account(session.exchange_account_id)
+    account.exchange_uid = unknown_uid
+    sibling = ExchangeAccount(
+        user_id=account.user_id,
+        exchange=account.exchange,
+        mode=account.mode,
+        exchange_uid=unknown_uid,
+        api_key_encrypted=b"fake",
+        api_secret_encrypted=b"fake",
+    )
+    db_session.add(sibling)
+    await db_session.commit()
+    accounts = ExchangeAccountRepository(db_session)
+    assert await accounts.has_unsettled_code_exit(account.id)
+    assert not await accounts.has_unsettled_code_exit(sibling.id)
+
+
+async def test_post_marker_partial_evidence_survives_restart_and_terminal_offsets_once(
+    prepared, db_session
+):
+    repo, session, _, risk, _ = await unexplained_flat(prepared, db_session)
+    child = Order(
+        strategy_id=session.strategy_id,
+        exchange_account_id=session.exchange_account_id,
+        symbol=session.symbol,
+        side=OrderSide.sell,
+        type=OrderType.market,
+        quantity=D(2),
+        reduce_only=True,
+        state=OrderState.submitted,
+        risk_context={"session_id": str(session.id), "generation": 1, "role": "close"},
+    )
+    db_session.add(child)
+    await db_session.commit()
+    await risk.record_exit_fill(
+        session.id, 1, child.id, role="close", cumulative_quantity=D(1), terminal=False
+    )
+    assert (await repo.get(session.id)).unsettled_exit_quantity == 2
+    assert (await repo.get(session.id)).exit_fills[str(child.id)]["unsettled_pending"] == "1"
+    restarted = CodeRiskService(CodeRiskRepository(db_session))
+    await restarted.record_exit_fill(
+        session.id, 1, child.id, role="close", cumulative_quantity=D(1), terminal=True
+    )
+    state = await repo.get(session.id)
+    assert state.unsettled_exit_quantity == 1 and state.new_entries_blocked
+    assert state.exit_fills[str(child.id)]["unsettled_pending"] == "0"
+    revision = state.revision
+    await restarted.record_exit_fill(
+        session.id, 1, child.id, role="close", cumulative_quantity=D(1), terminal=True
+    )
+    assert (await repo.get(session.id)).revision == revision
+    await restarted.record_exit_fill(
+        session.id, 1, child.id, role="close", cumulative_quantity=D(2), terminal=True
+    )
+    state = await repo.get(session.id)
+    assert state.unsettled_exit_quantity == 0 and not state.new_entries_blocked
+
+
+async def test_pre_marker_partial_fill_is_not_credited_again_by_terminal_reobservation(
+    prepared, db_session
+):
+    repo, session, entry = prepared
+    risk = CodeRiskService(repo)
+    await risk.record_entry_fill(
+        session.id, 1, entry.id, cumulative_quantity=D(2), cumulative_value=D(200), terminal=True
+    )
+    child = Order(
+        strategy_id=session.strategy_id,
+        exchange_account_id=session.exchange_account_id,
+        symbol=session.symbol,
+        side=OrderSide.sell,
+        type=OrderType.limit,
+        quantity=D(1),
+        reduce_only=True,
+        state=OrderState.submitted,
+        risk_context={"session_id": str(session.id), "generation": 1, "role": "partial_tp"},
+    )
+    db_session.add(child)
+    await db_session.commit()
+    await risk.record_exit_fill(
+        session.id, 1, child.id, role="partial_tp", cumulative_quantity=D(1), terminal=False
+    )
+    await risk.confirm_flat_and_cancelled(
+        session.id, 1, flat=True, cancelled=True, unexplained=True
+    )
+    assert (await repo.get(session.id)).unsettled_exit_quantity == 1
+    await CodeRiskService(CodeRiskRepository(db_session)).record_exit_fill(
+        session.id, 1, child.id, role="partial_tp", cumulative_quantity=D(1), terminal=True
+    )
+    assert (await repo.get(session.id)).unsettled_exit_quantity == 1
+    assert (await repo.get(session.id)).new_entries_blocked
+
+
+async def test_downgrade_refuses_to_drop_unsettled_evidence_on_disposable_sql_database(
+    prepared, db_session
+):
+    from alembic.config import Config
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from alembic.script import ScriptDirectory
+
+    from tests import _db_guard
+
+    _db_guard.assert_disposable(_db_guard.resolve_test_dsn())
+    repo, session, _, _, _ = await unexplained_flat(prepared, db_session)
+    migration = (
+        ScriptDirectory.from_config(Config("alembic.ini")).get_revision("20261022_0005").module
+    )
+
+    def downgrade(connection):
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.downgrade()
+
+    connection = await db_session.connection()
+    with pytest.raises(RuntimeError, match="미정산 native 청산"):
+        await connection.run_sync(downgrade)
+    assert (await repo.get(session.id)).unsettled_exit_quantity == 2
+    assert await repo.has_unsettled_exit_for_account(session.exchange_account_id)

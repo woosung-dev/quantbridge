@@ -248,13 +248,20 @@ class CodeRiskService:
         prior_qty = Decimal(str(prior["quantity"])) if isinstance(prior, dict) else ZERO
         if isinstance(prior, dict) and prior.get("role") != role:
             return await self._fail(state, "exit_order_changed_role", commit=commit)
-        if cumulative_quantity <= prior_qty:
+        pending = (
+            Decimal(str(prior.get("unsettled_pending", "0"))) if isinstance(prior, dict) else ZERO
+        )
+        if cumulative_quantity < prior_qty or (
+            cumulative_quantity == prior_qty and not (terminal and pending > ZERO)
+        ):
             return []
         delta = cumulative_quantity - prior_qty
-        state.exit_fills = {
-            **state.exit_fills,
-            str(order_id): {"quantity": str(cumulative_quantity), "role": role},
+        fill = {
+            "quantity": str(cumulative_quantity),
+            "role": role,
+            **({"unsettled_pending": str(pending)} if pending > ZERO else {}),
         }
+        state.exit_fills = {**state.exit_fills, str(order_id): fill}
         remaining = state.position_quantity
         # 실제 flat으로 이미 수렴한 뒤 도착한 체결도 총량 안에서는 기록만 보충한다.
         flat_settlement = remaining == ZERO and state.entry_terminal
@@ -279,7 +286,7 @@ class CodeRiskService:
             return await self._fail(
                 state, "exit_fill_exceeds_position_or_partial_target", commit=commit
             )
-        if flat_settlement and terminal and state.unsettled_exit_quantity > 0:
+        if flat_settlement and state.unsettled_exit_quantity > 0:
             order = await self._repo.get_order(order_id)
             context = order.risk_context if order is not None else None
             if (
@@ -290,8 +297,13 @@ class CodeRiskService:
                 and context.get("generation") == generation
                 and context.get("role") == role
             ):
-                # exit_fills의 누적 증가분만 한 번 상쇄한다. 미귀속 native 주문은 여기에 없다.
-                state.unsettled_exit_quantity = max(ZERO, state.unsettled_exit_quantity - delta)
+                # marker 뒤 새로 관측한 증가분만 영속한다. 이전 TP 누적값은 credit하지 않는다.
+                pending += delta
+                if terminal:
+                    credit = min(state.unsettled_exit_quantity, pending)
+                    state.unsettled_exit_quantity -= credit
+                    pending -= credit
+                fill["unsettled_pending"] = str(pending)
                 if (
                     state.unsettled_exit_quantity == ZERO
                     and state.failure_reason == "native_exit_unsettled"

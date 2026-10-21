@@ -397,7 +397,7 @@ class OrderService:
                 if not req.reduce_only and (
                     await self._repo.has_unsettled_code_exit(req.exchange_account_id)
                 ) is True:
-                    raise NativeExitUnsettled("native_exit_unsettled")
+                    raise NativeExitUnsettled()
                 try:
                     await self._kill_switch.ensure_not_gated(
                         strategy_id=req.strategy_id,

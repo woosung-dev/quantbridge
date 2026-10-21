@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
@@ -71,7 +71,10 @@ class ExchangeAccountRepository:
         """종료된 세션도 포함한다. 알려진 uid 형제는 같은 실제 거래소 계정이다."""
         uid = (
             select(col(ExchangeAccount.exchange_uid))
-            .where(col(ExchangeAccount.id) == account_id)
+            .where(
+                col(ExchangeAccount.id) == account_id,
+                func.btrim(col(ExchangeAccount.exchange_uid), " \t\n\r\v\f") != "",
+            )
             .scalar_subquery()
         )
         accounts = select(col(ExchangeAccount.id)).where(
