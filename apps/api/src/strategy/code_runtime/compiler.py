@@ -516,15 +516,21 @@ def _compile_pine(spec: StrategySpec) -> str:
             f"qb_long = {_pine_condition(spec.long_entry)}",
             f"qb_short = {_pine_condition(spec.short_entry)}",
             f"qb_ready = bar_index >= {spec.warmup_bars - 1}",
-            "if qb_ready and not (qb_long and qb_short)",
-            "    if qb_long and strategy.position_size <= 0",
-            '        strategy.entry("L", strategy.long)',
-            "    else if qb_short and strategy.position_size >= 0",
-            '        strategy.entry("S", strategy.short)',
-            f"    else if strategy.position_size > 0 and {_pine_condition(spec.long_invalidation)}",
-            '        strategy.close("L")',
-            f"    else if strategy.position_size < 0 and {_pine_condition(spec.short_invalidation)}",
-            '        strategy.close("S")',
+            "qb_can_decide = qb_ready and not (qb_long and qb_short)",
+            "qb_enter_long = qb_can_decide and qb_long and strategy.position_size <= 0",
+            "qb_enter_short = qb_can_decide and qb_short and strategy.position_size >= 0",
+            "qb_close_long = qb_can_decide and strategy.position_size > 0 "
+            f"and not qb_enter_short and {_pine_condition(spec.long_invalidation)}",
+            "qb_close_short = qb_can_decide and strategy.position_size < 0 "
+            f"and not qb_enter_long and {_pine_condition(spec.short_invalidation)}",
+            "if qb_enter_long",
+            '    strategy.entry("L", strategy.long)',
+            "if qb_enter_short",
+            '    strategy.entry("S", strategy.short)',
+            "if qb_close_long",
+            "    strategy.close_all()",
+            "if qb_close_short",
+            "    strategy.close_all()",
         ]
     )
     return "\n".join(lines) + "\n"
