@@ -29,6 +29,7 @@ class CreateBacktestRequest(BaseModel):
     """
 
     strategy_id: UUID
+    execution_policy: Literal["code_v1"] | None = None
     symbol: str = Field(min_length=3, max_length=32)
     timeframe: Literal["1m", "5m", "15m", "1h", "4h", "1d"]
     period_start: AwareDatetime

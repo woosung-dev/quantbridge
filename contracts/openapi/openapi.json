@@ -1704,6 +1704,226 @@
         "title": "ClosePositionResponse",
         "type": "object"
       },
+      "CodeLanguage": {
+        "enum": [
+          "pine",
+          "python",
+          "typescript"
+        ],
+        "title": "CodeLanguage",
+        "type": "string"
+      },
+      "CodeSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "execution_policy": {
+            "const": "code_v1",
+            "title": "Execution Policy",
+            "type": "string"
+          },
+          "language": {
+            "$ref": "#/components/schemas/CodeLanguage"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "provenance": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provenance",
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_code": {
+            "maxLength": 131072,
+            "minLength": 1,
+            "title": "Source Code",
+            "type": "string"
+          },
+          "warmup_bars": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Warmup Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "execution_policy",
+          "language",
+          "source_code",
+          "warmup_bars",
+          "provenance"
+        ],
+        "title": "CodeSnapshot",
+        "type": "object"
+      },
+      "CodeStrategyListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CodeStrategyResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "CodeStrategyListResponse",
+        "type": "object"
+      },
+      "CodeStrategyResponse": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_archived": {
+            "title": "Is Archived",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeframe"
+          },
+          "version": {
+            "$ref": "#/components/schemas/CodeVersionResponse"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "symbol",
+          "timeframe",
+          "is_archived",
+          "version"
+        ],
+        "title": "CodeStrategyResponse",
+        "type": "object"
+      },
+      "CodeVersionResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "execution_hash": {
+            "title": "Execution Hash",
+            "type": "string"
+          },
+          "execution_policy": {
+            "const": "code_v1",
+            "title": "Execution Policy",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "language": {
+            "$ref": "#/components/schemas/CodeLanguage"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "provenance": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provenance",
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_code": {
+            "title": "Source Code",
+            "type": "string"
+          },
+          "source_hash": {
+            "title": "Source Hash",
+            "type": "string"
+          },
+          "warmup_bars": {
+            "title": "Warmup Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "execution_policy",
+          "language",
+          "source_code",
+          "warmup_bars",
+          "params",
+          "provenance",
+          "id",
+          "source_hash",
+          "execution_hash",
+          "created_at"
+        ],
+        "title": "CodeVersionResponse",
+        "type": "object"
+      },
       "ConvertIndicatorRequest": {
         "properties": {
           "code": {
@@ -1886,6 +2106,18 @@
               }
             ],
             "title": "Default Qty Value"
+          },
+          "execution_policy": {
+            "anyOf": [
+              {
+                "const": "code_v1",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Policy"
           },
           "fees_pct": {
             "anyOf": [
@@ -2091,6 +2323,7 @@
         "type": "object"
       },
       "CreateStrategyRequest": {
+        "additionalProperties": false,
         "properties": {
           "description": {
             "anyOf": [
@@ -3175,6 +3408,7 @@
         "title": "InviteTokenVerifyResponse",
         "type": "object"
       },
+      "JsonValue": {},
       "KillSwitchEventResponse": {
         "properties": {
           "exchange_account_id": {
@@ -6095,6 +6329,62 @@
         "title": "RestingEntryOrder",
         "type": "object"
       },
+      "SaveCodeStrategyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CodeSnapshot"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeframe"
+          }
+        },
+        "required": [
+          "name",
+          "code"
+        ],
+        "title": "SaveCodeStrategyRequest",
+        "type": "object"
+      },
       "ShareTokenResponse": {
         "description": "POST /:id/share — share link 생성 응답.\n\nSprint 41 Worker H — 외부 viewer 에게 노출할 정보만 expose. token / share_url 만\n제공. revoke 가능 (DELETE /:id/share). 멱등 — 이미 active token 있으면 그대로 반환.",
         "properties": {
@@ -7381,6 +7671,7 @@
         "type": "object"
       },
       "UpdateStrategyRequest": {
+        "additionalProperties": false,
         "properties": {
           "description": {
             "anyOf": [
@@ -10313,6 +10604,195 @@
           }
         },
         "summary": "Create Strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/code": {
+      "get": {
+        "operationId": "list_code_strategies_api_v1_strategies_code_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeStrategyListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Code Strategies",
+        "tags": [
+          "strategies"
+        ]
+      },
+      "post": {
+        "operationId": "create_code_strategy_api_v1_strategies_code_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCodeStrategyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeStrategyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Code Strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/code/{strategy_id}": {
+      "get": {
+        "operationId": "get_code_strategy_api_v1_strategies_code__strategy_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeStrategyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Code Strategy",
+        "tags": [
+          "strategies"
+        ]
+      },
+      "put": {
+        "operationId": "update_code_strategy_api_v1_strategies_code__strategy_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCodeStrategyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeStrategyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Code Strategy",
         "tags": [
           "strategies"
         ]

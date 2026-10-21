@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import sharpe_sort_criteria
+from src.strategy.code_contract import CodeSnapshot
 from src.strategy.models import PINE_V2_PARSER_VERSION, ParseStatus, Strategy, StrategyVersion
 
 
@@ -67,6 +68,7 @@ class StrategyRepository:
         # and_() 로 조건 목록 조합 — *list[bool] arg-type 문제 회피
         filters = and_(
             Strategy.user_id == owner_id,  # type: ignore[arg-type]
+            Strategy.execution_policy.is_(None),  # type: ignore[union-attr]
             Strategy.is_archived == is_archived,  # type: ignore[arg-type]
         )
         if parse_status is not None:
@@ -142,6 +144,49 @@ class StrategyRepository:
         self.session.add(version)
         await self.session.flush()
         return version
+
+    async def create_code_version(
+        self, *, strategy_id: UUID, code: CodeSnapshot
+    ) -> StrategyVersion:
+        payload = code.model_dump(mode="json")
+        version = StrategyVersion(
+            strategy_id=strategy_id,
+            pine_source=None,
+            source_hash=code.source_hash,
+            parser_version="code_v1",
+            language=code.language.value,
+            source_code=code.source_code,
+            execution_policy=code.execution_policy,
+            warmup_bars=code.warmup_bars,
+            params=payload["params"],
+            provenance=payload["provenance"],
+            execution_hash=code.execution_hash,
+        )
+        self.session.add(version)
+        await self.session.flush()
+        return version
+
+    async def list_code_by_owner(
+        self, owner_id: UUID, *, limit: int, offset: int
+    ) -> tuple[list[tuple[Strategy, StrategyVersion]], int]:
+        filters = and_(
+            Strategy.user_id == owner_id,  # type: ignore[arg-type]
+            Strategy.execution_policy == "code_v1",  # type: ignore[arg-type]
+            Strategy.is_archived.is_(False),  # type: ignore[attr-defined]
+        )
+        total = (
+            await self.session.execute(select(func.count()).select_from(Strategy).where(filters))
+        ).scalar_one()
+        statement = (
+            select(Strategy, StrategyVersion)
+            .join(StrategyVersion, Strategy.strategy_version_id == StrategyVersion.id)  # type: ignore[arg-type]
+            .where(filters)
+            .order_by(Strategy.updated_at.desc())  # type: ignore[attr-defined]
+            .offset(offset)
+            .limit(limit)
+        )
+        rows = (await self.session.execute(statement)).all()
+        return [(row[0], row[1]) for row in rows], int(total)
 
     async def get_version_by_id(
         self, version_id: UUID | None, *, strategy_id: UUID

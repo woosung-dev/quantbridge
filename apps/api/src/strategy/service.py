@@ -17,6 +17,7 @@ except ImportError:
 from sqlalchemy.exc import IntegrityError
 
 from src.backtest.serializers import metrics_summary_from_jsonb
+from src.strategy.code_contract import legacy_pine_source
 from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.strategy.narrative.schemas import StrategyNarrativeResponse
@@ -425,7 +426,7 @@ class StrategyService:
         saved = await self.repo.create(strategy)
         version_snapshot = await self.repo.create_version(
             strategy_id=saved.id,
-            pine_source=saved.pine_source,
+            pine_source=legacy_pine_source(saved),
         )
         await self.repo.set_current_version(saved.id, version_snapshot.id)
 
@@ -497,7 +498,7 @@ class StrategyService:
                         ),
                         "param_count": len(
                             _INPUT_RE.findall(
-                                _strip_comments(_strip_string_literals(s.pine_source))
+                                _strip_comments(_strip_string_literals(legacy_pine_source(s)))
                             )
                         ),
                         "lifecycle": (
@@ -523,6 +524,7 @@ class StrategyService:
         strategy = await self.repo.find_by_id_and_owner(strategy_id, owner_id)
         if strategy is None:
             raise StrategyNotFoundError()
+        legacy_pine_source(strategy)
         return StrategyResponse.model_validate(strategy)
 
     async def brief(self, *, strategy_id: UUID, owner_id: UUID) -> StrategyBriefResponse:
@@ -537,7 +539,7 @@ class StrategyService:
         if strategy is None:
             raise StrategyNotFoundError()
 
-        source = strategy.pine_source
+        source = legacy_pine_source(strategy)
         parse = await self.parse_preview(source)
         track, orders, signals = await asyncio.to_thread(_extract_brief_parts, source)
         python_view = await asyncio.to_thread(_render_python_view, source)
@@ -572,7 +574,7 @@ class StrategyService:
         if self._narrative_svc is None:
             raise RuntimeError("해설 provider 가 설정되지 않았습니다")
 
-        source = strategy.pine_source
+        source = legacy_pine_source(strategy)
         source_hash = hashlib.sha256(source.encode()).hexdigest()
         # 결정론 층이 뽑은 사실을 프롬프트 입력으로 준다 — 모델이 파싱을 다시 하지 않게.
         declaration, inputs = await asyncio.to_thread(_extract_structure, source)
@@ -605,6 +607,7 @@ class StrategyService:
         if strategy is None:
             raise StrategyNotFoundError()
 
+        legacy_pine_source(strategy)
         if data.name is not None:
             strategy.name = data.name
         if data.description is not None:

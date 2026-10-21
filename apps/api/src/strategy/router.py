@@ -16,7 +16,13 @@ from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
 from src.common.rate_limit import limiter
 from src.core.config import settings
-from src.strategy.dependencies import get_strategy_service
+from src.strategy.code_schemas import (
+    CodeStrategyListResponse,
+    CodeStrategyResponse,
+    SaveCodeStrategyRequest,
+)
+from src.strategy.code_service import CodeStrategyService
+from src.strategy.dependencies import get_code_strategy_service, get_strategy_service
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import ParseStatus
 from src.strategy.narrative.catalog import ModelNotAvailableError, resolve_override
@@ -150,6 +156,44 @@ async def generate_strategy(
             "전략 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
             exc,
         ) from exc
+
+
+@router.post("/code", status_code=201, response_model=CodeStrategyResponse)
+async def create_code_strategy(
+    data: SaveCodeStrategyRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    service: CodeStrategyService = Depends(get_code_strategy_service),
+) -> CodeStrategyResponse:
+    return await service.create(data, owner_id=current_user.id)
+
+
+@router.get("/code", response_model=CodeStrategyListResponse)
+async def list_code_strategies(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: CodeStrategyService = Depends(get_code_strategy_service),
+) -> CodeStrategyListResponse:
+    return await service.list(owner_id=current_user.id, limit=limit, offset=offset)
+
+
+@router.get("/code/{strategy_id}", response_model=CodeStrategyResponse)
+async def get_code_strategy(
+    strategy_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    service: CodeStrategyService = Depends(get_code_strategy_service),
+) -> CodeStrategyResponse:
+    return await service.get(strategy_id, owner_id=current_user.id)
+
+
+@router.put("/code/{strategy_id}", response_model=CodeStrategyResponse)
+async def update_code_strategy(
+    strategy_id: UUID,
+    data: SaveCodeStrategyRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    service: CodeStrategyService = Depends(get_code_strategy_service),
+) -> CodeStrategyResponse:
+    return await service.update(strategy_id, data, owner_id=current_user.id)
 
 
 @router.get("/{strategy_id}", response_model=StrategyResponse)

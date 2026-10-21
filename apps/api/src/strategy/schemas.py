@@ -22,6 +22,7 @@ class StrategyLifecycle(StrEnum):
 
 
 class CreateStrategyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
     pine_source: str = Field(min_length=1)
@@ -38,6 +39,7 @@ class CreateStrategyRequest(BaseModel):
 
 
 class UpdateStrategyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
     pine_source: str | None = Field(default=None, min_length=1)

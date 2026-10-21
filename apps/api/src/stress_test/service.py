@@ -27,6 +27,8 @@ from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.models import OptimizationKind
 from src.optimizer.schemas import ParamSpace
+from src.strategy.code_contract import legacy_pine_source
+from src.strategy.exceptions import CodeStrategyPolicyError
 from src.strategy.repository import StrategyRepository
 from src.stress_test.dispatcher import StressTaskDispatcher
 from src.stress_test.engine import (
@@ -126,6 +128,8 @@ class StressTestService:
     ) -> StressTestCreatedResponse:
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
+        if bt.engine_version == "code_v1":
+            raise CodeStrategyPolicyError()
         return await self._submit(
             user_id=user_id,
             backtest_id=bt.id,
@@ -144,6 +148,8 @@ class StressTestService:
     ) -> StressTestCreatedResponse:
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
+        if bt.engine_version == "code_v1":
+            raise CodeStrategyPolicyError()
         return await self._submit(
             user_id=user_id,
             backtest_id=bt.id,
@@ -180,6 +186,8 @@ class StressTestService:
         """Sprint 50 — fees x slippage 9-cell grid sweep submit."""
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
+        if bt.engine_version == "code_v1":
+            raise CodeStrategyPolicyError()
         return await self._submit(
             user_id=user_id,
             backtest_id=bt.id,
@@ -199,6 +207,8 @@ class StressTestService:
         """Sprint 51 BL-220 — pine_v2 input override 9-cell grid sweep submit."""
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
+        if bt.engine_version == "code_v1":
+            raise CodeStrategyPolicyError()
         return await self._submit(
             user_id=user_id,
             backtest_id=bt.id,
@@ -379,7 +389,7 @@ class StressTestService:
         if bt.strategy_version_id is not None and strategy_version is None:
             raise ValueError(f"Strategy version no longer available for {kind_label}")
         if strategy_version is not None:
-            return strategy_version.pine_source
+            return legacy_pine_source(strategy_version)
 
         logger.warning(
             "stress_test_run_without_pinned_strategy_version",
@@ -388,7 +398,7 @@ class StressTestService:
         strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
             raise ValueError(f"Strategy no longer available for {kind_label}")
-        return strategy.pine_source
+        return legacy_pine_source(strategy)
 
     async def _execute_walk_forward(self, st: StressTest, bt: Backtest) -> dict[str, object]:
         """Sprint 49 — Walk-Forward worker entry.
