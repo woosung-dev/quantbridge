@@ -52,6 +52,7 @@ Python 서비스 미도입 경계와 오프라인 연구 도구는 [연구 범�
 | `backlog.md` 의 [BL-838]·[BL-846] 본문 2절                       | 2026-08-31 — RESOLVED (RESOLVED 는 삭제다)         | `git show d08e57c7:docs/backlog.md`                 |
 | `backlog.md` 의 [BL-852] 본문 1절                                | 2026-09-10 — RESOLVED (RESOLVED 는 삭제다)         | `git show 87be6804:docs/backlog.md`                 |
 | `backlog.md` 의 [BL-860]·[BL-861]·[BL-862] 본문 3절              | 2026-09-10 — RESOLVED (RESOLVED 는 삭제다)         | `git show 87be6804:docs/backlog.md`                 |
+| `backlog.md`의 [BL-842]·[BL-847] 본문 2절 | 2026-10-21 — 실제 입력 구간 기록·표시, 실제 `time[n]` 이력과 무시각 `na`로 종결 | `git show 87129807:docs/backlog.md` |
 | `operations/bybit-mainnet-runbook.md`                            | 2026-08-30 — 제품 결정이 Bybit Demo 전용으로 고정됨 | `git show cc7c236ba9ac309b1ae885e6a28b05d694f751e3` |
 | 구 `archive/` 375파일 · `dev-log/*.md` 135파일              | 2026-08-06 문서 대개편                             | 아래 `0f0f0b06` 명령                                |
 
