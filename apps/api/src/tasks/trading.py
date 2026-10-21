@@ -502,6 +502,22 @@ async def _execute_with_session(
                 if rows == 1:
                     record_metric_safely(qb_active_orders.dec)
                 return {"order_id": str(order_id), "state": "rejected", "error_message": error_msg}
+            if not order.reduce_only:
+                if not await repo.acquire_entry_admission(order.exchange_account_id, order.symbol):
+                    error_msg = "code_position_reserved"
+                    rows = await repo.transition_to_rejected(
+                        order_id, error_message=error_msg, failed_at=datetime.now(UTC)
+                    )
+                    await session.commit()
+                    if rows == 1:
+                        record_metric_safely(qb_active_orders.dec)
+                    return {
+                        "order_id": str(order_id),
+                        "state": "rejected",
+                        "error_message": error_msg,
+                    }
+                # submitted 행이 새 코드 등록을 차단한다. 네트워크 IO 전에 xact 락을 해제한다.
+                await session.commit()
             receipt = await provider.create_order(creds, order_submit)
         except ProviderError as e:
             error_msg = f"provider_failure: {e}"

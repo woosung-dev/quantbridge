@@ -155,3 +155,29 @@ async def test_market_order_price_stays_none(monkeypatch):
 
     assert captured["price"] is None
     assert isinstance(captured["amount"], str)
+
+
+@pytest.mark.parametrize("position_idx", [None, 0])
+async def test_bybit_futures_position_idx_is_explicit_only_when_requested(
+    monkeypatch, position_idx
+):
+    linear = "BTC/USDT:USDT"
+    ex = ccxt_async.bybit()
+    captured = _inject_market(ex, linear)
+    monkeypatch.setattr(providers.ccxt_async, "bybit", lambda *a, **k: ex)
+    order = OrderSubmit(
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        type=OrderType.market,
+        quantity=Decimal("1"),
+        price=None,
+        reduce_only=True,
+        position_idx=position_idx,
+        leverage=1,
+        margin_mode="cross",
+    )
+    await BybitFuturesProvider().create_order(Credentials("fake", "fake"), order)
+    assert captured["params"]["reduceOnly"] is True
+    assert ("positionIdx" in captured["params"]) is (position_idx is not None)
+    if position_idx is not None:
+        assert captured["params"]["positionIdx"] == 0

@@ -223,3 +223,25 @@ REST로 수량을 복구해 marker가 0이어도 WS의 정확한 closedPnl가 �
 새로운 계정 전체 진입 차단을 만들지는 않는다. 수량 미귀속 차단은 기존 계약을 유지한다.
 실제 Demo native SL 자식 관측은 아직 검증하지 않았으며, 이번 근거는 가짜 Bybit 응답과
 슬롯 SQL의 양성·음성·두 트랜잭션 경합 검증이다. native trailing 자동 귀속 보장은 없다.
+
+
+## 일반 주문과 최종 발주의 소유권 경계
+
+일반 수동·웹훅·legacy 신규 non-reduce-only 주문도 실제 저장 직전에 같은
+`acquire_code_symbol_admission(..., is_code=false)` 정본을 사용한다. KillSwitch가
+commit할 수 있으므로 그 뒤에 검사하고 INSERT commit까지 같은 transaction 락을 유지한다.
+같은 물리 계정·정규화 심볼의 활성/미정리 코드 소유자가 있으면 409
+`code_position_reserved`로 거부한다. idempotent 재조회는 기존 주문을 반환한다.
+legacy끼리의 기존 정책과 reduce-only 저장·발주는 유지한다.
+
+일반 worker는 provider 선택 후 실제 create_order 직전에 같은 정본을 재확인하고
+실패하면 주문을 거절한다. 성공하면 이미 영속된 submitted 행이 코드 등록을 막으므로
+commit으로 락을 풀고 외부 호출한다. 코드 venue의 신규 진입도 정확한 session UUID·entry
+귀속으로 `acquire_entry_admission`을 submitted 전 재검사하며, 차단 시 pending을 유지한다.
+기존 거래소 UUID 주문은 새 발주 없이 정합하고 보호·축소·취소는 이 가드를 적용하지 않는다.
+
+코드 venue의 신규/축소 주문은 `OrderSubmit.position_idx=0`을 전달한다. Bybit futures
+provider는 명시된 값만 `positionIdx`에 넣고 legacy의 기본 None은 전송하지 않는다.
+[공식 주문 계약](https://bybit-exchange.github.io/docs/v5/order/create-order)은 0을 one-way,
+1/2를 hedge-mode 양 방향으로 구별한다. 이는 one-way 요청을 명시한 것이며 단일 hedge leg나
+flat 계정의 포지션 모드를 `fetch_position`으로 독립 확인했다는 뜻은 아니다.

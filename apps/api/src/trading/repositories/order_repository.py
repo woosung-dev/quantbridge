@@ -312,6 +312,15 @@ class OrderRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def acquire_entry_admission(self, account_id: UUID, symbol: str) -> bool:
+        from src.trading.repositories.live_signal_session_repository import (
+            LiveSignalSessionRepository,
+        )
+
+        return await LiveSignalSessionRepository(self.session).acquire_code_symbol_admission(
+            account_id, symbol, is_code=False, session_id=None
+        )
+
     async def has_unsettled_code_exit(self, account_id: UUID) -> bool:
         from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 

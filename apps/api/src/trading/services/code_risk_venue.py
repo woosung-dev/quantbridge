@@ -315,6 +315,20 @@ class BybitCodeRiskVenue:
                 is True
             ):
                 raise CodeRiskReconciliationPending("거래소 계정의 미정산 청산 증거를 기다립니다")
+            if not order.reduce_only:
+                try:
+                    raw_session = context["session_id"]
+                    session_id = UUID(str(raw_session))
+                    if raw_session != str(session_id) or context.get("role") != "entry":
+                        raise ValueError("invalid session binding")
+                except (KeyError, ValueError) as exc:
+                    raise CodeRiskError(
+                        "코드 진입의 session UUID 귀속이 올바르지 않습니다"
+                    ) from exc
+                if not await self._repo.acquire_entry_admission(session_id):
+                    raise CodeRiskReconciliationPending(
+                        "같은 거래소 계정·심볼의 진입 소유권을 기다립니다"
+                    )
             await self._orders.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
             await self._repo.commit()
             receipt = await self._provider.create_order(
@@ -330,6 +344,7 @@ class BybitCodeRiskVenue:
                     client_order_id=str(order.id),
                     reduce_only=order.reduce_only,
                     stop_loss=order.stop_loss,
+                    position_idx=0,
                 ),
             )
             status = OrderStatusFetch(

@@ -53,6 +53,14 @@ class NativeExitUnsettled(KillSwitchActive):
         super().__init__("미정산 거래소 청산이 있어 새 진입이 차단됩니다")
 
 
+class CodePositionReserved(AppException):
+    status_code = 409
+    code = "code_position_reserved"
+
+    def __init__(self) -> None:
+        super().__init__("같은 거래소 계정·심볼의 코드 세션이 포지션 소유권을 보유하고 있습니다")
+
+
 class WebhookUnauthorized(AppException):
     status_code = 401
     code = "webhook_unauthorized"

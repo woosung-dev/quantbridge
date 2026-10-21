@@ -235,6 +235,7 @@ async def test_durable_venue_entry_tp_trailing_close_and_reversal_use_one_sessio
     account = await repo.get_account(session.exchange_account_id)
     assert account is not None
     account.read_only = False
+    session.symbol = entry.symbol = "BTC/USDT"
     entry.leverage = 1
     entry.margin_mode = "cross"
     code = CodeSnapshot(

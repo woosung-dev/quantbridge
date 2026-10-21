@@ -21,6 +21,7 @@ from src.strategy.trading_sessions import is_allowed as _sessions_is_allowed
 from src.trading.exceptions import (
     AccountOwnershipMismatch,
     BalanceUnverified,
+    CodePositionReserved,
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
@@ -112,6 +113,12 @@ class OrderService:
             return CancelOutcome("conflict")
 
         return CancelOutcome("cancelled", order=await self._repo.get_by_id(order_id))
+
+    async def _require_entry_admission(self, req: OrderRequest) -> None:
+        if not req.reduce_only and not await self._repo.acquire_entry_admission(
+            req.exchange_account_id, req.symbol
+        ):
+            raise CodePositionReserved()
 
     async def execute(
         self,
@@ -444,6 +451,7 @@ class OrderService:
                     cached_response = OrderResponse.model_validate(existing)
                 else:
                     # ASYNC-1: kill-switch gate 는 begin_nested 밖에서 이미 평가됨.
+                    await self._require_entry_admission(req)
                     order = await self._repo.save(
                         Order(
                             strategy_id=req.strategy_id,
@@ -478,6 +486,7 @@ class OrderService:
                     created_order_id = order.id
             else:
                 # ASYNC-1: kill-switch gate 는 begin_nested 밖에서 이미 평가됨.
+                await self._require_entry_admission(req)
                 order = await self._repo.save(
                     Order(
                         strategy_id=req.strategy_id,

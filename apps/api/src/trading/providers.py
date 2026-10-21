@@ -162,6 +162,7 @@ class OrderSubmit:
     # oco_group_id: OCO 형제 추적용 app-side 식별자. ccxt params 미주입(거래소 네이티브
     #   OCO group param 부재) — sibling-cancel 오케스트레이션이 DB 에서 조회(Wave 2 deferred).
     oco_group_id: str | None = None
+    position_idx: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -904,6 +905,8 @@ class BybitFuturesProvider:
                     partial_size=True,  # Bybit V5 — limit TP 의 tpslMode=Partial tpSize/slSize
                     size_str=amount,  # 주문 qty 와 동일한 precision 문자열로 size 정합
                 )
+                if order.position_idx is not None:
+                    params["positionIdx"] = order.position_idx
                 if params:
                     result = await exchange.create_order(
                         linear_symbol,
