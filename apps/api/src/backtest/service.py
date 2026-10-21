@@ -337,10 +337,15 @@ class BacktestService:
             config=config,
         )
         await self.repo.create(bt)
+        # worker가 즉시 시작해도 pinned row를 읽도록 publish 전에 확정한다.
+        await self.repo.commit()
         try:
             bt.celery_task_id = self.dispatcher.dispatch_backtest(bt.id)
         except Exception as exc:
-            await self.repo.rollback()
+            await self.repo.fail(
+                bt.id, error="Task dispatch failed", where_status=BacktestStatus.QUEUED
+            )
+            await self.repo.commit()
             raise TaskDispatchError() from exc
         await self.repo.commit()
         return BacktestCreatedResponse(

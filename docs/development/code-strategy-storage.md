@@ -8,6 +8,8 @@
 
 `POST /backtests`는 기존 202 비동기 dispatch를 유지하며 코드 전략에 `execution_policy:"code_v1"`가 필수다. 현재 신호 주기는 **1h/4h/1d**만 지원하며 1m/5m/15m은 dispatch 전에 422다. 평가 입력 버전·해시를 고정하고 완료 봉→다음 봉 시가, 레버리지 1, 공통 `swing_two_bar_v1` 정책을 사용한다. Pine 자체 수량·가격 청산은 허용하지 않으며 무효화 `strategy.close` 의도는 허용한다. 워밍업 포함 부모 봉이 정확히 연속되어야 하고 평가 구간의 1분 실행 봉을 별도로 읽는다. 거래 시각은 1분 실행 인덱스로 저장한다. 분봉 내부 경로는 OHLC 근사이며 실제 틱 체결 보장이 아니다. 실제 펀딩·수수료·슬리피지를 공통 원장에 반영한다.
 
+코드 백테스트는 row를 먼저 commit한 뒤 작업을 publish하고, task ID를 두 번째 commit으로 저장한다. 즉시 시작한 worker도 row를 읽을 수 있다. publish 실패는 이미 저장된 QUEUED row를 조건부 FAILED로 기록·commit하고 `TaskDispatchError`를 반환한다. 이미 RUNNING 등으로 전이한 row를 실패로 덮어쓰지 않는다. legacy Pine dispatch 순서는 이 변경 범위에 포함하지 않는다.
+
 전략은 격리 실행기로만 전달한다. 이미지·gVisor·프로토콜·해시·데이터 오류는 FAILED이며 호스트 실행이나 Pine fallback이 없다. 스트레스·최적화는 코드 백테스트를 아직 지원하지 않아 422로 거부한다. 실행 확장은 기존 Pine 인터프리터·연구 compiler를 변경하지 않는 제품 helper에 둔다.
 
 마이그레이션 `20261022_0003`은 컬럼을 추가하고 Pine 컬럼을 nullable로 바꾼다. 기존 행은 그대로 Pine이다. 코드 행이 존재하면 손실 없는 downgrade가 불가능하므로 이를 거부한다. 서버 DDL과 실제 거래소 주문은 별도 승인이 필요하며, 마이그레이션 검증은 폐기 가능한 슬롯 테스트 DB에서 한다.

@@ -176,7 +176,16 @@ async def test_code_submit_requires_optin_and_dispatches_pinned_version():
     strategy_repo, strategy, pinned = fixture()
     repo = AsyncMock()
     dispatcher = Mock()
-    dispatcher.dispatch_backtest.return_value = "task-id"
+    calls = []
+    repo.create.side_effect = lambda bt: calls.append("create")
+    repo.commit.side_effect = lambda: calls.append("commit")
+
+    def dispatch(identifier):
+        assert calls == ["create", "commit"]
+        calls.append("dispatch")
+        return "task-id"
+
+    dispatcher.dispatch_backtest.side_effect = dispatch
     svc = BacktestService(
         repo=repo, strategy_repo=strategy_repo, ohlcv_provider=AsyncMock(), dispatcher=dispatcher
     )
@@ -201,17 +210,42 @@ async def test_code_submit_requires_optin_and_dispatches_pinned_version():
     assert saved.config["execution_hash"] == snapshot().execution_hash
     assert result.status.value == "queued"
     dispatcher.dispatch_backtest.assert_called_once_with(saved.id)
-    repo.commit.assert_awaited_once()
+    assert calls == ["create", "commit", "dispatch", "commit"]
+    assert repo.commit.await_count == 2
 
 
 @pytest.mark.asyncio
-async def test_code_dispatch_failure_rolls_back_without_commit():
+async def test_code_dispatch_failure_persists_failed_after_initial_commit():
     from src.backtest.exceptions import TaskDispatchError
+    from src.backtest.models import BacktestStatus
 
     strategy_repo, strategy, _ = fixture()
     repo = AsyncMock()
     dispatcher = Mock()
-    dispatcher.dispatch_backtest.side_effect = RuntimeError("queue unavailable")
+    calls, persisted = [], {}
+
+    async def create(bt):
+        persisted[bt.id] = bt
+        calls.append("create")
+
+    async def commit():
+        calls.append("commit")
+
+    def dispatch(identifier):
+        assert calls == ["create", "commit"]
+        assert identifier in persisted
+        calls.append("dispatch")
+        raise RuntimeError("queue unavailable")
+
+    async def fail(identifier, *, error, where_status):
+        assert persisted[identifier].status == where_status == BacktestStatus.QUEUED
+        persisted[identifier].status = BacktestStatus.FAILED
+        persisted[identifier].error = error
+        calls.append("fail")
+        return 1
+
+    repo.create.side_effect, repo.commit.side_effect, repo.fail.side_effect = create, commit, fail
+    dispatcher.dispatch_backtest.side_effect = dispatch
     svc = BacktestService(
         repo=repo, strategy_repo=strategy_repo, ohlcv_provider=AsyncMock(), dispatcher=dispatcher
     )
@@ -227,8 +261,11 @@ async def test_code_dispatch_failure_rolls_back_without_commit():
     )
     with pytest.raises(TaskDispatchError):
         await svc.submit(req, user_id=strategy.user_id)
-    repo.rollback.assert_awaited_once()
-    repo.commit.assert_not_awaited()
+    assert calls == ["create", "commit", "dispatch", "fail", "commit"]
+    assert next(iter(persisted.values())).status == BacktestStatus.FAILED
+    assert next(iter(persisted.values())).error == "Task dispatch failed"
+    assert repo.commit.await_count == 2
+    repo.rollback.assert_not_awaited()
 
 
 @pytest.mark.asyncio
