@@ -265,6 +265,37 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     delete (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
+  it("코드 체크포인트·원장 상태와 실제 체결 손익을 표시한다", async () => {
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      code_execution: {
+        version_id: SESSION.strategy_id,
+        checkpoint_status: "prepared",
+        last_bar_time: "2026-05-01T12:00:00Z",
+        last_intent: "short",
+        risk_generation: 2,
+        direction: "long",
+        position_quantity: "0.5",
+        entry_vwap: "100",
+        fixed_r: "11",
+        protection_pending: true,
+        trailing_active: false,
+        new_entries_blocked: true,
+        failure_reason: "awaiting_protection_ack",
+        pending_reversal: "short",
+      },
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+    renderWith(<LiveSessionDetail session={SESSION} />);
+    expect(await screen.findByTestId("code-execution-summary")).toHaveTextContent(
+      "의도 저장 · 전달 대기",
+    );
+    expect(screen.getByTestId("code-execution-summary")).toHaveTextContent("원장 잔량 0.5");
+    expect(screen.getByTestId("code-execution-summary")).toHaveTextContent("보호 ACK 대기");
+    expect(screen.getByTestId("code-execution-summary")).toHaveTextContent("새 진입 차단");
+    expect(screen.getByText("+12.34")).toBeInTheDocument();
+  });
+
   it("empty events — 안내 텍스트만, chart 미생성", async () => {
     stateMock.mockResolvedValue(STATE_NO_EQUITY);
     eventsMock.mockResolvedValue({ items: [] });

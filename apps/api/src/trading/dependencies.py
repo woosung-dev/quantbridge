@@ -26,6 +26,8 @@ from src.trading.kill_switch import (
 from src.trading.outcome_parity_service import OutcomeParityService
 from src.trading.providers import BybitFuturesProvider
 from src.trading.repositories.alert_rule_repository import AlertRuleRepository
+from src.trading.repositories.code_checkpoint_repository import CodeCheckpointRepository
+from src.trading.repositories.code_risk_repository import CodeRiskRepository
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
@@ -248,6 +250,8 @@ async def get_live_session_query_service(
         session_repo=LiveSignalSessionRepository(session),
         order_repo=OrderRepository(session),
         event_repo=LiveSignalEventRepository(session),
+        checkpoint_repo=CodeCheckpointRepository(session),
+        risk_repo=CodeRiskRepository(session),
     )
 
 

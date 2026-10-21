@@ -30,6 +30,15 @@ class CodeCheckpointRepository:
         )
         return list(result.scalars().all())
 
+    async def latest(self, session_id: UUID) -> LiveCodeBar | None:
+        result = await self.session.execute(
+            select(LiveCodeBar)
+            .where(col(LiveCodeBar.session_id) == session_id)
+            .order_by(col(LiveCodeBar.sequence).desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def add(self, row: LiveCodeBar) -> None:
         self.session.add(row)
         await self.session.flush()

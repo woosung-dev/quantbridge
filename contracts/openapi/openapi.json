@@ -1704,6 +1704,173 @@
         "title": "ClosePositionResponse",
         "type": "object"
       },
+      "CodeExecutionSummary": {
+        "description": "코드 세션의 영속 체크포인트·리스크 원장 조회. UI 캐시를 읽지 않는다.",
+        "properties": {
+          "checkpoint_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "warmup",
+                  "prepared",
+                  "delivered",
+                  "blocked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Status"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "entry_vwap": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Vwap"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "fixed_r": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed R"
+          },
+          "last_bar_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Bar Time"
+          },
+          "last_intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Intent"
+          },
+          "new_entries_blocked": {
+            "title": "New Entries Blocked",
+            "type": "boolean"
+          },
+          "pending_reversal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Reversal"
+          },
+          "position_quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Quantity"
+          },
+          "protection_pending": {
+            "title": "Protection Pending",
+            "type": "boolean"
+          },
+          "risk_generation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Generation"
+          },
+          "trailing_active": {
+            "title": "Trailing Active",
+            "type": "boolean"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          }
+        },
+        "required": [
+          "version_id",
+          "checkpoint_status",
+          "last_bar_time",
+          "last_intent",
+          "risk_generation",
+          "direction",
+          "position_quantity",
+          "entry_vwap",
+          "fixed_r",
+          "protection_pending",
+          "trailing_active",
+          "new_entries_blocked",
+          "failure_reason",
+          "pending_reversal"
+        ],
+        "title": "CodeExecutionSummary",
+        "type": "object"
+      },
       "CodeLanguage": {
         "enum": [
           "pine",
@@ -4003,6 +4170,16 @@
       "LiveSignalStateResponse": {
         "description": "GET /api/v1/live-sessions/{id}/state — Detail UI 용.\n\nSprint 28 Slice 3 (BL-140b): equity_curve 신규 — cumulative realized PnL timeseries.\n형식: [{\"timestamp_ms\": int, \"cumulative_pnl\": str}, ...] ASC sorted by timestamp_ms.\nFrontend 가 dual-axis recharts (entries/closes + equity) 렌더 시 사용.",
         "properties": {
+          "code_execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeExecutionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "confirmed_closed_trades": {
             "default": 0,
             "title": "Confirmed Closed Trades",

@@ -85,3 +85,14 @@ close/반대 방향 의도는 먼저 영속화하고 미완료 진입을 취소�
 다음 진입의 SL 계산에 재사용하지 않는다.
 
 `LiveSignalState`는 UI 캐시다. 리스크 권위나 재시작 원장으로 사용하지 않는다.
+
+
+## 사용자 조회 요약
+
+`GET /live-sessions/{id}/state`는 코드 세션에서 `LiveSignalState`를 읽지 않는다.
+`code_execution`은 최신 `LiveCodeBar`의 상태·봉·의도와 `LiveRiskState`의 세대·잔량·
+terminal VWAP·고정 R·보호 ACK 대기·진입 차단·반전 대기를 반환한다.
+`evaluated`는 워밍업이 아닌 체크포인트가 존재한다는 뜻이며, `prepared`도 포함한다.
+의도 전달(`delivered`)은 주문 체결 완료를 뜻하지 않는다. 체크포인트가 없어도 실현손익과
+출처 소계는 세션 범위의 실제 체결 주문에서 계산하며, 기존 시뮬레이션 캐시로 대체하지 않는다.
+legacy 세션의 `code_execution`은 null이다. 코크핏의 전략 이름은 코드 전략 목록도 포함한다.

@@ -171,6 +171,7 @@ async def test_state_pending_returns_unevaluated_zero_response(
     assert resp.json() == {
         "session_id": str(session.id),
         "evaluated": False,
+        "code_execution": None,
         "schema_version": 0,
         "last_strategy_state_report": {},
         "total_closed_trades": 0,
@@ -319,3 +320,88 @@ async def test_state_labels_each_curve_point_with_its_provenance(
     assert Decimal(body["confirmed_realized_pnl"]) + Decimal(
         body["estimated_realized_pnl"]
     ) == Decimal(body["total_realized_pnl"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("checkpoint_status", [None, "warmup", "prepared", "delivered", "blocked"])
+@pytest.mark.parametrize("with_cache", [False, True])
+async def test_code_state_reads_durable_ledger_without_legacy_cache_authority(
+    client, mock_authed_user, db_session, checkpoint_status, with_cache
+):
+    from src.trading.code_checkpoints import LiveCodeBar
+    from src.trading.models import LiveRiskState
+
+    strategy, account, session = await _seed_session(
+        db_session, mock_authed_user, with_state=with_cache
+    )
+    session.execution_snapshot = {"source_policy": "code_v1"}
+    order = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        type=OrderType.market,
+        quantity=Decimal("2"),
+        state=OrderState.filled,
+        realized_pnl=Decimal("42.50"),
+        filled_at=_SESSION_START + timedelta(hours=1),
+    )
+    db_session.add(order)
+    await db_session.flush()
+    db_session.add(
+        LiveRiskState(
+            session_id=session.id,
+            entry_order_id=order.id,
+            direction="long",
+            expected_quantity=Decimal("2"),
+            cumulative_quantity=Decimal("2"),
+            cumulative_value=Decimal("200"),
+            position_quantity=Decimal("1"),
+            entry_terminal=True,
+            entry_vwap=Decimal("100"),
+            fixed_r=Decimal("11"),
+            reference_bars=[],
+            qty_step=Decimal("0.1"),
+            min_qty=Decimal("0.1"),
+            provisional_stop=Decimal("89"),
+            protection_desired={"token": "new"},
+            protection_applied={"token": "old"},
+            new_entries_blocked=True,
+            failure_reason="awaiting_protection_ack",
+            pending_reversal="short",
+        )
+    )
+    if checkpoint_status is not None:
+        db_session.add(
+            LiveCodeBar(
+                session_id=session.id,
+                sequence=0,
+                bar_time=_SESSION_START,
+                execution_hash="a" * 64,
+                input_hash="b" * 64,
+                bar={},
+                position={},
+                intent="hold",
+                status=checkpoint_status,
+                is_warmup=checkpoint_status == "warmup",
+            )
+        )
+    await db_session.commit()
+    response = await client.get(f"/api/v1/live-sessions/{session.id}/state")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["evaluated"] is (checkpoint_status not in (None, "warmup"))
+    assert body["last_strategy_state_report"] == {}
+    assert body["schema_version"] == 0
+    assert Decimal(body["total_realized_pnl"]) == Decimal("42.50")
+    assert body["total_closed_trades"] == 1
+    summary = body["code_execution"]
+    assert summary["checkpoint_status"] == checkpoint_status
+    assert summary["last_intent"] == ("hold" if checkpoint_status else None)
+    assert Decimal(summary["position_quantity"]) == Decimal("1")
+    assert Decimal(summary["entry_vwap"]) == Decimal("100")
+    assert Decimal(summary["fixed_r"]) == Decimal("11")
+    assert summary["protection_pending"] is True
+    assert summary["new_entries_blocked"] is True
+    assert summary["failure_reason"] == "awaiting_protection_ack"
+    assert summary["pending_reversal"] == "short"

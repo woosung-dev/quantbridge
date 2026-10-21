@@ -312,6 +312,25 @@ class AlertRuleListResponse(BaseModel):
     total: int
 
 
+class CodeExecutionSummary(BaseModel):
+    """코드 세션의 영속 체크포인트·리스크 원장 조회. UI 캐시를 읽지 않는다."""
+
+    version_id: UUID | None
+    checkpoint_status: Literal["warmup", "prepared", "delivered", "blocked"] | None
+    last_bar_time: AwareDatetime | None
+    last_intent: str | None
+    risk_generation: int | None
+    direction: str | None
+    position_quantity: Decimal | None
+    entry_vwap: Decimal | None
+    fixed_r: Decimal | None
+    protection_pending: bool
+    trailing_active: bool
+    new_entries_blocked: bool
+    failure_reason: str | None
+    pending_reversal: str | None
+
+
 class LiveSignalStateResponse(BaseModel):
     """GET /api/v1/live-sessions/{id}/state — Detail UI 용.
 
@@ -324,6 +343,7 @@ class LiveSignalStateResponse(BaseModel):
 
     session_id: UUID
     evaluated: bool = True
+    code_execution: CodeExecutionSummary | None = None
     schema_version: int
     last_strategy_state_report: dict[str, object]
     total_closed_trades: int

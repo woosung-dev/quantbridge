@@ -38,6 +38,7 @@ import {
   formatDateTime,
   formatRealizedPnl,
 } from "../utils";
+import { CodeExecutionSummary } from "./code-execution-summary";
 import { ActivityTimelineChart } from "./activity-timeline-chart";
 import { OutcomeParityPanel } from "./outcome-parity-panel";
 import { SessionEndedReason } from "./session-ended-reason";
@@ -160,6 +161,7 @@ export function LiveSessionDetail({ session }: Props) {
         <p className="text-muted-foreground text-xs">
           {session.interval} · 마지막 평가 {formatDateTime(session.last_evaluated_bar_time)}
         </p>
+        {state?.code_execution ? <CodeExecutionSummary summary={state.code_execution} /> : null}
         <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-muted-foreground">종료 거래</dt>
