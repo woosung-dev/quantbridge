@@ -274,3 +274,27 @@ def test_strategy_summary_deduplicates_identical_signals_and_separates_cost_scen
     conflicting["metrics"]["total_return"] = ".8"
     with pytest.raises(ValueError, match="다릅니다"):
         summarize_strategy_results([record, conflicting])
+
+
+def test_missing_asset_funding_is_rejected_before_snapshot(
+    sources: tuple[Path, Path], tmp_path: Path
+) -> None:
+    parent = json.loads(sources[0].read_text())
+    del parent["funding"]["ETHUSDT"]
+    json_write(sources[0], parent)
+    with pytest.raises(ValueError, match="펀딩"):
+        create_snapshot(*sources, tmp_path / "snapshot")
+    assert not (tmp_path / "snapshot").exists()
+
+
+def test_declared_historical_window_cannot_exceed_parent_file_coverage(
+    sources: tuple[Path, Path], tmp_path: Path
+) -> None:
+    parent = json.loads(sources[0].read_text())
+    parent["end_exclusive"] = "2026-01-04T00:00Z"
+    json_write(sources[0], parent)
+    execution = json.loads(sources[1].read_text())
+    execution["parent_dataset_sha256"] = digest(sources[0])
+    json_write(sources[1], execution)
+    with pytest.raises(ValueError, match="완전히"):
+        create_snapshot(*sources, tmp_path / "snapshot")

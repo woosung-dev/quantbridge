@@ -92,6 +92,8 @@ def _verify_sources(
         or {(x["symbol"], x["timeframe"]) for x in parent["files"]} != expected
     ):
         raise ValueError("부모 데이터 키가 중복되거나 누락되었습니다")
+    if set(parent["funding"]) != set(ASSETS):
+        raise ValueError("BTC·ETH 펀딩 데이터가 모두 필요합니다")
     execution = json.loads(execution_path.read_text())
     if (
         execution.get("exchange"),
@@ -121,6 +123,8 @@ def _verify_sources(
         path = _safe_file(parent_root, item["path"], item["sha256"])
         frame = load_candles(path)
         start, end = _time(item["start"]), _time(item["end_exclusive"])
+        if start > historical_start or end < historical_end:
+            raise ValueError("부모 파일이 선언한 역사 평가 기간을 완전히 덮지 않습니다")
         validate_candles(frame, item["timeframe"], start, end)
         if len(frame) != item["bars"]:
             raise ValueError("부모 봉 수가 manifest와 다릅니다")
