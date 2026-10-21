@@ -340,17 +340,90 @@ def trial(root: Path, case: dict, arm: str, language: str, repetition: int) -> d
     return result
 
 
+def semantic_trial(root: Path, job: tuple) -> dict[str, Any]:
+    """trial별 증거·캐시를 유지한다. 평가 오류도 분모에 남기는 실패 결과다."""
+    from tools.research.sol_semantic_eval import evaluate
+
+    case, arm, language, repetition = job
+    folder = root / "trials" / arm / language / case["id"] / str(repetition)
+    result = json.loads((folder / "trial.json").read_text())
+    semantic_path = folder / "semantic.json"
+    if semantic_path.exists():
+        semantic = json.loads(semantic_path.read_text())
+        if semantic.get("input_identity") != result["input_identity"]:
+            raise ValueError("독립 채점 캐시의 실행 소스/실험 입력이 다릅니다")
+    elif result["status"] == "public_pass":
+        try:
+            semantic = evaluate((folder / "source.txt").read_text(), language, case["id"])
+        except Exception as exc:
+            semantic = {
+                "status": "failed",
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:1500],
+                "contract_points": 0,
+                "ledger_points": 0,
+                "reproducibility_points": 0,
+            }
+    else:
+        semantic = {
+            "status": "generation_or_public_failure",
+            "contract_points": 0,
+            "ledger_points": 0,
+            "reproducibility_points": 0,
+        }
+    semantic["input_identity"] = result["input_identity"]
+    json_write(semantic_path, semantic)
+    result["semantic"] = semantic
+    return result
+
+
+def evaluate_semantics(root: Path, selected: list[tuple], workers: int) -> None:
+    """평가만 병렬화한다. 출력과 요약 순서는 동결된 선택 순서를 따른다."""
+    from tools.research.sol_semantic_eval import paired_summary
+
+    if workers not in (1, 2):
+        raise ValueError("독립 채점 동시 실행은 1..2입니다")
+    evaluated = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(semantic_trial, root, job) for job in selected]
+        for future in futures:
+            result = future.result()
+            evaluated.append(result)
+            print(
+                json.dumps(
+                    {
+                        "semantic": result["semantic"]["status"],
+                        "arm": result["arm"],
+                        "language": result["language"],
+                        "case_id": result["case_id"],
+                        "repetition": result["repetition"],
+                    }
+                ),
+                flush=True,
+            )
+    json_write(root / "semantic-summary.json", paired_summary(evaluated))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--stage", choices=("pilot", "evaluation"), default="pilot")
     parser.add_argument("--workers", type=int, default=3)
+    parser.add_argument(
+        "--semantic-workers",
+        type=int,
+        choices=(1, 2),
+        help="독립 채점 동시 실행 수 (pilot=1, evaluation=2)",
+    )
     parser.add_argument("--arm", choices=("A", "B", "C"))
     parser.add_argument("--limit", type=int)
     parser.add_argument(
         "--semantics", action="store_true", help="생성 후 비공개 독립 채점"
     )
     args = parser.parse_args()
+    semantic_workers = args.semantic_workers or (1 if args.stage == "pilot" else 2)
+    if args.stage == "pilot" and semantic_workers != 1:
+        parser.error("pilot 독립 채점은 1개씩 실행합니다")
     root = args.run_dir.resolve()
     if not root.is_relative_to(ROOT / "runs"):
         parser.error("산출물은 레포 runs/ 안에 둡니다")
@@ -383,6 +456,7 @@ def main() -> None:
         "model": MODEL,
         "effort": EFFORT,
         "stage": args.stage,
+        "semantic_workers": semantic_workers,
         "cases": cases,
         "total_jobs": len(jobs),
         "repetitions": repetitions,
@@ -422,45 +496,7 @@ def main() -> None:
                 flush=True,
             )
     if args.semantics:
-        from tools.research.sol_semantic_eval import evaluate, paired_summary
-
-        evaluated = []
-        for case, arm, language, repetition in selected:
-            folder = root / "trials" / arm / language / case["id"] / str(repetition)
-            result = json.loads((folder / "trial.json").read_text())
-            semantic_path = folder / "semantic.json"
-            if semantic_path.exists():
-                semantic = json.loads(semantic_path.read_text())
-                if semantic.get("input_identity") != result["input_identity"]:
-                    raise ValueError("독립 채점 캐시의 실행 소스/실험 입력이 다릅니다")
-            elif result["status"] == "public_pass":
-                semantic = evaluate(
-                    (folder / "source.txt").read_text(), language, case["id"]
-                )
-            else:
-                semantic = {
-                    "status": "generation_or_public_failure",
-                    "contract_points": 0,
-                    "ledger_points": 0,
-                    "reproducibility_points": 0,
-                }
-            semantic["input_identity"] = result["input_identity"]
-            json_write(semantic_path, semantic)
-            result["semantic"] = semantic
-            evaluated.append(result)
-            print(
-                json.dumps(
-                    {
-                        "semantic": semantic["status"],
-                        "arm": arm,
-                        "language": language,
-                        "case_id": case["id"],
-                        "repetition": repetition,
-                    }
-                ),
-                flush=True,
-            )
-        json_write(root / "semantic-summary.json", paired_summary(evaluated))
+        evaluate_semantics(root, selected, semantic_workers)
 
 
 if __name__ == "__main__":
