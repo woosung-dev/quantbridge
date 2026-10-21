@@ -27,7 +27,7 @@ export function CodeExecutionSummary({ summary }: { summary: Summary }) {
       </p>
       <p className="mt-1">
         {summary.protection_pending ? "보호 ACK 대기" : "보호 변경 대기 없음"}
-        {summary.trailing_active ? " · 트레일 활성" : ""}
+        {summary.trailing_active ? " · 추적 조건 충족" : ""}
         {summary.pending_reversal ? ` · ${summary.pending_reversal} 반전 대기` : ""}
       </p>
       {summary.new_entries_blocked || summary.failure_reason ? (
@@ -36,7 +36,8 @@ export function CodeExecutionSummary({ summary }: { summary: Summary }) {
         </p>
       ) : null}
       <p className="mt-1 text-muted-foreground">
-        의도 전달은 체결 완료를 뜻하지 않습니다. 손익은 실제 체결 주문을 기준으로 집계합니다.
+        의도 전달은 체결 완료를 뜻하지 않습니다. 손익은 실제 체결 주문을 기준으로 집계합니다. 추적
+        조건은 원장의 판정이며 거래소의 실제 활성 상태를 조회해 확인한 값이 아닙니다.
       </p>
     </div>
   );
