@@ -81,7 +81,7 @@ native 관측을 새 코드 hash와 대조하고, 외부 근거가 없는 원본
 | 시장 | `BYBIT:BTCUSDT.P` — BTC/USDT 무기한 선물 |
 | 기간 | 실행일의 최근 확정 UTC 일봉 경계까지 calendar 1년, 별도 warmup |
 | 타임프레임 | 1h·4h·1d, 누락·중복 없는 동일 OHLCV |
-| 후보 | Boost ≥100 공개 소스, 중복 id/URL·원본 SHA 중복 구분, 최대 100개 |
+| 최종 측정 대상 | Boost ≥100 공개 소스, 중복 id/URL·원본 SHA 중복 구분, 최대 100개. 수집·탐색 수는 별도 집계 |
 | 사건 | 조건 평가 봉·방향·확정 시각·표시 offset 시각을 각각 비교 |
 | 선물 | 롱/숏 반전, 단일 포지션, 같은 방향 추가 진입 없음, 명시 청산 지원 |
 | 신호·원장 대조 체결 가정 | 다음 봉 시가, 1배, 고정 1수량, 수수료·슬리피지·펀딩 0 |
@@ -130,6 +130,26 @@ Pine↔Python 사건, 앱 원장 일치나 추천 적격을 뜻하지 않는다.
 제시하고, 투자 권유나 미래 수익 보장으로 표현하지 않는다.
 
 ## 선택형 청산 정책의 비교
+
+표준 `math.sum(source, length)`는 호출 지점별 최근 비NA 표본의 이동 합계이며, 유효 표본이
+길이에 미달하면 NA를 반환한다. 길이는 양의 정수, 소스는 유한 숫자 또는 NA만
+지원한다. `source`/`length` keyword 순서를 보존하며, 동일 봉 반복 호출과 불연속 봉의 조건부
+호출은 아직 독립 native 근거가 없어 명시적으로 거부한다. 가변 길이를 위해 호출 지점별
+유효 표본 이력을 보관하므로 메모리는 봉수에 비례한다.
+근거는 [TradingView의 이동 합계·가변 길이 예제](https://www.tradingview.com/pine-script-docs/faq/techniques/#how-can-i-count-the-occurrences-of-a-condition-in-the-last-x-bars)다.
+
+버전 annotation이 없는 원문은 TradingView의 기본 버전인 v1로 해석한다. 직접 생성한
+`BarContext`의 기본 버전과 명시적 v4~v6 원문은 바꾸지 않는다. v1~v3의 `circles`는
+기존 표시 전용 상수와 같은 범위로 해석하며 렌더링 일치 검증을 뜻하지 않는다.
+버전 기본값의 근거는 [공식 스크립트 구조 문서](https://www.tradingview.com/pine-script-docs/language/script-structure/#version)다.
+
+`int()`, `float()`, `bool()`은 Pine v4 이상에서 scalar numeric/`na` 범위만 지원한다.
+정수 변환은 소수부를 반올림 없이 버리고, `bool(na)`는 v5/v6에서 false다. v4의
+`bool(na)`, 비유한 숫자 입력, bool→숫자 및 문자열·객체 변환은 거부한다. 색상은 기존
+표시 전용 NA 처리의 영향을 받으므로 색상 기반 계산을 검증 대상으로 승격하지 않는다.
+한 개의 positional 인자만 평가하며 named 인자는 명시 거부한다.
+이 cast 지원은 실행 문법 범위만 넓히며 원본 지표의 신호 재현이나 native 일치를 뜻하지 않는다.
+숫자·NA의 bool 변환 근거는 [TradingView CE10101](https://www.tradingview.com/pine-script-docs/errors/CE10101/)이다.
 
 추세 지표 확대는 **원문 수집 → 정적 선별 → 실제 실행 → 신호·원장 대조 → 비용 포함 성과**를
 각각 집계한다. 목표가 실행 가능한 50개라면 수집한 50개를 분모 충족으로 대신하지 않는다.

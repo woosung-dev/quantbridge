@@ -108,3 +108,8 @@ ARRAY_FUNCTIONS: frozenset[str] = frozenset(
 # (ARRAY_FUNCTIONS 는 별도 dispatch 경로 — STDLIB_NAMES 비포함.)
 # ---------------------------------------------------------------------------
 STDLIB_NAMES: frozenset[str] = TA_FUNCTIONS | UTILITY_FUNCTIONS
+
+# ---------------------------------------------------------------------------
+# CAST_FUNCTIONS — scalar 캐스트는 interpreter에서 처리하며 coverage와 이름을 공유한다.
+# ---------------------------------------------------------------------------
+CAST_FUNCTIONS: frozenset[str] = frozenset({"int", "float", "bool"})

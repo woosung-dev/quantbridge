@@ -146,6 +146,7 @@ def test_p2_supported_functions_union_consistency() -> None:
         | cov._INPUT_FUNCTIONS
         | cov._STRING_FUNCTIONS
         | cov._MATH_FUNCTIONS
+        | cov._CAST_FUNCTIONS
         | cov._V4_ALIASES
         | cov._SECURITY_FUNCTIONS  # Sprint 29 Slice A
         | cov._HEIKINASHI_FUNCTIONS  # Sprint 29 Slice A (a)

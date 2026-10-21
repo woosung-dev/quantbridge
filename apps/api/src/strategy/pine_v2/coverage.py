@@ -21,6 +21,7 @@ from typing import Literal, TypedDict
 from src.strategy.pine_v2._names import (
     ARRAY_FUNCTIONS as _ARRAY_FUNCTIONS,
 )
+from src.strategy.pine_v2._names import CAST_FUNCTIONS as _CAST_FUNCTIONS
 from src.strategy.pine_v2._names import (
     TA_FUNCTIONS as _TA_FUNCTIONS,
 )
@@ -313,6 +314,7 @@ _V4_ALIASES: frozenset[str] = frozenset(
 SUPPORTED_FUNCTIONS: frozenset[str] = (
     _TA_FUNCTIONS
     | _UTILITY_FUNCTIONS
+    | _CAST_FUNCTIONS
     | _STRATEGY_FUNCTIONS
     | _DECLARATION_FUNCTIONS
     | _PLOT_FUNCTIONS
@@ -650,6 +652,34 @@ def _strip_noise(source: str) -> str:
     return _STRING_RE.sub('""', no_comments)
 
 
+def _math_sum_has_wrong_arity(clean: str) -> bool:
+    """문자열·주석 제거 후 math.sum 호출의 최상위 인자 수만 확인한다."""
+    for match in _CALL_RE.finditer(clean):
+        if match.group(1) != "math.sum":
+            continue
+        stack: list[str] = []
+        start = match.end()
+        parts: list[str] = []
+        for index in range(start, len(clean)):
+            char = clean[index]
+            if char in "([{":
+                stack.append(char)
+            elif char == ")" and not stack:
+                parts.append(clean[start:index])
+                break
+            elif char in ")]}":
+                if stack:
+                    stack.pop()
+            elif char == "," and not stack:
+                parts.append(clean[start:index])
+                start = index + 1
+        else:
+            return True
+        if len(parts) != 2 or any(not part.strip() for part in parts):
+            return True
+    return False
+
+
 def analyze_coverage(source: str) -> CoverageReport:
     """Pine 소스를 정적 분석해 미지원 built-in 식별.
 
@@ -661,6 +691,8 @@ def analyze_coverage(source: str) -> CoverageReport:
     Pine Script 미지원 함수 1개라도 포함 시 backtest 실행 차단 (CLAUDE.md Golden Rule).
     """
     clean = _strip_noise(source)
+    version_match = re.search(r"(?m)^[\t ]*//@version\s*=\s*(\d+)", _STRING_RE.sub('""', source))
+    pine_version = int(version_match.group(1)) if version_match else 1
 
     # 사용자 정의 함수: `myFunc(...) =>` 패턴
     user_defs = set()
@@ -697,6 +729,11 @@ def analyze_coverage(source: str) -> CoverageReport:
     known_found = [f for f in used_funcs if f in _KNOWN_UNSUPPORTED_FUNCTIONS]
     # 중복 없이 합산 (known_found는 이미 SUPPORTED_FUNCTIONS에서 제외됐으므로 union)
     unsupp_funcs_set = set(unsupp_funcs_raw) | set(known_found)
+    # 명시적인 숫자 캐스트는 v4부터 지원한다. 문자열 속 버전 표기는 사용하지 않는다.
+    if pine_version < 4:
+        unsupp_funcs_set.update(f for f in used_funcs if f in _CAST_FUNCTIONS)
+    if "math.sum" in used_funcs and _math_sum_has_wrong_arity(clean):
+        unsupp_funcs_set.add("math.sum")
     unsupp_funcs = tuple(sorted(unsupp_funcs_set))
 
     # attributes (call site 제외 — `(` 직후 위치는 함수로 이미 잡힘)

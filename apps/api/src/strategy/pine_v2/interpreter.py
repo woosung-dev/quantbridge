@@ -39,7 +39,7 @@ from typing import Any, cast
 import pandas as pd
 from pynescript import ast as pyne_ast
 
-from src.strategy.pine_v2._names import STDLIB_NAMES
+from src.strategy.pine_v2._names import CAST_FUNCTIONS, STDLIB_NAMES
 from src.strategy.pine_v2.rendering import (
     BoxObject,
     LabelObject,
@@ -177,7 +177,7 @@ def pine_version_from_ast(tree: Any) -> int:
         match = re.fullmatch(r"//\s*@version\s*=\s*(\d+)\s*", annotation)
         if match is not None:
             return int(match[1])
-    return 6
+    return 1
 
 
 @dataclass
@@ -452,7 +452,8 @@ class Interpreter:
     def global_state_snapshot(self) -> dict[str, Any]:
         """함수 내부 슬롯은 기존 전역 진단 snapshot으로 유출하지 않는다."""
         return {
-            key: value for key, value in self.store.snapshot_dict().items()
+            key: value
+            for key, value in self.store.snapshot_dict().items()
             if not key.startswith("udf:")
         } | self._transient
 
@@ -547,7 +548,8 @@ class Interpreter:
             # 영속: 첫 bar에서만 RHS 평가. PersistentStore.declare_if_new가 lazy 처리.
             key = (
                 self._local_persistent_key(target_name)
-                if self._function_frames else f"main::{target_name}"
+                if self._function_frames
+                else f"main::{target_name}"
             )
             value_expr = node.value
 
@@ -606,10 +608,9 @@ class Interpreter:
         # 로컬 scope 활성 & 해당 이름이 현재 frame에 존재 → frame에 재할당.
         if self._scope_stack and target_name in self._scope_stack[-1]:
             self._scope_stack[-1][target_name] = value
-            if (
-                self._function_frames
-                and self._function_frames[-1].declarations.get(target_name) in ("var", "varip")
-            ):
+            if self._function_frames and self._function_frames[-1].declarations.get(
+                target_name
+            ) in ("var", "varip"):
                 self.store.set(self._local_persistent_key(target_name), value)
             return
         key = f"main::{target_name}"
@@ -1024,7 +1025,9 @@ class Interpreter:
                         bar != self.bar.bar_index - i
                         for i, (bar, _) in enumerate(reversed(recent), 1)
                     ):
-                        raise PineRuntimeError("UDF sparse history with offset > 1 is not supported")
+                        raise PineRuntimeError(
+                            "UDF sparse history with offset > 1 is not supported"
+                        )
                 if len(history) < offset:
                     return float("nan")
                 return history[-offset][1]
@@ -1129,14 +1132,98 @@ class Interpreter:
         if name and "." not in name and name in self._user_functions:
             return self._call_user_function(self._user_functions[name], node)
 
+        # v4+ scalar 캐스트는 단항 순수 함수이며, 미지원 인자는 평가 전에 거부한다.
+        if name in CAST_FUNCTIONS:
+            if self.bar.pine_version < 4:
+                raise PineRuntimeError(
+                    f"{name}() is not supported in Pine v{self.bar.pine_version}; explicit casts require v4+"
+                )
+            if len(node.args) != 1:
+                raise PineRuntimeError(f"{name}() expects exactly one positional argument")
+            arg = node.args[0]
+            if isinstance(arg, pyne_ast.Arg) and arg.name is not None:
+                raise PineRuntimeError(f"{name}() does not support named arguments")
+            value = self._eval_expr(arg.value if isinstance(arg, pyne_ast.Arg) else arg)
+            is_na = _is_na(value)
+            if type(value) is float and not is_na and not math.isfinite(value):
+                raise PineRuntimeError(f"{name}() does not support infinite numeric values")
+            if name == "bool":
+                if is_na and self.bar.pine_version == 4:
+                    raise PineRuntimeError("bool(na) is unverified in Pine v4")
+                if is_na:
+                    return False
+                if type(value) is bool:
+                    return value
+                if type(value) in (int, float):
+                    return value != 0
+                raise PineRuntimeError("bool() supports only bool, numeric, or na values")
+            if is_na:
+                return float("nan")
+            if type(value) not in (int, float):
+                raise PineRuntimeError(f"{name}() supports only numeric or na values")
+            if name == "float":
+                try:
+                    return float(value)
+                except OverflowError as exc:
+                    raise PineRuntimeError("float() numeric value is out of range") from exc
+            return int(value)
+
         # Pine v4 legacy alias — prefix 없는 stdlib을 ta.* / math.* 로 재라우팅
         # (i1_utbot / 일부 RTB 전략이 v4 문법 사용)
         # Sprint 29 Slice C: function-local → module-level export. parity invariant 검증 대상.
         if name in _V4_ALIASES:
             name = _V4_ALIASES[name]
 
-        # math.* — 순수 함수, caller state 없음. na 전파.
+        # math.sum은 호출 지점별 이력을 쓰며 나머지 산술 함수는 NA를 전파한다.
         if name and name.startswith("math."):
+            if name == "math.sum":
+                # 인자 binding을 먼저 검증하고 원래 순서대로 한 번씩 평가한다.
+                argument_names: list[str] = []
+                saw_keyword = False
+                for index, arg in enumerate(node.args):
+                    arg_name = getattr(arg, "name", None) if isinstance(arg, pyne_ast.Arg) else None
+                    if arg_name is None:
+                        if saw_keyword:
+                            raise PineRuntimeError(
+                                "math.sum positional argument follows keyword argument"
+                            )
+                        if index >= 2:
+                            raise PineRuntimeError("math.sum expects source and length")
+                        arg_name = ("source", "length")[index]
+                    else:
+                        saw_keyword = True
+                    if arg_name in argument_names:
+                        raise PineRuntimeError("math.sum duplicate argument")
+                    argument_names.append(arg_name)
+                if set(argument_names) != {"source", "length"}:
+                    raise PineRuntimeError("math.sum expects source and length")
+                sum_args = {
+                    name: self._eval_expr(arg.value if isinstance(arg, pyne_ast.Arg) else arg)
+                    for name, arg in zip(argument_names, node.args, strict=True)
+                }
+                source, length = sum_args["source"], sum_args["length"]
+                if type(length) is not int or length < 1:
+                    raise PineRuntimeError("math.sum length must be a positive int")
+                if not _is_na(source) and (
+                    type(source) not in (int, float) or not math.isfinite(source)
+                ):
+                    raise PineRuntimeError("math.sum source must be finite numeric or na")
+                scoped_id = self.stdlib._scoped_node_id(id(node))
+                slot = self.stdlib.state.buffers.setdefault(
+                    scoped_id, {"values": [], "bar_index": None}
+                )
+                if slot["bar_index"] == self.bar.bar_index:
+                    raise PineRuntimeError("math.sum repeated in one bar is unsupported")
+                if slot["bar_index"] is not None and slot["bar_index"] != self.bar.bar_index - 1:
+                    raise PineRuntimeError("math.sum nonconsecutive calls are unsupported")
+                slot["bar_index"] = self.bar.bar_index
+                if not _is_na(source):
+                    slot["values"].append(source)
+                history = slot["values"]
+                result = float(sum(history[-length:])) if len(history) >= length else float("nan")
+                if len(history) >= length and not math.isfinite(result):
+                    raise PineRuntimeError("math.sum result must be finite")
+                return result
             args = [
                 self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
             ]
@@ -1184,10 +1271,6 @@ class Interpreter:
             if name == "math.exp":
                 # BL-374: math.exp(1000) → OverflowError → na (inf 무음오염 차단).
                 return _na_safe(lambda: math.exp(args[0]))
-            if name == "math.sum":
-                # Pine math.sum(source, length) — 단순 cumulative sum stub
-                # 정밀 구현은 ta.sum (stdlib); math.sum 은 거의 쓰이지 않으므로 단순 합산.
-                return sum(args) if len(args) > 1 else args[0]
             raise PineRuntimeError(f"math function not supported: {name}")
 
         # array.* — G2 (2026-07-12 pine-batch QA) 최소 서브셋. Pine array 는 참조
@@ -1521,7 +1604,9 @@ class Interpreter:
             raise PineRuntimeError("UDF loop-counter shadowing is not supported")
         forbidden = reassignments - declarations.keys()
         if forbidden:
-            raise PineRuntimeError(f"UDF cannot reassign parameter or nonlocal: {sorted(forbidden)[0]}")
+            raise PineRuntimeError(
+                f"UDF cannot reassign parameter or nonlocal: {sorted(forbidden)[0]}"
+            )
         self._function_declarations[fn_def.name] = declarations
         return declarations
 
@@ -1588,14 +1673,18 @@ class Interpreter:
                         last_expr_val = self._eval_expr(inner)
                 else:
                     self._exec_stmt(stmt)
-            local_frame.staged.update({
-                (local_frame.path, name): value for name, value in frame.items()
-                if value is None or isinstance(value, (bool, int, float, str))
-            })
+            local_frame.staged.update(
+                {
+                    (local_frame.path, name): value
+                    for name, value in frame.items()
+                    if value is None or isinstance(value, (bool, int, float, str))
+                }
+            )
             # 부모가 실패하면 자식의 성공 이력도 버린다. 최상위 성공만 봉 staging에 넣는다.
             destination = (
                 self._function_frames[-2].staged
-                if len(self._function_frames) > 1 else self._local_pending
+                if len(self._function_frames) > 1
+                else self._local_pending
             )
             destination.update(local_frame.staged)
             return last_expr_val
@@ -1691,6 +1780,7 @@ class Interpreter:
                 return float("nan")  # color.*와 같은 표시 전용 NOP다.
             legacy_constants = {
                 "line": "line",
+                "circles": "circles",
                 "cross": "cross",
                 "integer": "integer",
                 "float": "float",
