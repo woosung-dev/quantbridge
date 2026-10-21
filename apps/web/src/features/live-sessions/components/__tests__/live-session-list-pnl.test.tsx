@@ -58,4 +58,18 @@ describe("LiveSessionList PnL 배지 (Wave0 cockpit surfacing)", () => {
     // 양수 PnL 은 + prefix.
     expect(await screen.findByText("+42.5")).toBeInTheDocument();
   });
+
+  it.each(["0", "42.5"])("미정산 소계 %s는 정상 손익 색으로 표시하지 않는다", async (pnl) => {
+    stateMock.mockResolvedValue({
+      ...STATE,
+      total_realized_pnl: pnl,
+      pnl_complete: false,
+      pnl_scope: "known_order_subtotal",
+    });
+    renderWith(<LiveSessionList />);
+    expect(await screen.findByText("미정산 · 알려진 소계")).toBeInTheDocument();
+    const amount = screen.getByText(pnl === "0" ? "0" : "+42.5");
+    expect(amount).toHaveClass("text-muted-foreground");
+    expect(screen.getByText(/3 정산 주문/)).toBeInTheDocument();
+  });
 });

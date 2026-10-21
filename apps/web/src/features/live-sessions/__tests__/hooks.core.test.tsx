@@ -227,6 +227,7 @@ describe("live session core hooks", () => {
       totalClosedTrades: 5,
       confirmedRealizedPnl: 3,
       estimatedRealizedPnl: 1,
+      incompleteSessions: 0,
     });
     expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/live-sessions/${SESSION_ID}/state`, {
       method: "GET",
@@ -262,6 +263,18 @@ describe("live session core hooks", () => {
       token: "test-token",
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("미정산 세션은 알려진 소계를 보존하고 합계의 불완전성을 전달한다", async () => {
+    apiFetchMock.mockResolvedValueOnce(
+      makeState(SESSION_ID, { pnl_complete: false, pnl_scope: "known_order_subtotal" }),
+    );
+    const { result } = renderHook(() => useLiveSessionsAggregate([makeSession()]), {
+      wrapper: makeWrapper(makeClient()),
+    });
+    await waitFor(() => expect(result.current.populatedSessions).toBe(1));
+    expect(result.current.incompleteSessions).toBe(1);
+    expect(result.current.totalRealizedPnl).toBe(1.5);
   });
 
   it("세션별 포지션 팬아웃이 거래소 포지션을 세션 행으로 펼친다", async () => {

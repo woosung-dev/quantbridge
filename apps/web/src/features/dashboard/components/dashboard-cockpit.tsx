@@ -138,7 +138,14 @@ export function DashboardCockpit() {
     [agg.mergedEquityCurve],
   );
 
-  const pnlToneClass = agg.totalRealizedPnl > 0 ? "pos" : agg.totalRealizedPnl < 0 ? "neg" : "";
+  const pnlIncomplete = agg.incompleteSessions > 0;
+  const pnlToneClass = pnlIncomplete
+    ? ""
+    : agg.totalRealizedPnl > 0
+      ? "pos"
+      : agg.totalRealizedPnl < 0
+        ? "neg"
+        : "";
 
   return (
     <main className="page">
@@ -206,7 +213,9 @@ export function DashboardCockpit() {
           </article>
 
           <article className="card kpi">
-            <p className="kpi-label">데모 실현 손익 · 합산</p>
+            <p className="kpi-label">
+              {pnlIncomplete ? "데모 손익 · 알려진 소계" : "데모 실현 손익 · 합산"}
+            </p>
             {/* 형제 KPI 와 같은 규율(StatValue) — 세션 목록/집계 조회가 실패·미수신이면
                 합산 손익을 성공-0 처럼 그리지 않는다. 손익은 목록(어떤 세션인지)과 세션별
                 state(합산 대상)에 모두 의존하므로 두 쿼리 상태를 OR 로 본다. */}
@@ -227,8 +236,14 @@ export function DashboardCockpit() {
                 ★`.kpi-foot` 자체는 못 고친다 — KITPORT 센티넬 안이라 무결성 가드가 막는다. */}
             <p className="kpi-foot">
               <span>
-                USDT. 활성 세션 종료 거래 <span className="mono">{agg.totalClosedTrades}</span>건의
-                실현 손익 합입니다.
+                {pnlIncomplete ? (
+                  <>
+                    미정산 {agg.incompleteSessions}개 세션. 표시 금액은 알려진 주문 소계이며 전체
+                    실현 손익이 아닙니다.
+                  </>
+                ) : (
+                  <>USDT. 활성 세션이 보고한 실현 손익의 합입니다.</>
+                )}
                 <br />
                 미실현(추정) <UnrealizedPnlEstimateText sessions={activeSessions} />
                 {/* BL-458 — 이 합계의 신뢰 등급. 채워진 세션 중 하나라도 소계를 안
@@ -272,13 +287,27 @@ export function DashboardCockpit() {
           </p>
         </header>
 
-        <WorkspaceEquityCard
-          data={equityData}
-          isLoading={agg.isLoading}
-          activeSessionCount={activeSessions.length}
-          latestValue={agg.totalRealizedPnl}
-          hasProvenanceSplit={agg.confirmedRealizedPnl != null && agg.estimatedRealizedPnl != null}
-        />
+        {pnlIncomplete ? (
+          <div className="card">
+            <div className="card-body" role="status">
+              미정산 청산이 있어 자산 곡선을 보류합니다. 세션 상세에서 알려진 주문 소계를
+              확인하세요.
+              <Link className="mt-2 block" href="/trading">
+                세션 확인
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <WorkspaceEquityCard
+            data={equityData}
+            isLoading={agg.isLoading}
+            activeSessionCount={activeSessions.length}
+            latestValue={agg.totalRealizedPnl}
+            hasProvenanceSplit={
+              agg.confirmedRealizedPnl != null && agg.estimatedRealizedPnl != null
+            }
+          />
+        )}
       </section>
 
       {/* ===== 03 최근 실행 ===== */}

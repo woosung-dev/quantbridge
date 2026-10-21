@@ -154,6 +154,8 @@ marker 발생 뒤 새로 관측한 정확한 로컬 주문의 증가분은 주�
 미정산 수량이 있거나 실제 축소 주문의 `realized_pnl`이 아직 없으면 `pnl_complete=false`다.
 `unpriced_exit_orders`는 후자의 개수이며 `code_execution.unsettled_exit_quantity`는
 전자의 수량이다. 화면은 false일 때 **손익 미정산·전체 실현손익 아님**을 표시하고, 같은
-계정 새 진입 차단을 알린다. 숫자 0이나 confirmed 소계 0은 전체 손익 확정 0이 아니다.
+계정 새 진입 차단을 알린다. 세션 목록 배지도 미정산 소계를 중립색으로 표시한다.
+대시보드는 활성 세션 중 하나라도 미정산이면 알려진 소계와 해당 세션 수를 표시하고,
+수익·손실 강조색과 자산 곡선을 보류한다. 숫자 0이나 confirmed 소계 0은 전체 손익 확정 0이 아니다.
 기존 fake native 여정은 보호 파라미터 ACK와 명시적 close 주문을 검증했으며,
 실제 native SL/trailing 자식 주문의 체결 회계·자동 귀속을 검증한 결과가 아니다.
