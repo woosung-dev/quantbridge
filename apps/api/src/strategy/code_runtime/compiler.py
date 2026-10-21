@@ -55,8 +55,14 @@ def _qb_update(q, row):
     nan = float("nan")
     def avg(a, length):
         return sum(a[-length:])/length if len(a)>=length else nan
-    def ema(value, previous, length):
-        return value if previous is None else previous+(value-previous)*2/(length+1)
+    def ema(value, previous, length, key="value"):
+        if value!=value: return previous if previous is not None else nan
+        if previous is None or previous!=previous:
+            seed = mem.setdefault("ema_seed_"+key, [])
+            seed.append(value)
+            return sum(seed)/length if len(seed)>=length else nan
+        alpha = 2.0/(length+1.0)
+        return alpha*value+(1.0-alpha)*previous
     for item in _QB_SPEC["indicators"]:
         ident, kind, length = item["id"], item["kind"], item["length"]
         s = p[item["source"]]
@@ -93,7 +99,7 @@ def _qb_update(q, row):
             if kind == "bollinger" and len(window)<length: values.update(upper=nan, lower=nan)
             if kind == "regression" and len(window)<length: values.update(slope=nan, upper=nan, lower=nan)
         elif kind == "donchian":
-            hh,ll = max(p["high"][-length:]),min(p["low"][-length:])
+            hh,ll = (max(p["high"][-length:]),min(p["low"][-length:])) if len(s)>=length else (nan,nan)
             values.update(value=(hh+ll)/2,upper=hh,lower=ll)
         elif kind in ("rsi", "atr", "chandelier", "keltner", "atr_breakout"):
             if kind == "rsi":
@@ -105,7 +111,7 @@ def _qb_update(q, row):
                     gain = avg(mem["gains"],length) if "gain" not in mem else (mem["gain"]*(length-1)+mem["gains"][-1])/length
                     loss = avg(mem["losses"],length) if "loss" not in mem else (mem["loss"]*(length-1)+mem["losses"][-1])/length
                     mem.update(gain=gain,loss=loss)
-                    values["value"] = 100-100/(1+gain/loss) if loss else 100.0 if gain else 50.0
+                    values["value"] = 100-100/(1+gain/loss) if loss else 100.0
                 else: values["value"] = nan
             else:
                 high, low = p["high"][-1], p["low"][-1]
@@ -129,10 +135,10 @@ def _qb_update(q, row):
             mem.setdefault("obv",[]).append(values["value"])
             values["signal"] = avg(mem["obv"],length)
         elif kind == "macd":
-            mem["fast"] = ema(s[-1],mem.get("fast"),length)
-            mem["slow"] = ema(s[-1],mem.get("slow"),item["slow"])
+            mem["fast"] = ema(s[-1],mem.get("fast"),length,"fast")
+            mem["slow"] = ema(s[-1],mem.get("slow"),item["slow"],"slow")
             value = mem["fast"]-mem["slow"]
-            mem["signal"] = ema(value,mem.get("signal"),item["signal"])
+            mem["signal"] = ema(value,mem.get("signal"),item["signal"],"signal")
             values.update(value=value,signal=mem["signal"])
         elif kind == "roc":
             values["value"] = 100*(s[-1]/s[-length-1]-1) if len(s)>length and s[-length-1] else nan
@@ -243,11 +249,11 @@ function _qbUpdate(q:any,row:any):void {
  for(const key of ["open","high","low","close","volume"]) p[key].push(Number(row[key]));
  p.hlc3.push((p.high.at(-1)+p.low.at(-1)+p.close.at(-1))/3);
  const avg=(a:number[],n:number)=>a.length>=n?a.slice(-n).reduce((x,y)=>x+y,0)/n:nan;
- const ema=(x:number,prev:number|undefined,n:number)=>prev===undefined?x:prev+(x-prev)*2/(n+1);
+ const ema=(x:number,prev:number|undefined,n:number,seed:number[])=>{if(!Number.isFinite(x))return prev??nan;if(prev===undefined||!Number.isFinite(prev)){seed.push(x);return seed.length>=n?seed.reduce((a,b)=>a+b,0)/n:nan;}const alpha=2/(n+1);return alpha*x+(1-alpha)*prev;};
  for(const item of _QB_SPEC.indicators){
   const id=item.id,kind=item.kind,n=item.length,s=p[item.source],last=s.at(-1),m=q.memory[id]??(q.memory[id]={});
   const vals:any={},prev=m.last;
-  if(kind==="ema") vals.value=ema(last,prev,n);
+  if(kind==="ema") vals.value=ema(last,prev,n,(m.seedValue??=[]));
   else if(["sma","highest","lowest","stdev","bollinger","regression","cci"].includes(kind)){
    const w=s.slice(-n);let value=nan;
    if(w.length===n){
@@ -262,16 +268,16 @@ function _qbUpdate(q:any,row:any):void {
      value=intercept+slope*(n-1);const residual=Math.sqrt(w.reduce((a:number,x:number,i:number)=>a+(x-intercept-slope*i)**2,0)/n);Object.assign(vals,{slope,upper:value+item.multiplier*residual,lower:value-item.multiplier*residual});}
    }
    vals.value=value;if(w.length<n&&kind==="bollinger")Object.assign(vals,{upper:nan,lower:nan});if(w.length<n&&kind==="regression")Object.assign(vals,{slope:nan,upper:nan,lower:nan});
-  }else if(kind==="donchian"){const hh=Math.max(...p.high.slice(-n)),ll=Math.min(...p.low.slice(-n));Object.assign(vals,{value:(hh+ll)/2,upper:hh,lower:ll});}
+  }else if(kind==="donchian"){const hh=s.length>=n?Math.max(...p.high.slice(-n)):nan,ll=s.length>=n?Math.min(...p.low.slice(-n)):nan;Object.assign(vals,{value:(hh+ll)/2,upper:hh,lower:ll});}
   else if(["rsi","atr","chandelier","keltner","atr_breakout"].includes(kind)){
    if(kind==="rsi"){
     if(s.length>1){const d=last-s.at(-2);(m.gains??=[]).push(Math.max(d,0));(m.losses??=[]).push(Math.max(-d,0));}
-    if((m.gains?.length??0)>=n){m.gain=m.gain===undefined?avg(m.gains,n):(m.gain*(n-1)+m.gains.at(-1))/n;m.loss=m.loss===undefined?avg(m.losses,n):(m.loss*(n-1)+m.losses.at(-1))/n;vals.value=m.loss?100-100/(1+m.gain/m.loss):m.gain?100:50;}else vals.value=nan;
+    if((m.gains?.length??0)>=n){m.gain=m.gain===undefined?avg(m.gains,n):(m.gain*(n-1)+m.gains.at(-1))/n;m.loss=m.loss===undefined?avg(m.losses,n):(m.loss*(n-1)+m.losses.at(-1))/n;vals.value=m.loss?100-100/(1+m.gain/m.loss):100;}else vals.value=nan;
    }else{const h=p.high.at(-1),l=p.low.at(-1),pc=s.length>1?p.close.at(-2):p.close.at(-1),tr=Math.max(h-l,Math.abs(h-pc),Math.abs(l-pc));(m.tr??=[]).push(tr);let atr=nan;
     if(s.length>=n){atr=m.atr===undefined?avg(m.tr,n):(m.atr*(n-1)+tr)/n;m.atr=atr;}
-    if(kind==="atr")vals.value=atr;else if(kind==="keltner"){const mid=ema(last,prev,n);Object.assign(vals,{value:mid,upper:mid+item.multiplier*atr,lower:mid-item.multiplier*atr});}else if(kind==="atr_breakout")Object.assign(vals,{upper:p.close.at(-1)+item.multiplier*atr,lower:p.close.at(-1)-item.multiplier*atr});else Object.assign(vals,{upper:Math.min(...p.low.slice(-n))+item.multiplier*atr,lower:Math.max(...p.high.slice(-n))-item.multiplier*atr});}
+    if(kind==="atr")vals.value=atr;else if(kind==="keltner"){const mid=ema(last,prev,n,(m.seedValue??=[]));Object.assign(vals,{value:mid,upper:mid+item.multiplier*atr,lower:mid-item.multiplier*atr});}else if(kind==="atr_breakout")Object.assign(vals,{upper:p.close.at(-1)+item.multiplier*atr,lower:p.close.at(-1)-item.multiplier*atr});else Object.assign(vals,{upper:Math.min(...p.low.slice(-n))+item.multiplier*atr,lower:Math.max(...p.high.slice(-n))-item.multiplier*atr});}
   }else if(kind==="obv"){const d=s.length>1?p.close.at(-1)-p.close.at(-2):0;vals.value=(prev??0)+p.volume.at(-1)*(d>0?1:d<0?-1:0);(m.obv??=[]).push(vals.value);vals.signal=avg(m.obv,n);}
-  else if(kind==="macd"){m.fast=ema(last,m.fast,n);m.slow=ema(last,m.slow,item.slow);vals.value=m.fast-m.slow;m.signal=ema(vals.value,m.signal,item.signal);vals.signal=m.signal;}
+  else if(kind==="macd"){m.fast=ema(last,m.fast,n,(m.seedFast??=[]));m.slow=ema(last,m.slow,item.slow,(m.seedSlow??=[]));vals.value=m.fast-m.slow;m.signal=ema(vals.value,m.signal,item.signal,(m.seedSignal??=[]));vals.signal=m.signal;}
   else if(kind==="roc")vals.value=s.length>n&&s.at(-n-1)?100*(last/s.at(-n-1)-1):nan;
   else if(kind==="stochastic"||kind==="williams_r"){
    let value=nan;if(s.length>=n){const hh=Math.max(...p.high.slice(-n)),ll=Math.min(...p.low.slice(-n));value=hh!==ll?100*(p.close.at(-1)-ll)/(hh-ll):50;}
@@ -478,8 +484,8 @@ def _compile_pine(spec: StrategySpec) -> str:
                     f"    if low[qb_i] < {name}_lo",
                     f"        {name}_lo := low[qb_i]",
                     f"        {name}_lo_age := qb_i",
-                    f"{name}_up = 100.0 * ({n} - {name}_hi_age) / {n}",
-                    f"{name}_down = 100.0 * ({n} - {name}_lo_age) / {n}",
+                    f"{name}_up = bar_index >= {n} ? 100.0 * ({n} - {name}_hi_age) / {n} : na",
+                    f"{name}_down = bar_index >= {n} ? 100.0 * ({n} - {name}_lo_age) / {n} : na",
                 ]
             )
         elif kind == "regression":

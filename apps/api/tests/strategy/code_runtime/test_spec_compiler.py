@@ -212,3 +212,143 @@ def test_native_artifact_obeys_external_position_invalidation_and_reversal(
         assert trace == ["hold", "long", "close", "short", "close"]
     finally:
         transport.close()
+
+
+@pytest.mark.parametrize("language", ["pine", "python", "typescript"])
+@pytest.mark.parametrize("kind", ["ema", "rsi", "macd"])
+def test_indicator_seed_na_and_both_directions_match_frozen_contract(
+    real_gvisor: None, language: str, kind: str
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    import pandas as pd
+
+    from src.strategy.code_runtime.pine import PineSignalTransport
+    from src.strategy.code_runtime.sandbox import create_transport
+
+    prices = [90, 90, 150, 50] if kind != "rsi" else [100, 100, 100, 90]
+    indicator = {
+        "id": "indicator",
+        "kind": kind,
+        "length": 3 if kind == "ema" else 2,
+        "slow": 3,
+        "signal": 2,
+    }
+    threshold = 100 if kind == "ema" else 50 if kind == "rsi" else 0
+    spec = {
+        "title": "frozen SMA seed and NA contract",
+        "warmup_bars": 1,
+        "indicators": [indicator],
+        "long_entry": {
+            "op": "gt",
+            "left": {"series": "indicator"},
+            "right": {"constant": threshold},
+        },
+        "short_entry": {
+            "op": "lt",
+            "left": {"series": "indicator"},
+            "right": {"constant": threshold},
+        },
+    }
+    bars = [
+        {
+            "index": i,
+            "timestamp": (datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=i)).isoformat(),
+            "open": str(p),
+            "high": str(p + 1),
+            "low": str(p - 1),
+            "close": str(p),
+            "volume": "10",
+        }
+        for i, p in enumerate(prices)
+    ]
+    data = pd.DataFrame(bars, index=pd.date_range("2026-01-01", periods=4, freq="1h", tz="UTC"))
+    transport = (
+        PineSignalTransport(data) if language == "pine" else create_transport(language, timeout=60)
+    )
+    try:
+        transport.exchange(
+            {
+                "type": "init",
+                "protocol": 1,
+                "language": language,
+                "source": compile_strategy(spec, language),
+                "params": {},
+            }
+        )
+        direction = "flat"
+        trace = []
+        for bar in bars:
+            action = transport.exchange(
+                {
+                    "type": "bar",
+                    "bar": bar,
+                    "position": {
+                        "direction": direction,
+                        "size": "0" if direction == "flat" else "1",
+                        "average_price": None if direction == "flat" else "100",
+                    },
+                }
+            )["intent"]["action"]
+            trace.append(action)
+            if action in ("long", "short"):
+                direction = action
+        assert trace == ["hold", "hold", "long", "short"]
+    finally:
+        transport.close()
+
+
+@pytest.mark.parametrize("strategy_id", ["01", "11", "13"])
+def test_compiled_catalogue_languages_share_bipolar_trades_and_risk_ledger(
+    real_gvisor: None, strategy_id: str
+) -> None:
+    import math
+    from decimal import Decimal
+
+    import pandas as pd
+
+    from src.backtest.engine.types import BacktestConfig
+    from src.strategy.code_runtime.backtest import run_code_backtest
+    from src.strategy.python_runtime.serialization import json_value
+
+    # 01/11/13의 long/short가 모두 발생하는 개발용 시세이며 수익성 평가 데이터가 아니다.
+    closes = [
+        round(100 + 0.18 * (i if i < 350 else 700 - i) + 8 * math.sin(i / 9), 4) for i in range(700)
+    ]
+    rows = []
+    for i, close in enumerate(closes):
+        opening = closes[i - 1] if i else close
+        rows.append(
+            {
+                "open": str(opening),
+                "high": str(max(opening, close) + 0.5),
+                "low": str(min(opening, close) - 0.5),
+                "close": str(close),
+                "volume": str(100 + i % 17),
+            }
+        )
+    data = pd.DataFrame(
+        rows, index=pd.date_range("2026-01-01", periods=len(rows), freq="1h", tz="UTC")
+    )
+    config = BacktestConfig(
+        freq="1h",
+        init_cash=Decimal("10000"),
+        default_qty_type="strategy.fixed",
+        default_qty_value=1,
+        fees=0.00055,
+        slippage=0.00014,
+    )
+    spec = next(row["reference_spec"] for row in candidates() if row["id"] == strategy_id)
+    outputs = {}
+    for language in ("pine", "python", "typescript"):
+        trace = []
+        result = run_code_backtest(
+            compile_strategy(spec, language), language, data, config, trace=trace
+        )
+        assert {trade.direction for trade in result.trades} == {"long", "short"}
+        outputs[language] = {
+            "trades": json_value(result.trades),
+            "metrics": json_value(result.metrics),
+            "trace": trace,
+        }
+    assert outputs["pine"] == outputs["python"] == outputs["typescript"]
