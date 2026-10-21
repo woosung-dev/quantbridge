@@ -6211,6 +6211,18 @@
             "title": "Exchange Account Id",
             "type": "string"
           },
+          "execution_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Snapshot"
+          },
           "interval": {
             "enum": [
               "1m",
@@ -6221,10 +6233,34 @@
             "title": "Interval",
             "type": "string"
           },
+          "source_policy": {
+            "anyOf": [
+              {
+                "const": "code_v1",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Policy"
+          },
           "strategy_id": {
             "format": "uuid",
             "title": "Strategy Id",
             "type": "string"
+          },
+          "strategy_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Version Id"
           },
           "symbol": {
             "maxLength": 32,
