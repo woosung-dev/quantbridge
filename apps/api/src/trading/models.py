@@ -531,6 +531,17 @@ class LiveSignalSession(SQLModel, table=True):
             nullable=False,
         ),
     )
+    strategy_version_id: UUID | None = Field(
+        default=None,
+        sa_column=Column(
+            ForeignKey(
+                "strategy_versions.id",
+                ondelete="RESTRICT",
+                name="fk_live_sessions_strategy_version",
+            ),
+            nullable=True,
+        ),
+    )
     exchange_account_id: UUID = Field(
         sa_column=Column(
             "exchange_account_id",
@@ -670,6 +681,47 @@ class LiveRiskState(SQLModel, table=True):
     )
     failure_reason: str | None = Field(default=None, sa_column=Column(String(200), nullable=True))
     updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
+    )
+
+
+class CodeRiskCommand(SQLModel, table=True):
+    """보호 명령의 최소 outbox. ACK 전 장애는 같은 key로 재배달한다."""
+
+    __tablename__ = "code_risk_commands"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','running','applied','failed','superseded')",
+            name="ck_code_risk_command_status",
+        ),
+        Index("ix_code_risk_commands_pending", "session_id", "status"),
+        {"schema": "trading"},
+    )
+    key: str = Field(sa_column=Column(String(240), primary_key=True))
+    session_id: UUID = Field(
+        sa_column=Column(
+            ForeignKey("trading.live_signal_sessions.id", ondelete="CASCADE"), nullable=False
+        )
+    )
+    generation: int = Field(sa_column=Column(Integer, nullable=False))
+    kind: str = Field(sa_column=Column(String(32), nullable=False))
+    payload: dict[str, object] = Field(sa_column=Column(JSONB, nullable=False))
+    status: str = Field(
+        default="pending", sa_column=Column(String(16), nullable=False, server_default="pending")
+    )
+    attempts: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default=text("0"))
+    )
+    lease_until: datetime | None = Field(
+        default=None, sa_column=Column(AwareDateTime(), nullable=True)
+    )
+    lease_token: UUID | None = Field(default=None)
+    error: str | None = Field(default=None, sa_column=Column(String(500), nullable=True))
+    result: dict[str, object] | None = Field(
+        default=None, sa_column=Column(JSONB(none_as_null=True), nullable=True)
+    )
+    created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
     )

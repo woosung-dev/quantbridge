@@ -1,0 +1,60 @@
+# 생성 코드의 데모 주문·리스크 실행 계약
+
+[ADR-046](../adr/046-generated-strategy-language-evaluation.md)의 `code_v1`에만 적용한다.
+기존 Pine 세션은 `execution_snapshot IS NULL`, 기존 주문은 `risk_context IS NULL`로 구별한다.
+아래 구현은 실제 주문 없이 가짜 공급자와 슬롯 테스트 DB로 검증한다. 운영 활성화는 별도다.
+
+## 활성화와 불변 입력
+
+`POST /live-sessions`는 `source_policy="code_v1"`와 `strategy_version_id`로 명시 진입한다.
+서버는 소유자를 확인한 불변 버전과 검증한 `StrategySettings`로 스냅샷을 생성한다.
+선택적인 요청 `execution_snapshot`은 동일성 검사에만 쓰며 저장값을 덮어쓰지 않는다.
+
+스냅샷 필수값은 `schema_version=1`, `source_policy=code_v1`,
+`policy_version=swing_two_bar_v1`, `version_id`, `language`, `source_hash`,
+`params`, `warmup_bars`, `execution_mode=bybit_demo`, `market_type=linear`다.
+`execution_settings`에는 서버가 동결한 레버리지·마진·포지션 비율을 저장한다.
+실제 `source_code` SHA256과 버전/스냅샷의 해시·언어·정책·파라미터·워밍업을 대조한다.
+쓰기 권한이 확인된 Bybit demo 계정만 허용한다. 실행기 미주입·미완성 버전은 거부한다.
+
+## 체결과 고정 R
+
+`LiveRiskState`는 세션당 한 행이며 `revision` CAS로 갱신한다.
+주문 귀속은 `Order.risk_context={session_id,generation,role}`에 저장한다.
+진입 전 직전 완료 2봉의 extreme까지 거리 × 1.1로 임시 SL을 주문과 함께 저장한다.
+누적 체결량·가치는 단조 갱신하고 중복 이벤트를 무시한다. terminal 진입 VWAP만 초기 R을
+확정한다. 이후 동일 방향은 R을 바꾸지 않는다. 실제 절반 수량이 최소/단위 규칙을
+만족하지 못하면 새 진입을 막고 축소한다.
+
+부분 진입에도 SL을 적용한다. 최종 체결 후 SL을 실제 VWAP 기준으로 조정하고,
+1.5R의 reduce-only 절반 TP 주문과 2R 거리/2R 활성가의 native trailing을 전달한다.
+실제 가격 관측이 2R에 도달하면 손익분기 이상으로 SL을 이동한다.
+독립 포지션 조회가 SL·trailing ACK를 확인한 뒤 `protection_applied`를 갱신한다.
+그 전까지 desired/applied 차이는 대기 상태다. 실패는 새 진입 중단과 reduce-only 청산 의도를
+영속화한다. 거래소가 만든 native SL/trailing 청산도 포지션 대조로 원장에 수렴시킨다.
+
+## 명령 전달과 재시작
+
+원장 CAS와 `CodeRiskCommand` outbox enqueue는 같은 트랜잭션이다.
+상태는 `pending/running/applied/failed/superseded`이며, 세션별 PostgreSQL advisory lock으로
+짧게 claim한 뒤 commit하고 외부 IO를 수행한다. lease는 60초, 명령 IO 예산은 45초다.
+lease token이 같은 실행기만 ACK할 수 있다. 만료 뒤 재시도는 같은 UUID로 먼저 조회한다.
+외부 시스템을 포함한 exactly-once는 주장하지 않는다. 응답 유실은 UUID 조회·중복 제거로
+수렴시키고 조회만으로 미발주를 증명할 수 없으면 취소 확인을 대기한다.
+
+새 진입 UUID는 세션+봉의 `intent_key`, TP UUID는 세션+세대에 고정한다.
+청산 재시도는 실제 잔량과 종결된 시도를 반영한 별도 UUID를 쓴다.
+실행기는 세대·현재 desired token과 다른 명령을 무효화한다.
+WS 체결 직후·연결 복구·5초 주기 복구가 전용 주문/포지션을 조회해 전달을 이어간다.
+종료된 세션이나 소스 검증 실패도 기존 포지션의 축소·취소를 차단하지 않는다.
+
+## 종료와 반전
+
+close/반대 방향 의도는 먼저 영속화하고 미완료 진입을 취소하며 실제 잔량을 축소한다.
+취소 요청 ACK만으로 완료 처리하지 않고 주문 terminal 상태와 실제 flat을 재조회한다.
+자체 TP 주문과 거래소 보호 자식이 모두 사라진 뒤에만 반전을 준비한다.
+이전 반대 의도를 지연 발동하지 않는다. 다음 평가의 **새로운 같은 방향 의도**가 있어야
+그 평가의 수량·직전 2봉으로 새 세대를 만든다. 이 지연 정책 때문에 과거 신호의 2봉은
+다음 진입의 SL 계산에 재사용하지 않는다.
+
+`LiveSignalState`는 UI 캐시다. 리스크 권위나 재시작 원장으로 사용하지 않는다.

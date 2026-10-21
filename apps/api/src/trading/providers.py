@@ -1036,6 +1036,71 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
+    async def set_code_protection(
+        self,
+        creds: Credentials,
+        *,
+        symbol: str,
+        stop_loss: Decimal,
+        distance: Decimal | None,
+        active_price: Decimal | None,
+    ) -> dict[str, Any]:
+        """code_v1 전용 Full SL·2R native trailing. raw V5 호출로 라우팅 추측을 피한다.
+
+        https://bybit-exchange.github.io/docs/v5/position/trading-stop
+        one-way(positionIdx=0)만 지원하며 ACK 뒤 독립 포지션 조회로 보호를 확인한다.
+        """
+        require_bybit_demo_account(creds.exchange, creds.environment)
+        for value in (stop_loss, distance, active_price):
+            if value is not None and (not value.is_finite() or value <= 0):
+                raise ProviderError("code protection prices must be finite and positive")
+        if (distance is None) != (active_price is None):
+            raise ProviderError("trailing distance and activation must be supplied together")
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            request: dict[str, Any] = {
+                "category": "linear",
+                "symbol": _to_bybit_linear_symbol(symbol).split(":")[0].replace("/", ""),
+                "positionIdx": 0,
+                "tpslMode": "Full",
+                "stopLoss": format(stop_loss, "f"),
+                "slTriggerBy": "LastPrice",
+            }
+            if distance is not None and active_price is not None:
+                request.update(
+                    trailingStop=format(distance, "f"), activePrice=format(active_price, "f")
+                )
+            response = await exchange.privatePostV5PositionTradingStop(request)
+            if str(response.get("retCode", "0")) != "0":
+                raise ProviderError("Bybit code protection rejected")
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(f"code protection failed: {type(exc).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_code_protection_close_failed")
+        positions = await self.fetch_open_positions(creds, symbol)
+        if (
+            len(positions) != 1
+            or positions[0].position_idx != 0
+            or positions[0].stop_loss_price != stop_loss
+            or (distance is not None and positions[0].trailing_stop != distance)
+        ):
+            raise ProviderError("code protection acknowledgement not independently confirmed")
+        return {"accepted": True}
+
     async def fetch_position(self, creds: Credentials, symbol: str) -> PositionInfo | None:
         """STEP B — 현재 linear 포지션 스냅샷(stale-position 가드). 무포지션이면 None.
 

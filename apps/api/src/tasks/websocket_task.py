@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
@@ -284,6 +285,30 @@ async def _stream_main(
 
         endpoint = _BYBIT_DEMO_WS_ENDPOINT
 
+        async def recover_code_commands(event_account_id: UUID) -> None:
+            from src.trading.code_risk_composition import build_code_risk_executor
+            from src.trading.providers import BybitFuturesProvider
+            from src.trading.services.account_service import ExchangeAccountService
+
+            async with sm() as risk_session:
+                risk_repo = CodeRiskRepository(risk_session)
+                account_service = ExchangeAccountService(
+                    ExchangeAccountRepository(risk_session), crypto
+                )
+                _, executor = build_code_risk_executor(
+                    risk_session, account_service, BybitFuturesProvider()
+                )
+                for code_session_id in await risk_repo.pending_sessions(event_account_id):
+                    try:
+                        await executor.drain(code_session_id)
+                    except Exception as exc:
+                        await risk_repo.rollback()
+                        logger.warning(
+                            "code_risk_recovery_failed session=%s error_type=%s",
+                            code_session_id,
+                            type(exc).__name__,
+                        )
+
         # 2. Transport callback 조립. session은 각 callback의 composition 경계에서만 연다.
         async def handle_order_event(event_account_id: UUID, payload: dict[str, Any]) -> None:
             async with sm() as session:
@@ -294,6 +319,7 @@ async def _stream_main(
                     risk_service=CodeRiskService(CodeRiskRepository(session)),
                 )
                 await service.handle_order_event(event_account_id, payload)
+            await recover_code_commands(event_account_id)
 
         async def load_position_targets(event_account_id: UUID) -> PositionFanoutTargets:
             async with sm() as session:
@@ -342,6 +368,7 @@ async def _stream_main(
                     settings=settings,
                 )
                 await service.run(account_id=reconcile_account_id)
+            await recover_code_commands(reconcile_account_id)
 
         reconciler: Reconciler | None = Reconciler(reconcile_stream)
 
@@ -352,6 +379,15 @@ async def _stream_main(
         with _STOP_EVENTS_LOCK:
             _STOP_EVENTS[account_id] = (loop, stop_event)
 
+        async def recover_code_periodically() -> None:
+            while not stop_event.is_set() and (
+                lease_lost_event is None or not lease_lost_event.is_set()
+            ):
+                await recover_code_commands(account_uuid)
+                with suppress(TimeoutError):
+                    await asyncio.wait_for(stop_event.wait(), timeout=5)
+
+        recovery_task = asyncio.create_task(recover_code_periodically())
         # 3. WebSocket 진입 + stop_event wait
         try:
             async with BybitPrivateStream(
@@ -463,6 +499,8 @@ async def _stream_main(
                 "circuit_opened": opened,
             }
         finally:
+            recovery_task.cancel()
+            await asyncio.gather(recovery_task, return_exceptions=True)
             # G4 fix #4: 글로벌 dict 에서 제거 — worker_shutdown signal 이후 stale 방지.
             with _STOP_EVENTS_LOCK:
                 _STOP_EVENTS.pop(account_id, None)

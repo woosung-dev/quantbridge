@@ -14,6 +14,11 @@ from src.auth.repository import UserRepository
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
+from src.trading.code_execution_snapshot import (
+    CodeSnapshotError,
+    build_code_snapshot,
+    validate_code_snapshot,
+)
 from src.trading.exceptions import (
     AccountNotFound,
     DemoAccountNotYetStable,
@@ -36,6 +41,8 @@ from src.trading.repositories.live_signal_session_repository import (
 from src.trading.schemas import RegisterLiveSessionRequest
 from src.trading.services.account_exclusivity import AccountExclusivityService
 from src.trading.services.balance_service import AccountBalanceService
+from src.trading.services.code_risk_executor import CodeRiskExecutor
+from src.trading.services.code_risk_service import CodeRiskService
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +71,11 @@ class LiveSignalSessionService:
         exclusivity_service: AccountExclusivityService,
         user_repo: UserRepository | None = None,
         max_active_per_user: int = 5,
+        risk_service: CodeRiskService | None = None,
+        risk_executor: CodeRiskExecutor | None = None,
     ) -> None:
         self._repo = repo
+        self._risk_service, self._risk_executor = risk_service, risk_executor
         self._account_repo = account_repo
         self._strategy_repo = strategy_repo
         self._balance_service = balance_service
@@ -81,6 +91,16 @@ class LiveSignalSessionService:
         strategy = await self._strategy_repo.find_by_id_and_owner(req.strategy_id, user_id)
         if strategy is None:
             raise StrategyNotFoundError()
+
+        if (
+            getattr(strategy, "execution_policy", None) == "code_v1"
+            and req.source_policy != "code_v1"
+        ):
+            raise InvalidStrategySettings(error="코드 전략은 code_v1 명시 opt-in이 필요합니다")
+        if req.source_policy is None and (
+            req.execution_snapshot is not None or req.strategy_version_id is not None
+        ):
+            raise InvalidStrategySettings(error="스냅샷·버전 핀은 code_v1에서만 허용합니다")
 
         if strategy.settings is None:
             raise StrategySettingsRequired(
@@ -104,6 +124,29 @@ class LiveSignalSessionService:
         require_bybit_demo_account(account.exchange, account.mode)
         if account.read_only is True:
             raise ReadOnlyAccountNotAllowed()
+
+        snapshot = None
+        if req.source_policy == "code_v1":
+            if self._risk_service is None or self._risk_executor is None:
+                raise InvalidStrategySettings(error="영속 리스크 실행기가 준비되지 않았습니다")
+            version = await self._strategy_repo.get_version_by_id(
+                req.strategy_version_id, strategy_id=strategy.id
+            )
+            try:
+                if _settings is None or version is None:
+                    raise CodeSnapshotError("실행 버전·설정이 필요합니다")
+                if req.execution_snapshot is not None:
+                    validate_code_snapshot(
+                        req.execution_snapshot,
+                        version=version,
+                        version_id=req.strategy_version_id,
+                        account=account,
+                    )
+                snapshot = build_code_snapshot(
+                    version=version, account=account, settings=_settings.model_dump(mode="json")
+                )
+            except CodeSnapshotError as exc:
+                raise InvalidStrategySettings(error=str(exc)) from exc
 
         # 2.5 quota 사전 검사 (락 없음). 아래 잔고 조회는 CCXT 왕복이라 어차피 거부될 요청에
         # 태우면 낭비다. 권위 판정은 여전히 락 안의 재검사(:157) 이므로 레이스 안전성 무변경.
@@ -156,6 +199,8 @@ class LiveSignalSessionService:
             symbol=req.symbol,
             interval=LiveSignalInterval(req.interval),
             equity_baseline_usdt=balance.total,
+            strategy_version_id=req.strategy_version_id,
+            execution_snapshot=snapshot,
         )
         try:
             saved = await self._repo.save(sess)
@@ -204,6 +249,13 @@ class LiveSignalSessionService:
         if sess is None or sess.user_id != user_id:
             # ownership / 미존재 동일 404 (정보 누설 회피)
             raise StrategyNotFoundError()
+        if sess.execution_snapshot is not None:
+            if self._risk_service is None or self._risk_executor is None:
+                raise InvalidStrategySettings(
+                    error="코드 세션 종료에는 영속 리스크 실행기가 필요합니다"
+                )
+            # 재시작 가능하도록 청산 의도를 먼저 저장한다. 종료 플래그만 바꾸지 않는다.
+            await self._risk_service.stop_session(sess.id)
         rowcount = await self._repo.deactivate(
             session_id,
             at=datetime.now(UTC),
@@ -212,6 +264,8 @@ class LiveSignalSessionService:
         # rowcount==0 일 수 있음 (이미 deactivated). idempotent — error 안 함.
         if rowcount > 0:
             await self._repo.commit()  # LESSON-019
+            if sess.execution_snapshot is not None and self._risk_executor is not None:
+                await self._risk_executor.drain(sess.id)
             from src.tasks.live_signal import sweep_conditional_entries_task
 
             try:

@@ -151,3 +151,46 @@ async def test_real_ws_partial_and_terminal_fill_share_commit_and_survive_restar
     assert order.state == OrderState.filled and order.filled_quantity == D("2")
     state = await repo.get(session.id)
     assert state is not None and state.fixed_r == D("4.4") and state.revision == 2
+
+
+@pytest.mark.asyncio
+async def test_outbox_lease_survives_restart_and_rejects_old_ack(prepared, db_session):
+    from datetime import timedelta
+
+    from sqlalchemy import func, select
+
+    from src.trading.models import CodeRiskCommand
+
+    repo, session, _ = prepared
+    commands = await CodeRiskService(repo).recover(session.id)
+    row = CodeRiskCommand(
+        key=commands[0].key,
+        session_id=session.id,
+        generation=1,
+        kind=commands[0].kind,
+        payload=commands[0].payload,
+    )
+    await repo.enqueue_commands([row, row])
+    await repo.commit()
+    count = await db_session.scalar(select(func.count()).select_from(CodeRiskCommand))
+    assert count == 1
+    old_token, new_token = uuid4(), uuid4()
+    claimed = await repo.claim_command(session.id, old_token)
+    assert claimed is not None and claimed.attempts == 1
+    await repo.commit()
+    assert await CodeRiskRepository(db_session).claim_command(session.id, new_token) is None
+    await repo.commit()
+    persisted = await db_session.get(CodeRiskCommand, claimed.key)
+    assert persisted is not None
+    persisted.lease_until = datetime.now(UTC) - timedelta(seconds=1)
+    await db_session.commit()
+    reclaimed = await repo.claim_command(session.id, new_token)
+    assert reclaimed is not None and reclaimed.attempts == 2
+    await repo.commit()
+    assert not await repo.finish_command(claimed.key, old_token, status="applied")
+    assert await repo.finish_command(
+        claimed.key, new_token, status="applied", result={"accepted": True}
+    )
+    await repo.commit()
+    assert await repo.claim_command(session.id, uuid4()) is None
+    await repo.commit()

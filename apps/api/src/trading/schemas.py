@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -237,6 +237,9 @@ class RegisterLiveSessionRequest(BaseModel):
 
     strategy_id: UUID
     exchange_account_id: UUID
+    source_policy: Literal["code_v1"] | None = None
+    strategy_version_id: UUID | None = None
+    execution_snapshot: dict[str, Any] | None = None
     # BL-454 — canonical(`BTC/USDT`) 로 정규화해 저장한다. 세션 손익 스코프가
     # `Order.symbol` 과 **정확 문자열 동등**을 쓰므로(`order_repository._session_scope_where`),
     # 표기가 어긋난 주문은 세션 합계에서 조용히 빠지고 loss-limit 알림이 fail-open 한다.

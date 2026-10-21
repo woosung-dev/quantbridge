@@ -221,7 +221,12 @@ async def get_live_signal_session_service(
     동일 session 으로 LiveSignalSessionRepository + ExchangeAccountRepository +
     StrategyRepository 주입 — 단일 트랜잭션 commit 보장 (LESSON-019 cross-repo 패턴).
     """
+    from src.trading.code_risk_composition import build_code_risk_executor
+
+    risk, executor = build_code_risk_executor(session, account_service, bybit_futures_provider)
     return LiveSignalSessionService(
+        risk_service=risk,
+        risk_executor=executor,
         repo=LiveSignalSessionRepository(session),
         account_repo=ExchangeAccountRepository(session),
         strategy_repo=StrategyRepository(session),

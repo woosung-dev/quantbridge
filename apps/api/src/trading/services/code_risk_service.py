@@ -9,7 +9,7 @@ from typing import Literal, cast
 from uuid import UUID
 
 from src.strategy.python_runtime.swing_risk import POLICY, Direction, RiskPlan, create_plan
-from src.trading.models import LiveRiskState, OrderSide, OrderState
+from src.trading.models import CodeRiskCommand, LiveRiskState, OrderSide, OrderState
 from src.trading.repositories.code_risk_repository import CodeRiskRepository
 
 ZERO = Decimal(0)
@@ -106,8 +106,10 @@ class CodeRiskService:
         if not await self._repo.attach_entry(state, provisional.stop_loss):
             await self._repo.rollback()
             raise CodeRiskError("발주 전 주문 귀속 경쟁: 임시 SL을 저장하지 못했습니다")
+        commands = self._commands(state)
+        await self._enqueue(state, commands)
         await self._repo.commit()
-        return self._commands(state)
+        return commands
 
     async def record_entry_fill(
         self,
@@ -258,6 +260,16 @@ class CodeRiskService:
             state.cancels_confirmed = False
         return await self._save(state, commit=commit)
 
+    async def record_zero_exit(
+        self, session_id: UUID, generation: int, order_id: UUID, *, commit: bool = True
+    ) -> list[RiskCommand]:
+        """체결 없이 종결된 청산 시도를 기록해 다음 시도의 UUID를 바꾼다."""
+        state = await self._load(session_id, generation)
+        if state is None or str(order_id) in state.exit_fills:
+            return []
+        state.exit_fills = {**state.exit_fills, str(order_id): "0"}
+        return await self._save(state, commit=commit)
+
     async def mark_price(
         self, session_id: UUID, generation: int, price: Decimal
     ) -> list[RiskCommand]:
@@ -308,6 +320,16 @@ class CodeRiskService:
     async def recover(self, session_id: UUID) -> list[RiskCommand]:
         state = await self._repo.get(session_id)
         return self._commands(state) if state is not None else []
+
+    async def stop_session(self, session_id: UUID) -> list[RiskCommand]:
+        state = await self._repo.get(session_id)
+        if state is None:
+            return []
+        return await self.request_signal(session_id, state.generation, "close")
+
+    async def halt(self, session_id: UUID, generation: int, reason: str) -> list[RiskCommand]:
+        state = await self._load(session_id, generation)
+        return await self._fail(state, reason) if state is not None else []
 
     async def _load(self, session_id: UUID, generation: int) -> LiveRiskState | None:
         state = await self._repo.get(session_id)
@@ -380,9 +402,25 @@ class CodeRiskService:
         if not await self._repo.compare_and_swap(state, state.revision):
             raise CodeRiskError("리스크 원장 CAS 충돌: 재조회가 필요합니다")
         state.revision += 1
+        commands = self._commands(state)
+        await self._enqueue(state, commands)
         if commit:
             await self._repo.commit()
-        return self._commands(state)
+        return commands
+
+    async def _enqueue(self, state: LiveRiskState, commands: list[RiskCommand]) -> None:
+        await self._repo.enqueue_commands(
+            [
+                CodeRiskCommand(
+                    key=command.key,
+                    session_id=state.session_id,
+                    generation=state.generation,
+                    kind=command.kind,
+                    payload=command.payload,
+                )
+                for command in commands
+            ]
+        )
 
     async def _fail(
         self, state: LiveRiskState, reason: str, *, commit: bool = True
@@ -409,12 +447,19 @@ class CodeRiskService:
                     {"order_id": str(state.entry_order_id)},
                 )
             )
-        if state.close_requested and state.position_quantity > 0:
+        if state.close_requested and (state.position_quantity > 0 or not state.entry_terminal):
             commands.append(
                 RiskCommand(
                     "flatten",
-                    f"{prefix}:flatten:{state.cumulative_quantity}:{state.position_quantity}",
-                    {"quantity": str(state.position_quantity), "reduce_only": True},
+                    f"{prefix}:flatten:{state.cumulative_quantity}:{state.position_quantity}:{len(state.exit_fills)}",
+                    {
+                        "quantity": str(
+                            max(state.position_quantity, state.expected_quantity)
+                            if not state.entry_terminal
+                            else state.position_quantity
+                        ),
+                        "reduce_only": True,
+                    },
                 )
             )
         elif state.position_quantity > 0 and state.protection_desired != state.protection_applied:

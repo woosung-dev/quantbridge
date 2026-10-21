@@ -1189,6 +1189,8 @@ def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
             "live_signal_sessions",
             "live_signal_states",
             "live_signal_events",
+            "live_risk_states",
+            "code_risk_commands",
             # tier-c — 세션별 알림 규칙
             "alert_rules",
             # exit-attribution — 거래소 원본 청산 원장
