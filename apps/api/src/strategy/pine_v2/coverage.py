@@ -135,6 +135,7 @@ _DISPLAY_CONSTANTS: frozenset[str] = frozenset(
         "plot.style_linebr",
         "plot.style_circles",
         "plot.style_cross",
+        "plot.style_columns",
         "hline.style_dotted",
     }
 )
@@ -276,6 +277,7 @@ _V4_ALIASES: frozenset[str] = frozenset(
     {
         "rma",
         "sma",
+        "wma",
         "ema",
         "rsi",
         "atr",
@@ -285,6 +287,9 @@ _V4_ALIASES: frozenset[str] = frozenset(
         "crossunder",
         "cross",
         "floor",
+        "round",
+        "sqrt",
+        "avg",
         "change",
         "stdev",
         "variance",

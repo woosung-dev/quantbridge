@@ -485,8 +485,8 @@ def ta_sar(
 
     알고리즘:
     - 추세별 SAR_t+1 = SAR_t + AF * (EP - SAR_t)
-    - SAR 는 직전 2 bar 의 low(uptrend)/high(downtrend) 를 침범하지 않도록 clamp
-    - low(uptrend) 또는 high(downtrend) 가 SAR 를 침범 → 반전 → 새 SAR = 직전 EP
+    - 현재 봉에서 반전 판정 후 직전 2 bar 의 low(uptrend)/high(downtrend) 로 clamp
+    - low(uptrend) 또는 high(downtrend) 가 SAR 를 침범 → 반전 → 새 SAR = 직전 EP 와 현재 극값
     - EP 갱신 시마다 AF += increment (단, ≤ maximum)
 
     nan high/low 는 nan 반환 + 상태 갱신 생략 (다음 bar 에 영향 없음).
@@ -524,18 +524,12 @@ def ta_sar(
     prev_ep = state.extreme_point
     af = state.acceleration_factor
 
+    new_sar = prev_sar + af * (prev_ep - prev_sar)
     if state.is_uptrend:
-        new_sar = prev_sar + af * (prev_ep - prev_sar)
-        # Wilder 규칙: SAR 는 직전 2 bar 의 low 보다 높을 수 없음.
-        # (이번 bar 의 low 는 반전 판정용 — clamp 대상이 아님)
-        new_sar = min(new_sar, state.prev_low)
-        if not math.isnan(state.prev2_low):
-            new_sar = min(new_sar, state.prev2_low)
-        # 반전 체크: 이번 low 가 새 SAR 를 침범
-        if low < new_sar:
-            # 하락 반전: 새 추세의 SAR = 직전 EP, EP = 이번 low
+        # 현재 봉의 반전은 이전 두 봉 clamp보다 먼저 판정한다.
+        if new_sar > low:
             state.is_uptrend = False
-            state.sar = prev_ep
+            state.sar = max(high, prev_ep)
             state.extreme_point = low
             state.acceleration_factor = start
         else:
@@ -544,15 +538,9 @@ def ta_sar(
                 state.extreme_point = high
                 state.acceleration_factor = min(af + increment, maximum)
     else:
-        new_sar = prev_sar + af * (prev_ep - prev_sar)
-        # Wilder 규칙: SAR 는 직전 2 bar 의 high 보다 낮을 수 없음.
-        new_sar = max(new_sar, state.prev_high)
-        if not math.isnan(state.prev2_high):
-            new_sar = max(new_sar, state.prev2_high)
-        # 반전 체크: 이번 high 가 새 SAR 를 침범
-        if high > new_sar:
+        if new_sar < high:
             state.is_uptrend = True
-            state.sar = prev_ep
+            state.sar = min(low, prev_ep)
             state.extreme_point = high
             state.acceleration_factor = start
         else:
@@ -560,6 +548,15 @@ def ta_sar(
             if low < prev_ep:
                 state.extreme_point = low
                 state.acceleration_factor = min(af + increment, maximum)
+
+    if state.is_uptrend:
+        state.sar = min(state.sar, state.prev_low)
+        if not math.isnan(state.prev2_low):
+            state.sar = min(state.sar, state.prev2_low)
+    else:
+        state.sar = max(state.sar, state.prev_high)
+        if not math.isnan(state.prev2_high):
+            state.sar = max(state.sar, state.prev2_high)
 
     state.prev2_high = state.prev_high
     state.prev2_low = state.prev_low
