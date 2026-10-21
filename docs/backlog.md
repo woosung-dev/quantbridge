@@ -770,7 +770,7 @@ BL-529의 계정 UID 거울과 다른 단일 계정 경로다. 근거는 control
 
 **현재 경계:** 동일 raw 중복은 제거한다. code_v1은 완료 cursor·단일 원본·terminal 체결량이
 일치할 때만 확정하고, 다른 원본 관측은 기존 금액·시각을 보존한 미확정 상태로 남긴다.
-native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 206개가 통과했다.
+native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 305개가 통과했다.
 **잔여:** legacy의 서로 다른 raw 합산과 불완전 조회 CAS는 남아 있다. 공식 cursor 완료를
 입증하지 못한 자료의 legacy 확정 경로를 별도로 막아야 한다.
 **출처:** [Bybit Closed PnL](https://bybit-exchange.github.io/docs/v5/position/close-pnl).

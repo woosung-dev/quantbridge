@@ -66,23 +66,18 @@ fake 검사는 진입·종결 체결 VWAP 기준 고정 R·SL/추적 보호 파�
 응답의 `pnl_complete=false`와 알려진 주문 손익 소계를 구분한다
 ([리스크 계약](../domain/code-risk-execution.md#native-청산-미정산과-손익-표시)).
 
-광역 CI 관측은 `44f93d68`의 BE `6990 passed, 71 skipped, 2 xfailed`(912.71초),
+광역 CI 관측은 `c1be7797`의 BE `7149 passed, 71 skipped, 2 xfailed`(973.72초),
 FE·strategy journey·live-smoke 통과다. 미정산 계정 가드·전송 직전 재확인과 목록·대시보드
-표시, 수치 v2·운영 측정기 통합이 포함된다. 해당 CI 통과도
+표시, 수치 v2·운영 측정기·native SL 귀속·물리 계정 소유권·코드 손익 증거가 포함된다. 해당 CI 통과도
 실거래소 주문·native child 회계 검증을 대신하지 않는다.
 원시 관측 근거는 control의 `runs/sol-strategy-lab/native-product-journey-latest.json`과
-`ci-backend-44f93d68.log`에 보존한다.
+`ci-backend-c1be7797.log`에 보존한다. 후속 head의 전체 판정은 PR CI를 따른다.
 
-후속 `7e00442b`의 명시 부모 attached SL·미정산·물리 계정/심볼 소유권·최종 발주 경계는
-control 슬롯 SQL과 가짜 공급자를 사용한 독립 검사 `116 passed`(12.11초), mypy 286파일,
-ruff·OpenAPI drift 검사로 확인했다. 같은 거래소 체결을 두 DB 연결이 동시에 처리하는
-경합도 포함한다. 원시 근거는 `runs/sol-strategy-lab/native-sl-observation/`이며 실제
-Demo 자식 체결 관측이 아니다. 후속 head의 전체 판정은 PR CI를 따른다.
-
-코드 청산의 단일 원본 손익·충돌 보존과 native WS 경계는 `655f095f`의 통합 슬롯에서
-`206 passed`(12.73초), mypy 286파일·ruff·OpenAPI drift 검사로 확인했다. 근거는
-`runs/sol-strategy-lab/code-exit-pnl-evidence/`다. 이 손익 경로의 두 DB 연결 경합은
+후속 코드 청산의 단일 원본 손익·충돌 보존·조회 예산·커밋 순서와 native WS 경계는 통합 슬롯에서
+`305 passed`(50.34초), mypy 286파일·ruff·OpenAPI drift 검사로 확인했다. 근거는
+`runs/sol-strategy-lab/pnl-query-budget-final/`이다. 이 손익 경로의 두 DB 연결 경합은
 별도 실측하지 않았으며, 단일 수량 일치 관측을 거래소 최종성 보장으로 해석하지 않는다.
+native SL 귀속의 별도 두 DB 연결 경합 근거는 `runs/sol-strategy-lab/native-sl-observation/`이다.
 
 ## 실행 기한과 제품 적합성 판단
 

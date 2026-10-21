@@ -35,8 +35,8 @@ _VALIDATED_CCXT_VERSIONS = frozenset({"4.5.49"})
 
 # closedPnl 조회 시 되돌아볼 여유 구간 (ms).
 # ccxt 4.5.49 의 `fetch_positions_history` 는 Bybit 응답을 받은 뒤 `filter_by_since_limit` 로 한 번
-# 더 거르는데, 이때 비교하는 값은 `parse_position` 이 **`createdTime`** (거래소가 청산 주문을 만든
-# 시각) 에서 뽑은 timestamp 다. 반면 우리가 넘기는 since 는 `Order.filled_at` = 체결을 **감지한**
+# 더 거르는데, 이때 비교하는 값은 `parse_position` 이 **`createdTime`** 에서 뽑은 timestamp 다.
+# 생성 대상은 공식 문서가 특정하지 않는다. 이 legacy 경로의 since 는 `Order.filled_at` = 체결을 **감지한**
 # 시각이다. WS 이벤트가 유실돼 reconciler(300s 주기) 나 늦은 watchdog 이 fill winner 가 되면
 # filled_at 이 createdTime 보다 한참 뒤라, 여유가 좁으면 ccxt 가 우리 행을 클라이언트 단에서
 # 버린다 → snapshot None → 재시도해도 창이 그대로라 영구 실패 + 오탐 알림.
@@ -1770,11 +1770,10 @@ class BybitFuturesProvider:
             if oldest_ms is None:
                 break
             # ★커서를 oldest-1 로 내리면 그 밀리초에 남은 **동일 createdTime 행**을 영구히
-            # 건너뛴다. 한 청산 주문의 분할 행은 createdTime 을 공유할 수 있고(구분은
-            # updatedTime) 페이지 상한을 넘는 tie 가 조용히 사라진다. 그게 우리 주문이면
-            # aggregate_closed_pnl 이 부분합을 돌려주고 잘못된 realized_pnl 이 CAS 로
-            # 영구 고정된다. Bybit 은 tie-breaker 커서를 주지 않으므로 경계를 **포함**해
-            # 다시 읽는다 — 중복 행은 원장 UNIQUE(row_hash) 가 흡수하므로 이중 합산이 없다.
+            # 건너뛸 수 있다. 이 legacy CCXT 목록 경로는 V5 nextPageCursor를 보존하지
+            # 않으므로 경계를 포함해 다시 읽는다. 동일 raw는 집계에서 중복 제거하고
+            # 원장은 UNIQUE(row_hash)가 흡수한다. 서로 다른 raw의 독립성과 조회 완료를
+            # 증명하지 못한 legacy 손익 CAS는 BL-871의 잔여다.
             next_until_ms = oldest_ms
             if next_until_ms >= until_ms or next_until_ms <= start_ms:
                 # 꽉 찬 페이지에서 커서가 더 못 가면 완전 조회를 증명할 수 없다.
