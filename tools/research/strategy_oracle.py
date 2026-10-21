@@ -2,6 +2,11 @@
 
 history는 현재 완료 봉을 포함한다. 상태에는 이 판정기의 증분 계산만 저장한다.
 지원하지 않는 규칙은 hold로 위장하지 않고 OracleUnavailable로 드러낸다.
+
+full 수치 계약 v2: 유한한 신호 비교는 1e-12*max(1,abs(a),abs(b)) 이내를 동률로
+본다. 원시 극값의 순서·동률, 봉 수·시간, 분모의 구조적 0은 정확 비교를 유지한다.
+평균은 첫 값을 기준으로 중심화한 합을 사용하고 평활은 이전 값에 변화량을 더한다.
+따라서 상수 평균·평활과 0 분산/MAD를 보존한다. Decimal 주문·리스크 수식은 별개다.
 """
 
 from __future__ import annotations
@@ -51,13 +56,51 @@ def unsupported_reason(strategy_id: str) -> str | None:
     return None if strategy_id in supported_ids() else "독립 수식 판정기가 아직 구현되지 않았습니다"
 
 
+def _comparison(a: float, b: float) -> int | None:
+    if not math.isfinite(a) or not math.isfinite(b):
+        return None
+    if abs(a - b) <= 1e-12 * max(1.0, abs(a), abs(b)):
+        return 0
+    return 1 if a > b else -1
+
+
+def _gt(a: float, b: float) -> bool:
+    return _comparison(a, b) == 1
+
+
+def _lt(a: float, b: float) -> bool:
+    return _comparison(a, b) == -1
+
+
+def _ge(a: float, b: float) -> bool:
+    return _comparison(a, b) in (0, 1)
+
+
+def _le(a: float, b: float) -> bool:
+    return _comparison(a, b) in (-1, 0)
+
+
+def _mean(values: list[float]) -> float:
+    """큰 가격의 합을 나누지 않아 동일 상수와 작은 편차를 보존한다."""
+    anchor = values[0]
+    return anchor + math.fsum(value - anchor for value in values) / len(values)
+
+
+def _population_std(values: list[float]) -> float:
+    offsets = [value - values[0] for value in values]
+    center = _mean(offsets)
+    return math.sqrt(_mean([(value - center) ** 2 for value in offsets]))
+
+
 def _cross(a: list[float], b: list[float], *, up: bool = True) -> bool:
     if min(len(a), len(b)) < 2 or not all(
         math.isfinite(v) for v in (a[-2], a[-1], b[-2], b[-1])
     ):
         return False
     return (
-        (a[-2] <= b[-2] and a[-1] > b[-1]) if up else (a[-2] >= b[-2] and a[-1] < b[-1])
+        (_le(a[-2], b[-2]) and _gt(a[-1], b[-1]))
+        if up
+        else (_ge(a[-2], b[-2]) and _lt(a[-1], b[-1]))
     )
 
 
@@ -74,7 +117,7 @@ class _Math:
             for key in ("open", "high", "low", "close", "volume"):
                 self.fields[key].append(float(bar[key]))
             self.fields["hlc3"].append(
-                sum(self.fields[key][-1] for key in ("high", "low", "close")) / 3
+                _mean([self.fields[key][-1] for key in ("high", "low", "close")])
             )
             self.times.append(
                 datetime.fromisoformat(
@@ -101,10 +144,9 @@ class _Math:
             elif kind == "min":
                 result.append(min(window))
             elif kind == "std":
-                mean = sum(window) / length
-                result.append(math.sqrt(sum((v - mean) ** 2 for v in window) / length))
+                result.append(_population_std(window))
             else:
-                result.append(sum(window) / length)
+                result.append(_mean(window))
         return result
 
     def smooth(
@@ -118,11 +160,11 @@ class _Math:
             if not math.isfinite(value):
                 result.append(_NAN)
             elif math.isfinite(previous):
-                result.append(alpha * value + (1 - alpha) * previous)
+                result.append(previous + alpha * (value - previous))
             else:
                 window = values[max(0, index - length + 1) : index + 1]
                 result.append(
-                    sum(window) / length
+                    _mean(window)
                     if len(window) == length and all(math.isfinite(v) for v in window)
                     else _NAN
                 )
@@ -172,33 +214,41 @@ class _Math:
 
     def vwap(self) -> list[float]:
         result = self.cache.setdefault("vwap", [])
-        total_value = self.cache.setdefault("vwap_value", [])
+        origins = self.cache.setdefault("vwap_origin", [])
+        total_value = self.cache.setdefault("vwap_offset", [])
         total_volume = self.cache.setdefault("vwap_volume", [])
         for index in range(len(result), len(self.times)):
             reset = (
                 index == 0 or self.times[index].date() != self.times[index - 1].date()
             )
-            value = self.fields["hlc3"][index] * self.fields["volume"][index]
+            origin = self.fields["hlc3"][index] if reset else origins[-1]
+            origins.append(origin)
             volume = self.fields["volume"][index]
+            value = (self.fields["hlc3"][index] - origin) * volume
             total_value.append(value + (0 if reset else total_value[-1]))
             total_volume.append(volume + (0 if reset else total_volume[-1]))
             result.append(
-                total_value[-1] / total_volume[-1] if total_volume[-1] > 0 else _NAN
+                origin + total_value[-1] / total_volume[-1] if total_volume[-1] > 0 else _NAN
             )
         return result
 
     def anchored_vwap(self) -> list[float]:
         result = self.cache.setdefault("anchored_vwap", [])
-        total_value = self.cache.setdefault("anchored_value", [])
+        origins = self.cache.setdefault("anchored_origin", [])
+        total_value = self.cache.setdefault("anchored_offset", [])
         total_volume = self.cache.setdefault("anchored_volume", [])
         anchor = datetime(2026, 1, 1, tzinfo=UTC)
         for index in range(len(result), len(self.times)):
             included = self.times[index] >= anchor
+            origin = origins[-1] if origins else _NAN
+            if included and not math.isfinite(origin):
+                origin = self.fields["hlc3"][index]
+            origins.append(origin)
             volume = self.fields["volume"][index] if included else 0
-            value = self.fields["hlc3"][index] * volume
+            value = (self.fields["hlc3"][index] - origin) * volume if included else 0
             total_value.append((total_value[-1] if total_value else 0) + value)
             total_volume.append((total_volume[-1] if total_volume else 0) + volume)
-            result.append(total_value[-1] / total_volume[-1] if total_volume[-1] > 0 else _NAN)
+            result.append(origin + total_value[-1] / total_volume[-1] if total_volume[-1] > 0 else _NAN)
         return result
 
     def squeeze(self) -> tuple[list[float], list[float]]:
@@ -222,7 +272,7 @@ class _Math:
             if (
                 math.isfinite(width[index])
                 and len(valid) >= 120
-                and width[index] <= min(valid[-120:])
+                and _le(width[index], min(valid[-120:]))
             ):
                 event, used = float(index), False
             up = down = False
@@ -253,8 +303,8 @@ class _Math:
         for index in range(len(longs), len(close)):
             previous_long = pending_long[-1] if pending_long else _NAN
             previous_short = pending_short[-1] if pending_short else _NAN
-            up = index > 0 and math.isfinite(previous_long) and close[index] > high[index - 1]
-            down = index > 0 and math.isfinite(previous_short) and close[index] < low[index - 1]
+            up = index > 0 and math.isfinite(previous_long) and _gt(close[index], high[index - 1])
+            down = index > 0 and math.isfinite(previous_short) and _lt(close[index], low[index - 1])
             longs.append(float(up))
             shorts.append(float(down))
             long_level.append(previous_long if up else long_level[-1] if long_level else _NAN)
@@ -266,16 +316,16 @@ class _Math:
             window = rsi[index - 6 : index + 1] if index >= 6 else []
             if len(window) == 7 and all(math.isfinite(value) for value in window):
                 neighbours = window[:3] + window[4:]
-                if rsi[pivot] < min(neighbours):
+                if _lt(rsi[pivot], min(neighbours)):
                     if math.isfinite(first_low) and 3 <= pivot - first_low <= 60:
                         first = int(first_low)
-                        if low[pivot] < low[first] and rsi[pivot] > rsi[first]:
+                        if _lt(low[pivot], low[first]) and _gt(rsi[pivot], rsi[first]):
                             bull = low[pivot]
                     first_low = float(pivot)
-                if rsi[pivot] > max(neighbours):
+                if _gt(rsi[pivot], max(neighbours)):
                     if math.isfinite(first_high) and 3 <= pivot - first_high <= 60:
                         first = int(first_high)
-                        if high[pivot] > high[first] and rsi[pivot] < rsi[first]:
+                        if _gt(high[pivot], high[first]) and _lt(rsi[pivot], rsi[first]):
                             bear = high[pivot]
                     first_high = float(pivot)
             latest_low.append(first_low)
@@ -289,13 +339,12 @@ class _Math:
         closes = self.cache.setdefault("ha_close", [])
         for index in range(len(opens), len(self.times)):
             opens.append(
-                (self.fields["open"][index] + self.fields["close"][index]) / 2
+                _mean([self.fields["open"][index], self.fields["close"][index]])
                 if index == 0
-                else (opens[-1] + closes[-1]) / 2
+                else _mean([opens[-1], closes[-1]])
             )
             closes.append(
-                sum(self.fields[key][index] for key in ("open", "high", "low", "close"))
-                / 4
+                _mean([self.fields[key][index] for key in ("open", "high", "low", "close")])
             )
         return opens, closes
 
@@ -342,20 +391,16 @@ class _Math:
 
     def cci(self) -> list[float]:
         typical = self.fields["hlc3"]
-        mean = self.rolling("cci_mean", typical, 20)
 
         def formula(index: int) -> float:
             if index < 19:
                 return _NAN
-            deviation = (
-                sum(
-                    abs(value - mean[index])
-                    for value in typical[index - 19 : index + 1]
-                )
-                / 20
-            )
+            window = typical[index - 19 : index + 1]
+            offsets = [value - window[0] for value in window]
+            center = _mean(offsets)
+            deviation = _mean([abs(value - center) for value in offsets])
             return (
-                (typical[index] - mean[index]) / (0.015 * deviation)
+                (offsets[-1] - center) / (0.015 * deviation)
                 if deviation > 0
                 else 0
             )
@@ -482,22 +527,22 @@ class _Math:
             final_upper = (
                 basic_upper
                 if not valid_previous
-                or basic_upper < upper[-1]
-                or close[index - 1] > upper[-1]
+                or _lt(basic_upper, upper[-1])
+                or _gt(close[index - 1], upper[-1])
                 else upper[-1]
             )
             final_lower = (
                 basic_lower
                 if not valid_previous
-                or basic_lower > lower[-1]
-                or close[index - 1] < lower[-1]
+                or _gt(basic_lower, lower[-1])
+                or _lt(close[index - 1], lower[-1])
                 else lower[-1]
             )
             previous = direction[-1] if valid_previous else -1
             current_direction = (
-                (1 if close[index] > final_upper else -1)
+                (1 if _gt(close[index], final_upper) else -1)
                 if previous < 0
-                else (-1 if close[index] < final_lower else 1)
+                else (-1 if _lt(close[index], final_lower) else 1)
             )
             upper.append(final_upper)
             lower.append(final_lower)
@@ -597,19 +642,17 @@ class _Math:
                 upper.append(_NAN)
                 continue
             prices = self.fields["close"][index - 49 : index + 1]
-            mean = sum(prices) / 50
+            offsets = [price - prices[0] for price in prices]
+            center = _mean(offsets)
             slope = (
-                sum((x - 24.5) * (price - mean) for x, price in enumerate(prices))
+                math.fsum((x - 24.5) * (value - center) for x, value in enumerate(offsets))
                 / 10412.5
             )
-            endpoint = mean + slope * 24.5
-            deviation = math.sqrt(
-                sum(
-                    (price - (mean + slope * (x - 24.5))) ** 2
-                    for x, price in enumerate(prices)
-                )
-                / 50
-            )
+            endpoint = prices[0] + center + slope * 24.5
+            deviation = math.sqrt(_mean([
+                (value - (center + slope * (x - 24.5))) ** 2
+                for x, value in enumerate(offsets)
+            ]))
             slopes.append(slope)
             lower.append(endpoint - 2 * deviation)
             upper.append(endpoint + 2 * deviation)
@@ -634,9 +677,9 @@ class _Math:
             ema = self.smooth("htf_ema200", closes, 200)
             value = (
                 1
-                if closes and ema and closes[-1] > ema[-1]
+                if closes and ema and _gt(closes[-1], ema[-1])
                 else -1
-                if closes and ema and closes[-1] < ema[-1]
+                if closes and ema and _lt(closes[-1], ema[-1])
                 else 0
             )
             result.append(value)
@@ -663,8 +706,8 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
         return (
             _cross(fast, slow),
             _cross(fast, slow, up=False),
-            fast[-1] < slow[-1],
-            fast[-1] > slow[-1],
+            _lt(fast[-1], slow[-1]),
+            _gt(fast[-1], slow[-1]),
         )
     if ident == "D02":
         upper, lower = data.channel(7)
@@ -672,42 +715,42 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
         return (
             _cross(close, upper),
             _cross(close, lower, up=False),
-            current < middle,
-            current > middle,
+            _lt(current, middle),
+            _gt(current, middle),
         )
     if ident == "D03":
         rsi, ema = data.rsi(7), data.ema(15)[-1]
         level = [50.0] * len(close)
         return (
-            _cross(rsi, level) and current > ema,
-            _cross(rsi, level, up=False) and current < ema,
-            rsi[-1] < 45 or current < ema,
-            rsi[-1] > 55 or current > ema,
+            _cross(rsi, level) and _gt(current, ema),
+            _cross(rsi, level, up=False) and _lt(current, ema),
+            _lt(rsi[-1], 45) or _lt(current, ema),
+            _gt(rsi[-1], 55) or _gt(current, ema),
         )
     if ident == "D04":
         macd, signal = data.macd(3, 7, 2)
         ema = data.ema(15)[-1]
         up, down = _cross(macd, signal), _cross(macd, signal, up=False)
         return (
-            up and current > ema,
-            down and current < ema,
-            down or current < ema,
-            up or current > ema,
+            up and _gt(current, ema),
+            down and _lt(current, ema),
+            down or _lt(current, ema),
+            up or _gt(current, ema),
         )
     if ident == "D05":
         vwap, ema = data.vwap(), data.ema(15)[-1]
         if not math.isfinite(vwap[-1]) or len(vwap) < 2:
             return False, False, False, False
         return (
-            _cross(close, vwap) and current > ema and vwap[-1] > vwap[-2],
-            _cross(close, vwap, up=False) and current < ema and vwap[-1] < vwap[-2],
-            current < vwap[-1],
-            current > vwap[-1],
+            _cross(close, vwap) and _gt(current, ema) and _gt(vwap[-1], vwap[-2]),
+            _cross(close, vwap, up=False) and _lt(current, ema) and _lt(vwap[-1], vwap[-2]),
+            _lt(current, vwap[-1]),
+            _gt(current, vwap[-1]),
         )
     if ident in {"D06", "28"}:
         opens, closes = data.ha()
-        bull = [c > o for o, c in zip(opens, closes, strict=True)]
-        bear = [c < o for o, c in zip(opens, closes, strict=True)]
+        bull = [_gt(c, o) for o, c in zip(opens, closes, strict=True)]
+        bear = [_lt(c, o) for o, c in zip(opens, closes, strict=True)]
         new_bull = (
             len(bull) >= 2
             and bull[-1]
@@ -722,8 +765,8 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
         )
         ema = data.ema(15 if ident == "D06" else 200)[-1]
         return (
-            new_bull and current > ema,
-            new_bear and current < ema,
+            new_bull and _gt(current, ema),
+            new_bear and _lt(current, ema),
             bear[-1],
             bull[-1],
         )
@@ -731,10 +774,10 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
         fast, slow = data.ema(20), data.ema(50)
         up, down = _cross(fast, slow), _cross(fast, slow, up=False)
         if ident == "02":
-            up = fast[-1] > slow[-1] and _cross(close, fast)
-            down = fast[-1] < slow[-1] and _cross(close, fast, up=False)
-            return up, down, current < slow[-1], current > slow[-1]
-        return up, down, fast[-1] < slow[-1], fast[-1] > slow[-1]
+            up = _gt(fast[-1], slow[-1]) and _cross(close, fast)
+            down = _lt(fast[-1], slow[-1]) and _cross(close, fast, up=False)
+            return up, down, _lt(current, slow[-1]), _gt(current, slow[-1])
+        return up, down, _lt(fast[-1], slow[-1]), _gt(fast[-1], slow[-1])
     if ident in {"03", "04"}:
         upper, lower = data.channel(20 if ident == "03" else 55)
         if ident == "03":
@@ -742,15 +785,15 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
             return (
                 _cross(close, upper),
                 _cross(close, lower, up=False),
-                current < middle,
-                current > middle,
+                _lt(current, middle),
+                _gt(current, middle),
             )
         exit_high, exit_low = data.channel(20)
         return (
             _cross(close, upper),
             _cross(close, lower, up=False),
-            current < exit_low[-1],
-            current > exit_high[-1],
+            _lt(current, exit_low[-1]),
+            _gt(current, exit_high[-1]),
         )
     if ident in {"08", "10", "29"}:
         if ident == "08":
@@ -758,10 +801,10 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
             upper = [e + 2 * a for e, a in zip(ema, atr, strict=True)]
             lower = [e - 2 * a for e, a in zip(ema, atr, strict=True)]
             return (
-                _cross(close, upper) and len(ema) > 1 and ema[-1] > ema[-2],
-                _cross(close, lower, up=False) and len(ema) > 1 and ema[-1] < ema[-2],
-                current < ema[-1],
-                current > ema[-1],
+                _cross(close, upper) and len(ema) > 1 and _gt(ema[-1], ema[-2]),
+                _cross(close, lower, up=False) and len(ema) > 1 and _lt(ema[-1], ema[-2]),
+                _lt(current, ema[-1]),
+                _gt(current, ema[-1]),
             )
         if ident == "10":
             atr, ema = data.atr(20), data.ema(20)[-1]
@@ -774,34 +817,34 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
             return (
                 _cross(close, upper),
                 _cross(close, lower, up=False),
-                current < ema,
-                current > ema,
+                _lt(current, ema),
+                _gt(current, ema),
             )
         high, low = data.channel(22)
         atr, ema = data.atr(22), data.ema(200)[-1]
         upper = [low[i] + 3 * atr[i - 1] if i else _NAN for i in range(len(close))]
         lower = [high[i] - 3 * atr[i - 1] if i else _NAN for i in range(len(close))]
         return (
-            _cross(close, upper) and current > ema,
-            _cross(close, lower, up=False) and current < ema,
-            current < lower[-1],
-            current > upper[-1],
+            _cross(close, upper) and _gt(current, ema),
+            _cross(close, lower, up=False) and _lt(current, ema),
+            _lt(current, lower[-1]),
+            _gt(current, upper[-1]),
         )
     if ident == "09":
         long, short = data.squeeze()
         basis = data.sma(20)[-1]
-        return bool(long[-1]), bool(short[-1]), current < basis, current > basis
+        return bool(long[-1]), bool(short[-1]), _lt(current, basis), _gt(current, basis)
     if ident == "16":
         long, short, long_level, short_level = data.divergence()
-        return bool(long[-1]), bool(short[-1]), current < long_level[-1], current > short_level[-1]
+        return bool(long[-1]), bool(short[-1]), _lt(current, long_level[-1]), _gt(current, short_level[-1])
     if ident == "11":
         rsi, ema = data.rsi(14), data.ema(200)[-1]
         mid = [50.0] * len(close)
         return (
-            _cross(rsi, mid) and current > ema,
-            _cross(rsi, mid, up=False) and current < ema,
-            rsi[-1] < 45 or current < ema,
-            rsi[-1] > 55 or current > ema,
+            _cross(rsi, mid) and _gt(current, ema),
+            _cross(rsi, mid, up=False) and _lt(current, ema),
+            _lt(rsi[-1], 45) or _lt(current, ema),
+            _gt(rsi[-1], 55) or _gt(current, ema),
         )
     if ident in {"12", "17"}:
         k, d = data.stochastic(rsi=ident == "12")
@@ -809,16 +852,16 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
         up, down = _cross(k, d), _cross(k, d, up=False)
         if ident == "12":
             return (
-                up and k[-1] <= 20 and current > ema,
-                down and k[-1] >= 80 and current < ema,
-                (down and k[-1] < 50) or current < ema,
-                (up and k[-1] > 50) or current > ema,
+                up and _le(k[-1], 20) and _gt(current, ema),
+                down and _ge(k[-1], 80) and _lt(current, ema),
+                (down and _lt(k[-1], 50)) or _lt(current, ema),
+                (up and _gt(k[-1], 50)) or _gt(current, ema),
             )
         return (
-            up and 50 <= k[-1] <= 80 and current > ema,
-            down and 20 <= k[-1] <= 50 and current < ema,
-            down or current < ema,
-            up or current > ema,
+            up and _le(50, k[-1]) and _le(k[-1], 80) and _gt(current, ema),
+            down and _le(20, k[-1]) and _le(k[-1], 50) and _lt(current, ema),
+            down or _lt(current, ema),
+            up or _gt(current, ema),
         )
     if ident in {"13", "14"}:
         macd, signal = data.macd(12, 26, 9)
@@ -827,16 +870,16 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
             return (
                 _cross(macd, zero),
                 _cross(macd, zero, up=False),
-                macd[-1] < 0,
-                macd[-1] > 0,
+                _lt(macd[-1], 0),
+                _gt(macd[-1], 0),
             )
         ema = data.ema(200)[-1]
         up, down = _cross(macd, signal), _cross(macd, signal, up=False)
         return (
-            up and current > ema,
-            down and current < ema,
-            down or current < ema,
-            up or current > ema,
+            up and _gt(current, ema),
+            down and _lt(current, ema),
+            down or _lt(current, ema),
+            up or _gt(current, ema),
         )
     if ident == "15":
         roc = data.derived(
@@ -844,18 +887,18 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
         )
         sma, zero = data.sma(50)[-1], [0.0] * len(close)
         return (
-            _cross(roc, zero) and current > sma,
-            _cross(roc, zero, up=False) and current < sma,
-            roc[-1] < 0 or current < sma,
-            roc[-1] > 0 or current > sma,
+            _cross(roc, zero) and _gt(current, sma),
+            _cross(roc, zero, up=False) and _lt(current, sma),
+            _lt(roc[-1], 0) or _lt(current, sma),
+            _gt(roc[-1], 0) or _gt(current, sma),
         )
     if ident == "18":
         cci, ema = data.cci(), data.ema(200)[-1]
         return (
-            _cross(cci, [100.0] * len(close)) and current > ema,
-            _cross(cci, [-100.0] * len(close), up=False) and current < ema,
-            cci[-1] < 0 or current < ema,
-            cci[-1] > 0 or current > ema,
+            _cross(cci, [100.0] * len(close)) and _gt(current, ema),
+            _cross(cci, [-100.0] * len(close), up=False) and _lt(current, ema),
+            _lt(cci[-1], 0) or _lt(current, ema),
+            _gt(cci[-1], 0) or _gt(current, ema),
         )
     if ident == "19":
         high = data.rolling("wpr_high", data.fields["high"], 14, "max")
@@ -870,38 +913,38 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
         )
         ema = data.ema(200)[-1]
         return (
-            _cross(wpr, [-80.0] * len(close)) and current > ema,
-            _cross(wpr, [-20.0] * len(close), up=False) and current < ema,
-            wpr[-1] < -80 or current < ema,
-            wpr[-1] > -20 or current > ema,
+            _cross(wpr, [-80.0] * len(close)) and _gt(current, ema),
+            _cross(wpr, [-20.0] * len(close), up=False) and _lt(current, ema),
+            _lt(wpr[-1], -80) or _lt(current, ema),
+            _gt(wpr[-1], -20) or _gt(current, ema),
         )
     if ident == "20":
         tsi, signal = data.tsi()
         up, down = _cross(tsi, signal), _cross(tsi, signal, up=False)
         return (
-            up and tsi[-1] > 0,
-            down and tsi[-1] < 0,
-            down or tsi[-1] < 0,
-            up or tsi[-1] > 0,
+            up and _gt(tsi[-1], 0),
+            down and _lt(tsi[-1], 0),
+            down or _lt(tsi[-1], 0),
+            up or _gt(tsi[-1], 0),
         )
     if ident == "21":
         vwap, ema = data.vwap(), data.ema(200)[-1]
         if len(vwap) < 2 or not math.isfinite(vwap[-1]):
             return False, False, False, False
         return (
-            _cross(close, vwap) and current > ema and vwap[-1] > vwap[-2],
-            _cross(close, vwap, up=False) and current < ema and vwap[-1] < vwap[-2],
-            current < vwap[-1],
-            current > vwap[-1],
+            _cross(close, vwap) and _gt(current, ema) and _gt(vwap[-1], vwap[-2]),
+            _cross(close, vwap, up=False) and _lt(current, ema) and _lt(vwap[-1], vwap[-2]),
+            _lt(current, vwap[-1]),
+            _gt(current, vwap[-1]),
         )
     if ident == "22":
         vwap, ema = data.anchored_vwap(), data.ema(200)[-1]
         high, low = data.channel(20)
         return (
-            _cross(close, vwap) and current > ema and current > high[-1],
-            _cross(close, vwap, up=False) and current < ema and current < low[-1],
-            current < vwap[-1],
-            current > vwap[-1],
+            _cross(close, vwap) and _gt(current, ema) and _gt(current, high[-1]),
+            _cross(close, vwap, up=False) and _lt(current, ema) and _lt(current, low[-1]),
+            _lt(current, vwap[-1]),
+            _gt(current, vwap[-1]),
         )
     if ident == "23":
         obv = data.obv()
@@ -909,18 +952,18 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
         high, low = data.channel(20)
         ema, ema50 = data.ema(200)[-1], data.ema(50)[-1]
         return (
-            current > ema and current > high[-1] and obv[-1] > average,
-            current < ema and current < low[-1] and obv[-1] < average,
-            current < ema50 or obv[-1] < average,
-            current > ema50 or obv[-1] > average,
+            _gt(current, ema) and _gt(current, high[-1]) and _gt(obv[-1], average),
+            _lt(current, ema) and _lt(current, low[-1]) and _lt(obv[-1], average),
+            _lt(current, ema50) or _lt(obv[-1], average),
+            _gt(current, ema50) or _gt(obv[-1], average),
         )
     if ident == "24":
         cmf, fast, slow = data.cmf(), data.ema(20)[-1], data.ema(50)[-1]
         return (
-            _cross(cmf, [0.05] * len(close)) and fast > slow,
-            _cross(cmf, [-0.05] * len(close), up=False) and fast < slow,
-            cmf[-1] < 0 or fast < slow,
-            cmf[-1] > 0 or fast > slow,
+            _cross(cmf, [0.05] * len(close)) and _gt(fast, slow),
+            _cross(cmf, [-0.05] * len(close), up=False) and _lt(fast, slow),
+            _lt(cmf[-1], 0) or _lt(fast, slow),
+            _gt(cmf[-1], 0) or _gt(fast, slow),
         )
     if ident == "25":
         mfi, ema = data.mfi(), data.ema(200)
@@ -928,64 +971,64 @@ def _conditions(ident: str, data: _Math) -> tuple[bool, bool, bool, bool]:
             return False, False, False, False
         return (
             _cross(mfi, [20.0] * len(close))
-            and current > ema[-1]
-            and ema[-1] > ema[-2],
+            and _gt(current, ema[-1])
+            and _gt(ema[-1], ema[-2]),
             _cross(mfi, [80.0] * len(close), up=False)
-            and current < ema[-1]
-            and ema[-1] < ema[-2],
-            current < ema[-1] or mfi[-1] < 20,
-            current > ema[-1] or mfi[-1] > 80,
+            and _lt(current, ema[-1])
+            and _lt(ema[-1], ema[-2]),
+            _lt(current, ema[-1]) or _lt(mfi[-1], 20),
+            _gt(current, ema[-1]) or _gt(mfi[-1], 80),
         )
     if ident == "26":
         up, down = data.aroon()
         return (
-            _cross(up, down) and up[-1] >= 70 and down[-1] <= 30,
-            _cross(down, up) and down[-1] >= 70 and up[-1] <= 30,
-            up[-1] < 50 or down[-1] > up[-1],
-            down[-1] < 50 or up[-1] > down[-1],
+            _cross(up, down) and _ge(up[-1], 70) and _le(down[-1], 30),
+            _cross(down, up) and _ge(down[-1], 70) and _le(up[-1], 30),
+            _lt(up[-1], 50) or _gt(down[-1], up[-1]),
+            _lt(down[-1], 50) or _gt(up[-1], down[-1]),
         )
     if ident == "05":
         direction = data.supertrend()
         changed = len(direction) > 1 and math.isfinite(direction[-2])
         return (
-            changed and direction[-2] < 0 and direction[-1] > 0,
-            changed and direction[-2] > 0 and direction[-1] < 0,
-            direction[-1] < 0,
-            direction[-1] > 0,
+            changed and _lt(direction[-2], 0) and _gt(direction[-1], 0),
+            changed and _gt(direction[-2], 0) and _lt(direction[-1], 0),
+            _lt(direction[-1], 0),
+            _gt(direction[-1], 0),
         )
     if ident == "06":
         plus, minus, adx = data.dmi()
         return (
-            _cross(plus, minus) and adx[-1] > 25,
-            _cross(minus, plus) and adx[-1] > 25,
-            plus[-1] < minus[-1] or adx[-1] < 20,
-            minus[-1] < plus[-1] or adx[-1] < 20,
+            _cross(plus, minus) and _gt(adx[-1], 25),
+            _cross(minus, plus) and _gt(adx[-1], 25),
+            _lt(plus[-1], minus[-1]) or _lt(adx[-1], 20),
+            _lt(minus[-1], plus[-1]) or _lt(adx[-1], 20),
         )
     if ident == "07":
         tenkan, kijun, upper, lower = data.ichimoku()
-        inside = lower[-1] <= current <= upper[-1]
+        inside = _le(lower[-1], current) and _le(current, upper[-1])
         return (
-            _cross(tenkan, kijun) and current > upper[-1],
-            _cross(tenkan, kijun, up=False) and current < lower[-1],
-            current < kijun[-1] or inside,
-            current > kijun[-1] or inside,
+            _cross(tenkan, kijun) and _gt(current, upper[-1]),
+            _cross(tenkan, kijun, up=False) and _lt(current, lower[-1]),
+            _lt(current, kijun[-1]) or inside,
+            _gt(current, kijun[-1]) or inside,
         )
     if ident == "27":
         slope, lower, upper = data.regression()
         return (
-            _cross(close, lower) and slope[-1] > 0,
-            _cross(close, upper, up=False) and slope[-1] < 0,
-            slope[-1] <= 0 or current < lower[-1],
-            slope[-1] >= 0 or current > upper[-1],
+            _cross(close, lower) and _gt(slope[-1], 0),
+            _cross(close, upper, up=False) and _lt(slope[-1], 0),
+            _le(slope[-1], 0) or _lt(current, lower[-1]),
+            _ge(slope[-1], 0) or _gt(current, upper[-1]),
         )
     if ident == "30":
         regime = data.htf_regime()[-1]
         fast, slow = data.ema(9), data.ema(21)
         return (
-            _cross(fast, slow) and regime > 0,
-            _cross(fast, slow, up=False) and regime < 0,
-            regime < 0 or fast[-1] < slow[-1],
-            regime > 0 or fast[-1] > slow[-1],
+            _cross(fast, slow) and _gt(regime, 0),
+            _cross(fast, slow, up=False) and _lt(regime, 0),
+            _lt(regime, 0) or _lt(fast[-1], slow[-1]),
+            _gt(regime, 0) or _gt(fast[-1], slow[-1]),
         )
     raise OracleUnavailable(f"전략 {ident}: 독립 수식 판정기가 없습니다")
 
