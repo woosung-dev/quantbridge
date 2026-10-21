@@ -39,6 +39,7 @@ from tools.research.cli import (  # noqa: E402
 )
 from tools.research.data import ASSETS, TIMEFRAMES, digest, json_write  # noqa: E402
 from tools.research.sol_codegen import digest as quality_digest  # noqa: E402
+from tools.research.sol_score_report import selection_decision  # noqa: E402
 from tools.research.sol_economic_data import (  # noqa: E402
     RETROSPECTIVE,
     economic_verdict,
@@ -132,11 +133,17 @@ def read_artifacts(path: Path) -> list[dict]:
 def validate_selection(path: Path, artifacts: list[dict]) -> dict:
     """품질 증거의 파일 해시와 첫 semantic pass를 확인한다. 경제 수치를 읽지 않는다."""
     value = json.loads(path.read_text())
-    if value.get("policy") != POLICY or value.get("decided_before_economics") is not True:
+    if (
+        value.get("policy") != POLICY
+        or value.get("decided_before_economics") is not True
+    ):
         raise ValueError("수익 열람 전 품질 선정 선언이 필요합니다")
     evidence = value["quality_evidence"]
     source = (path.parent / evidence["path"]).resolve()
-    if digest(source) != evidence["sha256"] or value.get("quality_stage") != "full_eval":
+    if (
+        digest(source) != evidence["sha256"]
+        or value.get("quality_stage") != "full_eval"
+    ):
         raise ValueError("full-eval 품질 근거 파일 해시가 다릅니다")
     report = json.loads(source.read_text())
     proof = {
@@ -155,7 +162,27 @@ def validate_selection(path: Path, artifacts: list[dict]) -> dict:
         or value.get("input_proof_sha256") != report.get("input_proof_sha256")
         or quality_digest(proof) != report.get("input_proof_sha256")
     ):
-        raise ValueError("완료된 full-eval 품질 보고서·manifest·입력 proof가 필요합니다")
+        raise ValueError(
+            "완료된 full-eval 품질 보고서·manifest·입력 proof가 필요합니다"
+        )
+    candidates = report.get("quality90_ranking", [])
+    if (
+        len(candidates) != 9
+        or {cell["combination"] for cell in candidates}
+        != {f"{arm}/{language}" for arm, language in itertools.product(
+            "ABC", ("pine", "python", "typescript"))}
+        or any(cell.get("expected_artifacts") != 150 for cell in candidates)
+    ):
+        raise ValueError("품질 보고서의 사전 선정 정책 분모가 다릅니다")
+    decision = selection_decision(candidates)
+    if (
+        any(report.get(key) != expected for key, expected in decision.items())
+        or value.get("candidate_selection") != decision
+        or value.get("decision_authority") != decision["policy"]
+        or f"{value.get('arm')}/{value.get('language')}"
+        != decision["selected_candidate"]
+    ):
+        raise ValueError("품질 보고서의 사전 선정 정책 후보와 다릅니다")
     quality_rows = report.get("artifact_scores", [])
     identities = {
         (row["case_id"], row["arm"], row["language"], row["repetition"]) for row in quality_rows
@@ -174,6 +201,18 @@ def validate_selection(path: Path, artifacts: list[dict]) -> dict:
         or any(row.get("observation") != "complete" for row in quality_rows)
     ):
         raise ValueError("품질 보고서의 완료된 1350개 분모가 다릅니다")
+    for cell in candidates:
+        arm, language = cell["combination"].split("/")
+        by_case = {}
+        for row in quality_rows:
+            if row["arm"] == arm and row["language"] == language:
+                score = row.get("quality90")
+                if type(score) not in (int, float) or not 0 <= score <= 90:
+                    raise ValueError("품질 보고서의 quality90 관측치가 다릅니다")
+                by_case.setdefault(row["case_id"], []).append(score)
+        mean = sum(sum(scores) / len(scores) for scores in by_case.values()) / len(by_case)
+        if cell["quality90"] != mean:
+            raise ValueError("품질 보고서의 사전 선정 정책 전략 평균이 다릅니다")
     if len(artifacts) != 30 or {x["case_id"] for x in artifacts} != {
         f"{index:02}" for index in range(1, 31)
     }:

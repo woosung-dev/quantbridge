@@ -1,7 +1,7 @@
 """동결 실험 전체 분모의 품질 보고서. 모델·컨테이너·거래소를 실행하지 않는다.
 
 python -m tools.research.sol_score_report --run-dir runs/... --output runs/.../quality.json
-최종 full-eval 완료 후 사람이 --quality-selection B/typescript를 지정해야만
+최종 full-eval 완료 후 정책의 후보를 --quality-selection B/typescript로 확인해야만
 같은 디렉터리에 quality.selection.json·quality.artifacts.json을 생성한다.
 """
 
@@ -29,6 +29,53 @@ from tools.research.sol_semantic_eval import paired_summary  # noqa: E402
 SEED = 20261022
 ACTIONS = ("hold", "long", "short", "close")
 POINTS = ("contract_points", "ledger_points", "reproducibility_points")
+SELECTION_POLICY = "quality90_then_known_tokens_then_known_p95_then_lexicographic_v1"
+
+
+def selection_decision(cells: list[dict]) -> dict:
+    """점수 공식과 분리한 사전 선정 순서다. 미관측 기준은 동률 집합 전체에서 건너뛴다."""
+    if not cells or len({cell["combination"] for cell in cells}) != len(cells):
+        raise ValueError("중복 없는 선정 조합이 필요합니다")
+    quality = max(_number(cell["quality90"]) for cell in cells)
+    tied = [cell for cell in cells if cell["quality90"] == quality]
+    reasons = ["unique_quality90_maximum" if len(tied) == 1 else "exact_quality90_tie"]
+    criteria = (
+        (
+            "all_attempt_output_tokens",
+            "generation_output_tokens",
+            "unknown_output_usage_calls",
+            "generation_metric_observations",
+        ),
+        (
+            "total_generation_p95",
+            "generation_seconds_p95",
+            "unknown_duration_calls",
+            "generation_duration_observations",
+        ),
+    )
+    for name, metric, unknown, observations in criteria:
+        if len(tied) == 1:
+            break
+        if any(
+            cell.get(unknown) != 0
+            or cell.get(observations) != cell.get("expected_artifacts")
+            or cell.get(metric) is None
+            for cell in tied
+        ):
+            reasons.append(f"{name}_skipped_incomplete_observation")
+            continue
+        minimum = min(_number(cell[metric]) for cell in tied)
+        tied = [cell for cell in tied if cell[metric] == minimum]
+        reasons.append(f"{name}_minimum" if len(tied) == 1 else f"{name}_exact_tie")
+    if len(tied) > 1:
+        reasons.append("lexicographic_order_no_superiority_claim")
+    return {
+        "policy": SELECTION_POLICY,
+        "selected_candidate": min(cell["combination"] for cell in tied),
+        "tie_reason": reasons,
+    }
+
+
 C_SUFFIX = (
     "\n실행코드를내지말고주어진닫힌StrategySpec schema의명세를내세요. "
     "지표id/parameters/entry/invalidation을정확히표현하세요. warmup_bars=200. "
@@ -136,8 +183,9 @@ def _trial(
     if not isinstance(attempts, list) or not 1 <= len(attempts) <= (1 if arm == "A" else 3):
         raise ValueError("방식별 생성·수정 호출 수가 다릅니다")
     tokens, seconds = 0.0, 0.0
-    initial_tokens, initial_seconds = 0.0, 0.0
+    initial_tokens = 0.0
     final_payload = None
+    durations: list[float | None] = []
     for index, attempt in enumerate(attempts):
         directory = folder / f"attempt-{index}"
         generation = _load(directory / "generation.json", root, evidence)
@@ -160,8 +208,15 @@ def _trial(
             final_payload = payload
         used_tokens = _number(generation.get("usage", {}).get("output_tokens", 0))
         used_seconds = _number(generation.get("duration_seconds", 0))
+        # interrupted의 timeout 값은 중단 후 복구된 선언 한도이며 실제 경과 관측이 아니다.
+        durations.append(
+            used_seconds
+            if "duration_seconds" in generation
+            and generation.get("status") != "interrupted"
+            else None
+        )
         if index == 0:
-            initial_tokens, initial_seconds = used_tokens, used_seconds
+            initial_tokens = used_tokens
         tokens += used_tokens
         seconds += used_seconds
     if tokens != _number(trial.get("generation_output_tokens")) or not math.isclose(
@@ -200,8 +255,14 @@ def _trial(
     row.update(
         initial_output_tokens=initial_tokens,
         repair_output_tokens=tokens - initial_tokens,
-        initial_seconds=initial_seconds,
-        repair_seconds=seconds - initial_seconds,
+        initial_seconds=durations[0],
+        repair_seconds=sum(durations[1:])
+        if all(x is not None for x in durations[1:])
+        else None,
+        unknown_duration_calls=sum(x is None for x in durations),
+        observed_generation_seconds=seconds
+        if all(x is not None for x in durations)
+        else None,
     )
     semantic_path = folder / "semantic.json"
     if not semantic_path.exists():
@@ -218,7 +279,10 @@ def _trial(
         "generation_or_public_failure",
     ):
         raise ValueError("종결되지 않은 semantic 증거입니다")
-    if trial["status"] == "public_pass" and semantic["status"] == "generation_or_public_failure":
+    if (
+        trial["status"] == "public_pass"
+        and semantic["status"] == "generation_or_public_failure"
+    ):
         raise ValueError("성공한 public 검사의 semantic 상태가 다릅니다")
     if trial["status"] == "failed" and (
         semantic["status"] != "generation_or_public_failure"
@@ -359,8 +423,14 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
         observed = [row for row in group if "generation_seconds" in row]
         counts = Counter(dict.fromkeys(ACTIONS, 0))
         for row in group:
-            counts.update(row["semantic"].get("action_quality", {}).get("expected_counts", {}))
-        times = [_number(row["generation_seconds"]) for row in observed]
+            counts.update(
+                row["semantic"].get("action_quality", {}).get("expected_counts", {})
+            )
+        times = [
+            _number(row["observed_generation_seconds"])
+            for row in observed
+            if row["observed_generation_seconds"] is not None
+        ]
         cells.append(
             {
                 "combination": combo,
@@ -378,16 +448,42 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
                     row.get("initial_public_pass", False) for row in group
                 ),
                 "repair_calls": sum(row.get("repair_calls", 0) for row in group),
-                "initial_output_tokens": sum(row.get("initial_output_tokens", 0) for row in group),
-                "repair_output_tokens": sum(row.get("repair_output_tokens", 0) for row in group),
-                "initial_seconds_p50": quantile([row["initial_seconds"] for row in observed], 0.5),
-                "initial_seconds_p95": quantile([row["initial_seconds"] for row in observed], 0.95),
+                "initial_output_tokens": sum(
+                    row.get("initial_output_tokens", 0) for row in group
+                ),
+                "repair_output_tokens": sum(
+                    row.get("repair_output_tokens", 0) for row in group
+                ),
+                "initial_seconds_p50": quantile(
+                    [
+                        row["initial_seconds"]
+                        for row in observed
+                        if row["initial_seconds"] is not None
+                    ],
+                    0.5,
+                ),
+                "initial_seconds_p95": quantile(
+                    [
+                        row["initial_seconds"]
+                        for row in observed
+                        if row["initial_seconds"] is not None
+                    ],
+                    0.95,
+                ),
                 "repair_seconds_p50": quantile(
-                    [row["repair_seconds"] for row in observed if row["repair_calls"]],
+                    [
+                        row["repair_seconds"]
+                        for row in observed
+                        if row["repair_calls"] and row["repair_seconds"] is not None
+                    ],
                     0.5,
                 ),
                 "repair_seconds_p95": quantile(
-                    [row["repair_seconds"] for row in observed if row["repair_calls"]],
+                    [
+                        row["repair_seconds"]
+                        for row in observed
+                        if row["repair_calls"] and row["repair_seconds"] is not None
+                    ],
                     0.95,
                 ),
                 "generation_output_tokens": sum(
@@ -399,6 +495,10 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
                 "generation_seconds_p50": quantile(times, 0.5),
                 "generation_seconds_p95": quantile(times, 0.95),
                 "generation_metric_observations": len(observed),
+                "unknown_duration_calls": sum(
+                    row["unknown_duration_calls"] for row in observed
+                ),
+                "generation_duration_observations": len(times),
                 "usd": None,
             }
         )
@@ -416,6 +516,7 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
         raise ValueError("보고서 작성 중 입력 증거가 변경됐습니다")
     return {
         "schema_version": 1,
+        **selection_decision(cells),
         "stage": manifest["stage"],
         "manifest_sha256": manifest_hash,
         "input_proof_sha256": digest(
@@ -434,7 +535,7 @@ def build_report(root: Path, *, draws: int = 20000) -> dict:
         "ranking_is_provisional": not (complete and full),
         "usd": "unknown",
         "token_usage_note": "토큰 합계는 CLI가 보고한 관측값이다. 시간 초과 등 usage 미보고 호출의 소비량은 0으로 확정하지 않으며 unknown_output_usage_calls로 구분한다.",
-        "observation_note": "4class 관찰수는 평가 실행들의 합이며 독립 전략 표본 수가 아니다. 누락 시간은 latency 분위수에서 제외하고 관측 수를 병기한다.",
+        "observation_note": "4class 관찰수는 평가 실행들의 합이며 독립 전략 표본 수가 아니다. 누락 시간과 interrupted의 선언 timeout은 latency 분위수에서 제외하고 unknown_duration_calls·관측 수를 병기한다. 운영 적합성은 N/A이며 별도 검증이다.",
         "scoring": "sol_semantic_eval.paired_summary: 40+25+15+10+10; quality90 excludes generation efficiency",
         "score100_ranking": sorted(
             cells, key=lambda cell: (-cell["score100"], cell["combination"])
@@ -490,8 +591,8 @@ def export_selection(root: Path, report_path: Path, combination: str) -> tuple[d
     fresh = build_report(root, draws=report["bootstrap100"]["draws"])
     if fresh != report:
         raise ValueError("품질 보고서와 입력 증거 hash가 다릅니다")
-    if combination not in fresh["strategy_means90"]:
-        raise ValueError("선택 조합이 없습니다")
+    if combination != fresh["selected_candidate"]:
+        raise ValueError("사전 선정 정책의 후보와 선택 조합이 다릅니다")
     arm, language = combination.split("/")
     passes, selected_hashes, artifacts = {}, {}, []
     for case_id in sorted(fresh["strategy_means90"][combination]):
@@ -502,7 +603,9 @@ def export_selection(root: Path, report_path: Path, combination: str) -> tuple[d
             if json.loads((folder / str(rep) / "semantic.json").read_text())["status"] == "passed"
         ]
         repetition = min(passed) if passed else None
-        source = folder / str(repetition) / "source.txt" if repetition is not None else None
+        source = (
+            folder / str(repetition) / "source.txt" if repetition is not None else None
+        )
         source_hash = file_hash(source) if source else None
         passes[case_id], selected_hashes[case_id] = passed, source_hash
         artifacts.append(
@@ -521,7 +624,10 @@ def export_selection(root: Path, report_path: Path, combination: str) -> tuple[d
         "decided_before_economics": True,
         "arm": arm,
         "language": language,
-        "decision_authority": "explicit_quality_selection_input",
+        "decision_authority": SELECTION_POLICY,
+        "candidate_selection": {
+            key: fresh[key] for key in ("policy", "selected_candidate", "tie_reason")
+        },
         "quality_evidence": {
             "path": report_path.name,
             "sha256": file_hash(report_path),
@@ -538,7 +644,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--quality-selection", help="사람이 최종 선택한 arm/language")
+    parser.add_argument(
+        "--quality-selection", help="사전 선정 정책의 후보 arm/language 확인"
+    )
     parser.add_argument("--bootstrap-draws", type=int, default=20000)
     args = parser.parse_args()
     destination = args.output.resolve()

@@ -71,7 +71,10 @@ def selection(tmp_path):
 def write_quality_proof(tmp_path, spec):
     rows, files = [], {}
     for case, arm, language, repetition in itertools.product(
-        (f"{n:02}" for n in range(1, 31)), "ABC", ("pine", "python", "typescript"), range(5)
+        (f"{n:02}" for n in range(1, 31)),
+        "ABC",
+        ("pine", "python", "typescript"),
+        range(5),
     ):
         passed = (
             arm == spec["arm"]
@@ -88,6 +91,7 @@ def write_quality_proof(tmp_path, spec):
                 "observation": "complete",
                 "public_status": "public_pass" if passed else "failed",
                 "semantic_status": "passed" if passed else "generation_or_public_failure",
+                "quality90": 90 if passed else 0,
                 "source_hash": checksum,
             }
         )
@@ -104,13 +108,42 @@ def write_quality_proof(tmp_path, spec):
         "implementation_hashes": {},
         "artifact_scores": rows,
     }
+    report["quality90_ranking"] = [
+        {
+            "combination": f"{arm}/{language}",
+            "quality90": sum(row["quality90"] for row in rows
+                             if row["arm"] == arm and row["language"] == language) / 150,
+            "expected_artifacts": 150,
+            "generation_output_tokens": 100,
+            "unknown_output_usage_calls": 0,
+            "generation_metric_observations": 150,
+            "generation_seconds_p95": 2,
+            "unknown_duration_calls": 0,
+            "generation_duration_observations": 150,
+        }
+        for arm, language in itertools.product("ABC", ("pine", "python", "typescript"))
+    ]
+    # 모든 품질이 동률인 fixture에서 A/python의 토큰 합계가 더 작다.
+    next(
+        cell
+        for cell in report["quality90_ranking"]
+        if cell["combination"] == "A/python"
+    )["generation_output_tokens"] = 50
+    decision = economics.selection_decision(report["quality90_ranking"])
+    report.update(decision)
+    spec.update(candidate_selection=decision, decision_authority=decision["policy"])
     report["input_proof_sha256"] = economics.quality_digest(
-        {"manifest_sha256": report["manifest_sha256"], "files": files, "implementations": {}}
+        {
+            "manifest_sha256": report["manifest_sha256"],
+            "files": files,
+            "implementations": {},
+        }
     )
     path = tmp_path / "full-quality.json"
     json_write(path, report)
     spec.update(
-        manifest_sha256=report["manifest_sha256"], input_proof_sha256=report["input_proof_sha256"]
+        manifest_sha256=report["manifest_sha256"],
+        input_proof_sha256=report["input_proof_sha256"],
     )
     spec["quality_evidence"]["sha256"] = digest(path)
 
@@ -481,3 +514,38 @@ def test_cli_plan_only_does_not_execute_and_real_run_requires_selection(monkeypa
         economics.main()
     assert exc.value.code == 2
     execute.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "mutation", ["combination", "policy", "candidate", "reason", "report", "aggregate"]
+)
+def test_economic_gate_rejects_selection_outside_preregistered_policy(
+    tmp_path, mutation
+):
+    values, proof, spec = selection(tmp_path)
+    if mutation == "combination":
+        spec["arm"] = "B"
+        for row in values:
+            row["arm"] = "B"
+    elif mutation == "policy":
+        spec["decision_authority"] = "manual_choice"
+    elif mutation in {"report", "aggregate"}:
+        path = tmp_path / "full-quality.json"
+        report = json.loads(path.read_text())
+        if mutation == "report":
+            report["selected_candidate"] = "B/python"
+        else:
+            report["quality90_ranking"][0]["quality90"] = 89
+            decision = economics.selection_decision(report["quality90_ranking"])
+            report.update(decision)
+            spec["candidate_selection"] = decision
+            spec["arm"], spec["language"] = decision["selected_candidate"].split("/")
+        json_write(path, report)
+        spec["quality_evidence"]["sha256"] = digest(path)
+    else:
+        spec["candidate_selection"][
+            "selected_candidate" if mutation == "candidate" else "tie_reason"
+        ] = "changed"
+    json_write(proof, spec)
+    with pytest.raises(ValueError, match="사전 선정 정책"):
+        economics.validate_selection(proof, values)

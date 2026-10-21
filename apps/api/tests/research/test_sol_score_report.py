@@ -260,13 +260,27 @@ def test_full_selection_matches_economic_exact_contract_and_first_pass(tmp_path)
     for case, arm, language, rep in itertools.product(
         manifest["cases"], manifest["arms"], manifest["languages"], range(5)
     ):
-        passed = arm == "A" and language == "python" and case["id"] == "01" and rep in (1, 4)
-        trial(tmp_path, manifest, case["id"], rep, arm=arm, language=language, public=passed)
+        passed = (
+            arm == "A" and language == "python" and case["id"] == "01" and rep in (1, 4)
+        )
+        trial(
+            tmp_path,
+            manifest,
+            case["id"],
+            rep,
+            arm=arm,
+            language=language,
+            public=passed,
+        )
     report = subject.build_report(tmp_path, draws=100)
     assert report["complete"] and report["final_selection_allowed"]
     assert len(report["score100_ranking"]) == 9
     path = tmp_path / "quality.json"
     write(path, report)
+    assert report["selected_candidate"] == "A/python"
+    assert report["policy"] == subject.SELECTION_POLICY
+    with pytest.raises(ValueError, match="정책의 후보"):
+        subject.export_selection(tmp_path, path, "B/python")
     selection, artifacts = subject.export_selection(tmp_path, path, "A/python")
     assert len(artifacts) == 30
     assert artifacts[0]["repetition"] == 1
@@ -302,3 +316,169 @@ def test_incomplete_full_manifest_refuses_economic_selection(tmp_path):
     write(path, report)
     with pytest.raises(ValueError, match="pilot/불완료"):
         subject.export_selection(tmp_path, path, "A/python")
+
+
+def candidate(
+    combination,
+    *,
+    quality=80,
+    tokens=100,
+    seconds=2,
+    unknown_tokens=0,
+    unknown_seconds=0,
+    observations=150,
+):
+    return {
+        "combination": combination,
+        "quality90": quality,
+        "score100": 100 - quality,
+        "expected_artifacts": 150,
+        "generation_output_tokens": tokens,
+        "unknown_output_usage_calls": unknown_tokens,
+        "generation_metric_observations": 150,
+        "generation_seconds_p95": seconds,
+        "unknown_duration_calls": unknown_seconds,
+        "generation_duration_observations": observations,
+    }
+
+
+def test_policy_primary_quality_is_exact_and_ignores_score100_and_cost():
+    decision = subject.selection_decision(
+        [
+            candidate("A/python", quality=80, tokens=1, seconds=1),
+            candidate("B/pine", quality=80.000000000001, tokens=10000, seconds=1000),
+        ]
+    )
+    assert decision["selected_candidate"] == "B/pine"
+    assert decision["tie_reason"] == ["unique_quality90_maximum"]
+
+
+@pytest.mark.parametrize("reversed_order", [False, True])
+def test_policy_all_attempt_tokens_before_total_generation_p95(reversed_order):
+    cells = [
+        candidate("A/python", tokens=200, seconds=1),
+        candidate("B/pine", tokens=100, seconds=20),
+    ]
+    if reversed_order:
+        cells.reverse()
+    decision = subject.selection_decision(cells)
+    assert decision["selected_candidate"] == "B/pine"
+    assert decision["tie_reason"] == [
+        "exact_quality90_tie",
+        "all_attempt_output_tokens_minimum",
+    ]
+
+
+def test_policy_any_unknown_tokens_skips_for_entire_tied_set():
+    decision = subject.selection_decision(
+        [
+            candidate("A/python", tokens=1, seconds=3),
+            candidate("B/pine", tokens=10000, unknown_tokens=1, seconds=2),
+            candidate("C/typescript", tokens=500, seconds=4),
+        ]
+    )
+    assert decision["selected_candidate"] == "B/pine"
+    assert decision["tie_reason"] == [
+        "exact_quality90_tie",
+        "all_attempt_output_tokens_skipped_incomplete_observation",
+        "total_generation_p95_minimum",
+    ]
+
+
+@pytest.mark.parametrize(
+    "changes", [{"unknown_seconds": 1}, {"observations": 149}, {"seconds": None}]
+)
+def test_policy_incomplete_duration_skips_entire_p95_tie_set(changes):
+    decision = subject.selection_decision(
+        [
+            candidate("B/pine", seconds=1),
+            candidate("A/python", seconds=100, **changes)
+            if "seconds" not in changes
+            else candidate("A/python", **changes),
+        ]
+    )
+    assert decision["selected_candidate"] == "A/python"
+    assert decision["tie_reason"][-2:] == [
+        "total_generation_p95_skipped_incomplete_observation",
+        "lexicographic_order_no_superiority_claim",
+    ]
+
+
+def test_policy_duration_applies_only_after_token_tie_and_unresolved_is_lexical():
+    decision = subject.selection_decision(
+        [candidate("B/pine", seconds=1), candidate("A/python", seconds=2)]
+    )
+    assert decision["selected_candidate"] == "B/pine"
+    assert decision["tie_reason"][-1] == "total_generation_p95_minimum"
+    decision = subject.selection_decision([candidate("B/pine"), candidate("A/python")])
+    assert decision["selected_candidate"] == "A/python"
+    assert decision["tie_reason"][-1] == "lexicographic_order_no_superiority_claim"
+
+
+@pytest.mark.parametrize(
+    "status,duration,unknown",
+    [
+        ("interrupted", 900, 1),
+        ("failed", None, 1),
+        ("timeout", 3, 0),
+    ],
+)
+def test_report_declared_timeout_is_not_actual_observed_latency(
+    tmp_path, status, duration, unknown
+):
+    manifest = run(tmp_path, cases=1, repetitions=1)
+    folder = trial(tmp_path, manifest, "01", 0, public=False)
+    generation = json.loads((folder / "attempt-0/generation.json").read_text())
+    generation["status"] = status
+    if duration is None:
+        del generation["duration_seconds"]
+    else:
+        generation["duration_seconds"] = duration
+    write(folder / "attempt-0/generation.json", generation)
+    value = json.loads((folder / "trial.json").read_text())
+    value["attempts"][0]["generation"] = generation
+    value["generation_seconds"] = duration or 0
+    write(folder / "trial.json", value)
+    report = subject.build_report(tmp_path, draws=100)
+    cell = report["quality90_ranking"][0]
+    assert cell["unknown_duration_calls"] == unknown
+    assert cell["generation_duration_observations"] == 1 - unknown
+    assert cell["generation_seconds_p95"] == (None if unknown else duration)
+    assert cell["initial_seconds_p95"] == (None if unknown else duration)
+    assert report["complete"] and cell["quality90"] == 0
+
+
+@pytest.mark.parametrize("unknown_repair", [False, True])
+def test_all_attempt_totals_and_partial_repair_latency(tmp_path, unknown_repair):
+    manifest = run(tmp_path, cases=1, repetitions=1)
+    manifest["arms"] = ["B"]
+    write(tmp_path / "manifest.json", manifest)
+    folder = trial(tmp_path, manifest, "01", 0, arm="B")
+    value = json.loads((folder / "trial.json").read_text())
+    request = json.loads((folder / "attempt-0/request.json").read_text())
+    request["prompt"] += " repair"
+    generation = dict(value["attempts"][0]["generation"], job_hash=digest(request),
+                      duration_seconds=3, usage={"output_tokens": 200})
+    if unknown_repair:
+        del generation["duration_seconds"]
+        generation["usage"] = {}
+    write(folder / "attempt-1/request.json", request)
+    write(folder / "attempt-1/generation.json", generation)
+    write(folder / "attempt-1/payload.json",
+          json.loads((folder / "attempt-0/payload.json").read_text()))
+    value["attempts"][0]["validation"]["passed"] = False
+    value["attempts"].append({"generation": generation, "validation": {"passed": True}})
+    value.update(generation_output_tokens=100 if unknown_repair else 300,
+                 generation_seconds=2 if unknown_repair else 5)
+    write(folder / "trial.json", value)
+    report = subject.build_report(tmp_path, draws=100)
+    cell = report["quality90_ranking"][0]
+    assert cell["generation_output_tokens"] == (100 if unknown_repair else 300)
+    assert cell["initial_output_tokens"] == 100
+    assert cell["repair_output_tokens"] == (0 if unknown_repair else 200)
+    assert cell["initial_seconds_p95"] == 2
+    assert cell["repair_seconds_p95"] == (None if unknown_repair else 3)
+    assert cell["generation_seconds_p95"] == (None if unknown_repair else 5)
+    assert cell["unknown_output_usage_calls"] == int(unknown_repair)
+    assert cell["unknown_duration_calls"] == int(unknown_repair)
+    assert cell["repair_calls"] == 1 and cell["quality90"] == 90
