@@ -18,7 +18,7 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
-from src.trading.providers import OrderStatusFetch
+from src.trading.providers import CodeClosedPnlEvidence, OrderStatusFetch
 from src.trading.repositories.code_checkpoint_repository import CodeCheckpointRepository
 from src.trading.repositories.code_risk_repository import CodeRiskRepository
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
@@ -248,7 +248,18 @@ async def test_code_pnl_response_is_known_order_subtotal_and_incomplete_for_nati
     state = await query.get_state_for_user(session.id, session.user_id)
     assert state.pnl_complete is False and state.unpriced_exit_orders == 1
     await orders.backfill_exchange_realized_pnl(
-        child.id, realized_pnl=D(-2), synced_at=datetime.now(UTC)
+        child.id,
+        realized_pnl=D(-2),
+        synced_at=datetime.now(UTC),
+        code_evidence=CodeClosedPnlEvidence(
+            account_id=session.exchange_account_id,
+            order_id="actual-local",
+            symbol="BTCUSDT",
+            side=child.side,
+            quantity=D(2),
+            pnl=D(-2),
+            raw_hash="known-local-close-proof",
+        ),
     )
     await db_session.commit()
     state = await query.get_state_for_user(session.id, session.user_id)
