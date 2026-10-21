@@ -30,6 +30,9 @@
 
 `ta.sma`, `ta.ema`, `ta.rma`, `ta.atr`, `ta.rsi`, `ta.crossover`, `ta.crossunder`, `ta.highest`, `ta.lowest`, `ta.change`, `ta.pivothigh`, `ta.pivotlow`, `ta.stdev`, `ta.variance`, `ta.sar`, `ta.barssince`, `ta.valuewhen`
 
+`ta.highest(length)` / `ta.lowest(length)`는 각각 현재 high / low를 기본 source로 사용한다.
+두 인자 호출과 기존 warmup·NA 처리는 그대로다. 인자 생략 지원이 TradingView 초기 이력 전체의 동치를 뜻하지 않는다.
+
 **Sprint 58 BL-241 신규:**
 `ta.wma` (Weighted MA), `ta.hma` (Hull MA), `ta.bb` (Bollinger Bands → [upper, basis, lower]), `ta.cross` (crossover or crossunder), `ta.mom` (Momentum)
 
@@ -95,6 +98,10 @@ exit ID 두 개 이상도 최초 라이브 진입부터 보수적으로 차단�
 `rma`, `sma`, `ema`, `rsi`, `atr`, `highest`, `lowest`, `crossover`, `crossunder`, `change`, `stdev`, `variance`, `iff`, `switch`
 
 **Sprint 21 추가** (`abs/max/min/pivothigh/pivotlow/barssince/valuewhen/timestamp`) — v4 no-namespace 형식. interpreter alias map 에서 `math.*` 또는 `ta.*` 로 재라우팅. **사용자 정의 함수 우선 dispatch** (Sprint 21 Phase A.1, codex G.0 P1 #1+#4 — `abs(x) =>` 정의 시 alias 압도 차단).
+
+v1~v3의 기본 색상 17종은 기존 `color.*`와 같은 표시 NOP로 해석한다. 색상 값 계산·렌더링의 동치를
+보증하지 않는다. 구버전 input의 `float`는 입력 타입 상수이며 `float(x)` 캐스팅 지원과 별개다.
+사용자 변수·로컬 이름이 우선하며 v4 이상에서 bare 색상·입력 타입을 새로 허용하지 않는다.
 
 ### 2.7 Explicit constant sets (Sprint 21 신규)
 

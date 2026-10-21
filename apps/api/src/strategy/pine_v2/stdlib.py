@@ -788,8 +788,12 @@ class StdlibDispatcher:
         if func_name == "ta.crossunder":
             return ta_crossunder(self.state, scoped_id, *args, pine_version=pine_version)
         if func_name == "ta.highest":
+            if len(args) == 1:
+                return ta_highest(self.state, scoped_id, high, args[0])
             return ta_highest(self.state, scoped_id, *args)
         if func_name == "ta.lowest":
+            if len(args) == 1:
+                return ta_lowest(self.state, scoped_id, low, args[0])
             return ta_lowest(self.state, scoped_id, *args)
         if func_name == "ta.change":
             length = args[1] if len(args) >= 2 else 1

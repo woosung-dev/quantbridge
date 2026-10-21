@@ -34,6 +34,15 @@ PRD §5의 결과·가정 공개와 ADR-040/042의 결정론 판정 경계를 �
 한 번 평가한 임시 변수로 원래 plot/alert와 진입문이 함께 읽는다. 원본 hash·변환 hash·변환 Pine·줄 대응표를
 보고서에 남긴다. 단독 최상위 호출이나 안전한 인자 평가를 증명하지 못하면 변환을 거부한다.
 방향은 manifest가 명시하며, 같은 방향 복수 표식은 추가 진입을 만들지 않는다.
+
+첫 조건은 `plotshape`·`plotchar`의 `series`, `alertcondition`의 `condition`을 positional 또는
+keyword로 지정할 수 있다. keyword 순서와 원문 구분자는 보존하고 AST의 값 범위만 임시 변수로
+바꾼다. 조건은 한 번 평가하며 조건 외 모든 인자의 부작용 검사는 유지한다. 중복 주조건은 거부한다.
+`indicator`의 세 번째 positional bool은 `overlay`로 명시 보존한다. `timeframe_gaps`는 명시적으로
+`timeframe=""`인 bool 상수만 제거할 수 있으며, 계산 주기와 종료 대기 설정 UI를 보존하지 않는다고
+경고한다. 별도 주기·동적 gaps는 거부한다. 이는 차트 주기 기본값의 로컬 측정 계약이며 사용자 UI에서
+다른 주기로 바꾼 native 실행과 동등하다는 뜻이 아니다.
+
 원본 실행·OHLCV·방향 바인딩의 선행 조건을 통과한 셀에서는 Python oracle 생성 여부와 별도로
 앱 백테스트를 시도한다. `app_status=ok` 또는
 `executed=true`는 앱 엔진 실행 사실이고, 독립 사건 원장과의 `exact_match`가 아니다. Python

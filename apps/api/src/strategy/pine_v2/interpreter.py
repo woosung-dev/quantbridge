@@ -1509,12 +1509,32 @@ class Interpreter:
             return self._transient[name]
         # 수집한 v2/v3 원본의 표시·입력 상수다. v4부터는 namespace를 사용한다.
         if self.bar.pine_version < 4:
-            if name in {"green", "red", "aqua", "lime"}:
+            # Pine v3 공식 기본 색상 17종. 기존 color.*와 같은 표시 NOP만 제공한다.
+            if name in {
+                "black",
+                "silver",
+                "gray",
+                "white",
+                "maroon",
+                "red",
+                "purple",
+                "fuchsia",
+                "green",
+                "lime",
+                "olive",
+                "yellow",
+                "navy",
+                "blue",
+                "teal",
+                "aqua",
+                "orange",
+            }:
                 return float("nan")  # color.*와 같은 표시 전용 NOP다.
             legacy_constants = {
                 "line": "line",
                 "cross": "cross",
                 "integer": "integer",
+                "float": "float",
                 "source": "source",
                 "bool": "bool",
             }
