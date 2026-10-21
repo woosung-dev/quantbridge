@@ -1,0 +1,25 @@
+[Unit]
+Description=QuantBridge isolated Python strategy gateway
+After=docker.service network.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=qb-runner
+Group=qb-runner
+SupplementaryGroups=docker
+WorkingDirectory=/opt/quantbridge/apps/api
+ExecStart=/opt/quantbridge/apps/api/.venv/bin/python -m src.strategy.python_runtime.gateway --token-file /etc/quantbridge/python-runner-token --image quantbridge-python-runner:local
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/quantbridge /etc/quantbridge/python-runner-token
+CPUQuota=100%
+MemoryMax=2G
+LimitNOFILE=4096
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target
