@@ -37,3 +37,66 @@ apps/api/.venv/bin/python tools/research/export_candidate.py --run-dir runs/indi
 수치선 통과·배포 승인을 부여하지 않는다. 기존 출력 디렉터리를 덮어쓰지 않는다.
 
 공개 API 계약: [Kline](https://bybit-exchange.github.io/docs/v5/market/kline), [Funding history](https://bybit-exchange.github.io/docs/v5/market/history-fund-rate). 시세 조회는 공개 거래 데이터이며 demo 계정 주문을 실행하지 않는다.
+
+## 동일 진입 규칙의 SL·반익절·trailing 비교
+
+`swing_exits.py`는 기존 동결 가설·데이터·최종 기간 개봉 기록을 수정하지 않는 별도 실험이다.
+동일 TF 직전 완료 두 봉의 저점/고점과 실제 진입가 거리의 10% 바깥에 SL을 정하고 초기 R을
+고정한다. 1.5R에서 최초 수량의 50%를 익절하고, 2R부터 진입가 BE를 시작으로 2R 거리의
+trailing을 유리한 방향으로만 옮긴다. BE는 비용 전 진입가이므로 순손익 0을 보장하지 않는다.
+
+1. `freeze`: 기존 개발 6개월(원래 최종 기간 시작 직전)만 실제 Bybit 1분봉으로 동결한다.
+   공개 API 요청별 checkpoint와 hash로 중단 후 재개한다. 4h·1d의 실행을 1h·15m로 대체하지 않는다.
+2. `validate`: 정확한 1분봉 grid·가격·hash를 검사하고 모든 1h/4h/1d OHLC를 재집계해 동결 부모봉과
+   일치하는지 확인한다. 거래량 합의 차이는 별도 audit에 기록한다.
+3. `pilot`: 기존과 같은 10가설 × 12조건 120셀에서 원본·새 청산 정책을 각각 실행한다(240회).
+   원래 TF의 지표 계산은
+   gVisor에서 하고 별도 1분봉 시계가 청산을 재생한다. 공유 DB·Celery·주문·호스트 소스 실행은 없다.
+4. `batch`: 같은 코드·데이터·정책·이미지의 pilot 120셀 완료 후 100가설 1,200셀(2,400회)로 확대한다.
+   완료·오류는 같은 job hash로 중복 실행하지 않으며 중단된 실행은 재개한다.
+5. `report`: 기존 결과와 새 결과의 기준 통과·순수익률·MDD를 비교한 JSON/Markdown을 기록한다.
+
+```bash
+apps/api/.venv/bin/python tools/research/swing_exits.py --run-dir runs/swing-exits-v1 freeze
+apps/api/.venv/bin/python tools/research/swing_exits.py --run-dir runs/swing-exits-v1 validate
+apps/api/.venv/bin/python tools/research/swing_exits.py --run-dir runs/swing-exits-v1 pilot
+apps/api/.venv/bin/python tools/research/swing_exits.py --run-dir runs/swing-exits-v1 batch
+apps/api/.venv/bin/python tools/research/swing_exits.py --run-dir runs/swing-exits-v1 report
+```
+
+임의 사용자 소스를 바꾸지 않는다. 저장소가 작성한 v2 template의 position 의존 청산 절이 정확히
+한 번 존재하는지 확인하고 그 절만 제거한다. 원본과 추출된 진입 소스의 hash를 함께 보존한다.
+확정 부모봉 종가의 filter AND entry signal은 포지션과 무관한 동일 진입 기회이며 실제 진입 거래
+수는 청산 시점 차이로 달라진다. 새 정책은 기존 close/SL/TP 신호를 무시한다. 같은 방향 신호는
+기존 계획을 유지하며 실제 반대 방향 주문에서 이전 청산 계획을 취소하고 새 generation을 만든다.
+
+비교용 baseline은 원본 source의 기존 청산 규칙을 같은 새 원장으로 다시 실행한다. 두 정책 모두
+동일한 1분봉 equity·수수료·순자산 sizing·펀딩·PF 모형을 사용한다. 원본 source의 포지션 의존 판단은
+보존하고 새 swing 정책은 중립 진입 source를 사용한다. 동일 부모봉 종가 샘플 MDD도 보조로 기록한다.
+원본은 보유 중 반대 신호에 청산만 하고 새 정책은 조건을 만족하는 반대 진입 신호에 직접 반전한다.
+따라서 성과 차이는 청산 가격뿐 아니라 반전·재진입 정책 변경도 포함한다.
+이전 1,200개 결과는 원본 소스·결과 hash를 검증한 참고 자료로만 보존한다. 이전 실행기의 sizing·펀딩·PF·
+해상도가 다르므로 그 스냅샷과의 차이를 새 청산의 효과로 단정하지 않는다.
+반익절·잔여 청산은 같은 position episode로 집계해 거래 수 기준 30건을 부풀리지 않는다.
+
+같은 1분봉 안에서도 실제 tick 경로는 알 수 없다. OHLC/OLHC 두 시나리오 중 비용 전 종가 평가가
+불리한 결과를 고르며 모든 가능한 경로의 최악값이나 실제 체결 순서라고 주장하지 않는다.
+이전 최종 기간을 다시 개봉하는 명령은 없다. 이 비교는 개발 기간을 재사용한 회고 분석이며
+`promotable=false`를 유지한다. 이미 열어본 최종 기간을 후속 분석에 쓰면 반드시
+`retrospective_reused_period`로 별도 표시해야 하며 새 독립 최종 검증으로 인정하지 않는다.
+
+시간이 오래 걸리는 전체 비교는 `swing_parallel.py`로 최대 4개 프로세스에 분배할 수 있다.
+동일한 16셀로 2·4 프로세스의 처리 시간을 먼저 비교하며 성적을 보고 청산 정책을 바꾸지 않는다.
+원본 파일은 hardlink로 읽고 worker별 journal/results는 분리한다. 부모 프로세스만 master lock을
+보유해 완료 결과의 소스·실행기·데이터·job hash와 파일 SHA를 검증한 뒤 경로를 정규화해 병합한다.
+worker가 중단돼도 완결 결과는 검증 후 재사용하고 실행 중이던 셀만 재개한다. 직렬·병렬 모두
+요약 숫자와 별개로 실제 pilot 120개 고유 완료 기록 및 결과 파일을 검증해야 전체 비교를 허용한다.
+
+```bash
+apps/api/.venv/bin/python tools/research/swing_parallel.py --run-dir runs/swing-exits-v3 --workers 4 --limit 16 probe
+apps/api/.venv/bin/python tools/research/swing_parallel.py --run-dir runs/swing-exits-v3 --workers 4 pilot
+apps/api/.venv/bin/python tools/research/swing_parallel.py --run-dir runs/swing-exits-v3 --workers 4 batch
+```
+
+각 병렬 계획에는 실행 전 orchestrator 소스 hash·프로세스 수·할당 셀·분배 방식·실험 hash를 고정한다.
+기존 소스·정책·실행기를 바꾸면 같은 결과 디렉터리에서 이어 돌리지 않고 새 실험으로 분리한다.

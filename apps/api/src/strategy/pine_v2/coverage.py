@@ -204,6 +204,8 @@ _HEIKINASHI_FUNCTIONS: frozenset[str] = frozenset(
 # Sprint 29 Slice B: unsupported 발견 시 사용자에게 우회 패턴 안내.
 # 80% coverage 임계 = DrFXGOD ~28 항목 중 23+ 등록.
 _UNSUPPORTED_WORKAROUNDS: dict[str, str] = {
+    "strategy.exit.qty": "Pine 부분 청산 수량은 미지원입니다. 전량 청산으로 대체하지 않습니다.",
+    "strategy.exit.qty_percent": "Pine 부분 청산 비중은 미지원입니다. 전량 청산으로 대체하지 않습니다.",
     # Data layer (request.* / syminfo.* / timeframe.*)
     "request.security_lower_tf": "다른 timeframe lower 데이터 미지원. 단일 timeframe 으로 전략 재구성 필요.",
     "request.dividends": "배당 데이터 미지원. 외부 source 연동 필요.",
@@ -648,6 +650,43 @@ def _strip_noise(source: str) -> str:
     return _STRING_RE.sub('""', no_comments)
 
 
+def _unsupported_exit_quantities(source: str) -> list[UnsupportedCall]:
+    """수량 인자를 무시한 전량 청산을 막는다. 인자는 캐시된 AST에서 읽는다."""
+    if not re.search(r"\bstrategy\.exit\s*\(", source):
+        return []
+    from pynescript.ast.error import SyntaxError as PyneSyntaxError
+
+    from src.strategy.pine_v2.ast_extractor import extract_content
+
+    try:
+        calls = extract_content(source).strategy_calls
+    except (SyntaxError, PyneSyntaxError):
+        # 잘못된 문법은 기존 파싱 경계가 거부한다.
+        return []
+    found: list[UnsupportedCall] = []
+    for call in calls:
+        if call.name != "strategy.exit":
+            continue
+        names = {arg.name for arg in call.args if arg.name in {"qty", "qty_percent"}}
+        positional_count = sum(arg.name is None for arg in call.args)
+        if positional_count > 2:
+            names.add("qty")
+        if positional_count > 3:
+            names.add("qty_percent")
+        for name in sorted(names):
+            full_name = f"strategy.exit.{name}"
+            found.append(
+                UnsupportedCall(
+                    name=full_name,
+                    line=call.line or 0,
+                    col=None,
+                    workaround=_UNSUPPORTED_WORKAROUNDS[full_name],
+                    category="other",
+                )
+            )
+    return found
+
+
 def analyze_coverage(source: str) -> CoverageReport:
     """Pine 소스를 정적 분석해 미지원 built-in 식별.
 
@@ -694,7 +733,10 @@ def analyze_coverage(source: str) -> CoverageReport:
     # known-unsupported는 used_funcs에 감지되면 항상 unsupported로 분류
     known_found = [f for f in used_funcs if f in _KNOWN_UNSUPPORTED_FUNCTIONS]
     # 중복 없이 합산 (known_found는 이미 SUPPORTED_FUNCTIONS에서 제외됐으므로 union)
-    unsupp_funcs_set = set(unsupp_funcs_raw) | set(known_found)
+    exit_quantities = _unsupported_exit_quantities(source)
+    unsupp_funcs_set = (
+        set(unsupp_funcs_raw) | set(known_found) | {item["name"] for item in exit_quantities}
+    )
     unsupp_funcs = tuple(sorted(unsupp_funcs_set))
 
     # attributes (call site 제외 — `(` 직후 위치는 함수로 이미 잡힘)
@@ -732,6 +774,9 @@ def analyze_coverage(source: str) -> CoverageReport:
     # _strip_noise 는 // 주석 + 문자열 리터럴을 제거하므로 첫 등장 line 이 실제 코드 위치.
     unsupported_calls_list: list[UnsupportedCall] = []
     for fn in unsupp_funcs:
+        if any(item["name"] == fn for item in exit_quantities):
+            unsupported_calls_list.extend(item for item in exit_quantities if item["name"] == fn)
+            continue
         line_no = _find_line(clean, fn) or 0
         unsupported_calls_list.append(
             UnsupportedCall(
