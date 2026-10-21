@@ -326,6 +326,20 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     }
   });
 
+  it("부분 체결 취소의 미정산 셀은 체결이 없었다고 표시하지 않는다", () => {
+    withOrders([
+      makeOrder({
+        id: "code-unpriced",
+        state: "cancelled",
+        filled_quantity: "0.01",
+        has_recorded_fill: true,
+      }),
+    ]);
+    render(<OrdersBlotter />);
+    const cells = within(screen.getByTestId("order-row-code-unpriced")).getAllByRole("cell");
+    expect(cells[6]!).toHaveAttribute("title", "체결됐지만 실현 손익이 기록되지 않았습니다.");
+  });
+
   it("감춘 손익 셀은 왜 비었는지 상태별 사유를 밝힌다", () => {
     withOrders([
       makeOrder({

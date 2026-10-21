@@ -32,7 +32,10 @@ export function CodeExecutionSummary({ summary }: { summary: Summary }) {
       </p>
       {summary.new_entries_blocked || summary.failure_reason ? (
         <p className="mt-1 text-destructive" role="status">
-          새 진입 차단{summary.failure_reason ? ` · ${summary.failure_reason}` : ""}
+          새 진입 차단
+          {summary.failure_reason
+            ? ` · ${summary.failure_reason === "native_exit_unsettled" ? "거래소 청산 미정산" : summary.failure_reason}`
+            : ""}
         </p>
       ) : null}
       {Number(summary.unsettled_exit_quantity ?? "0") > 0 ? (

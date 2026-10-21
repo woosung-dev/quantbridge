@@ -674,7 +674,10 @@ function OrderRow({
           </span>
         </td>
       ) : (
-        <td className="num dim" title={realizedPnlEmptyReason(o.state)}>
+        <td
+          className="num dim"
+          title={realizedPnlEmptyReason(o.state, o.has_recorded_fill === true)}
+        >
           {EMPTY_CELL}
         </td>
       )}

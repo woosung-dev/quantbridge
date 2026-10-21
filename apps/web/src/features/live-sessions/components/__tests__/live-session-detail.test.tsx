@@ -299,6 +299,7 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     expect(screen.getByTestId("code-execution-summary")).toHaveTextContent("새 진입 차단");
     expect(screen.getByText("+12.34")).toBeInTheDocument();
     expect(screen.getByText("알려진 주문 손익 소계")).toBeInTheDocument();
+    expect(screen.getByText("정산된 청산 주문")).toBeInTheDocument();
     expect(screen.getByText(/손익 미정산/)).toHaveTextContent("정산 대기 주문 2건");
     expect(screen.getByText(/거래소 청산 귀속 미확인/)).toHaveTextContent("수량 0.25");
     expect(screen.getByText(/거래소 청산 귀속 미확인/)).toHaveTextContent("같은 계정의 새 진입");

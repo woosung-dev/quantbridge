@@ -164,7 +164,9 @@ export function LiveSessionDetail({ session }: Props) {
         {state?.code_execution ? <CodeExecutionSummary summary={state.code_execution} /> : null}
         <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-muted-foreground">종료 거래</dt>
+            <dt className="text-muted-foreground">
+              {state?.pnl_scope === "known_order_subtotal" ? "정산된 청산 주문" : "종료 거래"}
+            </dt>
             <dd className="font-mono">{stateLoading ? "…" : (state?.total_closed_trades ?? 0)}</dd>
           </div>
           <div>
