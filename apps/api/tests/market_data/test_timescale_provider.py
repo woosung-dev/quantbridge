@@ -146,3 +146,79 @@ def test_empty_and_filled_dataframes_share_index_type() -> None:
     assert type(empty.index) is type(filled.index)
     assert empty.index.name == filled.index.name
     assert empty.index.tz == filled.index.tz
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("has_gap,empty", [(False, False), (True, False), (False, True)])
+async def test_get_ohlcv_commits_materialized_result_before_return(
+    has_gap: bool, empty: bool,
+) -> None:
+    """캐시 적중/수집 모두 ORM 값을 읽은 뒤 commit하고 엔진에 반환한다."""
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    repo = AsyncMock(spec=OHLCVRepository)
+    repo.find_gaps.return_value = [(base, base)] if has_gap else []
+    ccxt = AsyncMock(spec=CCXTProvider)
+    ccxt.fetch_ohlcv.return_value = [[int(base.timestamp() * 1000), 100, 101, 99, 100.5, 10]]
+    committed = False
+
+    class TransactionBoundBar:
+        time = base
+        open = Decimal("100")
+        high = Decimal("101")
+        low = Decimal("99")
+        volume = Decimal("10")
+
+        @property
+        def close(self) -> Decimal:
+            # commit 뒤 expire된 ORM 속성의 재조회가 필요하면 순수 변환이 아니다.
+            assert not committed, "commit 뒤 ORM 속성을 읽었다"
+            return Decimal("100.5")
+
+    repo.get_range.return_value = [] if empty else [TransactionBoundBar()]
+
+    async def finish_transaction() -> None:
+        nonlocal committed
+        committed = True
+
+    repo.commit.side_effect = finish_transaction
+    result = await TimescaleProvider(repo, ccxt).get_ohlcv("BTC/USDT", "1h", base, base)
+
+    repo.commit.assert_awaited_once()
+    assert committed
+    assert isinstance(result.index, pd.DatetimeIndex)
+    assert list(result["close"]) == ([] if empty else [100.5])
+    if has_gap:
+        ccxt.fetch_ohlcv.assert_awaited_once_with("BTC/USDT:USDT", "1h", base, base)
+        repo.insert_bulk.assert_awaited_once()
+    else:
+        ccxt.fetch_ohlcv.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_stage", ["lock", "gaps", "fetch", "insert", "read", "materialize"])
+async def test_get_ohlcv_errors_leave_transaction_to_caller(failure_stage: str) -> None:
+    """조회·수집·변환 실패는 commit하지 않고 caller rollback에 맡긴다."""
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    repo = AsyncMock(spec=OHLCVRepository)
+    repo.find_gaps.return_value = [(base, base)]
+    repo.get_range.return_value = [_orm_row(base)]
+    ccxt = AsyncMock(spec=CCXTProvider)
+    ccxt.fetch_ohlcv.return_value = [[int(base.timestamp() * 1000), 100, 101, 99, 100.5, 10]]
+    operations = {
+        "lock": repo.acquire_fetch_lock,
+        "gaps": repo.find_gaps,
+        "fetch": ccxt.fetch_ohlcv,
+        "insert": repo.insert_bulk,
+        "read": repo.get_range,
+    }
+    if failure_stage == "materialize":
+        repo.get_range.return_value[0].close = "not-a-price"
+        error_type = ValueError
+    else:
+        operations[failure_stage].side_effect = RuntimeError("fixture operation failed")
+        error_type = RuntimeError
+
+    with pytest.raises(error_type):
+        await TimescaleProvider(repo, ccxt).get_ohlcv("BTC/USDT", "1h", base, base)
+
+    repo.commit.assert_not_awaited()

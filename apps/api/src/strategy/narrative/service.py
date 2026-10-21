@@ -2,8 +2,7 @@
 
 provider 선택·fallback·**스키마 강제**는 `providers.complete_json` 이 맡는다(설정
 `LLM_PROVIDER_ORDER` 가 순서를 정한다). 이 파일이 갖는 것은 **프롬프트와 근거 검증** 둘뿐이다.
-★`convert/service.py` 는 아직 그 층을 안 쓴다 — 거기는 스키마 강제가 0이라 문자열을 손으로
-파싱하고 Gemini 의 ``` 펜스를 벗긴다. 옮기려면 그쪽 계약부터 세워야 한다.
+`convert/service.py` 와 `generate_service.py` 도 같은 `complete_json` 층을 쓴다.
 
 ★**근거 검증은 서버가 한다.** 실재하지 않는 줄을 가리키는 항목은 여기서 버린다.
 클라이언트에 맡기면 규칙이 두 곳에 살고 언젠가 한쪽만 고쳐진다.

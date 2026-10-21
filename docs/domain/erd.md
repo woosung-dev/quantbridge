@@ -534,7 +534,7 @@ CREATE INDEX ix_ohlcv_symbol_tf_time_desc ON ts.ohlcv (symbol, timeframe, time);
 - Repository: `OHLCVRepository` (`apps/api/src/market_data/repository.py`)
   - `insert_bulk` — `ON CONFLICT (time, symbol, timeframe) DO NOTHING` (idempotent)
   - `find_gaps` — `generate_series` + `EXCEPT` + ROW_NUMBER island grouping
-  - `acquire_fetch_lock` — `pg_advisory_xact_lock(hashtext(symbol:tf:start:end))` (동시 fetch race 방지)
+  - `acquire_fetch_lock` — 기존 timeout 보관 → LOCAL 10초로 `pg_advisory_xact_lock(hashtext(symbol:tf:start:end))` 획득 → 기존 timeout 복원 (성공 시 Provider가 DataFrame 생성 뒤 commit해 해제, timeout 조회·적용·복원 및 락 SQL의 DB 오류는 Repository가 rollback 후 전파)
 - Provider: `TimescaleProvider` cache → CCXT fallback fetch + advisory lock + insert (자세한 flow는 [`data-flow.md`](../architecture/data-flow.md) §OHLCV cache)
 
 > ohlcv 마이그레이션 자체가 `CREATE EXTENSION` + `CREATE SCHEMA`까지 책임 — `infra/db/init/01-timescaledb.sql`이 누락된 환경(test/fresh)에서도 단독 동작 보장.

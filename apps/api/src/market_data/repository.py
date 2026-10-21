@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.market_data.models import OHLCV
@@ -105,15 +106,31 @@ class OHLCVRepository:
         period_start: datetime,
         period_end: datetime,
     ) -> None:
-        """동시 fetch race 방지 — pg_advisory_xact_lock (트랜잭션 종료 시 자동 해제)."""
+        """동시 fetch 직렬화 — 획득 대기만 10초 제한, 트랜잭션 종료 시 자동 해제.
+
+        획득 후 기존 lock_timeout을 복원해 후속 SQL의 대기 정책을 보존한다.
+        설정 조회·적용·복원/락 SQL의 DB 오류는 rollback 후 전파한다.
+        """
         key = (
             f"ohlcv:{symbol}:{timeframe}:"
             f"{period_start.isoformat()}:{period_end.isoformat()}"
         )
-        await self.session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
-            {"key": key},
-        )
+        try:
+            previous_timeout = (
+                await self.session.execute(text("SELECT current_setting('lock_timeout')"))
+            ).scalar_one()
+            await self.session.execute(text("SET LOCAL lock_timeout = '10s'"))
+            await self.session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": key},
+            )
+            await self.session.execute(
+                text("SELECT set_config('lock_timeout', :previous_timeout, true)"),
+                {"previous_timeout": previous_timeout},
+            )
+        except DBAPIError:
+            await self.session.rollback()
+            raise
 
     async def commit(self) -> None:
         await self.session.commit()
