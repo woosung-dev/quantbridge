@@ -17,6 +17,7 @@ from pathlib import Path
 
 REPOSITORY = "woosung-dev/quantbridge"
 MAX_ASSET_BYTES = 2 * 1024**3 - 1
+LAST_OBSERVATION = {}
 
 
 def sha(path):
@@ -36,6 +37,16 @@ def checked(command, *, env=None, cwd=None):
             "DOCKER_HOST": "unix:///var/run/docker.sock",
         }
     result = subprocess.run(command, env=env, cwd=cwd, capture_output=True, timeout=900)
+    def private_text(raw):
+        value = raw.decode(errors="replace")[-32768:]
+        for name in ("SOL_RESEARCH_EPOCH7_KEY", "GH_TOKEN"):
+            secret = os.environ.get(name)
+            if secret:
+                value = value.replace(secret, "<redacted>")
+        return value
+    LAST_OBSERVATION.clear()
+    LAST_OBSERVATION.update(command=command, returncode=result.returncode,
+                            stdout=private_text(result.stdout), stderr=private_text(result.stderr))
     if result.returncode:
         raise RuntimeError("bootstrap_subprocess_failed")
     return result.stdout.decode().strip()
@@ -397,6 +408,8 @@ def pack(args):
             "prepared.json",
             "private-worker.log",
             "private-dependencies.log",
+            "bootstrap-failure.json",
+            "owned-runtime.json",
         ):
             item = args.directory / name
             if item.exists():
@@ -442,6 +455,14 @@ def main():
     try:
         globals()[args.action](args)
     except BaseException as error:
+        if args.directory.is_dir():
+            write(args.directory / "bootstrap-failure.json", {
+                "schema_version": 1, "action": args.action,
+                "error_type": type(error).__name__,
+                "error_code": str(error) if type(error) in (ValueError, RuntimeError) else None,
+                "last_observation": LAST_OBSERVATION,
+                "private_encrypted_diagnostic_only": True,
+            })
         # 원문·SDK 응답·예외 메시지를 공개 로그에 출력하지 않는다.
         print(f"remote bootstrap failed: {type(error).__name__}", file=sys.stderr)
         raise SystemExit(1) from None
