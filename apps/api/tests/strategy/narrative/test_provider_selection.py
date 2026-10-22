@@ -85,7 +85,7 @@ def stub_gemini(monkeypatch, captured: dict, *, fail: str | None = None):
                 raise RuntimeError(fail)
             return SimpleNamespace(text=json.dumps(PAYLOAD))
 
-    monkeypatch.setattr(P.genai, "Client", lambda api_key: SimpleNamespace(models=_M()))
+    monkeypatch.setattr(P.genai, "Client", lambda **kwargs: SimpleNamespace(models=_M()))
 
 
 def call(st) -> P.JsonCompletion:
@@ -208,6 +208,35 @@ def test_gemini_uses_response_schema(monkeypatch):
     assert cap["config"].response_schema is not None
 
 
+def test_gemini_quota_failure_does_not_call_paid_providers(monkeypatch):
+    """Gemini 단일 설정의 429는 한 번 실패하며 남은 키로 우회하지 않는다."""
+    from google.genai.errors import ClientError
+
+    monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "true")
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    generate = Mock(
+        side_effect=ClientError(
+            429, {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": "quota"}}
+        )
+    )
+    client = Mock(return_value=SimpleNamespace(models=SimpleNamespace(generate_content=generate)))
+    paid = Mock(side_effect=AssertionError("Gemini 실패 뒤 유료 provider를 호출했습니다"))
+    monkeypatch.setattr(P.genai, "Client", client)
+    monkeypatch.setattr(P, "OpenAI", paid)
+    monkeypatch.setattr(P.anthropic, "Anthropic", paid)
+
+    with pytest.raises(RuntimeError):
+        call(settings("gemini", gemini="k", openai="k", anthropic="k"))
+
+    generate.assert_called_once()
+    client.assert_called_once()
+    kwargs = client.call_args.kwargs
+    assert kwargs["enterprise"] is False
+    assert kwargs["vertexai"] is False
+    assert kwargs["http_options"].retry_options.attempts == 1
+    paid.assert_not_called()
+
+
 def test_strict_helper_fills_nested_objects():
     """중첩 object/array 까지 채워야 한다 — 하나라도 빠지면 OpenAI 가 400 을 준다."""
     nested = {
@@ -300,7 +329,7 @@ def test_empty_gemini_text_is_a_failure(monkeypatch):
         def generate_content(self, **kw):
             return SimpleNamespace(text=None)
 
-    monkeypatch.setattr(P.genai, "Client", lambda api_key: SimpleNamespace(models=_M()))
+    monkeypatch.setattr(P.genai, "Client", lambda **kwargs: SimpleNamespace(models=_M()))
     with pytest.raises(RuntimeError):
         call(settings("gemini", gemini="k"))
 

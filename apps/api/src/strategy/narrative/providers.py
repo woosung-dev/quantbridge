@@ -190,7 +190,14 @@ def _call_openai(
 def _call_gemini(
     settings: Settings, *, system: str, user: str, schema: dict[str, Any], tool_name: str
 ) -> JsonCompletion:
-    client = genai.Client(api_key=_key_for(settings, "gemini"))
+    client = genai.Client(
+        api_key=_key_for(settings, "gemini"),
+        enterprise=False,
+        vertexai=False,
+        http_options=genai_types.HttpOptions(
+            retry_options=genai_types.HttpRetryOptions(attempts=1)
+        ),
+    )
     response = client.models.generate_content(
         model=settings.gemini_model,
         contents=user,

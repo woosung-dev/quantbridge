@@ -3,6 +3,31 @@
 결정은 [ADR-046](../adr/046-generated-strategy-language-evaluation.md), 현재 작업 진입점은
 `docs/status.md`다. 이 문서는 실험과 제품 연결의 계약이며 완료 회차 기록을 쌓지 않는다.
 
+## 연구 생성과 제품 LLM의 구분
+
+연구의 1,350개 생성물은 로컬 Codex CLI 구독으로 요청한 `gpt-6.1-sol` high 산출물이다.
+제품 서버의 Gemini 연결은 이 연구 모델·프롬프트·기존 생성물을 바꾸지 않으며 재생성하지 않는다.
+로컬 CLI에서 만든 Python·TypeScript·Pine 원문은 `/strategies/code`에 붙여 넣고 검토·버전
+저장한 뒤 서버의 검증·백테스트·Demo 경로를 이용할 수 있다. CLI 구독과 Gemini API의
+인증·quota·과금은 별개이며, 구독의 정확한 plan·응답 실제 모델·USD 청구액을 추정하지 않는다.
+
+제품의 OpenAI 유료 API 생성기 연결은 보류하고, 기존 Gemini Developer API 경로의 무료
+프로젝트만 연결한다. 연결 전에 AI Studio UI에서 `Free`와 `Set up billing`을 확인해
+청구 계정 미연결 상태를 확인한다. 이는 UI 관찰 근거이며 모델 목록 metadata 조회나 API 키의
+존재 자체가 무료 등급을 증명하지 않는다. 기존 Pine 생성·해설·지표 변환은 공유 provider 층을
+이용한다. Gemini 클라이언트는 Developer API 경로와 SDK 시도 1회를 명시한다.
+`LLM_PROVIDER_ORDER=gemini`로 허용 provider를 한 개로 제한하면 다른 provider로의 fallback과
+다른 provider의 명시 override를 차단한다. 무료 quota 초과는 요청 실패로 종결하며 유료 provider·프로젝트로
+전환하지 않는다. 기본값인 빈 provider 목록의 외부 LLM 차단 정책은 유지한다.
+
+무료 조건은 프로젝트의 청구 상태와 모델별 제공 범위에 의존한다. 향후 청구 계정을 연결하거나
+등급·모델·설정을 바꾸면 현재 무료 사용 전제는 사라지므로 호출 전에 다시 확인한다.
+[공식 billing 안내](https://ai.google.dev/gemini-api/docs/billing)는 Free와 청구 계정 연결 후의
+유료 등급을 구분하며, [rate limits](https://ai.google.dev/gemini-api/docs/rate-limits)는 프로젝트
+단위 한도와 초과 오류를 설명한다. [Gemini 3.5 Flash-Lite 가격표](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite)는
+Free Tier 입력·출력이 무료임을 명시한다. 무료 사용은 무제한·상시 가용성 보장이 아니며
+무료 tier의 입력·출력은 Google 제품 개선에 사용될 수 있다.
+
 ## 공통 실행
 
 언어는 `pine | python | typescript`다. TypeScript는 strict 검사 후 JavaScript로 컴파일해
@@ -128,6 +153,15 @@ epoch는 6 CPU·8 GiB VM에서 최대 6개이며 guest당 1 CPU·1 GiB와 900초
 확인이며 다른 조합은 거절한다. 경제 분석도 같은 정책을 다시 계산하고 후보와 증거가 일치해야
 실행한다. 전략별 첫 semantic pass 반복만 고정하고 없으면 N/A로 30전략 분모에 남긴다.
 통과 산출물에 조건부인 회고 경제 분석이며 생성 전체의 무조건 성과나 미사용 검증이 아니다.
+
+경제 평가의 ordered 병렬 경로는 sealed 30개와 닫힌 주기 지원 계약상 잠재 실행 일감이
+있을 때 최대 6개 `run_job`을 실행하고, 없으면 원 직렬 경로를 사용한다. 원 `execute`와
+`run_job`의 계산·cache binding·720+720=1,440 분모·N/A·FAIL 처리는 유지한다. 작업 완료
+순서는 달라도 결과는 원 순서로 소비하고 단일 journal/report writer가 기록한다. worker 안에서
+입력을 복제하며 Decimal context를 보존한다. 원 output 락은 worker drain이 끝날 때까지
+유지한다. 계획 preview와 빈 실행 output을 분리하며 기존 output 자동 resume이나 완료 실패·
+N/A의 재시도는 하지 않는다. 중단은 UNKNOWN으로 남기고 host worker join과 실제 guest 정리를
+구분한다. 이 스케줄 변경의 실제 처리량·메모리 효과·품질 무손실은 아직 검증하지 않았다.
 
 전략 단위 paired bootstrap은 5회 생성물을 독립 전략처럼 재표집하지 않는다. 30개 고정
 카탈로그에 대한 기술 통계이며 전략군 간 상관·임의 모집단 대표성·승자 선택 편향을 제거하지
