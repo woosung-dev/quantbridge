@@ -1,0 +1,122 @@
+# 계약: docs/development/sol-strategy-lab.md. 실제 C8 봉인 뒤 암호문만 전송한다.
+name: Sol research economics epoch 8
+
+on:
+  pull_request:
+    branches: [stage/sol-strategy-lab]
+    types: [labeled]
+    paths:
+      - .github/workflows/sol-research-economics.yml
+      - tools/research/sol_economic_bootstrap.py
+      - tools/research/sol_arm_bootstrap.py
+      - tools/research/sol_research_crypto.py
+
+permissions:
+  contents: read
+
+jobs:
+  sealed-economic-shard:
+    if: >-
+      github.repository == 'woosung-dev/quantbridge' &&
+      github.event.repository.private == false &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'stage/sol-research-arm-runners' &&
+      github.event.pull_request.number == 925 && github.run_attempt == 1 &&
+      github.event.label.name == 'sol-research-economics-execute'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 330
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    concurrency:
+      group: sol-research-epoch8-economics-${{ matrix.shard }}
+      cancel-in-progress: false
+    env:
+      SHARD: ${{ matrix.shard }}
+      REVISION_URL: 'https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/revision-v8-freq1h.enc'
+      REVISION_SHA256: '04e721d0636bf6a3beb9cb9e93d69a06fec1f73e9df8896527a39387f963150a'
+      # 실제 cutover overlay 및 C8 seal 이후 root가 검토한 pin만 넣는다.
+      SEMANTIC_OVERLAY_URL: 'https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/semantic-execute-v8.enc'
+      SEMANTIC_OVERLAY_SHA256: '78ab7d23841efa1588d99bf2951002f5927e8d0b2cd04db3f5f22c8461e5e972'
+      ECONOMIC_URL: ''
+      ECONOMIC_SHA256: ''
+      CRYPTO_SHA256: '340b8d2bda7515addb4d70a7e3aed8784d4d7f546af68e6de8930e4ccf2b2d1e'
+      RELEASE_ID: '420970222'
+      UV_NO_CACHE: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Reject unconfigured seal payload before network or dependency installation
+        run: >-
+          python3 tools/research/sol_economic_bootstrap.py validate
+          --directory "$RUNNER_TEMP/sol-economic-epoch8" --shard "$SHARD" --run-id "$GITHUB_RUN_ID"
+          --revision-url "$REVISION_URL" --revision-sha256 "$REVISION_SHA256"
+          --overlay-url "$SEMANTIC_OVERLAY_URL" --overlay-sha256 "$SEMANTIC_OVERLAY_SHA256"
+          --economic-url "$ECONOMIC_URL" --economic-sha256 "$ECONOMIC_SHA256"
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        with:
+          install_args: python uv
+          cache: false
+          cache_save: false
+          env: false
+      - name: Prepare bootstrap cryptography from repository lock
+        run: uv sync --project apps/api --frozen --no-dev
+      - name: Authenticate base revision execute overlay and sealed economic delta
+        env:
+          SOL_RESEARCH_EPOCH7_KEY: ${{ secrets.SOL_RESEARCH_EPOCH7_KEY }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_bootstrap.py prepare
+          --directory "$RUNNER_TEMP/sol-economic-epoch8" --shard "$SHARD" --run-id "$GITHUB_RUN_ID"
+          --revision-url "$REVISION_URL" --revision-sha256 "$REVISION_SHA256"
+          --overlay-url "$SEMANTIC_OVERLAY_URL" --overlay-sha256 "$SEMANTIC_OVERLAY_SHA256"
+          --economic-url "$ECONOMIC_URL" --economic-sha256 "$ECONOMIC_SHA256"
+          --crypto tools/research/sol_research_crypto.py --crypto-sha256 "$CRYPTO_SHA256"
+      - name: Install exact frozen host dependencies without cache storage
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_bootstrap.py dependencies
+          --directory "$RUNNER_TEMP/sol-economic-epoch8" --shard "$SHARD" --run-id "$GITHUB_RUN_ID"
+      - name: Install pinned runsc and exact original three image IDs
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_bootstrap.py runtime
+          --directory "$RUNNER_TEMP/sol-economic-epoch8" --shard "$SHARD" --run-id "$GITHUB_RUN_ID"
+      - name: Reserve immutable economic host before original run_job calls
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_bootstrap.py claim
+          --directory "$RUNNER_TEMP/sol-economic-epoch8" --shard "$SHARD" --run-id "$GITHUB_RUN_ID"
+          --release-id "$RELEASE_ID"
+      - name: Execute only assigned economic shard with four subprocesses
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_bootstrap.py run
+          --directory "$RUNNER_TEMP/sol-economic-epoch8" --shard "$SHARD" --run-id "$GITHUB_RUN_ID"
+      - name: Observe actual worker wait and clean owned isolated guests
+        if: always()
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_bootstrap.py cleanup
+          --directory "$RUNNER_TEMP/sol-economic-epoch8" --shard "$SHARD" --run-id "$GITHUB_RUN_ID"
+      - name: Gzip all original results caches and private diagnostics then authenticate
+        if: always()
+        env:
+          SOL_RESEARCH_EPOCH7_KEY: ${{ secrets.SOL_RESEARCH_EPOCH7_KEY }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_bootstrap.py pack
+          --directory "$RUNNER_TEMP/sol-economic-epoch8" --shard "$SHARD" --run-id "$GITHUB_RUN_ID"
+          --crypto tools/research/sol_research_crypto.py --crypto-sha256 "$CRYPTO_SHA256"
+      - name: Publish only fully sealed size-checked ciphertext
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_bootstrap.py upload
+          --directory "$RUNNER_TEMP/sol-economic-epoch8" --shard "$SHARD" --run-id "$GITHUB_RUN_ID"
+          --release-id "$RELEASE_ID"
