@@ -28,6 +28,40 @@ def archive(path, name, content=b"{}", kind=tarfile.REGTYPE):
 
 
 class BootstrapBoundaryTests(unittest.TestCase):
+    def test_observed_backtest_keeps_original_arguments_and_return_identity(self):
+        returned = object()
+        frame = list(range(201))
+        kwargs = {"warmup_bars": 200, "params": {}}
+        original = unittest.mock.Mock(return_value=returned)
+        records, snapshots = [], []
+        observe = bootstrap.observed_backtest(
+            original, records, lambda: snapshots.append(json.loads(json.dumps(records)))
+        )
+        self.assertIs(observe("manual source", "typescript", frame, **kwargs), returned)
+        original.assert_called_once_with("manual source", "typescript", frame, **kwargs)
+        self.assertEqual([x[0]["status"] for x in snapshots], ["STARTED", "RETURNED"])
+        self.assertEqual(records[0]["language"], "typescript")
+        self.assertEqual(records[0]["bar_count"], 201)
+        self.assertNotIn("manual source", json.dumps(records))
+
+    def test_observed_backtest_reraises_same_exception_and_redacts_private_message(
+        self,
+    ):
+        error = RuntimeError("native synthetic-secret-value problem")
+        original = unittest.mock.Mock(side_effect=error)
+        records = []
+        with patch.dict(bootstrap.os.environ, {"GH_TOKEN": "synthetic-secret-value"}):
+            observe = bootstrap.observed_backtest(original, records, lambda: None)
+            with self.assertRaises(RuntimeError) as caught:
+                observe("manual source", "pine", list(range(201)))
+        self.assertIs(caught.exception, error)
+        self.assertEqual(original.call_count, 1)
+        self.assertEqual(records[0]["status"], "RAISED")
+        self.assertEqual(records[0]["error_type"], "RuntimeError")
+        self.assertNotIn("synthetic-secret-value", records[0]["private_error"])
+        self.assertIn("<redacted>", records[0]["private_error"])
+        self.assertIn("completed_at", records[0])
+
     def diagnostic_fixture(self, base):
         relative = "apps/api/src/strategy/python_runtime/sandbox.py"
         target = base / "bundle/source" / relative

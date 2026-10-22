@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import argparse
 import ast
+from datetime import UTC, datetime
 import hashlib
 import json
 import os
 import re
+import runpy
 import shutil
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -518,6 +521,109 @@ def native_diagnostic(args, environment, cwd):
         raise RuntimeError("manual_native_init_diagnostic_failed")
 
 
+def observed_backtest(original, records, save):
+    """원 함수의 인자/반환/예외를 바꾸지 않고 개발 fixture 단계만 기록한다."""
+
+    def observe(*args, **kwargs):
+        language = args[1] if len(args) > 1 else kwargs.get("language")
+        frame = args[2] if len(args) > 2 else kwargs.get("ohlcv")
+        record = {
+            "language": language,
+            "bar_count": len(frame) if frame is not None else None,
+            "started_at": datetime.now(UTC).isoformat(),
+            "status": "STARTED",
+        }
+        records.append(record)
+        save()
+        started = time.monotonic()
+        try:
+            result = original(*args, **kwargs)
+        except BaseException as error:
+            text = str(error)
+            for name in (
+                "SOL_RESEARCH_EPOCH7_KEY",
+                "GH_TOKEN",
+                "TRADING_ENCRYPTION_KEYS",
+            ):
+                secret = os.environ.get(name)
+                if secret:
+                    text = text.replace(secret, "<redacted>")
+            record.update(
+                status="RAISED",
+                error_type=type(error).__name__,
+                private_error=text[-4096:],
+            )
+            raise
+        else:
+            record["status"] = "RETURNED"
+            return result
+        finally:
+            record.update(
+                completed_at=datetime.now(UTC).isoformat(),
+                wall_seconds=time.monotonic() - started,
+            )
+            save()
+
+    return observe
+
+
+def observe_worker(args):
+    """preflight child 전용. corpus/execute에서는 이 관찰 경로를 사용하지 않는다."""
+    root = args.directory / "bundle"
+    pending = load(root / "inputs/pending.json")
+    for group, prefix in (
+        ("source_hashes", "source"),
+        ("postprocess_hashes", "source"),
+        ("runner_hashes", "runner"),
+    ):
+        for name, expected in pending[group].items():
+            target = (root / prefix / name).resolve()
+            if (
+                not target.is_relative_to((root / prefix).resolve())
+                or sha(target) != expected
+            ):
+                raise ValueError("observer_original_source_hash")
+    sys.path[:0] = [
+        str(root / "runner"),
+        str(root / "source"),
+        str(root / "source/apps/api"),
+    ]
+    from src.strategy.code_runtime import backtest
+
+    records = []
+
+    def save():
+        # 관찰 기록 실패가 원 함수의 반환/예외를 덮어쓰지 않는다.
+        try:
+            write(
+                args.directory / "private-native-preflight-stages.json",
+                {
+                    "scope": "observational_manual_preflight_only_not_corpus",
+                    "records": records,
+                },
+            )
+        except (OSError, ValueError):
+            pass
+
+    original = backtest.run_code_backtest
+    original_argv = sys.argv
+    backtest.run_code_backtest = observed_backtest(original, records, save)
+    sys.argv = [
+        str(root / "runner/worker.py"),
+        "--bundle-root",
+        str(root),
+        "--host",
+        f"remote-{args.shard + 1:02}",
+        "--output",
+        str(args.directory / "result"),
+    ]
+    try:
+        runpy.run_path(str(root / "runner/worker.py"), run_name="__main__")
+    finally:
+        backtest.run_code_backtest = original
+        sys.argv = original_argv
+
+
 def run(args):
     if args.mode == "execute" and not (args.directory / "claim.json").is_file():
         raise ValueError("immutable_claim_required")
@@ -543,8 +649,6 @@ def run(args):
         "MKL_NUM_THREADS": "1",
         "TRADING_ENCRYPTION_KEYS": Fernet.generate_key().decode(),
     }
-    if args.mode == "preflight":
-        native_diagnostic(args, environment, empty)
     command = [
         str(args.directory / "venv/bin/python"),
         str(root / "runner/worker.py"),
@@ -557,6 +661,16 @@ def run(args):
     ]
     if args.mode == "execute":
         command.append("--execute")
+    else:
+        command = [
+            str(args.directory / "venv/bin/python"),
+            str(Path(__file__).resolve()),
+            "observe_worker",
+            "--directory",
+            str(args.directory),
+            "--shard",
+            str(args.shard),
+        ]
     with (args.directory / "private-worker.log").open("xb") as log:
         code = subprocess.run(
             command, env=environment, cwd=empty, stdout=log, stderr=log
@@ -600,6 +714,7 @@ def pack(args):
             "prepared.json",
             "private-worker.log",
             "private-native-diagnostic.json",
+            "private-native-preflight-stages.json",
             "private-dependencies.log",
             "bootstrap-failure.json",
             "owned-runtime.json",
@@ -624,6 +739,7 @@ def main():
         "action",
         choices=[
             "prepare",
+            "observe_worker",
             "dependencies",
             "runtime",
             "claim",
