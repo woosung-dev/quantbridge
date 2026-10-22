@@ -43,8 +43,8 @@ jobs:
       # root 검토 후 고정한다. 0 hash는 helper가 거절한다. 저장소·경로는 공개 metadata다.
       INPUT_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/input.enc
       INPUT_SHA256: 'd5c85d3fd8bb1c9788d00f43692dea1244ba0066575b0acdab7131394a910f39'
-      OVERLAY_URL: ''
-      OVERLAY_SHA256: ''
+      OVERLAY_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/semantic-execute-v8.enc
+      OVERLAY_SHA256: '78ab7d23841efa1588d99bf2951002f5927e8d0b2cd04db3f5f22c8461e5e972'
       REVISION_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/revision-v8-freq1h.enc
       REVISION_SHA256: '04e721d0636bf6a3beb9cb9e93d69a06fec1f73e9df8896527a39387f963150a'
       CRYPTO_SHA256: '340b8d2bda7515addb4d70a7e3aed8784d4d7f546af68e6de8930e4ccf2b2d1e'
