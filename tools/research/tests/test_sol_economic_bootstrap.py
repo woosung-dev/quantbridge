@@ -205,12 +205,13 @@ class EconomicBootstrapTests(unittest.TestCase):
                 b.upload(args)
                 network.assert_not_called()
 
-    def test_workflow_keeps_empty_economic_pins_public_free_matrix_and_dedicated_label(self):
+    def test_workflow_pins_sealed_payload_public_free_matrix_and_dedicated_label(self):
         workflow = SOURCE.parents[2] / ".github/workflows/sol-research-economics.yml"
         value = workflow.read_text()
         for required in ("github.event.repository.private == false", "github.run_attempt == 1",
                          "sol-research-economics-execute", "runs-on: ubuntu-24.04-arm",
-                         "max-parallel: 40", "ECONOMIC_URL: ''", "ECONOMIC_SHA256: ''",
+                         "max-parallel: 40", "economic-input-v8.enc",
+                         "6a69ba2645aa0d4b96c11a932d64991c4c6b916979b1639598ea6070d616f18d",
                          "semantic-execute-v8.enc", "78ab7d23841efa1588d99bf2951002f5927e8d0b2cd04db3f5f22c8461e5e972"):
             self.assertIn(required, value)
         self.assertNotIn("actions/upload-artifact", value)

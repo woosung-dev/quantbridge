@@ -1,6 +1,6 @@
 # 봉인 후 경제 ARM bootstrap
 
-계산 계약은 [Sol 전략 연구](./sol-strategy-lab.md)의 동결 경제 실행을 따른다. 새 경제 workflow는 기존 semantic workflow와 별개이며, 아직 실행하지 않았다. 실제 C8 품질 봉인·실제 종료 영수증으로 만든 경제 payload와 semantic execute overlay의 URL/SHA가 모두 들어오기 전에는 의존성 설치 전에 거절한다.
+계산 계약은 [Sol 전략 연구](./sol-strategy-lab.md)의 동결 경제 실행을 따른다. 경제 workflow는 기존 semantic workflow와 별개다. 전체 의미 검증 1,350건과 C8의 실제 종료 0을 확인한 봉인 후보 `A/python`의 payload만 사용한다. 원 1,440건·기간·계산·첫 semantic pass 선정은 유지하며, payload와 semantic execute overlay의 URL/SHA를 의존성 설치 전에 확인한다.
 
 `sol-research-economics.yml`은 동일 소유자·공개 저장소·동일 저장소 PR925·첫 attempt·`sol-research-economics-execute` label만 받는다. 무료 표준 `ubuntu-24.04-arm` 40개 논리 host를 요청하고 각 실행 host는 4process를 사용한다. 원 ordinal 1440과 사전 고정 shuffle 배치를 유지하고, 이미 소비한 job을 재시도하지 않는다. 실제 품질 봉인 전에 label을 붙이거나 실행하지 않는다.
 
@@ -12,6 +12,6 @@ Release의 `epoch8-economic-remote-XX.claim.json`을 새로 예약한 뒤 worker
 
 별도 root 수신기는 내려받은 asset metadata/암호문 SHA·size·run/shard를 대조하고 EOF/MAC 성공을 수거한 뒤에만 gzip tar를 읽는다. 성공한 worker·4lane·guest0·claim/plan/source binding만 새 비공개 host inbox에 단일 writer로 게시한다. 모든 cache와 비공개 wrapper/log는 `_bootstrap/`에 보존한다. 실패 pack은 진단 경로에 남고 계산 결과로 승격되지 않는다. 수신기는 경제 journal/report writer가 아니며 최종1440·family720+720·입력 해시 검증은 별도 원 root finalizer의 권한이다.
 
-현재 검증 범위는 키 없는 환경·빈 CWD의 합성 unittest와 정적 검사다. 실제 품질/선정/CSV/수익률·원격 실행은 읽거나 실행하지 않았다. 실행 승인·URL/SHA 확정·공개 runner의 실제 성공은 별도 확인이 필요하다.
+합성 검사와 원 Mac/ARM Linux loader의 12개 입력 해시 동일성을 확인했다. 경제 payload의 plan SHA는 `2b4a8733076041a08562e6ba34d6fc32b59f84f09a0fbc7fd37ba4bfe5bb592f`, 암호문 SHA는 `6a69ba2645aa0d4b96c11a932d64991c4c6b916979b1639598ea6070d616f18d`다. 입력 준비·인증과 실제 경제 실행의 완료는 별개이며, 최종 판정은 원격 영수증과 root의 1,440건 finalize를 따른다.
 
 경제 전용 배치는 seed20261022를 유지한40host×4=160논리lane이며 각 host36job/lane9job이다. 의미 평가의 local6+remote16과 품질 봉인 계약은 변경하지 않는다. 실제 동시수는 계정 한도(Free20/Pro40)에 따르고 초과 요청은 queue되며 유료 runner로 fallback하지 않는다. 슬롯 증가를 실측 가속이나 결과 동등성의 증명으로 보지 않는다.

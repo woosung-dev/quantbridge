@@ -44,8 +44,8 @@ jobs:
       # 실제 cutover overlay 및 C8 seal 이후 root가 검토한 pin만 넣는다.
       SEMANTIC_OVERLAY_URL: 'https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/semantic-execute-v8.enc'
       SEMANTIC_OVERLAY_SHA256: '78ab7d23841efa1588d99bf2951002f5927e8d0b2cd04db3f5f22c8461e5e972'
-      ECONOMIC_URL: ''
-      ECONOMIC_SHA256: ''
+      ECONOMIC_URL: 'https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/economic-input-v8.enc'
+      ECONOMIC_SHA256: '6a69ba2645aa0d4b96c11a932d64991c4c6b916979b1639598ea6070d616f18d'
       CRYPTO_SHA256: '340b8d2bda7515addb4d70a7e3aed8784d4d7f546af68e6de8930e4ccf2b2d1e'
       RELEASE_ID: '420970222'
       UV_NO_CACHE: '1'
