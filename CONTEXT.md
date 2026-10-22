@@ -80,11 +80,14 @@ _Avoid_: "LLM 변환"(= 기존 전략의 **번역**이고 그것은 [ADR-011](./
 TypeScript는 격리 실행기에서 의도만 계산하고 공통 원장이 수량·SL·반익절·트레일링을
 소유한다([ADR-046](./docs/adr/046-generated-strategy-language-evaluation.md)). 기존 Pine
 전략과 별도 API로 저장하며 Python View나 과거 Python Research Strategy 테이블이 아니다.
-세 언어의 수동 실행 기반은 제공하지만 기본 LLM 생성 방식·추천 언어는 평가 후 정한다.
+세 언어의 수동 실행 기반을 제공하며, 봉인 품질 평가의 권고는 **직접 생성 A / Python**이다.
+로컬 구독 CLI 생성·검토·수동 가져오기 경로와 서버의 기존 Gemini Pine 생성기를 구분한다.
+점수와 운영·경제 검증 범위는 [평가 보고서](./docs/architecture/generated-strategy-evaluation.md)가 갖는다.
 계약은 [`code-strategy-storage.md`](./docs/development/code-strategy-storage.md)를 따른다.
 
 **Backtest**:
-한 Strategy 를 과거 OHLCV 에 대해 pine_v2 로 실행한 시뮬레이션 결과(불변 입력 + 상태 + `metrics` JSONB).
+한 Strategy 를 과거 OHLCV 에 대해 실행한 시뮬레이션 결과(불변 입력 + 상태 + `metrics` JSONB).
+일반 Pine은 `pine_v2`, `code_v1`은 고정 버전의 언어별 격리 실행기와 공통 원장을 사용한다.
 
 **BacktestTrade**:
 Backtest 시뮬레이션 내부의 개별 가상 체결 기록.

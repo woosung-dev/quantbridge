@@ -3,7 +3,8 @@
 [ADR-046](../adr/046-generated-strategy-language-evaluation.md)에 따라 제품 언어를 평가 전에
 승자로 정하지 않는다. 아래는 확인된 구현·관측과 설계 가설을 구분한 런타임 보고서다.
 생성 품질·효율 비교와 최종 선택은 동결한 산출물의 별도 평가를 따른다. 여기에는 생성
-점수나 승자를 기록하지 않는다. 수익률은 생성 정확도의 대체 지표가 아니다.
+점수나 승자를 기록하지 않는다. 실제 봉인 점수와 선정 후 연결 구조는
+[평가 보고서](./generated-strategy-evaluation.md)가 갖는다. 수익률은 생성 정확도의 대체 지표가 아니다.
 
 ## 세 언어의 실제 실행 경로
 
@@ -66,12 +67,13 @@ fake 검사는 진입·종결 체결 VWAP 기준 고정 R·SL/추적 보호 파�
 응답의 `pnl_complete=false`와 알려진 주문 손익 소계를 구분한다
 ([리스크 계약](../domain/code-risk-execution.md#native-청산-미정산과-손익-표시)).
 
-광역 CI 관측은 `c1be7797`의 BE `7149 passed, 71 skipped, 2 xfailed`(973.72초),
-FE·strategy journey·live-smoke 통과다. 미정산 계정 가드·전송 직전 재확인과 목록·대시보드
-표시, 수치 v2·운영 측정기·native SL 귀속·물리 계정 소유권·코드 손익 증거가 포함된다. 해당 CI 통과도
-실거래소 주문·native child 회계 검증을 대신하지 않는다.
+제품 구현 head `81ee0bd4`의 [광역 CI](https://github.com/woosung-dev/quantbridge/actions/runs/39810910473)는
+BE `7171 passed, 71 skipped, 2 xfailed`(989.16초), FE `2467 passed`, strategy journey 1건이 통과했다.
+별도 [live-smoke](https://github.com/woosung-dev/quantbridge/actions/runs/39810910423) 2건도 통과했다.
+미정산 계정 가드·native SL 귀속·코드 손익 증거와 Gemini provider 경계가 포함되지만,
+CI 통과가 실거래소 주문·native child 회계 검증을 대신하지 않는다.
 원시 관측 근거는 control의 `runs/sol-strategy-lab/native-product-journey-latest.json`과
-`ci-backend-c1be7797.log`에 보존한다. 후속 head의 전체 판정은 PR CI를 따른다.
+`ci-81ee0bd4/verification.json`에 보존한다. 후속 head의 전체 판정은 PR CI를 따른다.
 
 후속 코드 청산의 단일 원본 손익·충돌 보존·조회 예산·커밋 순서와 native WS 경계는 통합 슬롯에서
 `305 passed`(50.34초), mypy 286파일·ruff·OpenAPI drift 검사로 확인했다. 근거는
@@ -102,16 +104,16 @@ init·parser만의 시간이 아니며, 두 fixture의 시간으로 언어 일�
 
 [가정] Python은 기존 BE와 계산 생태계를 공유하는 유지보수 이점, TypeScript는 공개 컴파일
 진단을 B 수정에 활용하는 이점, Pine은 기존 사용자 입력·지표를 유지하는 이점이 있을 수 있다.
-[확인 필요] 이 가정이 생성 의미 정확도·수정 성공률·콜드/반복 지연·이미지 운영 부담의
-실제 차이로 이어지는지는 별도 결과로 검증해야 한다. strict 통과는 실행 의미·지표 정확도·
+[확인] 생성 의미 평가와 실제 공개 오류 수정 관측은 [평가 보고서](./generated-strategy-evaluation.md)에
+분리했다. 콜드/반복 지연과 이미지 운영 부담의 일반적인 우열은 미확정이다. strict 통과는 실행 의미·지표 정확도·
 자원 안전 보장이 아니며, pandas 기본 지표나 Pine 지원 범위도 자동으로 동등하지 않다.
 
 워크트리 검증은 격리 슬롯 SQL과 직접 service/task 함수, fake provider만 사용한다.
 공유 worker가 main 소스를 실행하는 Celery 경유 검증은 금지한다
 ([워크트리 계약](../development/worktree-parallel.md)). 실인증 Bybit Demo 주문 관측과 배포는
 별도 범위이며 이 보고서의 완료 증거가 아니다.
-연구 생성은 인증된 Codex CLI의 `gpt-6.1-sol/high`로 수행했고, 제품 OpenAI API 생성기
-연결의 기존 키 재사용/새 키 선택은 사용자 답변 대기이며 기존 수동 저장 UI·native 런타임과는 별개다.
+연구 생성은 인증된 Codex CLI의 `gpt-6.1-sol/high`로 수행하며 제품 OpenAI 유료 API 연결은 보류한다.
+제품은 기존 Gemini Developer API의 무료 프로젝트만 연결하며 연구 생성·수동 저장·native 런타임과 구분한다.
 
 ## 생성 방식별 검증 질문
 
@@ -149,9 +151,10 @@ read-only, nonroot, CPU·메모리·PID·시간·출력 제한을 적용한다. 
 [방어 계층](https://gvisor.dev/docs/architecture_guide/security/)이며 무조건적인 안전 보장이
 아니다. Node의 [vm 자체도 보안 경계가 아니다](https://nodejs.org/api/vm.html).
 
-제품 기반은 세 언어를 수동 저장·백테스트·데모 세션에 연결할 수 있도록 공통화한다.
-이는 특정 언어를 권장하거나 LLM 생성 결과를 검토 없이 저장하는 결정과 다르다.
-생성 기능의 기본 경로·추천 언어는 최종 품질 비교 후 정한다.
+제품 기반은 세 언어의 수동 저장·백테스트·데모 세션을 공통화한다. 봉인 품질 평가의 권고는
+로컬 Sol의 직접 생성 A/Python → 원문 검토 → 기존 작업 공간에 수동 가져오기다.
+Python은 이미 새 draft의 기본값이며 새 FE 기본값 변경은 필요하지 않다.
+선정 점수·경제 결과·운영 한계는 [평가 보고서](./generated-strategy-evaluation.md)가 갖는다.
 
 ## 비교 결과를 해석할 때의 한계
 
