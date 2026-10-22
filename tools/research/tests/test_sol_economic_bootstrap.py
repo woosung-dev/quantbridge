@@ -210,10 +210,12 @@ class EconomicBootstrapTests(unittest.TestCase):
         value = workflow.read_text()
         for required in ("github.event.repository.private == false", "github.run_attempt == 1",
                          "sol-research-economics-execute", "runs-on: ubuntu-24.04-arm",
-                         "max-parallel: 16", "ECONOMIC_URL: ''", "ECONOMIC_SHA256: ''",
+                         "max-parallel: 40", "ECONOMIC_URL: ''", "ECONOMIC_SHA256: ''",
                          "semantic-execute-v8.enc", "78ab7d23841efa1588d99bf2951002f5927e8d0b2cd04db3f5f22c8461e5e972"):
             self.assertIn(required, value)
         self.assertNotIn("actions/upload-artifact", value)
+        self.assertIn("shard: [" + ", ".join(map(str, range(40))) + "]", value)
+        self.assertIn("choices=range(40)", SOURCE.read_text())
         self.assertLess(value.index("Reject unconfigured seal"), value.index("mise-action"))
 
 

@@ -1,0 +1,79 @@
+# 원 CSV parser12cell만 검사한다. 품질선정·경제·Docker 실행은 없다.
+name: Sol economic data parser preflight
+on:
+  pull_request:
+    branches: [stage/sol-strategy-lab]
+    types: [labeled]
+permissions:
+  contents: read
+jobs:
+  original-data-hashes:
+    if: >-
+      github.repository == 'woosung-dev/quantbridge' && github.event.repository.private == false &&
+      github.actor == github.repository_owner && github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'stage/sol-research-arm-runners' &&
+      github.event.pull_request.number == 925 && github.run_attempt == 1 &&
+      github.event.label.name == 'sol-economic-data-preflight'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    concurrency:
+      group: sol-economic-data-preflight-epoch8
+      cancel-in-progress: false
+    env:
+      DATA_URL: 'https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/economic-data-preflight-v8.enc'
+      DATA_SHA256: '0c5942f94b7d8a814d4510f37542ccb187e8b0af92769c961c3dd4750d9bcdc7'
+      CRYPTO_SHA256: '340b8d2bda7515addb4d70a7e3aed8784d4d7f546af68e6de8930e4ccf2b2d1e'
+      UV_NO_CACHE: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Reject missing authenticated data pins before dependencies
+        run: >-
+          python3 tools/research/sol_economic_data_preflight.py validate
+          --directory "$RUNNER_TEMP/sol-economic-data" --run-id "$GITHUB_RUN_ID"
+          --data-url "$DATA_URL" --data-sha256 "$DATA_SHA256"
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        with:
+          install_args: python uv
+          cache: false
+          cache_save: false
+          env: false
+      - name: Prepare only bootstrap cryptography from existing lock
+        run: uv sync --project apps/api --frozen --no-dev
+      - name: Authenticate existing base and original data-only payload
+        env:
+          SOL_RESEARCH_EPOCH7_KEY: ${{ secrets.SOL_RESEARCH_EPOCH7_KEY }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_data_preflight.py prepare
+          --directory "$RUNNER_TEMP/sol-economic-data" --run-id "$GITHUB_RUN_ID"
+          --data-url "$DATA_URL" --data-sha256 "$DATA_SHA256"
+          --crypto tools/research/sol_research_crypto.py --crypto-sha256 "$CRYPTO_SHA256"
+      - name: Install original exact host Python and numerical packages
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_data_preflight.py dependencies
+          --directory "$RUNNER_TEMP/sol-economic-data" --run-id "$GITHUB_RUN_ID"
+      - name: Observe original twelve cell parser hashes without keys or network
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_data_preflight.py probe
+          --directory "$RUNNER_TEMP/sol-economic-data" --run-id "$GITHUB_RUN_ID"
+      - name: Authenticate all hashes and private failure diagnostics
+        if: always()
+        env:
+          SOL_RESEARCH_EPOCH7_KEY: ${{ secrets.SOL_RESEARCH_EPOCH7_KEY }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_data_preflight.py pack
+          --directory "$RUNNER_TEMP/sol-economic-data" --run-id "$GITHUB_RUN_ID"
+          --crypto tools/research/sol_research_crypto.py --crypto-sha256 "$CRYPTO_SHA256"
+      - name: Upload only authenticated private result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_economic_data_preflight.py upload
+          --directory "$RUNNER_TEMP/sol-economic-data" --run-id "$GITHUB_RUN_ID"

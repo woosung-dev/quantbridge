@@ -310,7 +310,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("validate", "prepare", "dependencies", "runtime", "claim", "run", "cleanup", "pack", "upload"))
     parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument("--shard", type=int, choices=range(16), required=True)
+    parser.add_argument("--shard", type=int, choices=range(40), required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--release-id", type=int, default=420970222)
     for name, default in (("url", BASE_URL), ("sha256", BASE_SHA), ("revision-url", REVISION_URL),
