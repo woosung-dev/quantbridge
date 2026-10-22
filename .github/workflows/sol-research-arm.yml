@@ -22,7 +22,7 @@ jobs:
       github.event.pull_request.user.login == github.repository_owner &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'stage/sol-research-arm-runners' &&
-      github.event.pull_request.number == 0 && github.run_attempt == 1 &&
+      github.event.pull_request.number == 925 && github.run_attempt == 1 &&
       (github.event.label.name == 'sol-research-arm-preflight' ||
        github.event.label.name == 'sol-research-arm-execute')
     runs-on: ubuntu-24.04-arm
@@ -41,13 +41,13 @@ jobs:
       MODE: ${{ github.event.label.name == 'sol-research-arm-execute' && 'execute' || 'preflight' }}
       SHARD: ${{ matrix.shard }}
       # root 검토 후 고정한다. 0 hash는 helper가 거절한다. 저장소·경로는 공개 metadata다.
-      INPUT_URL: https://github.com/woosung-dev/quantbridge/releases/download/UNCONFIGURED/input.enc
-      INPUT_SHA256: '0000000000000000000000000000000000000000000000000000000000000000'
+      INPUT_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/input.enc
+      INPUT_SHA256: 'd5c85d3fd8bb1c9788d00f43692dea1244ba0066575b0acdab7131394a910f39'
       OVERLAY_URL: ''
       OVERLAY_SHA256: ''
-      CRYPTO_SHA256: '0000000000000000000000000000000000000000000000000000000000000000'
-      RELEASE_ID: '0'
-      RELEASE_TAG: UNCONFIGURED
+      CRYPTO_SHA256: '340b8d2bda7515addb4d70a7e3aed8784d4d7f546af68e6de8930e4ccf2b2d1e'
+      RELEASE_ID: '420970222'
+      RELEASE_TAG: sol-research-epoch7-20261023
       UV_NO_CACHE: '1'
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
