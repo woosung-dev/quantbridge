@@ -133,9 +133,13 @@ epoch는 6 CPU·8 GiB VM에서 최대 6개이며 guest당 1 CPU·1 GiB와 900초
 별도 인프라 중단으로 보존하며 모델의 실패 행을 새로 만들지 않는다. 자원 변경이 wall timeout에
 주는 영향은 미확정이고, 실제 가속률은 별도로 관찰한다.
 원격 분산을 추가할 때는 공개 저장소의 무료 표준 `ubuntu-24.04-arm` runner만 사용한다.
-최대 8개 host에 각각 4개 worker를 배치하며 유료 runner·Actions artifact/cache·Packages·LFS를
+최대 16개 host에 각각 4개 worker를 배치하며 유료 runner·Actions artifact/cache·Packages·LFS를
 사용하지 않는다. 외부 Release에는 인증 암호문만 게시하고 단기 CI secret은 평가 환경에
 전달하지 않는다. 원본 source·hidden 입력·결과 원문과 실제 계정 키는 공개하지 않는다.
+원격의 수치 재생성이 기존 Mac 입력 digest와 달라지면 기존 Mac의 1,200봉 값을 JSON으로
+봉인해 전달한다. 별도 v8 입력 provider가 dtype·UTC index·freq와 두 원 digest를 검증한 뒤
+복사본을 공급하며 원 평가·oracle·채점 함수와 기대 hash는 유지한다. 기존 v7 실패 증거와
+입력 재생성 차이를 보존하고 제품 소스는 교체하지 않는다.
 호스트별 정확한 Python·package·원 이미지 ID·runsc SHA와 hidden 입력 digest, 수동 3언어
 fixture를 먼저 검증한다. 기존 완료 캐시는 원문 SHA로 보존하고, 인계 중 추가로 중단된
 미게시 native 작업도 별도 인프라 증거로 남기며 원 1,350 분모·실패·기간·5회 fresh 검증을

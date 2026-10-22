@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -155,6 +156,46 @@ def apply_overlay(root, overlay):
         target.write_bytes(value)
 
 
+def apply_revision(root, archive, base_sha256):
+    """검토한 v8 입력 provider와 원본 입력만 교체하고 제품 소스는 고정한다."""
+    names = {"runner/worker.py", "runner/protocol.py", "runner/coordinator.py",
+             "inputs/pending.json", "inputs/hidden-frame.json", "epoch.json"}
+    root = Path(root)
+    with tarfile.open(archive, "r:*") as bundle:
+        members = bundle.getmembers()
+        if (len(members) != 7 or {x.name for x in members} != names | {"revision.json"}
+                or any(not x.isfile() for x in members)
+                or sum(x.size for x in members) > 32 * 1024**2):
+            raise ValueError("exact_reviewed_revision_members_required")
+        values = {x.name: bundle.extractfile(x).read() for x in members}
+    revision = json.loads(values["revision.json"])
+    if (revision.get("schema_version") != 1
+            or revision.get("epoch_id") != "semantic-distributed-v8"
+            or revision.get("base_cipher_sha256") != base_sha256
+            or set(revision.get("files", {})) != names
+            or set(revision.get("before_files", {})) != names - {"inputs/hidden-frame.json"}
+            or (root / "inputs/hidden-frame.json").exists()):
+        raise ValueError("revision_base_or_scope_mismatch")
+    for name in names:
+        if hashlib.sha256(values[name]).hexdigest() != revision["files"][name]:
+            raise ValueError("revision_new_file_hash_mismatch")
+    for name, expected in revision["before_files"].items():
+        if sha(root / name) != expected:
+            raise ValueError("revision_original_file_hash_mismatch")
+    # 모두 검증한 뒤 비공개 준비 디렉터리 안에서만 원자적으로 교체한다.
+    for name in names | {"revision.json"}:
+        target = root / name
+        with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            try:
+                stream.write(values[name])
+                stream.flush()
+                os.fsync(stream.fileno())
+                os.replace(temporary, target)
+            finally:
+                temporary.unlink(missing_ok=True)
+
+
 def prepare(args):
     args.directory.mkdir(mode=0o700)
     encrypted, archive = args.directory / "input.enc", args.directory / "input.tar"
@@ -163,6 +204,12 @@ def prepare(args):
     root = args.directory / "bundle"
     root.mkdir(mode=0o700)
     safe_extract(archive, root)
+    if not args.revision_url or not args.revision_sha256:
+        raise ValueError("v8_requires_reviewed_input_revision")
+    revision_cipher, revision = args.directory / "revision.enc", args.directory / "revision.tar"
+    download(args.revision_url, args.revision_sha256, revision_cipher)
+    crypto(args, "decrypt", revision_cipher, revision, "input-revision-v8")
+    apply_revision(root, revision, args.sha256)
     if args.mode == "execute":
         if not args.overlay_url or not args.overlay_sha256:
             raise ValueError("execute_requires_cutover_overlay")
@@ -171,7 +218,7 @@ def prepare(args):
             args.directory / "overlay.tar",
         )
         download(args.overlay_url, args.overlay_sha256, overlay_cipher)
-        crypto(args, "decrypt", overlay_cipher, overlay, "input-v7-overlay")
+        crypto(args, "decrypt", overlay_cipher, overlay, "input-v8-overlay")
         apply_overlay(root, overlay)
     # 원 bundle 전송·복호화가 끝나도 설정/모델/실제 평가 함수는 여기서 부르지 않는다.
     write(
@@ -180,6 +227,8 @@ def prepare(args):
             "mode": args.mode,
             "cipher_sha256": args.sha256,
             "overlay_sha256": args.overlay_sha256,
+            "revision_sha256": args.revision_sha256,
+            "epoch_id": "semantic-distributed-v8",
             "pending_sha256": sha(root / "inputs/pending.json"),
         },
     )
@@ -318,7 +367,7 @@ def claim(args):
         }
     ).encode()
     token = os.environ["GH_TOKEN"]
-    name = f"epoch7-{host}.claim.json"
+    name = f"epoch8-{host}.claim.json"
     request = urllib.request.Request(
         f"https://uploads.github.com/repos/{REPOSITORY}/releases/{args.release_id}/assets?name={name}",
         data=body,
@@ -434,7 +483,7 @@ def pack(args):
         "encrypt",
         archive,
         args.directory / "result.enc",
-        f"result-v7-{args.shard}",
+        f"result-v8-{args.shard}",
     )
     if (args.directory / "result.enc").stat().st_size > MAX_ASSET_BYTES:
         raise ValueError("result_asset_too_large")
@@ -456,11 +505,13 @@ def main():
     )
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--mode", choices=["preflight", "execute"], default="preflight")
-    parser.add_argument("--shard", type=int, choices=range(8), default=0)
+    parser.add_argument("--shard", type=int, choices=range(16), default=0)
     parser.add_argument("--url")
     parser.add_argument("--sha256")
     parser.add_argument("--overlay-url")
     parser.add_argument("--overlay-sha256")
+    parser.add_argument("--revision-url")
+    parser.add_argument("--revision-sha256")
     parser.add_argument("--crypto", type=Path)
     parser.add_argument("--crypto-sha256")
     parser.add_argument("--release-id", type=int)

@@ -1,6 +1,7 @@
 """원격 호출 없이 bootstrap의 신뢰 경계만 검산한다."""
 
 import importlib.util
+import hashlib
 import io
 import json
 import os
@@ -26,6 +27,62 @@ def archive(path, name, content=b"{}", kind=tarfile.REGTYPE):
 
 
 class BootstrapBoundaryTests(unittest.TestCase):
+    def revision_fixture(self, base, *, tamper=False, extra=False, wrong_base=False):
+        root = base / "root"
+        names = {"runner/worker.py", "runner/protocol.py", "runner/coordinator.py",
+                 "inputs/pending.json", "inputs/hidden-frame.json", "epoch.json"}
+        before = {}
+        for name in names - {"inputs/hidden-frame.json"}:
+            target = root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"reviewed previous bytes")
+            before[name] = bootstrap.sha(target)
+        values = {name: b"reviewed new bytes" for name in names}
+        revision = {"schema_version": 1, "epoch_id": "semantic-distributed-v8",
+                    "base_cipher_sha256": ("b" if wrong_base else "a") * 64,
+                    "before_files": before,
+                    "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in values.items()}}
+        values["revision.json"] = json.dumps(revision).encode()
+        if tamper:
+            values["inputs/hidden-frame.json"] = b"unreviewed different data"
+        if extra:
+            values["source/apps/api/src/unreviewed.py"] = b"unreviewed code"
+        archive_path = base / "revision.tar"
+        with tarfile.open(archive_path, "w") as bundle:
+            for name, raw in values.items():
+                item = tarfile.TarInfo(name)
+                item.size = len(raw)
+                bundle.addfile(item, io.BytesIO(raw))
+        return root, archive_path
+
+    def test_reviewed_revision_only_changes_closed_input_provider_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root, archive_path = self.revision_fixture(Path(folder))
+            bootstrap.apply_revision(root, archive_path, "a" * 64)
+            self.assertEqual((root / "inputs/hidden-frame.json").read_bytes(), b"reviewed new bytes")
+            self.assertEqual((root / "runner/worker.py").read_bytes(), b"reviewed new bytes")
+
+    def test_revision_rejects_wrong_data_extra_source_and_wrong_base_before_writing(self):
+        for option in ("tamper", "extra", "wrong_base"):
+            with self.subTest(option=option), tempfile.TemporaryDirectory() as folder:
+                root, archive_path = self.revision_fixture(Path(folder), **{option: True})
+                with self.assertRaises(ValueError):
+                    bootstrap.apply_revision(root, archive_path, "a" * 64)
+                self.assertEqual((root / "runner/worker.py").read_bytes(), b"reviewed previous bytes")
+                self.assertFalse((root / "inputs/hidden-frame.json").exists())
+
+    def test_revision_rejects_changed_previous_input_and_cannot_apply_twice(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root, archive_path = self.revision_fixture(Path(folder))
+            (root / "inputs/pending.json").write_bytes(b"concurrent change")
+            with self.assertRaisesRegex(ValueError, "original_file_hash"):
+                bootstrap.apply_revision(root, archive_path, "a" * 64)
+        with tempfile.TemporaryDirectory() as folder:
+            root, archive_path = self.revision_fixture(Path(folder))
+            bootstrap.apply_revision(root, archive_path, "a" * 64)
+            with self.assertRaisesRegex(ValueError, "base_or_scope"):
+                bootstrap.apply_revision(root, archive_path, "a" * 64)
+
     def test_extract_rejects_path_escape_links_and_devices_before_writing(self):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)

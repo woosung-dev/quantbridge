@@ -1,5 +1,5 @@
 # 설계: docs/development/sol-strategy-lab.md. 암호문만 외부로 보내고 계산은 원 동결 worker에 위임한다.
-name: Sol research ARM epoch 7
+name: Sol research ARM epoch 8
 
 on:
   pull_request:
@@ -31,11 +31,11 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 16
       matrix:
-        shard: ${{ fromJSON(github.event.label.name == 'sol-research-arm-execute' && '[0,1,2,3,4,5,6,7]' || '[0]') }}
+        shard: ${{ fromJSON(github.event.label.name == 'sol-research-arm-execute' && '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]' || '[0]') }}
     concurrency:
-      group: sol-research-epoch7-${{ github.event.label.name }}-${{ matrix.shard }}
+      group: sol-research-epoch8-${{ github.event.label.name }}-${{ matrix.shard }}
       cancel-in-progress: false
     env:
       MODE: ${{ github.event.label.name == 'sol-research-arm-execute' && 'execute' || 'preflight' }}
@@ -45,6 +45,8 @@ jobs:
       INPUT_SHA256: 'd5c85d3fd8bb1c9788d00f43692dea1244ba0066575b0acdab7131394a910f39'
       OVERLAY_URL: ''
       OVERLAY_SHA256: ''
+      REVISION_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/revision-v8.enc
+      REVISION_SHA256: 'c0418990c87ac64b1905267f6f03bc0d07bd53a53df8009dd9acb95767d45c65'
       CRYPTO_SHA256: '340b8d2bda7515addb4d70a7e3aed8784d4d7f546af68e6de8930e4ccf2b2d1e'
       RELEASE_ID: '420970222'
       RELEASE_TAG: sol-research-epoch7-20261023
@@ -71,6 +73,7 @@ jobs:
           --directory "$RUNNER_TEMP/sol-epoch7" --mode "$MODE" --shard "$SHARD"
           --url "$INPUT_URL" --sha256 "$INPUT_SHA256"
           --overlay-url "$OVERLAY_URL" --overlay-sha256 "$OVERLAY_SHA256"
+          --revision-url "$REVISION_URL" --revision-sha256 "$REVISION_SHA256"
           --crypto tools/research/sol_research_crypto.py --crypto-sha256 "$CRYPTO_SHA256"
       - name: Match frozen host dependency versions without cache storage
         run: >-
@@ -112,7 +115,7 @@ jobs:
         run: |
           result="$RUNNER_TEMP/sol-epoch7/result.enc"
           if [ -f "$result" ]; then
-            asset="$RUNNER_TEMP/sol-epoch7/epoch7-$MODE-$SHARD-$GITHUB_RUN_ID.enc"
+            asset="$RUNNER_TEMP/sol-epoch7/epoch8-$MODE-$SHARD-$GITHUB_RUN_ID.enc"
             cp "$result" "$asset"
             gh release upload "$RELEASE_TAG" "$asset" --repo woosung-dev/quantbridge
           fi
