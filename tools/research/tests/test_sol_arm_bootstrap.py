@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -27,10 +28,104 @@ def archive(path, name, content=b"{}", kind=tarfile.REGTYPE):
 
 
 class BootstrapBoundaryTests(unittest.TestCase):
+    def diagnostic_fixture(self, base):
+        relative = "apps/api/src/strategy/python_runtime/sandbox.py"
+        target = base / "bundle/source" / relative
+        target.parent.mkdir(parents=True)
+        target.write_text(
+            'def sandbox_command(image_id: str, name: str) -> list[str]:\n    return [_DOCKER, "run", "--rm", "-i", "--name", name, "--runtime=runsc", "--network=none", "--read-only", "--cpus=1", "--memory=1g", image_id]\n'
+        )
+        inputs = base / "bundle/inputs"
+        inputs.mkdir()
+        (inputs / "pending.json").write_text(
+            json.dumps(
+                {
+                    "source_hashes": {relative: bootstrap.sha(target)},
+                    "image_ids": {
+                        "quantbridge-python-runner:local": "sha256:" + "a" * 64
+                    },
+                }
+            )
+        )
+        return SimpleNamespace(directory=base), target
+
+    def test_native_diagnostic_uses_original_function_and_private_bounded_output(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            args, source = self.diagnostic_fixture(base)
+            secret = "synthetic-redaction-value"
+            completed = subprocess.CompletedProcess(
+                [], 0, b'{"ready":1}\n', (secret + "z" * 70000).encode()
+            )
+            environment = {
+                "PATH": "/usr/bin",
+                "DOCKER_HOST": "unix:///var/run/docker.sock",
+            }
+            with (
+                patch.object(
+                    bootstrap.subprocess, "run", return_value=completed
+                ) as run,
+                patch.dict(bootstrap.os.environ, {"GH_TOKEN": secret}),
+            ):
+                bootstrap.native_diagnostic(args, environment, base)
+            kwargs = run.call_args.kwargs
+            self.assertEqual(kwargs["timeout"], 60)
+            self.assertTrue(kwargs["capture_output"])
+            self.assertEqual(
+                json.loads(kwargs["input"])["source"],
+                "def on_bar(ctx, state):\n    return {'action': 'hold'}\n",
+            )
+            self.assertNotIn("GH_TOKEN", kwargs["env"])
+            receipt = json.loads((base / "private-native-diagnostic.json").read_text())
+            self.assertTrue(receipt["actual_wait_observed"])
+            self.assertTrue(receipt["ready"])
+            self.assertEqual(receipt["returncode"], 0)
+            self.assertLessEqual(len(receipt["stderr"]), 65536)
+            self.assertNotIn(secret, receipt["stderr"])
+            self.assertEqual(receipt["original_source_sha256"], bootstrap.sha(source))
+
+    def test_native_diagnostic_failure_timeout_and_modified_source_fail_closed(self):
+        for mode in ("exit", "timeout", "source"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as folder:
+                base = Path(folder)
+                args, source = self.diagnostic_fixture(base)
+                if mode == "source":
+                    source.write_text("changed")
+                failure = subprocess.CompletedProcess([], 125, b"", b"native failure")
+                effect = (
+                    subprocess.TimeoutExpired(
+                        ["docker"], 60, output=b"partial", stderr=b"timeout"
+                    )
+                    if mode == "timeout"
+                    else None
+                )
+                with patch.object(
+                    bootstrap.subprocess,
+                    "run",
+                    return_value=failure,
+                    side_effect=effect,
+                ) as run:
+                    with self.assertRaises((ValueError, RuntimeError)):
+                        bootstrap.native_diagnostic(args, {"PATH": "/usr/bin"}, base)
+                if mode == "source":
+                    self.assertEqual(run.call_count, 0)
+                else:
+                    receipt = json.loads(
+                        (base / "private-native-diagnostic.json").read_text()
+                    )
+                    self.assertFalse(receipt["ready"])
+                    self.assertEqual(receipt["actual_wait_observed"], mode == "exit")
+
     def revision_fixture(self, base, *, tamper=False, extra=False, wrong_base=False):
         root = base / "root"
-        names = {"runner/worker.py", "runner/protocol.py", "runner/coordinator.py",
-                 "inputs/pending.json", "inputs/hidden-frame.json", "epoch.json"}
+        names = {
+            "runner/worker.py",
+            "runner/protocol.py",
+            "runner/coordinator.py",
+            "inputs/pending.json",
+            "inputs/hidden-frame.json",
+            "epoch.json",
+        }
         before = {}
         for name in names - {"inputs/hidden-frame.json"}:
             target = root / name
@@ -38,10 +133,15 @@ class BootstrapBoundaryTests(unittest.TestCase):
             target.write_bytes(b"reviewed previous bytes")
             before[name] = bootstrap.sha(target)
         values = {name: b"reviewed new bytes" for name in names}
-        revision = {"schema_version": 1, "epoch_id": "semantic-distributed-v8",
-                    "base_cipher_sha256": ("b" if wrong_base else "a") * 64,
-                    "before_files": before,
-                    "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in values.items()}}
+        revision = {
+            "schema_version": 1,
+            "epoch_id": "semantic-distributed-v8",
+            "base_cipher_sha256": ("b" if wrong_base else "a") * 64,
+            "before_files": before,
+            "files": {
+                name: hashlib.sha256(raw).hexdigest() for name, raw in values.items()
+            },
+        }
         values["revision.json"] = json.dumps(revision).encode()
         if tamper:
             values["inputs/hidden-frame.json"] = b"unreviewed different data"
@@ -59,16 +159,26 @@ class BootstrapBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root, archive_path = self.revision_fixture(Path(folder))
             bootstrap.apply_revision(root, archive_path, "a" * 64)
-            self.assertEqual((root / "inputs/hidden-frame.json").read_bytes(), b"reviewed new bytes")
-            self.assertEqual((root / "runner/worker.py").read_bytes(), b"reviewed new bytes")
+            self.assertEqual(
+                (root / "inputs/hidden-frame.json").read_bytes(), b"reviewed new bytes"
+            )
+            self.assertEqual(
+                (root / "runner/worker.py").read_bytes(), b"reviewed new bytes"
+            )
 
-    def test_revision_rejects_wrong_data_extra_source_and_wrong_base_before_writing(self):
+    def test_revision_rejects_wrong_data_extra_source_and_wrong_base_before_writing(
+        self,
+    ):
         for option in ("tamper", "extra", "wrong_base"):
             with self.subTest(option=option), tempfile.TemporaryDirectory() as folder:
-                root, archive_path = self.revision_fixture(Path(folder), **{option: True})
+                root, archive_path = self.revision_fixture(
+                    Path(folder), **{option: True}
+                )
                 with self.assertRaises(ValueError):
                     bootstrap.apply_revision(root, archive_path, "a" * 64)
-                self.assertEqual((root / "runner/worker.py").read_bytes(), b"reviewed previous bytes")
+                self.assertEqual(
+                    (root / "runner/worker.py").read_bytes(), b"reviewed previous bytes"
+                )
                 self.assertFalse((root / "inputs/hidden-frame.json").exists())
 
     def test_revision_rejects_changed_previous_input_and_cannot_apply_twice(self):
@@ -197,30 +307,56 @@ class BootstrapBoundaryTests(unittest.TestCase):
             (root / "runtime").mkdir(parents=True)
             (root / "runtime/runsc").write_bytes(b"fixed runtime")
             (root / "images.tar").write_bytes(b"fixed OCI archive")
-            identities = {name: "sha256:" + str(i) * 64 for i, name in enumerate(("py", "ts", "pine"), 1)}
-            (root / "epoch.json").write_text(json.dumps({
-                "runtime_files": {"runsc": bootstrap.sha(root / "runtime/runsc")},
-                "images_tar_sha256": bootstrap.sha(root / "images.tar"),
-                "image_ids": identities,
-            }))
+            identities = {
+                name: "sha256:" + str(i) * 64
+                for i, name in enumerate(("py", "ts", "pine"), 1)
+            }
+            (root / "epoch.json").write_text(
+                json.dumps(
+                    {
+                        "runtime_files": {
+                            "runsc": bootstrap.sha(root / "runtime/runsc")
+                        },
+                        "images_tar_sha256": bootstrap.sha(root / "images.tar"),
+                        "image_ids": identities,
+                    }
+                )
+            )
             calls = []
             info = {"NCPU": 4, "MemTotal": 16 * 1024**3}
+
             def execute(command):
                 calls.append(command)
                 if command == ["uname", "-m"]:
                     return "aarch64"
                 if command[:2] == ["docker", "info"]:
                     restarted = ["sudo", "systemctl", "restart", "docker"] in calls
-                    return json.dumps({**info, "DriverStatus": [["driver-type", "io.containerd.snapshotter.v1"]] if restarted else []})
+                    return json.dumps(
+                        {
+                            **info,
+                            "DriverStatus": [
+                                ["driver-type", "io.containerd.snapshotter.v1"]
+                            ]
+                            if restarted
+                            else [],
+                        }
+                    )
                 if command[:3] == ["docker", "image", "inspect"]:
-                    return json.dumps([{"Id": identities[command[-1]], "Architecture": "arm64"}])
+                    return json.dumps(
+                        [{"Id": identities[command[-1]], "Architecture": "arm64"}]
+                    )
                 return ""
+
             with patch.object(bootstrap, "checked", side_effect=execute):
                 bootstrap.runtime(SimpleNamespace(directory=base))
             config = json.loads((base / "daemon.json").read_text())
             self.assertIs(config["features"]["containerd-snapshotter"], True)
             restart = calls.index(["sudo", "systemctl", "restart", "docker"])
-            load = next(i for i, command in enumerate(calls) if command[:3] == ["docker", "image", "load"])
+            load = next(
+                i
+                for i, command in enumerate(calls)
+                if command[:3] == ["docker", "image", "load"]
+            )
             self.assertLess(restart, load)
             self.assertTrue((base / "owned-runtime.json").exists())
 

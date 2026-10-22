@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ import tarfile
 import tempfile
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 
 REPOSITORY = "woosung-dev/quantbridge"
@@ -39,6 +41,7 @@ def checked(command, *, env=None, cwd=None):
             "DOCKER_HOST": "unix:///var/run/docker.sock",
         }
     result = subprocess.run(command, env=env, cwd=cwd, capture_output=True, timeout=900)
+
     def private_text(raw):
         value = raw.decode(errors="replace")[-32768:]
         for name in ("SOL_RESEARCH_EPOCH7_KEY", "GH_TOKEN"):
@@ -46,9 +49,14 @@ def checked(command, *, env=None, cwd=None):
             if secret:
                 value = value.replace(secret, "<redacted>")
         return value
+
     LAST_OBSERVATION.clear()
-    LAST_OBSERVATION.update(command=command, returncode=result.returncode,
-                            stdout=private_text(result.stdout), stderr=private_text(result.stderr))
+    LAST_OBSERVATION.update(
+        command=command,
+        returncode=result.returncode,
+        stdout=private_text(result.stdout),
+        stderr=private_text(result.stderr),
+    )
     if result.returncode:
         raise RuntimeError("bootstrap_subprocess_failed")
     return result.stdout.decode().strip()
@@ -158,23 +166,34 @@ def apply_overlay(root, overlay):
 
 def apply_revision(root, archive, base_sha256):
     """검토한 v8 입력 provider와 원본 입력만 교체하고 제품 소스는 고정한다."""
-    names = {"runner/worker.py", "runner/protocol.py", "runner/coordinator.py",
-             "inputs/pending.json", "inputs/hidden-frame.json", "epoch.json"}
+    names = {
+        "runner/worker.py",
+        "runner/protocol.py",
+        "runner/coordinator.py",
+        "inputs/pending.json",
+        "inputs/hidden-frame.json",
+        "epoch.json",
+    }
     root = Path(root)
     with tarfile.open(archive, "r:*") as bundle:
         members = bundle.getmembers()
-        if (len(members) != 7 or {x.name for x in members} != names | {"revision.json"}
-                or any(not x.isfile() for x in members)
-                or sum(x.size for x in members) > 32 * 1024**2):
+        if (
+            len(members) != 7
+            or {x.name for x in members} != names | {"revision.json"}
+            or any(not x.isfile() for x in members)
+            or sum(x.size for x in members) > 32 * 1024**2
+        ):
             raise ValueError("exact_reviewed_revision_members_required")
         values = {x.name: bundle.extractfile(x).read() for x in members}
     revision = json.loads(values["revision.json"])
-    if (revision.get("schema_version") != 1
-            or revision.get("epoch_id") != "semantic-distributed-v8"
-            or revision.get("base_cipher_sha256") != base_sha256
-            or set(revision.get("files", {})) != names
-            or set(revision.get("before_files", {})) != names - {"inputs/hidden-frame.json"}
-            or (root / "inputs/hidden-frame.json").exists()):
+    if (
+        revision.get("schema_version") != 1
+        or revision.get("epoch_id") != "semantic-distributed-v8"
+        or revision.get("base_cipher_sha256") != base_sha256
+        or set(revision.get("files", {})) != names
+        or set(revision.get("before_files", {})) != names - {"inputs/hidden-frame.json"}
+        or (root / "inputs/hidden-frame.json").exists()
+    ):
         raise ValueError("revision_base_or_scope_mismatch")
     for name in names:
         if hashlib.sha256(values[name]).hexdigest() != revision["files"][name]:
@@ -206,7 +225,10 @@ def prepare(args):
     safe_extract(archive, root)
     if not args.revision_url or not args.revision_sha256:
         raise ValueError("v8_requires_reviewed_input_revision")
-    revision_cipher, revision = args.directory / "revision.enc", args.directory / "revision.tar"
+    revision_cipher, revision = (
+        args.directory / "revision.enc",
+        args.directory / "revision.tar",
+    )
     download(args.revision_url, args.revision_sha256, revision_cipher)
     crypto(args, "decrypt", revision_cipher, revision, "input-revision-v8")
     apply_revision(root, revision, args.sha256)
@@ -282,8 +304,16 @@ def runtime(args):
         raise ValueError("arm_host_required")
     info = json.loads(checked(["docker", "info", "--format", "{{json .}}"]))
     RUNTIME_OBSERVATION["before"] = {
-        name: info.get(name) for name in
-        ("NCPU", "MemTotal", "Driver", "DriverStatus", "ServerVersion", "Architecture", "OSType")
+        name: info.get(name)
+        for name in (
+            "NCPU",
+            "MemTotal",
+            "Driver",
+            "DriverStatus",
+            "ServerVersion",
+            "Architecture",
+            "OSType",
+        )
     }
     if info["NCPU"] != 4 or info["MemTotal"] < 14 * 1024**3:
         raise ValueError("standard_arm_resource_mismatch")
@@ -324,12 +354,22 @@ def runtime(args):
     write(config, value)
     checked(["sudo", "install", "-m", "0644", str(config), str(current)])
     checked(["sudo", "systemctl", "restart", "docker"])
-    installed = json.loads(checked(["docker", "info", "--format", "{{json .}}"] ))
+    installed = json.loads(checked(["docker", "info", "--format", "{{json .}}"]))
     RUNTIME_OBSERVATION["installed"] = {
-        name: installed.get(name) for name in
-        ("NCPU", "MemTotal", "Driver", "DriverStatus", "ServerVersion", "Architecture", "OSType")
+        name: installed.get(name)
+        for name in (
+            "NCPU",
+            "MemTotal",
+            "Driver",
+            "DriverStatus",
+            "ServerVersion",
+            "Architecture",
+            "OSType",
+        )
     }
-    if ["driver-type", "io.containerd.snapshotter.v1"] not in installed.get("DriverStatus", []):
+    if ["driver-type", "io.containerd.snapshotter.v1"] not in installed.get(
+        "DriverStatus", []
+    ):
         raise ValueError("containerd_image_store_not_enabled")
     if sha(root / "images.tar") != epoch["images_tar_sha256"]:
         raise ValueError("image_archive_sha_mismatch")
@@ -392,6 +432,92 @@ def claim(args):
     )
 
 
+def native_diagnostic(args, environment, cwd):
+    """개발용 hold init 한 번의 원 격리 argv/오류만 private 암호화 대상으로 남긴다."""
+    root = args.directory / "bundle"
+    pending = load(root / "inputs/pending.json")
+    relative = "apps/api/src/strategy/python_runtime/sandbox.py"
+    source = root / "source" / relative
+    if sha(source) != pending["source_hashes"].get(relative):
+        raise ValueError("native_diagnostic_original_source_hash")
+    tree = ast.parse(source.read_text())
+    nodes = [
+        item
+        for item in tree.body
+        if isinstance(item, ast.FunctionDef) and item.name == "sandbox_command"
+    ]
+    if len(nodes) != 1:
+        raise ValueError("native_diagnostic_original_function_missing")
+    namespace = {
+        "_DOCKER": shutil.which("docker", path=environment["PATH"]) or "/usr/bin/docker"
+    }
+    exec(
+        compile(ast.Module(body=nodes, type_ignores=[]), str(source), "exec"), namespace
+    )
+    image = pending["image_ids"]["quantbridge-python-runner:local"]
+    command = namespace["sandbox_command"](image, "qb-python-" + uuid.uuid4().hex)
+    message = {
+        "type": "init",
+        "protocol": 1,
+        "source": "def on_bar(ctx, state):\n    return {'action': 'hold'}\n",
+        "params": {},
+    }
+    receipt = {
+        "scope": "manual_development_hold_init_not_corpus_or_quality",
+        "original_source_sha256": sha(source),
+        "argv": command,
+        "timeout_seconds": 60,
+        "actual_wait_observed": False,
+        "returncode": None,
+        "ready": False,
+    }
+
+    def bounded(raw):
+        text = (raw or b"").decode(errors="replace")
+        for name in ("SOL_RESEARCH_EPOCH7_KEY", "GH_TOKEN"):
+            value = os.environ.get(name)
+            if value:
+                text = text.replace(value, "<redacted>")
+        return text[-65536:]
+
+    try:
+        result = subprocess.run(
+            command,
+            input=(json.dumps(message) + "\n").encode(),
+            capture_output=True,
+            timeout=60,
+            env=environment,
+            cwd=cwd,
+        )
+        receipt.update(
+            actual_wait_observed=True,
+            returncode=result.returncode,
+            stdout=bounded(result.stdout),
+            stderr=bounded(result.stderr),
+        )
+        try:
+            response = json.loads(result.stdout)
+            receipt["ready"] = (
+                isinstance(response, dict)
+                and type(response.get("ready")) is int
+                and response["ready"] == 1
+            )
+        except (ValueError, UnicodeError):
+            pass
+    except subprocess.TimeoutExpired as error:
+        receipt.update(
+            error_type=type(error).__name__,
+            stdout=bounded(error.stdout),
+            stderr=bounded(error.stderr),
+        )
+    except OSError as error:
+        receipt.update(error_type=type(error).__name__)
+    finally:
+        write(args.directory / "private-native-diagnostic.json", receipt)
+    if receipt["returncode"] != 0 or not receipt["ready"]:
+        raise RuntimeError("manual_native_init_diagnostic_failed")
+
+
 def run(args):
     if args.mode == "execute" and not (args.directory / "claim.json").is_file():
         raise ValueError("immutable_claim_required")
@@ -417,6 +543,8 @@ def run(args):
         "MKL_NUM_THREADS": "1",
         "TRADING_ENCRYPTION_KEYS": Fernet.generate_key().decode(),
     }
+    if args.mode == "preflight":
+        native_diagnostic(args, environment, empty)
     command = [
         str(args.directory / "venv/bin/python"),
         str(root / "runner/worker.py"),
@@ -471,6 +599,7 @@ def pack(args):
             "claim.json",
             "prepared.json",
             "private-worker.log",
+            "private-native-diagnostic.json",
             "private-dependencies.log",
             "bootstrap-failure.json",
             "owned-runtime.json",
@@ -522,14 +651,20 @@ def main():
         globals()[args.action](args)
     except BaseException as error:
         if args.directory.is_dir():
-            write(args.directory / "bootstrap-failure.json", {
-                "schema_version": 1, "action": args.action,
-                "error_type": type(error).__name__,
-                "error_code": str(error) if type(error) in (ValueError, RuntimeError) else None,
-                "last_observation": LAST_OBSERVATION,
-                "runtime_observation": RUNTIME_OBSERVATION,
-                "private_encrypted_diagnostic_only": True,
-            })
+            write(
+                args.directory / "bootstrap-failure.json",
+                {
+                    "schema_version": 1,
+                    "action": args.action,
+                    "error_type": type(error).__name__,
+                    "error_code": str(error)
+                    if type(error) in (ValueError, RuntimeError)
+                    else None,
+                    "last_observation": LAST_OBSERVATION,
+                    "runtime_observation": RUNTIME_OBSERVATION,
+                    "private_encrypted_diagnostic_only": True,
+                },
+            )
         # 원문·SDK 응답·예외 메시지를 공개 로그에 출력하지 않는다.
         print(f"remote bootstrap failed: {type(error).__name__}", file=sys.stderr)
         raise SystemExit(1) from None
