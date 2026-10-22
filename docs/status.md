@@ -1026,7 +1026,7 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.
 현재 [ADR-046](./adr/046-generated-strategy-language-evaluation.md)의 다중 언어 `code_v1`은 별도 경로다.
-PR #924는 draft다. 생성 시도 1,350건이 종결됐으며 공개 검사 통과는 1,282건이다. 의미 검증은 설정 import 실패 증거를 보존한 별도 경로에서 병렬 2개로 실행 중이며, 성공 종료 뒤 채점·경제 평가를 시작하는 후속 분석도 대기 중이다. 최종 후보·경제 평가·생성 API 연결은 미완이다. 실제 거래소 주문·운영 DDL·배포는 하지 않았다.
+PR #924는 draft다. 생성 시도 1,350건이 종결됐으며 공개 검사 통과는 1,282건이다. 의미 검증은 기존 완료 결과 71건을 보존하고 6 CPU·8 GiB의 별도 자원 epoch에서 최대 6개로 실행 중이다. 원 생성물·계산·선정 규칙은 유지하며, 성공 종료 뒤 채점·경제 평가를 시작하는 후속 분석도 대기 중이다. 최종 후보·경제 평가·생성 API 연결은 미완이다. 실제 거래소 주문·운영 DDL·배포는 하지 않았다.
 현재 서비스 경계: Python 화면·API·Celery 연결 철거와 기존 수정 9건은 #920으로 main에 반영됐다.
 2026-10-21 16:27 UTC 운영 확인에서 워커 4개·FE는 `sha-671e6c1`, 호스트 API는 active,
 DB는 `20261021_0002`, 내부·공개 `/health`는 200이다. Python API는 404이고 FE route manifest에
