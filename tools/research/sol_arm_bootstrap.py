@@ -18,6 +18,7 @@ from pathlib import Path
 REPOSITORY = "woosung-dev/quantbridge"
 MAX_ASSET_BYTES = 2 * 1024**3 - 1
 LAST_OBSERVATION = {}
+RUNTIME_OBSERVATION = {}
 
 
 def sha(path):
@@ -231,6 +232,10 @@ def runtime(args):
     if checked(["uname", "-m"]) not in {"aarch64", "arm64"}:
         raise ValueError("arm_host_required")
     info = json.loads(checked(["docker", "info", "--format", "{{json .}}"]))
+    RUNTIME_OBSERVATION["before"] = {
+        name: info.get(name) for name in
+        ("NCPU", "MemTotal", "Driver", "DriverStatus", "ServerVersion", "Architecture", "OSType")
+    }
     if info["NCPU"] != 4 or info["MemTotal"] < 14 * 1024**3:
         raise ValueError("standard_arm_resource_mismatch")
     if checked(["docker", "ps", "-aq"]):
@@ -265,9 +270,18 @@ def runtime(args):
     current = Path("/etc/docker/daemon.json")
     value = load(current) if current.exists() else {}
     value.setdefault("runtimes", {})["runsc"] = {"path": "/usr/local/bin/runsc"}
+    # 원 이미지는 OCI index ID다. classic store가 config ID로 평탄화하지 않게 맞춘다.
+    value.setdefault("features", {})["containerd-snapshotter"] = True
     write(config, value)
     checked(["sudo", "install", "-m", "0644", str(config), str(current)])
-    checked(["sudo", "systemctl", "reload", "docker"])
+    checked(["sudo", "systemctl", "restart", "docker"])
+    installed = json.loads(checked(["docker", "info", "--format", "{{json .}}"] ))
+    RUNTIME_OBSERVATION["installed"] = {
+        name: installed.get(name) for name in
+        ("NCPU", "MemTotal", "Driver", "DriverStatus", "ServerVersion", "Architecture", "OSType")
+    }
+    if ["driver-type", "io.containerd.snapshotter.v1"] not in installed.get("DriverStatus", []):
+        raise ValueError("containerd_image_store_not_enabled")
     if sha(root / "images.tar") != epoch["images_tar_sha256"]:
         raise ValueError("image_archive_sha_mismatch")
     checked(["docker", "image", "load", "--input", str(root / "images.tar")])
@@ -283,6 +297,7 @@ def runtime(args):
             "baseline_containers_empty": True,
             "image_ids": epoch["image_ids"],
             "runtime_files": runtime_files,
+            "actual_image_store": RUNTIME_OBSERVATION,
         },
     )
 
@@ -461,6 +476,7 @@ def main():
                 "error_type": type(error).__name__,
                 "error_code": str(error) if type(error) in (ValueError, RuntimeError) else None,
                 "last_observation": LAST_OBSERVATION,
+                "runtime_observation": RUNTIME_OBSERVATION,
                 "private_encrypted_diagnostic_only": True,
             })
         # 원문·SDK 응답·예외 메시지를 공개 로그에 출력하지 않는다.

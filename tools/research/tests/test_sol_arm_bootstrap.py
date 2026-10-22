@@ -133,6 +133,40 @@ class BootstrapBoundaryTests(unittest.TestCase):
                     bootstrap.cleanup(SimpleNamespace(directory=base))
                 self.assertEqual(call.call_count, 1)
 
+    def test_runtime_enables_containerd_before_loading_exact_oci_ids(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            root = base / "bundle"
+            (root / "runtime").mkdir(parents=True)
+            (root / "runtime/runsc").write_bytes(b"fixed runtime")
+            (root / "images.tar").write_bytes(b"fixed OCI archive")
+            identities = {name: "sha256:" + str(i) * 64 for i, name in enumerate(("py", "ts", "pine"), 1)}
+            (root / "epoch.json").write_text(json.dumps({
+                "runtime_files": {"runsc": bootstrap.sha(root / "runtime/runsc")},
+                "images_tar_sha256": bootstrap.sha(root / "images.tar"),
+                "image_ids": identities,
+            }))
+            calls = []
+            info = {"NCPU": 4, "MemTotal": 16 * 1024**3}
+            def execute(command):
+                calls.append(command)
+                if command == ["uname", "-m"]:
+                    return "aarch64"
+                if command[:2] == ["docker", "info"]:
+                    restarted = ["sudo", "systemctl", "restart", "docker"] in calls
+                    return json.dumps({**info, "DriverStatus": [["driver-type", "io.containerd.snapshotter.v1"]] if restarted else []})
+                if command[:3] == ["docker", "image", "inspect"]:
+                    return json.dumps([{"Id": identities[command[-1]], "Architecture": "arm64"}])
+                return ""
+            with patch.object(bootstrap, "checked", side_effect=execute):
+                bootstrap.runtime(SimpleNamespace(directory=base))
+            config = json.loads((base / "daemon.json").read_text())
+            self.assertIs(config["features"]["containerd-snapshotter"], True)
+            restart = calls.index(["sudo", "systemctl", "restart", "docker"])
+            load = next(i for i, command in enumerate(calls) if command[:3] == ["docker", "image", "load"])
+            self.assertLess(restart, load)
+            self.assertTrue((base / "owned-runtime.json").exists())
+
     def test_claim_conflict_is_not_retried_or_promoted(self):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)
