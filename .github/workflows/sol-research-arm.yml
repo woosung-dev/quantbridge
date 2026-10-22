@@ -45,8 +45,8 @@ jobs:
       INPUT_SHA256: 'd5c85d3fd8bb1c9788d00f43692dea1244ba0066575b0acdab7131394a910f39'
       OVERLAY_URL: ''
       OVERLAY_SHA256: ''
-      REVISION_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/revision-v8.enc
-      REVISION_SHA256: 'c0418990c87ac64b1905267f6f03bc0d07bd53a53df8009dd9acb95767d45c65'
+      REVISION_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/revision-v8-freq1h.enc
+      REVISION_SHA256: '04e721d0636bf6a3beb9cb9e93d69a06fec1f73e9df8896527a39387f963150a'
       CRYPTO_SHA256: '340b8d2bda7515addb4d70a7e3aed8784d4d7f546af68e6de8930e4ccf2b2d1e'
       RELEASE_ID: '420970222'
       RELEASE_TAG: sol-research-epoch7-20261023

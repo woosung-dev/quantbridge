@@ -236,3 +236,7 @@ Docker context는 바꾸지 않는다. gVisor·network none·read-only·nonroot�
 점수나 반복 선택을 바꾸지 않는다. `final_selection_allowed`는 본 평가 완료·증거 요건이며
 운영 승인이나 Demo 적합성을 뜻하지 않는다.
 실제 Demo 주문 관측과 배포는 별도 승인 전까지 미검증 상태로 남긴다.
+
+개발용 원격 사전 검사는 201개 1시간봉과 `freq="1h"`를 함께 고정한다.
+초기 사전 검사에서 누락된 freq는 transport 생성 전 데이터 검증으로 거절되었으며,
+해당 개발 fixture 실패를 연구 전략의 실패 점수나 완료 건수에 넣지 않는다.
