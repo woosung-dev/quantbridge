@@ -10,7 +10,9 @@ Release의 `epoch8-economic-remote-XX.claim.json`을 새로 예약한 뒤 worker
 
 결과는 모든 원 cache·receipt·비공개 로그를 gzip한 뒤 `result-v8-economic-N` 문맥으로 AES-GCM 암호화한다. `epoch8-economic-N-RUNID.enc`만 게시하며 압축본·암호문 각각 2GiB Release 한도를 넘으면 파일을 삭제하거나 요약하지 않고 중단한다. 원 cache의 `metrics`에는 `drawdown_curve`·`buy_and_hold_curve` 전체 배열이 포함된다. 6개월 분봉은 각 배열이 262,080개 점이므로 scalar metadata만으로 저장 용량을 추정하지 않는다. cache와 receipt에 반복되는 전체 곡선도 보존 대상이다.
 
-별도 root 수신기는 내려받은 asset metadata/암호문 SHA·size·run/shard를 대조하고 EOF/MAC 성공을 수거한 뒤에만 gzip tar를 읽는다. 성공한 worker·4lane·guest0·claim/plan/source binding만 새 비공개 host inbox에 단일 writer로 게시한다. 모든 cache와 비공개 wrapper/log는 `_bootstrap/`에 보존한다. 실패 pack은 진단 경로에 남고 계산 결과로 승격되지 않는다. 수신기는 경제 journal/report writer가 아니며 최종1440·family720+720·입력 해시 검증은 별도 원 root finalizer의 권한이다.
+별도 root 수신기는 내려받은 asset metadata/암호문 SHA·size·run/shard를 대조하고 EOF/MAC 성공을 수거한 뒤에만 gzip tar를 읽는다. 성공한 worker·4lane·guest0·claim/plan/source binding만 새 비공개 host inbox에 단일 writer로 게시한다. 모든 cache와 비공개 wrapper/log는 `_bootstrap/`에 보존한다. 실패 pack은 진단 경로에 남고 계산 결과로 승격되지 않는다. 수신기는 경제 journal/report writer가 아니며 최종1440·family720+720·입력 해시 검증은 별도 root finalizer의 권한이다.
+
+실제 40개 결과의 Docker ID와 hostname은 각각 같은 값이었다. 원 root 검사는 Docker ID 중복으로 거절했으며 이 실제 실패를 보존한다. [Docker ID](https://docs.docker.com/reference/api/engine/version-history/)는 daemon 식별자이고 물리 VM 고유성 인증이 아니다. 중복 원인은 UNKNOWN이다. 별도 집계 revision은 원문을 고치지 않고 정확 run·attempt·head의 서로 다른 GitHub job/runner, matrix shard, 해당 job 로그, claim·결과 asset, 인증된 wrapper·host terminal을 1:1로 결합하는 검증된 실행 귀속을 사용할 수 있다. 원 Docker ID·hostname·runtime·receipt는 재작성하지 않고 나머지 자원·lane·입력·source·1440 검사는 유지한다. 이 경로는 원 Docker ID 유일성 검사의 PASS나 물리 하드웨어 독립성·실제40동시성 인증을 뜻하지 않는다. [GitHub의 job별 새 VM 계약](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)과 관측한 실행 귀속을 물리 하드웨어의 독립성 보장으로 확대하지 않는다.
 
 수신 후 저장 최적화는 완료 host만 대상으로 하며 원문 SHA와 경로를 유지한 투명 압축·동일 파일 hardlink를 사용할 수 있다. 원 암호문을 보존하고 gzip 전체 멤버가 인증된 파일 지도와 일치하는지 검증한 뒤 임시 복호화 archive만 정리한다. 이때 관측한 gzip SHA를 원 receiver가 기록하지 않은 plaintext SHA인 것처럼 표시하지 않는다. 중단된 다운로드와 실패 관측은 덮지 않고 별도 수거 epoch가 검증된 완료물만 채택한다. 계산·생성·실패 결과를 다시 실행하는 재개와 구분한다.
 
