@@ -132,6 +132,17 @@ epoch는 6 CPU·8 GiB VM에서 최대 6개이며 guest당 1 CPU·1 GiB와 900초
 새 계산은 시작·완료 증거를 남기고 단일 writer가 배타적으로 게시한다. 중단된 미게시 작업은
 별도 인프라 중단으로 보존하며 모델의 실패 행을 새로 만들지 않는다. 자원 변경이 wall timeout에
 주는 영향은 미확정이고, 실제 가속률은 별도로 관찰한다.
+원격 분산을 추가할 때는 공개 저장소의 무료 표준 `ubuntu-24.04-arm` runner만 사용한다.
+최대 8개 host에 각각 4개 worker를 배치하며 유료 runner·Actions artifact/cache·Packages·LFS를
+사용하지 않는다. 외부 Release에는 인증 암호문만 게시하고 단기 CI secret은 평가 환경에
+전달하지 않는다. 원본 source·hidden 입력·결과 원문과 실제 계정 키는 공개하지 않는다.
+호스트별 정확한 Python·package·원 이미지 ID·runsc SHA와 hidden 입력 digest, 수동 3언어
+fixture를 먼저 검증한다. 기존 완료 캐시는 원문 SHA로 보존하고, 인계 중 추가로 중단된
+미게시 native 작업도 별도 인프라 증거로 남기며 원 1,350 분모·실패·기간·5회 fresh 검증을
+줄이지 않는다. 원격 결과는 고정 shard와 입력 SHA를 검증한 단일 부모만 게시한다.
+혼합 host의 자원·처리량·timeout은 별도 epoch 기술 통계다. 동일 코드·입력·이미지라도
+호스트 성능과 wall deadline 영향은 달라질 수 있어 결과 동등성이나 품질 무손실을 보증하지 않는다.
+
 산출물마다 원 실행·동일 재실행·prefix·원본 및 반전 가격의 외부 포지션 probe에 각각
 새 transport를 사용한다. 캐시는 실제 평가 소스 SHA·입력 identity가 모두 맞아야 재사용한다.
 구형 결과에 SHA를 사후 부착해 인증하지 않는다.
