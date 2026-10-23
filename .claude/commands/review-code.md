@@ -16,7 +16,7 @@
    - diff가 비어 있으면 "리뷰할 변경 없음"을 출력하고 **즉시 종료**한다.
 2. **PR 연결 여부 확인**
    - `gh pr view --json number,headRefOid` 시도. 성공하면 `prNumber`, `headSha`를 얻는다. 실패(연결 PR 없음)하면 `prNumber=null`로 둔다.
-3. **가드레일 문서 읽기** — `AGENTS.md`(루트), `CONTEXT.md`, `apps/api/AGENTS.md`, `apps/web/AGENTS.md`를 읽어 하나의 텍스트(`repoDocs`)로 합친다. 토큰이 과하면 apps/api·apps/web 쪽은 핵심 규칙(§2~§4 제약·레이어 규칙·Hooks H-1~H-3) 위주로 요약한다.
+3. **가드레일 문서 읽기** — `AGENTS.md`(루트), `GLOSSARY.md`, `apps/api/AGENTS.md`, `apps/web/AGENTS.md`를 읽어 하나의 텍스트(`repoDocs`)로 합친다. 토큰이 과하면 apps/api·apps/web 쪽은 핵심 규칙(§2~§4 제약·레이어 규칙·Hooks H-1~H-3) 위주로 요약한다.
 
 ## 2. Workflow 호출
 

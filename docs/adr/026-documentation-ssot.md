@@ -7,6 +7,7 @@
 > ★**§1 ④ 의 위치(`docs/reference/` 래퍼)는 [ADR-038](038-docs-top-level-by-question.md) 로 Superseded (2026-08-21)** —
 > 정본은 `docs/{architecture,domain,api,development,operations,design}/` 최상위로 올라갔고 `decisions/` 는 `adr/` 가
 > 됐다. **수명축은 래퍼가 아니라 `docs/README.md` 의 표가 맡는다.** 7축 자체와 §3·§4·§5 는 그대로 유효하다.
+> **2026-10-24 경로·역할 정정(사용자 결정):** §1 ②의 용어 정본은 루트 [`GLOSSARY.md`](../../GLOSSARY.md), 관계·구현 계약은 [`도메인 개요`](../domain/domain-overview.md)와 관련 설계 문서로 분리한다. `CONTEXT.md` 이전 좌표는 [문서 지도](../README.md#tombstone--삭제된-것과-좌표)에 있다. 아래 Accepted 본문은 당시 결정을 보존한다.
 > **일자:** 2026-08-06
 > **결정자:** woosung (기안: Claude)
 > **출처:** 2026-08-06 조사 3건 — Claude Code 로딩 메커니즘(공식 문서 + CHANGELOG) ·

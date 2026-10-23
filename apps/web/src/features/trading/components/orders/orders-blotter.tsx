@@ -287,7 +287,7 @@ export function OrdersBlotter() {
             <h1 className="report-title">주문</h1>
             <div className="report-meta">
               <span className="chip">주문 {total}건</span>
-              {/* 계정 모드는 Bybit demo 뿐(CONTEXT.md)이라 페이지 수준 사실 — 프로토타입
+              {/* 계정 모드는 Bybit demo 뿐(GLOSSARY.md)이라 페이지 수준 사실 — 프로토타입
                   screen-11:1182 의 「Bybit 데모」를 그대로 복원한다. */}
               <span className="chip">Bybit 데모</span>
               <span className="chip accent">미체결 {openCount}건</span>

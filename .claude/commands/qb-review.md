@@ -3,7 +3,7 @@
 먼저 다음 문서들을 읽어라:
 
 - `AGENTS.md` (루트 — Golden Rules · 개발 원칙)
-- `CONTEXT.md` (도메인 헌법 — 용어/관계 SSOT)
+- `GLOSSARY.md` (도메인 용어 SSOT)
 - `apps/api/AGENTS.md` (BE — 3-Layer · Decimal-first · Celery prefork-safe)
 - `apps/web/AGENTS.md` (FE — FSD Lite · Hooks H-1~H-3 · Next.js 16)
 

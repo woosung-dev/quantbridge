@@ -1,7 +1,7 @@
 # QuantBridge 문서 지도
 
 > **문서의 위치가 필요할 때만 이 파일을 연다.** 새 AI 세션의 기본 입력은
-> `CONTEXT.md` + `AGENTS.md` + [`status.md`](./status.md) 3종이다.
+> `GLOSSARY.md` + `AGENTS.md` + [`status.md`](./status.md) 3종이다.
 > 배치 근거 = [ADR-026](./adr/026-documentation-ssot.md)(질문 유형별 정본 분할) +
 > [ADR-038](./adr/038-docs-top-level-by-question.md)(2026-08-21 — `reference/` 래퍼·`decisions/` 해체, 최상위를 질문별로).
 
@@ -27,6 +27,7 @@ Python 서비스 미도입 경계와 오프라인 연구 도구는 [연구 범�
 
 | 위치                                     | 읽는 사람의 질문                                   | 갱신 원칙                                                                                   |
 | ---------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [`agents/`](./agents/) | Engineering 스킬이 어떤 트래커·분류·도메인 문서를 사용하는가 | 기존 원장·용어집을 가리키는 레포 설정 |
 | [`architecture/`](./architecture/)       | 시스템·실행·데이터 흐름은 어떻게 조립되는가        | 코드와 어긋나면 코드에 맞춰 고친다 — system, data flow, Pine/Trust Layer                    |
 | [`domain/`](./domain/)                   | 용어·엔티티·상태는 무엇인가                        | 같음 — overview, ERD, entities, state machines (★제품 요구는 `PRD.md`)                       |
 | [`api/`](./api/)                         | API·외부 경계는 무엇인가                           | 같음 — endpoints. 계약 원본은 OpenAPI export([ADR-031](./adr/031-api-contract-axis-poc.md)) |
@@ -43,6 +44,7 @@ Python 서비스 미도입 경계와 오프라인 연구 도구는 [연구 범�
 
 | 무엇을                                                      | 언제·왜                                            | 원문                                                |
 | ----------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------- |
+| `CONTEXT.md` | 2026-10-24 — 용어는 루트 `GLOSSARY.md`, 관계·구현은 `domain/domain-overview.md`와 관련 설계 문서로 분리; 과거 이력은 git 보존 | `git show 9cdf0e7310eac52da68f6253c5fabca364aa8be6:CONTEXT.md` |
 | `docs/reference/` 래퍼 전체 · `docs/decisions/`             | 2026-08-21 ADR-038 — 최상위로 이동(삭제 아님)      | `git show c3b35e5f:docs/reference/<경로>`           |
 | `docs/reference/README.md`                                  | 2026-08-21 — 이 파일의 표로 합쳐졌다               | `git show c3b35e5f:docs/reference/README.md`        |
 | `docs/reports/` (README·템플릿·auto-dogfood 2026-05-03)     | 2026-08-21 — gitignore 산출 자리. 산출물은 `runs/` | `git show c3b35e5f:docs/reports/README.md`          |
@@ -74,8 +76,8 @@ git show 0f0f0b06:<위 목록의 경로>                     # 원문 조회
 법무 임시 런북. Bybit mainnet 절차는 제품 범위 밖으로 확정되어 재등재하지 않는다.
 
 루트의 사람용 정본은 [`README.md`](../README.md), [`AGENTS.md`](../AGENTS.md),
-[`CONTEXT.md`](../CONTEXT.md), [`DESIGN.md`](../DESIGN.md)다. [`CLAUDE.md`](../CLAUDE.md)는
-`AGENTS.md`를 불러오는 Claude Code 호환 진입점이다. 스택별 규칙은 `apps/api/AGENTS.md`·`apps/web/AGENTS.md`.
+[`GLOSSARY.md`](../GLOSSARY.md), [`DESIGN.md`](../DESIGN.md)다. [`CLAUDE.md`](../CLAUDE.md)는
+`AGENTS.md`를 불러오는 Claude Code 호환 진입점이며 `Agent skills` 절이 스킬별 설정 문서로 연결한다. 스택별 규칙은 `apps/api/AGENTS.md`·`apps/web/AGENTS.md`.
 
 ## 새 문서를 만들기 전
 

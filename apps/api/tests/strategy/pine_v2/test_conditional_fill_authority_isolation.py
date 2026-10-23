@@ -101,7 +101,7 @@ def test_backtest_adapter_does_not_forward_the_authority() -> None:
 
     `run_backtest_v2` 는 `backtest.engine.run_backtest` 의 실체이고 Optimizer(param combo 마다)
     와 Stress Test(WFO/Param-Stability/Cost cell 마다)가 **같은 함수를 재실행**한다
-    (CONTEXT.md Relationships). 여기로 새면 세 소비자가 동시에 오염된다.
+    (docs/architecture/pine-execution-architecture.md 소비자 경계). 여기로 새면 세 소비자가 동시에 오염된다.
 
     ★`exists()` 로 감싸지 않는다 — 파일이 사라지면 이 검사가 조용히 통과해 버린다.
     """

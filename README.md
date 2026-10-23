@@ -448,7 +448,7 @@ quant-bridge/
 ├── phases/                         # 하네스 러너 회차 정의 — 산출물은 runs/ (gitignore)
 ├── .github/workflows/              # ci.yml (단일 게이트) · trust-layer-nightly · live-smoke · nightly-real-broker (수동)
 ├── .husky/                         # pre-commit (lint-staged + ledger-vitals) · pre-push (main 직접 push 는 터미널로 확인)
-├── AGENTS.md  CONTEXT.md  DESIGN.md  # 에이전트 오리엔테이션 · 도메인 용어 SSOT · 디자인 토큰
+├── AGENTS.md  GLOSSARY.md  DESIGN.md  # 에이전트 오리엔테이션 · 도메인 용어 SSOT · 디자인 토큰
 └── mise.toml                       # 도구 버전 + 개발 명령 34 — SSOT (ADR-036)
 ```
 
@@ -469,7 +469,7 @@ quant-bridge/
 
 | 위치                                                                                    | 용도                                                           |
 | --------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| [`CONTEXT.md`](CONTEXT.md)                                                              | 도메인 용어·관계의 SSOT (Strategy / Backtest / Trading 정의)   |
+| [`GLOSSARY.md`](GLOSSARY.md)                                                              | 도메인 용어의 SSOT (Strategy / Backtest / Trading 정의)   |
 | [`AGENTS.md`](AGENTS.md)                                                                | 개발 원칙 · 스택 규칙 · 문서 체계 (LLM 에이전트 + 개발자 공용) |
 | [`DESIGN.md`](DESIGN.md)                                                                | 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                     |
 | [`docs/README.md`](./docs/README.md)                                                    | 문서 지도 — 어느 질문을 어느 문서가 답하는가                   |
