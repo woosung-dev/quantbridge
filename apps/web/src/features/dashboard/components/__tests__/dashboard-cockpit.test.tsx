@@ -54,6 +54,7 @@ const SESSIONS = {
 
 const AGG_POPULATED = {
   totalRealizedPnl: 142.18,
+  incompleteSessions: 0,
   totalClosedTrades: 7,
   mergedEquityCurve: [
     { time: 1700000000, value: 0 },
@@ -68,6 +69,7 @@ const AGG_POPULATED = {
 
 const AGG_EMPTY = {
   totalRealizedPnl: 0,
+  incompleteSessions: 0,
   totalClosedTrades: 0,
   mergedEquityCurve: [],
   populatedSessions: 0,
@@ -259,6 +261,16 @@ describe("DashboardCockpit — 헤더·KPI 정직성", () => {
 });
 
 describe("DashboardCockpit — 손익 KPI 정직성 (StatValue 규율)", () => {
+  it("미정산 합계는 소계로 표시하고 수익 색상과 전체 자산 곡선을 보류한다", () => {
+    useLiveSessionsAggregateMock.mockReturnValue({ ...AGG_POPULATED, incompleteSessions: 1 });
+    render(<DashboardCockpit />);
+    expect(screen.getByText("데모 손익 · 알려진 소계")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-pnl")).toHaveTextContent("+142.18");
+    expect(screen.getByTestId("kpi-pnl")).not.toHaveClass("pos");
+    expect(screen.getByText(/미정산 1개 세션/)).toHaveTextContent("전체 실현 손익이 아닙니다");
+    expect(screen.getByText(/미정산 청산이 있어 자산 곡선을 보류/)).toBeInTheDocument();
+  });
+
   it("세션별 state 집계가 실패하면 kpi-pnl 을 성공-0 이 아니라 '확인 불가'로 그린다", () => {
     // 합산 손익은 세션별 state 조회 합이라, 하나라도 실패하면 +0.00 처럼 그리면 거짓 정상.
     useLiveSessionsAggregateMock.mockReturnValue({ ...AGG_POPULATED, isError: true });

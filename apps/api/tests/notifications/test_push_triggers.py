@@ -7,7 +7,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -19,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.models import User
 from src.backtest import service as backtest_service_module
 from src.backtest.dispatcher import FakeTaskDispatcher
+from src.backtest.engine.types import BacktestOutcome
 from src.backtest.models import BacktestStatus
 from src.backtest.repository import BacktestRepository
 from src.backtest.schemas import CreateBacktestRequest
@@ -26,6 +26,7 @@ from src.backtest.service import BacktestService
 from src.market_data.providers.fixture import FixtureProvider
 from src.notifications import dispatcher as push_dispatcher
 from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.pine.types import ParseOutcome
 from src.strategy.repository import StrategyRepository
 from src.tasks import notifications as push_task
 from src.trading import realtime_publisher
@@ -325,7 +326,11 @@ async def test_backtest_failure_enqueues_push_once(
         monkeypatch.setattr(
             backtest_service_module,
             "run_backtest",
-            lambda *_a, **_k: SimpleNamespace(status="error", result=None, error="engine boom"),
+            lambda *_a, **_k: BacktestOutcome(
+                status="error",
+                parse=ParseOutcome(status="error", source_version="v5"),
+                error="engine boom",
+            ),
         )
     elif failure == "strategy_version_missing":
         # ★FK 가 RESTRICT 라 실제 DELETE 는 거부된다 — 실행 시점 조회가 비는 것으로 삭제를 재현한다.

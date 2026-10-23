@@ -1,6 +1,7 @@
 """Sprint 16 BL-027 — state_handler dec winner-only commit-then-dec (codex G.0 P1 #1).
 
 핵심:
+- 이벤트 account_id는 주문의 실제 계정과 맞춰 귀속 검사를 통과한 뒤 계측을 검증한다.
 - `_apply_transition` 은 rowcount: int return + dec 호출 X (caller responsibility)
 - `handle_order_event` 는 session.commit() **성공 후** rowcount==1 winner 일 때만
   qb_active_orders.dec() + alert 발송 (race loser noise 방어)
@@ -163,7 +164,7 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
     before_partial = partial_counter._value.get()
 
     await handler.handle_order_event(
-        uuid4(),
+        order.exchange_account_id,
         {
             "orderLinkId": str(order.id),
             "orderStatus": "Filled",
@@ -224,7 +225,7 @@ async def test_handle_order_event_partial_fill_splits_ws_metric_by_order_kind(
 
     for order in (entry_order, close_order):
         await handler.handle_order_event(
-            uuid4(),
+            order.exchange_account_id,
             {
                 "orderLinkId": str(order.id),
                 "orderStatus": "Filled",
@@ -288,7 +289,7 @@ async def test_partial_fill_metric_failure_does_not_stop_fill_postprocessing(
     monkeypatch.setattr(metrics_mod.qb_partial_fill_total, "labels", _explode)
 
     await handler.handle_order_event(
-        uuid4(),
+        order.exchange_account_id,
         {
             "orderLinkId": str(order.id),
             "orderStatus": "Filled",
@@ -342,7 +343,7 @@ async def test_active_orders_metric_failure_does_not_stop_fill_postprocessing(
     monkeypatch.setattr(metrics_mod.qb_active_orders, "dec", _explode)
 
     await handler.handle_order_event(
-        uuid4(),
+        order.exchange_account_id,
         {
             "orderLinkId": str(order.id),
             "orderStatus": "Filled",
@@ -384,7 +385,7 @@ async def test_handle_order_event_filled_loser_commits_no_dec(
     qb_active_orders.set(1.0)
 
     await handler.handle_order_event(
-        uuid4(),
+        order.exchange_account_id,
         {
             "orderLinkId": str(order.id),
             "orderStatus": "Filled",
@@ -421,7 +422,7 @@ async def test_handle_order_event_rejected_loser_no_alert(
     qb_active_orders.set(1.0)
 
     await handler.handle_order_event(
-        uuid4(),
+        order.exchange_account_id,
         {
             "orderLinkId": str(order.id),
             "orderStatus": "Rejected",
@@ -465,7 +466,7 @@ async def test_handle_order_event_filled_commit_failure_no_dec(
 
     with pytest.raises(RuntimeError):
         await handler.handle_order_event(
-            uuid4(),
+            order.exchange_account_id,
             {
                 "orderLinkId": str(order.id),
                 "orderStatus": "Filled",
@@ -502,7 +503,7 @@ async def test_handle_order_event_rejected_winner_alerts_and_decs(
     qb_active_orders.set(1.0)
 
     await handler.handle_order_event(
-        uuid4(),
+        order.exchange_account_id,
         {
             "orderLinkId": str(order.id),
             "orderStatus": "Rejected",

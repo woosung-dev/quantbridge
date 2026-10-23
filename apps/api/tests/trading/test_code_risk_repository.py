@@ -1,0 +1,816 @@
+"""슬롯 테스트 DB에서 한 행·CAS·주문 귀속의 실제 SQL을 검증한다."""
+
+from datetime import UTC, datetime
+from decimal import Decimal as D
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.trading.models import (
+    ExchangeAccount,
+    ExchangeMode,
+    ExchangeName,
+    LiveSignalInterval,
+    LiveSignalSession,
+    Order,
+    OrderSide,
+    OrderState,
+    OrderType,
+)
+from src.trading.repositories.code_risk_repository import CodeRiskRepository
+from src.trading.repositories.order_repository import OrderRepository
+from src.trading.services.code_risk_service import CodeRiskService
+from src.trading.services.websocket_order_event_service import WebSocketOrderEventService
+
+
+@pytest.fixture
+async def prepared(db_session: AsyncSession, user, strategy):
+    account = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"fake",
+        api_secret_encrypted=b"fake",
+    )
+    db_session.add(account)
+    await db_session.flush()
+    session = LiveSignalSession(
+        user_id=user.id,
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTCUSDT",
+        interval=LiveSignalInterval.h1,
+    )
+    order = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTCUSDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=D("2"),
+        state=OrderState.pending,
+    )
+    db_session.add_all([session, order])
+    await db_session.flush()
+    repo = CodeRiskRepository(db_session)
+    await CodeRiskService(repo).prepare_entry(
+        session.id,
+        order.id,
+        direction="long",
+        estimated_entry=D("100"),
+        quantity=D("2"),
+        previous_bars=[{"low": D("98"), "high": D("102")}, {"low": D("99"), "high": D("101")}],
+        qty_step=D("0.1"),
+        min_qty=D("0.1"),
+    )
+    return repo, session, order
+
+
+@pytest.mark.asyncio
+async def test_real_cas_has_one_winner_and_refreshes_identity_map(prepared):
+    repo, session, _order = prepared
+    original = await repo.get(session.id)
+    assert original is not None
+    first, second = type(original)(**original.model_dump()), type(original)(**original.model_dump())
+    first.failure_reason, second.failure_reason = "winner", "loser"
+    assert await repo.compare_and_swap(first, original.revision)
+    assert not await repo.compare_and_swap(second, original.revision)
+    await repo.commit()
+    observed = await repo.get(session.id)
+    assert observed is not None and observed.failure_reason == "winner" and observed.revision == 1
+    assert not await repo.create_if_absent(original)
+
+
+@pytest.mark.asyncio
+async def test_entry_context_and_provisional_stop_share_persisted_generation(prepared, db_session):
+    repo, session, order = prepared
+    await db_session.refresh(order)
+    assert order.risk_context == {"session_id": str(session.id), "generation": 1, "role": "entry"}
+    assert order.stop_loss == D("97.8")
+    assert session.execution_snapshot is None
+    assert await repo.get_entry_order(uuid4(), order.id) is None
+    state = await repo.get(session.id)
+    assert state is not None and not await repo.attach_entry(state, D("97"))
+    svc = CodeRiskService(repo)
+    commands = await svc.record_entry_fill(
+        session.id,
+        1,
+        order.id,
+        cumulative_quantity=D("2"),
+        cumulative_value=D("204"),
+        terminal=True,
+    )
+    assert commands[0].kind == "apply_protection"
+    recovered = await CodeRiskService(CodeRiskRepository(db_session)).recover(session.id)
+    assert recovered == commands
+    observed = await repo.get(session.id)
+    assert observed is not None and observed.fixed_r == D("4.4") and observed.revision == 1
+    assert (
+        await svc.acknowledge_protection(
+            session.id, 1, token=str(commands[0].payload["token"]), success=True
+        )
+        == []
+    )
+
+
+@pytest.mark.asyncio
+async def test_real_ws_partial_and_terminal_fill_share_commit_and_survive_restart(
+    prepared, db_session
+):
+    repo, session, order = prepared
+    await db_session.refresh(order)
+    order_repo = OrderRepository(db_session)
+    await order_repo.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
+    await order_repo.commit()
+    order_repo.commit = AsyncMock(wraps=order_repo.commit)
+    repo.commit = AsyncMock(wraps=repo.commit)
+    handler = WebSocketOrderEventService(
+        repo=order_repo, risk_service=CodeRiskService(repo), settings=MagicMock()
+    )
+    handler._after_committed_winner = AsyncMock()
+    payload = {
+        "orderLinkId": str(order.id),
+        "orderId": "exchange-code",
+        "orderStatus": "PartiallyFilled",
+        "cumExecQty": "1",
+        "cumExecValue": "100",
+        "avgPrice": "100",
+    }
+    commands = await handler.handle_order_event(order.exchange_account_id, payload)
+    assert commands and commands[0].kind == "apply_protection"
+    repo.commit.assert_not_awaited()
+    order_repo.commit.assert_awaited_once()
+    state = await repo.get(session.id)
+    assert state is not None and state.fixed_r is None and state.position_quantity == D("1")
+    payload.update(orderStatus="Filled", cumExecQty="2", cumExecValue="204", avgPrice="102")
+    commands = await handler.handle_order_event(order.exchange_account_id, payload)
+    assert commands == await CodeRiskService(CodeRiskRepository(db_session)).recover(session.id)
+    await db_session.refresh(order)
+    assert order.state == OrderState.filled and order.filled_quantity == D("2")
+    state = await repo.get(session.id)
+    assert state is not None and state.fixed_r == D("4.4") and state.revision == 2
+
+
+@pytest.mark.asyncio
+async def test_outbox_lease_survives_restart_and_rejects_old_ack(prepared, db_session):
+    from datetime import timedelta
+
+    from sqlalchemy import func, select
+
+    from src.trading.models import CodeRiskCommand
+
+    repo, session, _ = prepared
+    commands = await CodeRiskService(repo).recover(session.id)
+    row = CodeRiskCommand(
+        key=commands[0].key,
+        session_id=session.id,
+        generation=1,
+        kind=commands[0].kind,
+        payload=commands[0].payload,
+    )
+    await repo.enqueue_commands([row, row])
+    await repo.commit()
+    count = await db_session.scalar(select(func.count()).select_from(CodeRiskCommand))
+    assert count == 1
+    old_token, new_token = uuid4(), uuid4()
+    claimed = await repo.claim_command(session.id, old_token)
+    assert claimed is not None and claimed.attempts == 1
+    await repo.commit()
+    assert await CodeRiskRepository(db_session).claim_command(session.id, new_token) is None
+    await repo.commit()
+    persisted = await db_session.get(CodeRiskCommand, claimed.key)
+    assert persisted is not None
+    persisted.lease_until = datetime.now(UTC) - timedelta(seconds=1)
+    await db_session.commit()
+    reclaimed = await repo.claim_command(session.id, new_token)
+    assert reclaimed is not None and reclaimed.attempts == 2
+    await repo.commit()
+    assert not await repo.finish_command(claimed.key, old_token, status="applied")
+    assert await repo.finish_command(
+        claimed.key, new_token, status="applied", result={"accepted": True}
+    )
+    await repo.commit()
+    assert await repo.claim_command(session.id, uuid4()) is None
+    await repo.commit()
+
+
+@pytest.mark.asyncio
+async def test_legacy_orphan_dispatcher_cannot_claim_code_policy_orders(prepared, db_session):
+    from datetime import timedelta
+
+    _repo, session, entry = prepared
+    legacy = Order(
+        strategy_id=session.strategy_id,
+        exchange_account_id=session.exchange_account_id,
+        symbol=session.symbol,
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=D(1),
+        state=OrderState.pending,
+    )
+    db_session.add(legacy)
+    await db_session.flush()
+    listed = await OrderRepository(db_session).list_stuck_pending(
+        datetime.now(UTC) + timedelta(seconds=1)
+    )
+    assert legacy.id in {order.id for order in listed}
+    assert entry.id not in {order.id for order in listed}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tp_filled", [True, False])
+async def test_durable_venue_entry_tp_trailing_close_and_reversal_use_one_session(
+    prepared, db_session, tp_filled
+):
+    from src.strategy.code_contract import CodeSnapshot
+    from src.strategy.models import StrategyVersion
+    from src.trading.code_execution_snapshot import build_code_snapshot
+    from src.trading.providers import Credentials, OrderReceipt, OrderStatusFetch, PositionInfo
+    from src.trading.services.code_risk_executor import CodeRiskExecutor
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    account = await repo.get_account(session.exchange_account_id)
+    assert account is not None
+    account.read_only = False
+    session.symbol = entry.symbol = "BTC/USDT"
+    entry.leverage = 1
+    entry.margin_mode = "cross"
+    code = CodeSnapshot(
+        execution_policy="code_v1",
+        language="python",
+        source_code="def on_bar(ctx,state): return {'action':'long'}",
+        warmup_bars=2,
+        provenance={},
+    )
+    version = StrategyVersion(
+        strategy_id=session.strategy_id,
+        source_hash=code.source_hash,
+        execution_hash=code.execution_hash,
+        **code.model_dump(exclude={"schema_version"}),
+    )
+    db_session.add(version)
+    await db_session.flush()
+    session.strategy_version_id = version.id
+    session.execution_snapshot = build_code_snapshot(
+        version=version,
+        account=account,
+        settings={
+            "schema_version": 1,
+            "leverage": 1,
+            "margin_mode": "cross",
+            "position_size_pct": 100,
+        },
+    )
+    await repo.commit()
+    accounts = AsyncMock()
+    accounts.get_credentials_for_order.return_value = Credentials("fake", "fake")
+    provider = AsyncMock()
+    provider.set_code_protection.return_value = {"accepted": True}
+    provider.get_code_market_rules.return_value = {
+        "price_tick": D("0.1"),
+        "qty_step": D("0.1"),
+        "min_qty": D("0.1"),
+    }
+    statuses = {}
+    position = {"size": D(0)}
+    submissions = []
+
+    async def by_client(_creds, identifier, _symbol):
+        return statuses.get(identifier)
+
+    async def fetch(_creds, identifier, _symbol):
+        return statuses[identifier]
+
+    async def submit(_creds, request):
+        submissions.append(request)
+        identifier = request.client_order_id
+        if request.type == OrderType.limit:
+            receipt = OrderReceipt(
+                exchange_order_id=identifier,
+                status="submitted",
+                filled_price=None,
+                filled_quantity=D(0),
+                raw={},
+            )
+        else:
+            position["size"] += -request.quantity if request.reduce_only else request.quantity
+            receipt = OrderReceipt(
+                exchange_order_id=identifier,
+                status="filled",
+                filled_price=D(100),
+                filled_quantity=request.quantity,
+                raw={"cumExecValue": str(D(100) * request.quantity)},
+            )
+        statuses[identifier] = OrderStatusFetch(
+            exchange_order_id=identifier,
+            status=receipt.status,
+            filled_price=receipt.filled_price,
+            filled_quantity=receipt.filled_quantity,
+            raw=receipt.raw,
+        )
+        return receipt
+
+    async def cancel(_creds, identifier, _symbol):
+        old = statuses[identifier]
+        statuses[identifier] = OrderStatusFetch(
+            exchange_order_id=identifier,
+            status="cancelled",
+            filled_quantity=old.filled_quantity,
+            filled_price=old.filled_price,
+            raw=old.raw,
+        )
+
+    provider.fetch_order_by_client_id.side_effect = by_client
+    provider.fetch_order.side_effect = fetch
+    provider.create_order.side_effect = submit
+    provider.cancel_order.side_effect = cancel
+    provider.fetch_position.side_effect = lambda *_: (
+        PositionInfo(size=position["size"], side="long") if position["size"] > 0 else None
+    )
+    provider.fetch_open_conditional_orders.return_value = []
+    risk = CodeRiskService(repo)
+    venue = BybitCodeRiskVenue(repo, OrderRepository(db_session), risk, accounts, provider)
+    executor = CodeRiskExecutor(repo, risk, venue)
+    await executor.drain(session.id)
+    state = await repo.get(session.id)
+    assert state is not None and state.fixed_r == D("2.2") and state.position_quantity == D(2)
+    assert state.protection_desired["token"] == state.protection_applied["token"]
+    assert len(submissions) == 2 and submissions[0].stop_loss == D("97.8")
+    tp = submissions[1]
+    assert tp.reduce_only and tp.quantity == D(1) and tp.price == D("103.3")
+    if tp_filled:
+        # 실제 절반 TP를 흉내낸 REST 누적 체결을 새 실행기가 복구한다.
+        position["size"] = D(1)
+        statuses[tp.client_order_id] = OrderStatusFetch(
+            exchange_order_id=tp.client_order_id,
+            status="filled",
+            filled_price=D("103.3"),
+            filled_quantity=D(1),
+        )
+    restarted = CodeRiskExecutor(repo, CodeRiskService(repo), venue)
+    await restarted.drain(session.id)
+    state = await repo.get(session.id)
+    assert state is not None and state.tp_filled_quantity == D(1 if tp_filled else 0)
+    assert state.position_quantity == D(1 if tp_filled else 2)
+    await risk.mark_price(session.id, 1, D(106))
+    await restarted.drain(session.id)
+    state = await repo.get(session.id)
+    assert (
+        state is not None
+        and state.trailing_active
+        and D(str(state.protection_applied["stop_loss"])) == D("101.6")
+    )
+    await risk.request_signal(session.id, 1, "short")
+    ready = await restarted.drain(session.id)
+    state = await repo.get(session.id)
+    assert state is not None and state.position_quantity == 0 and state.cancels_confirmed
+    assert state.pending_reversal == "short" and not state.new_entries_blocked
+    assert [command.kind for command in ready] == ["ready_reversal"]
+    count = len(submissions)
+    await restarted.drain(session.id)
+    assert len(submissions) == count
+
+
+@pytest.mark.asyncio
+async def test_sql_rollback_error_path_uses_detached_generation_and_halts(prepared):
+    from src.trading.services.code_risk_executor import CodeRiskExecutor
+
+    repo, session, _entry = prepared
+    session_id = session.id
+    venue = AsyncMock()
+    await CodeRiskExecutor(repo, CodeRiskService(repo), venue).drain(session_id)
+    state = await repo.get(session_id)
+    assert state is not None and state.new_entries_blocked and state.close_requested
+    assert state.failure_reason == "command_failed:CodeSnapshotError"
+    venue.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_real_sql_tp_race_waits_for_fill_evidence_without_synthetic_native_exit(
+    prepared, db_session
+):
+    from src.trading.providers import OrderStatusFetch, PositionInfo
+    from src.trading.services.code_risk_executor import CodeRiskExecutor
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    session_id = session.id
+    risk = CodeRiskService(repo)
+    await risk.record_entry_fill(
+        session_id, 1, entry.id, cumulative_quantity=D(2), cumulative_value=D(200), terminal=True
+    )
+    state = await repo.get(session_id)
+    await risk.acknowledge_protection(
+        session_id, 1, token=state.protection_desired["token"], success=True
+    )
+    order_repo = OrderRepository(db_session)
+    await order_repo.transition_to_submitted(entry.id, submitted_at=datetime.now(UTC))
+    await order_repo.transition_to_filled(
+        entry.id,
+        exchange_order_id="entry",
+        filled_price=D(100),
+        filled_quantity=D(2),
+        filled_at=datetime.now(UTC),
+    )
+    child = Order(
+        strategy_id=session.strategy_id,
+        exchange_account_id=session.exchange_account_id,
+        symbol=session.symbol,
+        side=OrderSide.sell,
+        type=OrderType.limit,
+        quantity=D(1),
+        price=D("103.3"),
+        state=OrderState.submitted,
+        exchange_order_id="tp",
+        reduce_only=True,
+        risk_context={"session_id": str(session_id), "generation": 1, "role": "partial_tp"},
+    )
+    db_session.add(child)
+    await repo.commit()
+    provider, accounts = AsyncMock(), AsyncMock()
+    status = {
+        "tp": OrderStatusFetch(exchange_order_id="tp", status="submitted", filled_quantity=D(0))
+    }
+
+    async def read(_credentials, identifier, _symbol):
+        return (
+            status["tp"]
+            if identifier == str(child.id)
+            else OrderStatusFetch(
+                exchange_order_id="entry",
+                status="filled",
+                filled_quantity=D(2),
+                filled_price=D(100),
+                raw={"cumExecValue": "200"},
+            )
+        )
+
+    provider.fetch_order_by_client_id.side_effect = read
+    provider.fetch_position.return_value = PositionInfo(size=D(1), side="long")
+    provider.set_code_protection.return_value = {"accepted": True}
+    provider.fetch_open_conditional_orders.return_value = []
+    executor = CodeRiskExecutor(
+        repo, risk, BybitCodeRiskVenue(repo, order_repo, risk, accounts, provider)
+    )
+    with pytest.raises(CodeRiskReconciliationPending):
+        await executor.drain(session_id)
+    observed = await repo.get(session_id)
+    assert (
+        observed.position_quantity == 2
+        and observed.exit_fills == {}
+        and not observed.close_requested
+    )
+    provider.create_order.assert_not_awaited()
+    # 다음 확정 주문 응답으로만 부분 체결을 반영한다.
+    status["tp"] = OrderStatusFetch(
+        exchange_order_id="tp", status="filled", filled_quantity=D(1), filled_price=D("103.3")
+    )
+    await executor.drain(session_id)
+    observed = await repo.get(session_id)
+    assert observed.position_quantity == 1 and observed.tp_filled_quantity == 1
+    assert observed.exit_fills == {str(child.id): {"quantity": "1", "role": "partial_tp"}}
+    assert not observed.new_entries_blocked and not observed.close_requested
+    provider.create_order.assert_not_awaited()
+    # dict 누적 원장이 있어도 미확인 native 부분 감소를 두 번 관찰해 추측 차감하지 않는다.
+    provider.fetch_position.return_value = PositionInfo(size=D("0.5"), side="long")
+    for _ in range(2):
+        with pytest.raises(CodeRiskReconciliationPending):
+            await executor.drain(session_id)
+    assert (await repo.get(session_id)).position_quantity == 1
+    provider.fetch_position.return_value = None
+    await executor.drain(session_id)
+    observed = await repo.get(session_id)
+    assert observed.position_quantity == 0 and observed.cancels_confirmed
+    assert observed.new_entries_blocked and observed.unsettled_exit_quantity == 1
+    assert observed.failure_reason == "native_exit_unsettled"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first", ["ws", "rest"])
+@pytest.mark.parametrize("shape", ["v5", "ccxt"])
+async def test_ws_and_rest_preserve_exact_cumulative_value_despite_rounded_average(
+    prepared, db_session, first, shape
+):
+    from src.trading.providers import _build_bybit_v5_order_status_fetch, _build_order_status_fetch
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, order = prepared
+    orders = OrderRepository(db_session)
+    await orders.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
+    await orders.commit()
+    await db_session.refresh(order)
+    handler = WebSocketOrderEventService(
+        repo=orders, risk_service=CodeRiskService(repo), settings=MagicMock()
+    )
+    handler._after_committed_winner = AsyncMock()
+    raw = {
+        "orderLinkId": str(order.id),
+        "orderId": "exact",
+        "orderStatus": "Filled",
+        "cumExecQty": "2",
+        "cumExecValue": "200.66666667",
+        "avgPrice": "100.33333333",
+    }
+    status = (
+        _build_bybit_v5_order_status_fetch(raw)
+        if shape == "v5"
+        else _build_order_status_fetch(
+            "exact", {"status": "closed", "filled": "2", "average": "100.33333333", "info": raw}
+        )
+    )
+    venue = BybitCodeRiskVenue(repo, orders, CodeRiskService(repo), AsyncMock(), AsyncMock())
+
+    async def ws():
+        await handler.handle_order_event(order.exchange_account_id, raw)
+
+    async def rest():
+        await venue._sync(order, status)
+
+    await (ws() if first == "ws" else rest())
+    before = (await repo.get(session.id)).model_dump()
+    await (rest() if first == "ws" else ws())
+    after = await repo.get(session.id)
+    assert after is not None and after.cumulative_value == D("200.66666667")
+    assert after.entry_vwap == D("100.33333334")
+    assert after.fixed_r == before["fixed_r"]
+    assert after.revision == before["revision"]
+    assert not after.new_entries_blocked and not after.close_requested
+    assert after.failure_reason is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["ws", "rest"])
+@pytest.mark.parametrize("average", ["100", None])
+async def test_missing_exact_entry_value_waits_without_mutating_risk_ledger(
+    prepared, db_session, source, average
+):
+    from src.trading.providers import _build_bybit_v5_order_status_fetch
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, order = prepared
+    orders = OrderRepository(db_session)
+    await orders.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
+    await orders.commit()
+    await db_session.refresh(order)
+    raw = {
+        "orderLinkId": str(order.id),
+        "orderId": "missing",
+        "orderStatus": "Filled",
+        "cumExecQty": "2",
+        "avgPrice": average,
+    }
+    with pytest.raises(CodeRiskReconciliationPending, match="누적 체결대금"):
+        if source == "ws":
+            handler = WebSocketOrderEventService(
+                repo=orders, risk_service=CodeRiskService(repo), settings=MagicMock()
+            )
+            await handler.handle_order_event(order.exchange_account_id, raw)
+        else:
+            venue = BybitCodeRiskVenue(
+                repo, orders, CodeRiskService(repo), AsyncMock(), AsyncMock()
+            )
+            await venue._sync(order, _build_bybit_v5_order_status_fetch(raw))
+    state = await repo.get(session.id)
+    assert state is not None and state.cumulative_quantity == 0 and state.cumulative_value == 0
+    assert state.fixed_r is None and not state.new_entries_blocked and not state.close_requested
+    assert state.revision == 0
+
+
+@pytest.mark.asyncio
+async def test_native_partially_filled_tp_cancel_preserves_remaining_protection_loss(
+    prepared, db_session
+):
+    from src.trading.providers import Credentials, _build_bybit_v5_order_status_fetch
+    from src.trading.services.code_risk_service import CodeRiskError
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    risk = CodeRiskService(repo)
+    await risk.record_entry_fill(
+        session.id, 1, entry.id, cumulative_quantity=D(2), cumulative_value=D(200), terminal=True
+    )
+    child = Order(
+        strategy_id=session.strategy_id,
+        exchange_account_id=session.exchange_account_id,
+        symbol=session.symbol,
+        side=OrderSide.sell,
+        type=OrderType.limit,
+        quantity=D(1),
+        price=D(103),
+        state=OrderState.submitted,
+        reduce_only=True,
+        risk_context={"session_id": str(session.id), "generation": 1, "role": "partial_tp"},
+    )
+    db_session.add(child)
+    await db_session.commit()
+    provider = AsyncMock()
+    status = _build_bybit_v5_order_status_fetch(
+        {
+            "orderId": "tp-partial-cancel",
+            "orderStatus": "PartiallyFilledCanceled",
+            "cumExecQty": "0.4",
+            "cumExecValue": "41.2",
+            "avgPrice": "103",
+        }
+    )
+    assert status.status == "filled"  # legacy mapper 계약은 유지한다.
+    provider.fetch_order_by_client_id.return_value = status
+    venue = BybitCodeRiskVenue(repo, OrderRepository(db_session), risk, AsyncMock(), provider)
+    with pytest.raises(CodeRiskError, match="거부"):
+        await venue._submit(Credentials("fake", "fake"), child)
+    state = await repo.get(session.id)
+    assert state is not None and state.position_quantity == D("1.6")
+    assert state.tp_filled_quantity == D("0.4")
+    assert state.failure_reason == "partial_tp_protection_lost"
+    assert state.new_entries_blocked and state.close_requested
+    await db_session.refresh(child)
+    assert child.state == OrderState.cancelled and child.filled_quantity == D("0.4")
+    provider.create_order.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", ["entry", "partial_tp"])
+@pytest.mark.parametrize("terminal", ["PartiallyFilledCanceled", "Rejected"])
+async def test_ws_terminal_partial_fill_survives_duplicate_foreign_and_rest(
+    prepared, db_session, monkeypatch, role, terminal
+):
+    from unittest.mock import Mock
+
+    import src.tasks.trading as tasks
+    from src.trading.providers import _build_bybit_v5_order_status_fetch
+    from src.trading.services.code_risk_service import CodeRiskError
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    risk = CodeRiskService(repo)
+    if role == "partial_tp":
+        await risk.record_entry_fill(
+            session.id,
+            1,
+            entry.id,
+            cumulative_quantity=D(2),
+            cumulative_value=D(200),
+            terminal=True,
+        )
+        order = Order(
+            strategy_id=session.strategy_id,
+            exchange_account_id=session.exchange_account_id,
+            symbol=session.symbol,
+            side=OrderSide.sell,
+            type=OrderType.limit,
+            quantity=D(1),
+            price=D(103),
+            state=OrderState.submitted,
+            reduce_only=True,
+            risk_context={"session_id": str(session.id), "generation": 1, "role": role},
+        )
+        db_session.add(order)
+        await db_session.commit()
+        quantity, price = D("0.4"), D(103)
+    else:
+        order = entry
+        await OrderRepository(db_session).transition_to_submitted(
+            order.id, submitted_at=datetime.now(UTC)
+        )
+        await db_session.commit()
+        quantity, price = D(1), D(100)
+    await db_session.refresh(order)
+    enqueue, trailing, reversal = Mock(), Mock(), Mock()
+    monkeypatch.setattr(tasks.refresh_closed_pnl_task, "apply_async", enqueue)
+    monkeypatch.setattr(tasks, "_enqueue_trailing_if_intended", trailing)
+    monkeypatch.setattr(tasks, "_enqueue_conditional_reversal_measure", reversal)
+    orders = OrderRepository(db_session)
+    handler = WebSocketOrderEventService(
+        repo=orders, risk_service=risk, settings=MagicMock(), alert_sender=AsyncMock()
+    )
+    raw = {
+        "orderLinkId": str(order.id),
+        "orderId": "partial-terminal",
+        "orderStatus": terminal,
+        "cumExecQty": str(quantity),
+        "cumExecValue": str(quantity * price),
+        "avgPrice": str(price),
+    }
+    original = (await repo.get(session.id)).model_dump()
+    with pytest.raises(CodeRiskError, match="계정 귀속"):
+        await handler.handle_order_event(uuid4(), raw)
+    assert (await repo.get(session.id)).model_dump() == original
+    await handler.handle_order_event(order.exchange_account_id, raw)
+    await db_session.refresh(order)
+    assert order.filled_quantity == quantity and order.filled_price == price
+    assert order.exchange_order_id == "partial-terminal"
+    from src.trading.schemas import OrderResponse
+
+    assert OrderResponse.model_validate(order).has_recorded_fill is True
+    assert order.state == (OrderState.rejected if terminal == "Rejected" else OrderState.cancelled)
+    after_ws = (await repo.get(session.id)).model_dump()
+    await handler.handle_order_event(order.exchange_account_id, raw)
+    assert (await repo.get(session.id)).model_dump() == after_ws
+    venue = BybitCodeRiskVenue(repo, orders, risk, AsyncMock(), AsyncMock())
+    await venue._sync(order, _build_bybit_v5_order_status_fetch(raw))
+    await db_session.refresh(order)
+    observed = await repo.get(session.id)
+    assert observed is not None
+    assert order.filled_quantity == quantity and order.filled_price == price
+    if role == "entry":
+        assert observed.cumulative_quantity == quantity and observed.position_quantity == quantity
+        enqueue.assert_not_called()  # 순수 진입은 closed-pnl 조회 대상이 아니다.
+    else:
+        assert (
+            observed.tp_filled_quantity == quantity
+            and observed.position_quantity == D(2) - quantity
+        )
+        enqueue.assert_called_once()
+    trailing.assert_not_called()
+    reversal.assert_not_called()
+
+
+@pytest.mark.parametrize("reduce_only", [False, True])
+async def test_marker_during_market_rules_blocks_new_entry_before_submitted_but_not_reduction(
+    prepared, db_session, reduce_only
+):
+    from src.trading.providers import Credentials, OrderReceipt
+    from src.trading.services.code_risk_service import CodeRiskReconciliationPending
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    await db_session.refresh(entry)
+    order = entry
+    if reduce_only:
+        order = Order(
+            strategy_id=session.strategy_id,
+            exchange_account_id=session.exchange_account_id,
+            symbol=session.symbol,
+            side=OrderSide.sell,
+            type=OrderType.market,
+            quantity=D(1),
+            reduce_only=True,
+            state=OrderState.pending,
+            risk_context={"session_id": str(session.id), "generation": 1, "role": "close"},
+        )
+        db_session.add(order)
+        await db_session.commit()
+    provider = AsyncMock()
+    provider.fetch_order_by_client_id.return_value = None
+
+    async def rules_after_marker(*_):
+        state = await repo.get(session.id)
+        state.unsettled_exit_quantity = D(1)
+        assert await repo.compare_and_swap(state, state.revision)
+        await repo.commit()
+        return {"price_tick": D("0.1"), "qty_step": D("0.1"), "min_qty": D("0.1")}
+
+    provider.get_code_market_rules.side_effect = rules_after_marker
+    provider.create_order.return_value = OrderReceipt(
+        exchange_order_id="fake-submitted", status="submitted", filled_price=None, raw={}
+    )
+    venue = BybitCodeRiskVenue(
+        repo, OrderRepository(db_session), CodeRiskService(repo), AsyncMock(), provider
+    )
+    creds = Credentials("fake", "fake")
+    if reduce_only:
+        await venue._submit(creds, order)
+        provider.create_order.assert_awaited_once()
+        await db_session.refresh(order)
+        assert order.state == OrderState.submitted
+    else:
+        with pytest.raises(CodeRiskReconciliationPending, match="미정산"):
+            await venue._submit(creds, order)
+        provider.create_order.assert_not_awaited()
+        await db_session.refresh(order)
+        assert order.state == OrderState.pending and order.submitted_at is None
+        assert order.exchange_order_id is None
+    provider.get_code_market_rules.assert_awaited_once()
+    assert await repo.has_unsettled_exit_for_account(session.exchange_account_id)
+
+
+async def test_existing_exchange_order_is_reconciled_without_duplicate_create_despite_marker(
+    prepared, db_session
+):
+    from src.trading.providers import Credentials, OrderStatusFetch
+    from src.trading.services.code_risk_venue import BybitCodeRiskVenue
+
+    repo, session, entry = prepared
+    await db_session.refresh(entry)
+    state = await repo.get(session.id)
+    state.unsettled_exit_quantity = D(1)
+    assert await repo.compare_and_swap(state, state.revision)
+    await repo.commit()
+    provider = AsyncMock()
+    provider.fetch_order_by_client_id.return_value = OrderStatusFetch(
+        exchange_order_id="accepted-before-ack-loss", status="submitted"
+    )
+    venue = BybitCodeRiskVenue(
+        repo, OrderRepository(db_session), CodeRiskService(repo), AsyncMock(), provider
+    )
+    await venue._submit(Credentials("fake", "fake"), entry)
+    provider.create_order.assert_not_awaited()
+    provider.get_code_market_rules.assert_not_awaited()
+    await db_session.refresh(entry)
+    assert entry.exchange_order_id == "accepted-before-ack-loss"
+    assert entry.state == OrderState.submitted

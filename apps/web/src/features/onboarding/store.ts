@@ -26,6 +26,7 @@ import {
 } from "./types";
 
 export interface OnboardingState {
+  ownerUserId: string | null;
   step: OnboardingStep;
   strategyId: string | null;
   backtestId: string | null;
@@ -34,6 +35,7 @@ export interface OnboardingState {
   setStrategy: (strategyId: string) => void;
   setBacktest: (backtestId: string) => void;
   reset: () => void;
+  bindOwner: (userId: string) => void;
 }
 
 const STORAGE_KEY = "qb-onboarding-v1";
@@ -43,9 +45,10 @@ const STORAGE_KEY = "qb-onboarding-v1";
 // 0 으로 초기화하고, 첫 setStep/setStrategy/setBacktest 호출 시 실시간 Date.now() 로 채운다.
 export function createInitialState(): Pick<
   OnboardingState,
-  "step" | "strategyId" | "backtestId" | "startedAt"
+  "ownerUserId" | "step" | "strategyId" | "backtestId" | "startedAt"
 > {
   return {
+    ownerUserId: null,
     step: "welcome",
     strategyId: null,
     backtestId: null,
@@ -55,7 +58,7 @@ export function createInitialState(): Pick<
 
 export const useOnboardingStore = create<OnboardingState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...createInitialState(),
       setStep: (step) =>
         set((s) => ({
@@ -72,10 +75,11 @@ export const useOnboardingStore = create<OnboardingState>()(
           backtestId,
           startedAt: s.startedAt === 0 ? Date.now() : s.startedAt,
         })),
-      reset: () => {
-        void get; // keep get referenced for parity with zustand types
-        set(createInitialState());
-      },
+      reset: () => set((s) => ({ ...createInitialState(), ownerUserId: s.ownerUserId })),
+      bindOwner: (userId) =>
+        set((s) =>
+          s.ownerUserId === userId ? s : { ...createInitialState(), ownerUserId: userId },
+        ),
     }),
     {
       name: STORAGE_KEY,
@@ -96,13 +100,21 @@ export const useOnboardingStore = create<OnboardingState>()(
         }
         return window.localStorage;
       }),
-      // ★하이드레이션을 마운트 뒤로 미룬다(`rendering-hydration-no-flicker`). 저장소가 동기
-      //   localStorage 라 생성 즉시 복원하면 클라이언트 첫 렌더가 저장된 step 을 그리는데, 서버는
-      //   localStorage 를 못 읽어 언제나 `welcome` 을 그린다 — 진행 중 새로고침마다 하이드레이션
-      //   불일치가 나서 React 가 SSR 마크업을 버리고 다시 그렸다. 복원은 `OnboardingView` 의
-      //   마운트 effect 가 `persist.rehydrate()` 로 한다.
+      // 복원은 OnboardingView의 마운트 effect가 수행한다. 서버와 클라이언트 첫 렌더는
+      // 준비 화면으로 맞추고, 복원·owner 검증이 끝난 뒤에만 저장된 단계를 마운트한다.
       skipHydration: true,
+      // owner 없는 이전 저장값은 현재 계정의 진행도로 승격하지 않는다.
+      merge: (persisted, current) => {
+        const stored = persisted as Partial<OnboardingState> | undefined;
+        if (!stored) return current;
+        return {
+          ...current,
+          ...stored,
+          ownerUserId: typeof stored?.ownerUserId === "string" ? stored.ownerUserId : null,
+        };
+      },
       partialize: (s) => ({
+        ownerUserId: s.ownerUserId,
         step: s.step,
         strategyId: s.strategyId,
         backtestId: s.backtestId,

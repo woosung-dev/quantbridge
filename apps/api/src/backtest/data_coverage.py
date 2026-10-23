@@ -17,15 +17,22 @@ class DataCoverage(BaseModel):
 
 
 def measure_data_coverage(
-    index: pd.DatetimeIndex, timeframe: str, start: datetime, end: datetime
+    index: pd.DatetimeIndex,
+    timeframe: str,
+    start: datetime,
+    end: datetime,
+    *,
+    end_inclusive: bool = True,
 ) -> DataCoverage:
-    """UTC 캔들 개시 시각, 요청 양 끝 포함. 중간 누락도 센다."""
+    """UTC 캔들 개시 시각의 중간 누락을 센다. 기본은 요청 양 끝 포함이다."""
     frequency = f"{TIMEFRAME_SECONDS[timeframe]}s"
     expected = pd.date_range(
         pd.Timestamp(start).tz_convert("UTC").ceil(frequency),
         pd.Timestamp(end).tz_convert("UTC").floor(frequency),
         freq=frequency,
     )
+    if not end_inclusive:
+        expected = expected[expected < pd.Timestamp(end).tz_convert("UTC")]
     return DataCoverage(
         actual_start=index.min().to_pydatetime() if len(index) else None,
         actual_end=index.max().to_pydatetime() if len(index) else None,

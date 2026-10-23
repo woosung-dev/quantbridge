@@ -38,6 +38,7 @@ import {
   formatDateTime,
   formatRealizedPnl,
 } from "../utils";
+import { CodeExecutionSummary } from "./code-execution-summary";
 import { ActivityTimelineChart } from "./activity-timeline-chart";
 import { OutcomeParityPanel } from "./outcome-parity-panel";
 import { SessionEndedReason } from "./session-ended-reason";
@@ -160,16 +161,29 @@ export function LiveSessionDetail({ session }: Props) {
         <p className="text-muted-foreground text-xs">
           {session.interval} · 마지막 평가 {formatDateTime(session.last_evaluated_bar_time)}
         </p>
+        {state?.code_execution ? <CodeExecutionSummary summary={state.code_execution} /> : null}
         <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-muted-foreground">종료 거래</dt>
+            <dt className="text-muted-foreground">
+              {state?.pnl_scope === "known_order_subtotal" ? "정산된 청산 주문" : "종료 거래"}
+            </dt>
             <dd className="font-mono">{stateLoading ? "…" : (state?.total_closed_trades ?? 0)}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">실현 손익</dt>
+            <dt className="text-muted-foreground">
+              {state?.pnl_scope === "known_order_subtotal" ? "알려진 주문 손익 소계" : "실현 손익"}
+            </dt>
             <dd className="font-mono">
               {stateLoading ? "…" : <PnlValue raw={state?.total_realized_pnl ?? "0"} />}
             </dd>
+            {state?.pnl_complete === false ? (
+              <dd className="mt-1 text-destructive text-xs" role="status">
+                손익 미정산 · 표시 금액은 알려진 주문 소계이며 전체 실현 손익이 아닙니다.
+                {(state.unpriced_exit_orders ?? 0) > 0
+                  ? ` 정산 대기 주문 ${state.unpriced_exit_orders}건.`
+                  : ""}
+              </dd>
+            ) : null}
             {/* BL-458 — 이 숫자의 신뢰 등급. 어휘는 주문 블로터 칩과 동일한 SSOT 를
                 쓴다(복사하면 두 화면이 다른 말을 하게 된다). 소계가 없으면(구 응답)
                 아무것도 그리지 않는다 — 부재를 0 으로 위장하지 않는다. */}

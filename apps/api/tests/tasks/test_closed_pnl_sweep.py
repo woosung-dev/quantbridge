@@ -80,6 +80,7 @@ def _order(
         strategy_id=strategy_id or uuid4(),
         exchange_account_id=account_id,
         exchange_order_id=exchange_order_id,
+        risk_context=None,
         symbol="BTC/USDT",
         side=OrderSide.buy,
         reduce_only=reduce_only,
@@ -196,6 +197,9 @@ def _install_repositories(monkeypatch: pytest.MonkeyPatch, state: _State) -> Non
             # `state.existing_order_ids` 에 명시적으로 넣어야 한다 — 엄격함이 하네스에
             # 드러나야 BL-457 회귀가 조용히 통과하지 못한다.
             return frozenset(state.existing_order_ids) & frozenset(order_ids)
+
+        async def list_code_pnl_candidates(self, account_id: UUID, *, filled_since: datetime):
+            return []
 
         async def list_unsynced_with_exchange_exit(self, account_id: UUID):
             seen = ledger_order_ids(account_id)

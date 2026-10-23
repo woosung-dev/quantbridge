@@ -455,3 +455,45 @@ async def test_okx_demo_fetch_order_is_blocked_before_ccxt_client_creation(monke
         )
 
     okx_factory.assert_not_called()
+
+
+@pytest.mark.parametrize("shape", ["v5", "ccxt"])
+def test_exact_cumulative_value_is_normalized_without_rounded_average_reconstruction(shape):
+    from src.trading.providers import _build_bybit_v5_order_status_fetch, _build_order_status_fetch
+
+    if shape == "v5":
+        status = _build_bybit_v5_order_status_fetch(
+            {
+                "orderId": "exact",
+                "orderStatus": "Filled",
+                "cumExecQty": "3",
+                "cumExecValue": "301",
+                "avgPrice": "100.33333333",
+            }
+        )
+    else:
+        status = _build_order_status_fetch(
+            "exact",
+            {
+                "status": "closed",
+                "filled": "3",
+                "average": "100.33333333",
+                "info": {"cumExecValue": "301"},
+            },
+        )
+    assert status.cumulative_value == Decimal("301")
+    assert status.filled_quantity * status.filled_price != status.cumulative_value
+
+
+def test_missing_cumulative_value_is_not_synthesized_in_provider():
+    from src.trading.providers import _build_bybit_v5_order_status_fetch
+
+    status = _build_bybit_v5_order_status_fetch(
+        {
+            "orderId": "missing",
+            "orderStatus": "Filled",
+            "cumExecQty": "3",
+            "avgPrice": "100",
+        }
+    )
+    assert status.cumulative_value is None

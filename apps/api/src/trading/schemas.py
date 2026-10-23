@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -98,6 +98,7 @@ class OrderResponse(BaseModel):
     exchange_order_id: str | None
     filled_price: Decimal | None
     filled_quantity: Decimal | None = None
+    has_recorded_fill: bool = False
     # realized_pnl_synced_at 비어 있지 않음 = 거래소가 확정한 net 손익(수수료 포함), 비어 있음 = pine_v2 추정값.
     realized_pnl: Decimal | None = None
     realized_pnl_synced_at: AwareDatetime | None = None
@@ -237,6 +238,9 @@ class RegisterLiveSessionRequest(BaseModel):
 
     strategy_id: UUID
     exchange_account_id: UUID
+    source_policy: Literal["code_v1"] | None = None
+    strategy_version_id: UUID | None = None
+    execution_snapshot: dict[str, Any] | None = None
     # BL-454 — canonical(`BTC/USDT`) 로 정규화해 저장한다. 세션 손익 스코프가
     # `Order.symbol` 과 **정확 문자열 동등**을 쓰므로(`order_repository._session_scope_where`),
     # 표기가 어긋난 주문은 세션 합계에서 조용히 빠지고 loss-limit 알림이 fail-open 한다.
@@ -309,6 +313,26 @@ class AlertRuleListResponse(BaseModel):
     total: int
 
 
+class CodeExecutionSummary(BaseModel):
+    """코드 세션의 영속 체크포인트·리스크 원장 조회. UI 캐시를 읽지 않는다."""
+
+    version_id: UUID | None
+    checkpoint_status: Literal["warmup", "prepared", "delivered", "blocked"] | None
+    last_bar_time: AwareDatetime | None
+    last_intent: str | None
+    risk_generation: int | None
+    direction: str | None
+    position_quantity: Decimal | None
+    entry_vwap: Decimal | None
+    fixed_r: Decimal | None
+    protection_pending: bool
+    trailing_active: bool
+    new_entries_blocked: bool
+    failure_reason: str | None
+    pending_reversal: str | None
+    unsettled_exit_quantity: Decimal = Decimal("0")
+
+
 class LiveSignalStateResponse(BaseModel):
     """GET /api/v1/live-sessions/{id}/state — Detail UI 용.
 
@@ -321,6 +345,10 @@ class LiveSignalStateResponse(BaseModel):
 
     session_id: UUID
     evaluated: bool = True
+    code_execution: CodeExecutionSummary | None = None
+    pnl_complete: bool | None = None
+    pnl_scope: Literal["known_order_subtotal"] | None = None
+    unpriced_exit_orders: int = 0
     schema_version: int
     last_strategy_state_report: dict[str, object]
     total_closed_trades: int

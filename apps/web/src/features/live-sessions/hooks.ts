@@ -324,6 +324,8 @@ export function useLiveSessionOutcomeParity(
 export interface LiveSessionsAggregate {
   /** 활성 세션들의 합산 실현 손익 (point-in-time). */
   totalRealizedPnl: number;
+  /** 거래소 청산 귀속 또는 주문 정산이 끝나지 않은 세션 수. 합계는 알려진 소계다. */
+  incompleteSessions: number;
   /** 합산 종료 거래 수. */
   totalClosedTrades: number;
   /**
@@ -359,6 +361,7 @@ function combineLiveSessionStates(
   let totalRealizedPnl = 0;
   let totalClosedTrades = 0;
   let populatedSessions = 0;
+  let incompleteSessions = 0;
   const curves: CurvePoint[][] = [];
   // BL-458 — 출처 소계는 **모든** 채워진 세션이 보고했을 때만 합산한다. 부분 분할은
   // 없는 것보다 나쁘다("확정 −2" 가 실제로는 세션 하나만의 확정일 수 있다).
@@ -370,6 +373,7 @@ function combineLiveSessionStates(
     const state = r.data;
     if (!state) continue;
     populatedSessions += 1;
+    if (state.pnl_complete === false) incompleteSessions += 1;
     const pnl = Number(state.total_realized_pnl);
     if (Number.isFinite(pnl)) totalRealizedPnl += pnl;
     totalClosedTrades += state.total_closed_trades ?? 0;
@@ -401,6 +405,7 @@ function combineLiveSessionStates(
 
   return {
     totalRealizedPnl,
+    incompleteSessions,
     totalClosedTrades,
     // 하나라도 소계를 안 보고했으면 null — 반쪽 분할을 그리지 않는다.
     confirmedRealizedPnl: splitComplete ? confirmedRealizedPnl : null,

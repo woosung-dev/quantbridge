@@ -62,6 +62,7 @@ export type TradingSession = z.infer<typeof TradingSessionSchema>;
 export const CreateBacktestRequestSchema = z
   .object({
     strategy_id: z.uuid(),
+    execution_policy: z.literal("code_v1").optional(),
     symbol: z.string().min(3).max(32),
     timeframe: TimeframeSchema,
     period_start: z.iso.datetime({ offset: true }),
@@ -316,6 +317,12 @@ export type EquityPoint = z.infer<typeof EquityPointSchema>;
 // 포함하지 않을 수 있어 모두 nullable + optional. Sprint 30-γ-BE 에서 BE
 // 응답 추가 후 graceful upgrade.
 export const BacktestConfigSchema = z.object({
+  execution_policy: z.literal("code_v1").nullable().optional(),
+  default_qty_type: z
+    .enum(["strategy.percent_of_equity", "strategy.cash", "strategy.fixed"])
+    .nullable()
+    .optional(),
+  default_qty_value: z.number().positive().nullable().optional(),
   leverage: z.number().nullable().optional(),
   fees: z.number().nullable().optional(),
   slippage: z.number().nullable().optional(),

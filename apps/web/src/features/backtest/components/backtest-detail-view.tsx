@@ -16,7 +16,7 @@ import { useBacktest, useBacktestProgress } from "@/features/backtest/hooks";
 import type { BacktestStatus } from "@/features/backtest/schemas";
 import { formatDate } from "@/features/backtest/utils";
 import { StateBox } from "@/components/state-box";
-import { useStrategy } from "@/features/strategy/hooks";
+import { BacktestStrategyLink } from "@/features/backtest/components/backtest-strategy-link";
 import { CHIP_TONE_CLASS } from "@/lib/labels";
 
 import { BacktestReportShell } from "@/features/backtest/components/report/backtest-report-shell";
@@ -28,8 +28,6 @@ const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
 export function BacktestDetailView({ id }: { id: string }) {
   const detail = useBacktest(id);
   const progress = useBacktestProgress(id);
-  // [BL-859] 무엇의 결과인지 — 같은 심볼·주기 실행이 여럿이면 전략명 없이는 구분이 안 된다.
-  const strategyQ = useStrategy(detail.data?.strategy_id);
 
   // Terminal 전환 시 detail refetch — queued→completed 감지되면 initial cache (metrics=null)
   // 를 신선화. LESSON-004 guard: primitive dep (string) + stable function reference.
@@ -99,14 +97,7 @@ export function BacktestDetailView({ id }: { id: string }) {
             </h1>
             <div className="report-meta">
               {/* symbol·timeframe 은 바로 위 h1 이 이미 말한다 — 같은 헤더 안 중복 칩 금지. */}
-              <Link
-                className="chip"
-                href={`/strategies/${bt.strategy_id}/edit`}
-                title="전략 편집기로 이동"
-                data-testid="report-strategy-chip"
-              >
-                {strategyQ.data?.name ?? `전략 ${bt.strategy_id.slice(0, 8)}`}
-              </Link>
+              <BacktestStrategyLink backtest={bt} testId="report-strategy-chip" />
               <span className={CHIP_TONE_CLASS[statusTone]}>
                 {showCheckIcon ? <CheckIcon aria-hidden="true" /> : null}
                 {statusLabel}

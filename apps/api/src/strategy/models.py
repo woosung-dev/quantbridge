@@ -48,7 +48,7 @@ class Strategy(SQLModel, table=True):
     )
     name: str = Field(max_length=120, nullable=False)
     description: str | None = Field(default=None, max_length=2000, nullable=True)
-    pine_source: str = Field(nullable=False)
+    pine_source: str | None = Field(default=None, nullable=True)
     # 최신 불변 source snapshot. Strategy 생성 시에는 FK 순환을 피하려고 잠시 NULL 이고,
     # StrategyService 가 같은 트랜잭션 안에서 StrategyVersion 생성 뒤 항상 채운다.
     strategy_version_id: UUID | None = Field(
@@ -64,7 +64,11 @@ class Strategy(SQLModel, table=True):
             index=True,
         ),
     )
-    pine_version: PineVersion = Field(nullable=False)
+    pine_version: PineVersion | None = Field(default=None, nullable=True)
+    source_language: str = Field(
+        default="pine", sa_column=Column(String(16), nullable=False, server_default="pine")
+    )
+    execution_policy: str | None = Field(default=None, max_length=16, nullable=True)
     parse_status: ParseStatus = Field(index=True, nullable=False)
     parse_errors: list[dict[str, object]] | None = Field(
         default=None,
@@ -112,7 +116,7 @@ class Strategy(SQLModel, table=True):
 
 
 class StrategyVersion(SQLModel, table=True):
-    """실행 입력으로 쓰는 불변 Pine source snapshot."""
+    """실행 입력으로 쓰는 불변 source snapshot. legacy Pine과 code_v1을 분리한다."""
 
     __tablename__ = "strategy_versions"
     __table_args__ = (Index("ix_strategy_versions_strategy_created", "strategy_id", "created_at"),)
@@ -125,8 +129,17 @@ class StrategyVersion(SQLModel, table=True):
             index=True,
         )
     )
-    pine_source: str = Field(sa_column=Column(Text, nullable=False))
+    pine_source: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     source_hash: str = Field(sa_column=Column(String(64), nullable=False))
+    language: str | None = Field(default=None, max_length=16, nullable=True)
+    source_code: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    execution_policy: str | None = Field(default=None, max_length=16, nullable=True)
+    warmup_bars: int | None = Field(default=None, nullable=True)
+    params: dict[str, object] | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    provenance: dict[str, object] | None = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
+    execution_hash: str | None = Field(default=None, max_length=64, nullable=True)
     parser_version: str = Field(
         default=PINE_V2_PARSER_VERSION,
         sa_column=Column(String(32), nullable=False),

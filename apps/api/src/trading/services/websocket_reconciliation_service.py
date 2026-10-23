@@ -69,6 +69,9 @@ class WebSocketReconciliationService:
         ]
         winners: list[tuple[Order, OrderState, dict[str, Any]]] = []
         for local in local_active:
+            if local.risk_context is not None:
+                # 새 정책은 체결 원장과 outbox를 함께 확정하는 전용 복구기가 소유한다.
+                continue
             exchange_order = self._find_match(exchange_orders, str(local.id))
             if exchange_order is None:
                 await self._handle_unknown(local, account_id)

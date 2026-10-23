@@ -45,6 +45,8 @@ export const OrderSchema = z.object({
   // Wave 3 (체결 수량·실현 손익) — BE OrderResponse 와 1:1. realized_pnl_synced_at 은
   // 거래소 확정 손익인지 pine_v2 추정값인지 밝히는 출처 마커이며 구 fixture 는 null 로 둔다.
   filled_quantity: z.string().nullable().default(null),
+  // 서버가 코드 주문의 양수 부분 체결 증거를 확인한 표시 값이다. 구 응답의 부재는 false다.
+  has_recorded_fill: z.boolean().optional(),
   realized_pnl: z.string().nullable().default(null),
   realized_pnl_synced_at: z.string().nullable().default(null),
 });

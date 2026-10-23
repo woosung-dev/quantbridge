@@ -46,6 +46,7 @@ def _sess() -> Any:
         user_id=uuid4(),
         created_at=datetime(2026, 8, 4, 0, 0, tzinfo=UTC),
         deactivated_at=None,
+        execution_snapshot=None,
     )
 
 

@@ -35,6 +35,21 @@ describe("useOnboardingStore — step 전진/후진", () => {
     expect(selectBacktestId(s)).toBeNull();
   });
 
+  it("같은 owner는 진행도를 유지하고 계정 변경은 ID와 진행도를 비운다", () => {
+    useOnboardingStore.getState().bindOwner("user-a");
+    useOnboardingStore.getState().setStrategy(FIXED_STRATEGY_ID);
+    useOnboardingStore.getState().setStep("backtest");
+    useOnboardingStore.getState().bindOwner("user-a");
+    expect(useOnboardingStore.getState().strategyId).toBe(FIXED_STRATEGY_ID);
+    useOnboardingStore.getState().bindOwner("user-b");
+    expect(useOnboardingStore.getState()).toMatchObject({
+      ...createInitialState(),
+      ownerUserId: "user-b",
+    });
+    useOnboardingStore.getState().reset();
+    expect(useOnboardingStore.getState().ownerUserId).toBe("user-b");
+  });
+
   it("setStep 으로 welcome → strategy → backtest → result 전진, reset 으로 welcome 복귀", () => {
     useOnboardingStore.getState().setStep("strategy");
     expect(selectStep(useOnboardingStore.getState())).toBe("strategy");
@@ -125,6 +140,21 @@ describe("useOnboardingStore — 5분 TTL 만료 시 자동 reset", () => {
 });
 
 describe("useOnboardingStore — 하이드레이션 시점", () => {
+  it("owner 없는 이전 저장값이 메모리의 현재 owner를 상속하지 않는다", async () => {
+    useOnboardingStore.getState().bindOwner("user-b");
+    window.localStorage.setItem(
+      "qb-onboarding-v1",
+      JSON.stringify({
+        version: 1,
+        state: { step: "backtest", strategyId: FIXED_STRATEGY_ID, startedAt: Date.now() },
+      }),
+    );
+    await useOnboardingStore.persist.rehydrate();
+    expect(useOnboardingStore.getState().ownerUserId).toBeNull();
+    useOnboardingStore.getState().bindOwner("user-b");
+    expect(useOnboardingStore.getState().strategyId).toBeNull();
+  });
+
   // 서버는 localStorage 를 못 읽어 항상 welcome 을 그린다. 클라이언트 store 가 생성 즉시 복원하면
   // 첫 렌더가 서버 마크업과 어긋난다 — 복원은 마운트 뒤 `persist.rehydrate()` 로만 일어나야 한다.
   it("모듈 생성 시점에는 저장된 step 을 읽지 않고, rehydrate 뒤에 복원한다", async () => {
@@ -149,6 +179,12 @@ describe("useOnboardingStore — 하이드레이션 시점", () => {
 
     expect(fresh.selectStep(fresh.useOnboardingStore.getState())).toBe("backtest");
     expect(fresh.selectStrategyId(fresh.useOnboardingStore.getState())).toBe(FIXED_STRATEGY_ID);
+    expect(fresh.useOnboardingStore.getState().ownerUserId).toBeNull();
+    fresh.useOnboardingStore.getState().bindOwner("user-b");
+    expect(fresh.useOnboardingStore.getState()).toMatchObject({
+      ...fresh.createInitialState(),
+      ownerUserId: "user-b",
+    });
     window.localStorage.removeItem("qb-onboarding-v1");
   });
 });

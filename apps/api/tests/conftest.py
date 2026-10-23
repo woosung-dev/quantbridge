@@ -96,6 +96,7 @@ from src.python_strategy.models import (  # noqa: F401 — metadata 등록
 )
 from src.strategy.models import Strategy  # noqa: F401 — metadata 등록
 from src.stress_test.models import StressTest  # noqa: F401 — metadata 등록
+from src.trading.code_checkpoints import LiveCodeBar  # noqa: F401 — metadata 등록
 from src.trading.models import (  # noqa: F401 — metadata 등록 (trading.*)
     ExchangeAccount,
     KillSwitchEvent,

@@ -52,6 +52,7 @@ def _rule(threshold: str = "10"):
         symbol="BTC/USDT",
         created_at=datetime(2026, 7, 20, 6, 0, tzinfo=UTC),
         deactivated_at=None,
+        execution_snapshot=None,
     )
     return (
         SimpleNamespace(

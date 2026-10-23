@@ -188,17 +188,21 @@ function SessionPnlBadge({ sessionId, isActive }: { sessionId: string; isActive:
     return null;
   }
   const { text, tone } = formatRealizedPnl(state.total_realized_pnl);
-  const toneClass =
-    tone === "profit"
+  const incomplete = state.pnl_complete === false;
+  const toneClass = incomplete
+    ? "text-muted-foreground"
+    : tone === "profit"
       ? "text-[color:var(--success)]"
       : tone === "loss"
         ? "text-[color:var(--destructive)]"
         : "text-muted-foreground";
   return (
     <p className="mt-1 flex items-center gap-2 font-mono text-xs">
-      <span className="text-muted-foreground">PnL</span>
+      <span className="text-muted-foreground">{incomplete ? "미정산 · 알려진 소계" : "PnL"}</span>
       <span className={toneClass}>{text}</span>
-      <span className="text-muted-foreground">· {state.total_closed_trades} 청산</span>
+      <span className="text-muted-foreground">
+        · {state.total_closed_trades} {state.pnl_scope ? "정산 주문" : "청산"}
+      </span>
     </p>
   );
 }

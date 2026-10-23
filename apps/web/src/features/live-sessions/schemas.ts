@@ -58,13 +58,36 @@ export function curvePointSource(
   return point.source ?? "estimated";
 }
 
+export const CodeExecutionSummarySchema = z.object({
+  version_id: z.uuid().nullable(),
+  checkpoint_status: z.enum(["warmup", "prepared", "delivered", "blocked"]).nullable(),
+  last_bar_time: z.string().nullable(),
+  last_intent: z.string().nullable(),
+  risk_generation: z.number().nullable(),
+  direction: z.string().nullable(),
+  position_quantity: z.string().nullable(),
+  entry_vwap: z.string().nullable(),
+  fixed_r: z.string().nullable(),
+  protection_pending: z.boolean(),
+  trailing_active: z.boolean(),
+  new_entries_blocked: z.boolean(),
+  failure_reason: z.string().nullable(),
+  pending_reversal: z.string().nullable(),
+  unsettled_exit_quantity: z.string().optional(),
+});
+export type CodeExecutionSummary = z.infer<typeof CodeExecutionSummarySchema>;
+
 export const LiveSignalStateSchema = z.object({
   session_id: z.uuid(),
   evaluated: z.boolean().default(true),
+  code_execution: CodeExecutionSummarySchema.nullable().optional(),
   schema_version: z.number(),
   last_strategy_state_report: z.record(z.string(), z.unknown()),
   total_closed_trades: z.number(),
   total_realized_pnl: z.string(),
+  pnl_complete: z.boolean().nullable().optional(),
+  pnl_scope: z.literal("known_order_subtotal").nullable().optional(),
+  unpriced_exit_orders: z.number().int().nonnegative().optional(),
   // BL-458 — 출처 소계. `total_realized_pnl` 은 여전히 둘을 합친 값이다.
   // `.optional()` — 구 응답 호환 + 부분 분할을 "0" 으로 위장하지 않기 위해.
   confirmed_realized_pnl: z.string().optional(),

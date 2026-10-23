@@ -48,6 +48,8 @@ from src.optimizer.schemas import (
     ParamSpace,
 )
 from src.optimizer.serializers import best_metrics_from_jsonb, optimizer_result_to_jsonb
+from src.strategy.code_contract import legacy_pine_source
+from src.strategy.exceptions import CodeStrategyPolicyError
 from src.strategy.repository import StrategyRepository
 
 logger = logging.getLogger(__name__)
@@ -136,6 +138,8 @@ class OptimizerService:
         """공통 submit path — Backtest ownership + COMPLETED + dispatch."""
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
+        if bt.engine_version == "code_v1":
+            raise CodeStrategyPolicyError()
 
         run = OptimizationRun(
             user_id=user_id,
@@ -263,9 +267,9 @@ class OptimizerService:
                     message_public="Strategy no longer available for optimization.",
                     message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
                 )
-            pine = strategy.pine_source
+            pine = legacy_pine_source(strategy)
         else:
-            pine = strategy_version.pine_source
+            pine = legacy_pine_source(strategy_version)
 
         ohlcv = await self.provider.get_ohlcv(
             bt.symbol, bt.timeframe, bt.period_start, bt.period_end

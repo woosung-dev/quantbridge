@@ -102,8 +102,16 @@ def _fetch_openai(settings: Settings) -> tuple[list[ModelInfo], int]:
 
 def _fetch_gemini(settings: Settings) -> tuple[list[ModelInfo], int]:
     from google import genai
+    from google.genai import types as genai_types
 
-    client = genai.Client(api_key=secret(settings.gemini_api_key))
+    client = genai.Client(
+        api_key=secret(settings.gemini_api_key),
+        enterprise=False,
+        vertexai=False,
+        http_options=genai_types.HttpOptions(
+            retry_options=genai_types.HttpRetryOptions(attempts=1)
+        ),
+    )
     raw = list(client.models.list())
     out: list[ModelInfo] = []
     for m in raw:

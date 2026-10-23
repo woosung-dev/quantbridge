@@ -36,6 +36,39 @@ describe("getLiveSessionState", () => {
     await expect(getLiveSessionState(sessionId, "token")).resolves.toBeNull();
   });
 
+  it.each([null, "warmup"])(
+    "코드 첫 평가/워밍업 원장 요약은 evaluated=false여도 보존한다 (%s)",
+    async (checkpointStatus) => {
+      const summary = {
+        version_id: sessionId,
+        checkpoint_status: checkpointStatus,
+        last_bar_time: null,
+        last_intent: null,
+        risk_generation: null,
+        direction: null,
+        position_quantity: null,
+        entry_vwap: null,
+        fixed_r: null,
+        protection_pending: false,
+        trailing_active: false,
+        new_entries_blocked: false,
+        failure_reason: null,
+        pending_reversal: null,
+      };
+      apiFetchMock.mockResolvedValueOnce({
+        ...stateResponse,
+        evaluated: false,
+        code_execution: summary,
+        total_realized_pnl: "12.50",
+      });
+      await expect(getLiveSessionState(sessionId, "token")).resolves.toMatchObject({
+        evaluated: false,
+        code_execution: summary,
+        total_realized_pnl: "12.50",
+      });
+    },
+  );
+
   it("evaluated 키가 없는 이전 응답은 true 기본값으로 파싱한다", async () => {
     apiFetchMock.mockResolvedValueOnce(stateResponse);
 

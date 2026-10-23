@@ -29,6 +29,17 @@ class CreateBacktestRequest(BaseModel):
     """
 
     strategy_id: UUID
+    strategy_version_id: UUID | None = Field(
+        default=None,
+        description=(
+            "code_v1에서 실행할 소유 전략의 불변 버전 ID입니다. "
+            "생략하면 현재 버전을 사용하며 기존 Pine 경로에서는 허용하지 않습니다."
+        ),
+    )
+    execution_policy: Literal["code_v1"] | None = Field(
+        default=None,
+        description="code_v1은 명시적 opt-in이며 1h/4h/1d 신호 주기, next_bar_open, 1X만 지원합니다.",
+    )
     symbol: str = Field(min_length=3, max_length=32)
     timeframe: Literal["1m", "5m", "15m", "1h", "4h", "1d"]
     period_start: AwareDatetime
@@ -463,6 +474,12 @@ class BacktestConfigOut(BaseModel):
     설명 가능.
     """
 
+    # None은 기존 Pine 실행이다. code_v1은 저장된 엔진 식별자로 판정한다.
+    execution_policy: Literal["code_v1"] | None = None
+    default_qty_type: (
+        Literal["strategy.percent_of_equity", "strategy.cash", "strategy.fixed"] | None
+    ) = None
+    default_qty_value: float | None = None
     leverage: float
     fees: float
     slippage: float

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Literal, cast
 from uuid import UUID
 
 from src.trading.equity_calculator import (
@@ -10,10 +11,13 @@ from src.trading.equity_calculator import (
     label_curve_provenance,
     recompute_equity_curve,
 )
+from src.trading.repositories.code_checkpoint_repository import CodeCheckpointRepository
+from src.trading.repositories.code_risk_repository import CodeRiskRepository
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository, SessionScope
 from src.trading.schemas import (
+    CodeExecutionSummary,
     LiveSignalEventListResponse,
     LiveSignalEventResponse,
     LiveSignalStateResponse,
@@ -26,10 +30,14 @@ class LiveSessionQueryService:
         session_repo: LiveSignalSessionRepository,
         order_repo: OrderRepository,
         event_repo: LiveSignalEventRepository,
+        checkpoint_repo: CodeCheckpointRepository,
+        risk_repo: CodeRiskRepository,
     ) -> None:
         self._session_repo = session_repo
         self._order_repo = order_repo
         self._event_repo = event_repo
+        self._checkpoint_repo = checkpoint_repo
+        self._risk_repo = risk_repo
 
     async def get_state_for_user(
         self, session_id: UUID, user_id: UUID
@@ -37,8 +45,57 @@ class LiveSessionQueryService:
         sess = await self._session_repo.get_by_id_for_user(session_id, user_id)
         if sess is None:
             return None
-        state = await self._session_repo.get_state(session_id)
-        if state is None:
+        is_code = (sess.execution_snapshot or {}).get("source_policy") == "code_v1"
+        state = None if is_code else await self._session_repo.get_state(session_id)
+        code_summary = None
+        pnl_complete = None
+        unpriced_exit_orders = 0
+        evaluated = state is not None
+        updated_at = state.updated_at if state is not None else None
+        if is_code:
+            checkpoint = await self._checkpoint_repo.latest(session_id)
+            risk = await self._risk_repo.get(session_id)
+            evaluated = checkpoint is not None and not checkpoint.is_warmup
+            timestamps = [
+                t
+                for t in (
+                    checkpoint.created_at if checkpoint else None,
+                    risk.updated_at if risk else None,
+                )
+                if t is not None
+            ]
+            updated_at = max(timestamps) if timestamps else None
+            code_summary = CodeExecutionSummary(
+                version_id=sess.strategy_version_id,
+                checkpoint_status=cast(
+                    Literal["warmup", "prepared", "delivered", "blocked"], checkpoint.status
+                )
+                if checkpoint
+                else None,
+                last_bar_time=checkpoint.bar_time if checkpoint else None,
+                last_intent=checkpoint.intent if checkpoint else None,
+                risk_generation=risk.generation if risk else None,
+                direction=risk.direction if risk else None,
+                position_quantity=risk.position_quantity if risk else None,
+                entry_vwap=risk.entry_vwap if risk else None,
+                fixed_r=risk.fixed_r if risk else None,
+                protection_pending=bool(
+                    risk
+                    and risk.position_quantity > 0
+                    and risk.protection_desired
+                    and risk.protection_desired.get("token") != risk.protection_applied.get("token")
+                ),
+                trailing_active=risk.trailing_active if risk else False,
+                new_entries_blocked=risk.new_entries_blocked if risk else False,
+                failure_reason=risk.failure_reason if risk else None,
+                pending_reversal=risk.pending_reversal if risk else None,
+                unsettled_exit_quantity=risk.unsettled_exit_quantity if risk else Decimal(0),
+            )
+            unpriced_exit_orders = await self._order_repo.count_unpriced_exit_fills_for_session(
+                SessionScope.from_live_session(sess)
+            )
+            pnl_complete = code_summary.unsettled_exit_quantity == 0 and unpriced_exit_orders == 0
+        if state is None and not is_code:
             return LiveSignalStateResponse(
                 session_id=session_id,
                 evaluated=False,
@@ -80,9 +137,14 @@ class LiveSessionQueryService:
         estimated_pnl = sum((pnl for _, pnl, source in rows if source == "estimated"), Decimal("0"))
 
         return LiveSignalStateResponse(
-            session_id=state.session_id,
-            schema_version=state.schema_version,
-            last_strategy_state_report=state.last_strategy_state_report,
+            session_id=session_id,
+            evaluated=evaluated,
+            code_execution=code_summary,
+            pnl_complete=pnl_complete,
+            pnl_scope="known_order_subtotal" if is_code else None,
+            unpriced_exit_orders=unpriced_exit_orders,
+            schema_version=state.schema_version if state else 0,
+            last_strategy_state_report=state.last_strategy_state_report if state else {},
             total_closed_trades=len(closed_pnls),
             total_realized_pnl=real_total_realized_pnl,
             confirmed_realized_pnl=confirmed_pnl,
@@ -90,7 +152,7 @@ class LiveSessionQueryService:
             confirmed_closed_trades=sum(1 for _, _, s in rows if s == "confirmed"),
             estimated_closed_trades=sum(1 for _, _, s in rows if s == "estimated"),
             equity_curve=[dict(p) for p in real_equity_curve],  # TypedDict → dict 호환 cast
-            updated_at=state.updated_at,
+            updated_at=updated_at,
         )
 
     async def list_events_for_user(

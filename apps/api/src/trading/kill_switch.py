@@ -94,7 +94,8 @@ class CumulativeLossEvaluator:
         self._balance_provider = balance_provider
 
     async def evaluate(self, ctx: EvaluationContext) -> EvaluationResult:
-        # Strategy의 filled 주문 realized_pnl 합
+        # legacy filled와 코드 귀속·양수 부분 체결 종결의 realized_pnl 합이다.
+        # code_v1의 실제 체결 증거는 repository 공통 술어로 포함한다.
         # ★[BL-726] 판정 (2026-08-14) — **`state == filled` 필터가 옳다.** 원장에
         #   `rejected` + `reduce_only=true` + `realized_pnl` 채움 46건 / **+55.32 USDT** 가
         #   있어 「값이 채워졌다(=청산으로 봤다)」와 「rejected(=발주 실패)」가 모순으로

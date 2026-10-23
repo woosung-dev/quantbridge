@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
-from src.trading.models import ExchangeAccount, ExchangeName
+from src.trading.models import ExchangeAccount, ExchangeName, LiveRiskState, LiveSignalSession
 
 
 class ExchangeAccountRepository:
@@ -65,6 +67,63 @@ class ExchangeAccountRepository:
             .order_by(ExchangeAccount.created_at.asc())  # type: ignore[attr-defined]
         )
         return result.scalars().all()
+
+    async def physical_scope(self, account_id: UUID) -> tuple[str, list[UUID]] | None:
+        """코드 포지션 소유권 축. 알 수 없는 UID는 다른 계정과 합치지 않는다."""
+        account = (
+            await self.session.execute(
+                select(ExchangeAccount)
+                .where(col(ExchangeAccount.id) == account_id)
+                .execution_options(populate_existing=True)
+            )
+        ).scalar_one_or_none()
+        if account is None:
+            return None
+        uid = (account.exchange_uid or "").strip(" \t\n\r\v\f")
+        identity = ("uid", uid) if uid else ("account", str(account.id))
+        key = json.dumps([str(account.exchange), str(account.mode), *identity])
+        if not uid:
+            return key, [account.id]
+        ids = (
+            (
+                await self.session.execute(
+                    select(col(ExchangeAccount.id)).where(
+                        col(ExchangeAccount.exchange) == account.exchange,
+                        col(ExchangeAccount.mode) == account.mode,
+                        func.btrim(col(ExchangeAccount.exchange_uid), " \t\n\r\v\f") == uid,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return key, list(ids)
+
+    async def has_unsettled_code_exit(self, account_id: UUID) -> bool:
+        """종료된 세션도 포함한다. 알려진 uid 형제는 같은 실제 거래소 계정이다."""
+        uid = (
+            select(col(ExchangeAccount.exchange_uid))
+            .where(
+                col(ExchangeAccount.id) == account_id,
+                func.btrim(col(ExchangeAccount.exchange_uid), " \t\n\r\v\f") != "",
+            )
+            .scalar_subquery()
+        )
+        accounts = select(col(ExchangeAccount.id)).where(
+            or_(
+                col(ExchangeAccount.id) == account_id,
+                col(ExchangeAccount.exchange_uid) == uid,
+            )
+        )
+        query = (
+            select(LiveRiskState)
+            .join(LiveSignalSession, col(LiveRiskState.session_id) == col(LiveSignalSession.id))
+            .where(
+                col(LiveSignalSession.exchange_account_id).in_(accounts),
+                col(LiveRiskState.unsettled_exit_quantity) > 0,
+            )
+        )
+        return bool(await self.session.scalar(select(query.exists())))
 
     async def delete(self, account_id: UUID) -> int:
         result = await self.session.execute(

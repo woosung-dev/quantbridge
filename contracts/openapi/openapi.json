@@ -409,6 +409,45 @@
       "BacktestConfigOut": {
         "description": "PRD `backtests.config` JSONB 5 가정 — FE AssumptionsCard 노출용.\n\nSprint 31 BL-156: leverage / fees / slippage / include_funding 응답 활성화.\n`initial_capital` 은 BacktestDetail 최상위 필드라 본 모델에선 생략.\n\nleverage 는 *명시적 가정* 으로 노출 — 현재 pine_v2 엔진은 leverage 를\nPnL 계산에 적용하지 않으므로 (qty 가 절대 수량) 사용자가 자본 대비 손실\n한계 (-100%) 를 초과하는 MDD 를 해석할 때 참고. >1.0 는 자연스럽게\n설명 가능.",
         "properties": {
+          "default_qty_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "strategy.percent_of_equity",
+                  "strategy.cash",
+                  "strategy.fixed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Qty Type"
+          },
+          "default_qty_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Qty Value"
+          },
+          "execution_policy": {
+            "anyOf": [
+              {
+                "const": "code_v1",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Policy"
+          },
           "fees": {
             "title": "Fees",
             "type": "number"
@@ -1704,6 +1743,410 @@
         "title": "ClosePositionResponse",
         "type": "object"
       },
+      "CodeExecutionSummary": {
+        "description": "코드 세션의 영속 체크포인트·리스크 원장 조회. UI 캐시를 읽지 않는다.",
+        "properties": {
+          "checkpoint_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "warmup",
+                  "prepared",
+                  "delivered",
+                  "blocked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Status"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "entry_vwap": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Vwap"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "fixed_r": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed R"
+          },
+          "last_bar_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Bar Time"
+          },
+          "last_intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Intent"
+          },
+          "new_entries_blocked": {
+            "title": "New Entries Blocked",
+            "type": "boolean"
+          },
+          "pending_reversal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Reversal"
+          },
+          "position_quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Quantity"
+          },
+          "protection_pending": {
+            "title": "Protection Pending",
+            "type": "boolean"
+          },
+          "risk_generation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Generation"
+          },
+          "trailing_active": {
+            "title": "Trailing Active",
+            "type": "boolean"
+          },
+          "unsettled_exit_quantity": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unsettled Exit Quantity",
+            "type": "string"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          }
+        },
+        "required": [
+          "version_id",
+          "checkpoint_status",
+          "last_bar_time",
+          "last_intent",
+          "risk_generation",
+          "direction",
+          "position_quantity",
+          "entry_vwap",
+          "fixed_r",
+          "protection_pending",
+          "trailing_active",
+          "new_entries_blocked",
+          "failure_reason",
+          "pending_reversal"
+        ],
+        "title": "CodeExecutionSummary",
+        "type": "object"
+      },
+      "CodeLanguage": {
+        "enum": [
+          "pine",
+          "python",
+          "typescript"
+        ],
+        "title": "CodeLanguage",
+        "type": "string"
+      },
+      "CodeSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "execution_policy": {
+            "const": "code_v1",
+            "title": "Execution Policy",
+            "type": "string"
+          },
+          "language": {
+            "$ref": "#/components/schemas/CodeLanguage"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "provenance": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provenance",
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_code": {
+            "maxLength": 131072,
+            "minLength": 1,
+            "title": "Source Code",
+            "type": "string"
+          },
+          "warmup_bars": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Warmup Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "execution_policy",
+          "language",
+          "source_code",
+          "warmup_bars",
+          "provenance"
+        ],
+        "title": "CodeSnapshot",
+        "type": "object"
+      },
+      "CodeStrategyListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CodeStrategyResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "CodeStrategyListResponse",
+        "type": "object"
+      },
+      "CodeStrategyResponse": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_archived": {
+            "title": "Is Archived",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeframe"
+          },
+          "version": {
+            "$ref": "#/components/schemas/CodeVersionResponse"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "symbol",
+          "timeframe",
+          "is_archived",
+          "settings",
+          "version"
+        ],
+        "title": "CodeStrategyResponse",
+        "type": "object"
+      },
+      "CodeVersionResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "execution_hash": {
+            "title": "Execution Hash",
+            "type": "string"
+          },
+          "execution_policy": {
+            "const": "code_v1",
+            "title": "Execution Policy",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "language": {
+            "$ref": "#/components/schemas/CodeLanguage"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "provenance": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provenance",
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_code": {
+            "title": "Source Code",
+            "type": "string"
+          },
+          "source_hash": {
+            "title": "Source Hash",
+            "type": "string"
+          },
+          "warmup_bars": {
+            "title": "Warmup Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "execution_policy",
+          "language",
+          "source_code",
+          "warmup_bars",
+          "params",
+          "provenance",
+          "id",
+          "source_hash",
+          "execution_hash",
+          "created_at"
+        ],
+        "title": "CodeVersionResponse",
+        "type": "object"
+      },
       "ConvertIndicatorRequest": {
         "properties": {
           "code": {
@@ -1887,6 +2330,19 @@
             ],
             "title": "Default Qty Value"
           },
+          "execution_policy": {
+            "anyOf": [
+              {
+                "const": "code_v1",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "code_v1은 명시적 opt-in이며 1h/4h/1d 신호 주기, next_bar_open, 1X만 지원합니다.",
+            "title": "Execution Policy"
+          },
           "fees_pct": {
             "anyOf": [
               {
@@ -1991,6 +2447,19 @@
             "title": "Strategy Id",
             "type": "string"
           },
+          "strategy_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "code_v1에서 실행할 소유 전략의 불변 버전 ID입니다. 생략하면 현재 버전을 사용하며 기존 Pine 경로에서는 허용하지 않습니다.",
+            "title": "Strategy Version Id"
+          },
           "symbol": {
             "maxLength": 32,
             "minLength": 3,
@@ -2091,6 +2560,7 @@
         "type": "object"
       },
       "CreateStrategyRequest": {
+        "additionalProperties": false,
         "properties": {
           "description": {
             "anyOf": [
@@ -2869,6 +3339,95 @@
         "title": "ExcursionStatsOut",
         "type": "object"
       },
+      "GenerateCodeStrategyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "prompt": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "warmup_bars": {
+            "default": 200,
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Warmup Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "GenerateCodeStrategyRequest",
+        "type": "object"
+      },
+      "GenerateCodeStrategyResponse": {
+        "description": "미저장 preview. 구문 검사는 실제 실행·의미 검증 성공이 아니다.",
+        "properties": {
+          "actual_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Model"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "code": {
+            "$ref": "#/components/schemas/PythonCodeSnapshot"
+          },
+          "provider": {
+            "const": "gemini",
+            "default": "gemini",
+            "title": "Provider",
+            "type": "string"
+          },
+          "requested_model": {
+            "title": "Requested Model",
+            "type": "string"
+          },
+          "status": {
+            "const": "preview",
+            "default": "preview",
+            "title": "Status",
+            "type": "string"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenerationUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "assumptions",
+          "requested_model"
+        ],
+        "title": "GenerateCodeStrategyResponse",
+        "type": "object"
+      },
       "GenerateStrategyRequest": {
         "properties": {
           "model": {
@@ -2976,6 +3535,60 @@
           "is_runnable"
         ],
         "title": "GenerateStrategyResponse",
+        "type": "object"
+      },
+      "GenerationUsage": {
+        "properties": {
+          "input_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Tokens"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tokens"
+          }
+        },
+        "title": "GenerationUsage",
         "type": "object"
       },
       "GridSweepMetricsCellOut": {
@@ -3175,6 +3788,7 @@
         "title": "InviteTokenVerifyResponse",
         "type": "object"
       },
+      "JsonValue": {},
       "KillSwitchEventResponse": {
         "properties": {
           "exchange_account_id": {
@@ -3757,6 +4371,16 @@
       "LiveSignalStateResponse": {
         "description": "GET /api/v1/live-sessions/{id}/state — Detail UI 용.\n\nSprint 28 Slice 3 (BL-140b): equity_curve 신규 — cumulative realized PnL timeseries.\n형식: [{\"timestamp_ms\": int, \"cumulative_pnl\": str}, ...] ASC sorted by timestamp_ms.\nFrontend 가 dual-axis recharts (entries/closes + equity) 렌더 시 사용.",
         "properties": {
+          "code_execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeExecutionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "confirmed_closed_trades": {
             "default": 0,
             "title": "Confirmed Closed Trades",
@@ -3798,6 +4422,29 @@
             "title": "Last Strategy State Report",
             "type": "object"
           },
+          "pnl_complete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pnl Complete"
+          },
+          "pnl_scope": {
+            "anyOf": [
+              {
+                "const": "known_order_subtotal",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pnl Scope"
+          },
           "schema_version": {
             "title": "Schema Version",
             "type": "integer"
@@ -3815,6 +4462,11 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Realized Pnl",
             "type": "string"
+          },
+          "unpriced_exit_orders": {
+            "default": 0,
+            "title": "Unpriced Exit Orders",
+            "type": "integer"
           },
           "updated_at": {
             "anyOf": [
@@ -4405,6 +5057,11 @@
               }
             ],
             "title": "Filled Quantity"
+          },
+          "has_recorded_fill": {
+            "default": false,
+            "title": "Has Recorded Fill",
+            "type": "boolean"
           },
           "id": {
             "format": "uuid",
@@ -5892,6 +6549,62 @@
         "title": "PushTestResponse",
         "type": "object"
       },
+      "PythonCodeSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "execution_policy": {
+            "const": "code_v1",
+            "title": "Execution Policy",
+            "type": "string"
+          },
+          "language": {
+            "const": "python",
+            "default": "python",
+            "title": "Language",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "provenance": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provenance",
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_code": {
+            "maxLength": 131072,
+            "minLength": 1,
+            "title": "Source Code",
+            "type": "string"
+          },
+          "warmup_bars": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Warmup Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "execution_policy",
+          "source_code",
+          "warmup_bars",
+          "provenance"
+        ],
+        "title": "PythonCodeSnapshot",
+        "type": "object"
+      },
       "PythonView": {
         "description": "[ADR-042] Pine AST 를 옮긴 **읽기 전용** Python 뷰.\n\n★**실행되지 않는다.** 실행 경로가 없다는 것을 `tests/strategy/pine_v2/\ntest_py_renderer_not_executed.py` 가 집행한다. 의미 보존을 보증하지 않는 **읽기용 근사**이고\n진실은 언제나 원본 Pine 이라, `source_map` 이 모든 출력 줄을 원본 줄에 묶는다.",
         "properties": {
@@ -5977,6 +6690,18 @@
             "title": "Exchange Account Id",
             "type": "string"
           },
+          "execution_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Snapshot"
+          },
           "interval": {
             "enum": [
               "1m",
@@ -5987,10 +6712,34 @@
             "title": "Interval",
             "type": "string"
           },
+          "source_policy": {
+            "anyOf": [
+              {
+                "const": "code_v1",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Policy"
+          },
           "strategy_id": {
             "format": "uuid",
             "title": "Strategy Id",
             "type": "string"
+          },
+          "strategy_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Version Id"
           },
           "symbol": {
             "maxLength": 32,
@@ -6093,6 +6842,72 @@
           "side"
         ],
         "title": "RestingEntryOrder",
+        "type": "object"
+      },
+      "SaveCodeStrategyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CodeSnapshot"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeframe"
+          }
+        },
+        "required": [
+          "name",
+          "code"
+        ],
+        "title": "SaveCodeStrategyRequest",
         "type": "object"
       },
       "ShareTokenResponse": {
@@ -6767,6 +7582,77 @@
         "title": "StrategyResponse",
         "type": "object"
       },
+      "StrategySettings": {
+        "additionalProperties": false,
+        "description": "Sprint 26 — Live Signal Auto-Trading 의 trading params.\n\nschema_version: 향후 schema 변경 시 backward compat 식별 (P3 #2).\nleverage / margin_mode: Bybit Futures dispatch 분기 의무 (Sprint 22 BL-091).\nposition_size_pct: 가용 잔고 대비 포지션 크기 (0-100, 100 = all-in).\n\nextra=\"forbid\" 로 잘못된 필드 422 reject — codex G.0 P2 #4 malformed JSONB 방어.",
+        "properties": {
+          "fill_timing": {
+            "default": "bar_close",
+            "enum": [
+              "bar_close",
+              "next_bar_open"
+            ],
+            "title": "Fill Timing",
+            "type": "string"
+          },
+          "leverage": {
+            "maximum": 125.0,
+            "minimum": 1.0,
+            "title": "Leverage",
+            "type": "integer"
+          },
+          "margin_mode": {
+            "enum": [
+              "cross",
+              "isolated"
+            ],
+            "title": "Margin Mode",
+            "type": "string"
+          },
+          "max_reversal_overshoot_ratio": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Reversal Overshoot Ratio"
+          },
+          "max_trigger_breach_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Trigger Breach Pct"
+          },
+          "position_size_pct": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100.0,
+            "title": "Position Size Pct",
+            "type": "number"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "leverage",
+          "margin_mode",
+          "position_size_pct"
+        ],
+        "title": "StrategySettings",
+        "type": "object"
+      },
       "StressTestCreatedResponse": {
         "description": "POST → 202 Accepted.",
         "properties": {
@@ -7381,6 +8267,7 @@
         "type": "object"
       },
       "UpdateStrategyRequest": {
+        "additionalProperties": false,
         "properties": {
           "description": {
             "anyOf": [
@@ -10313,6 +11200,237 @@
           }
         },
         "summary": "Create Strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/code": {
+      "get": {
+        "operationId": "list_code_strategies_api_v1_strategies_code_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeStrategyListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Code Strategies",
+        "tags": [
+          "strategies"
+        ]
+      },
+      "post": {
+        "operationId": "create_code_strategy_api_v1_strategies_code_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCodeStrategyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeStrategyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Code Strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/code/generate": {
+      "post": {
+        "description": "Python preview만 반환한다. 검토·저장·백테스트는 별도 사용자 동작이다.",
+        "operationId": "generate_code_strategy_api_v1_strategies_code_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateCodeStrategyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateCodeStrategyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Code Strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/code/{strategy_id}": {
+      "get": {
+        "operationId": "get_code_strategy_api_v1_strategies_code__strategy_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeStrategyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Code Strategy",
+        "tags": [
+          "strategies"
+        ]
+      },
+      "put": {
+        "operationId": "update_code_strategy_api_v1_strategies_code__strategy_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCodeStrategyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeStrategyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Code Strategy",
         "tags": [
           "strategies"
         ]

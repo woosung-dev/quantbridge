@@ -21,10 +21,12 @@ from src.strategy.trading_sessions import is_allowed as _sessions_is_allowed
 from src.trading.exceptions import (
     AccountOwnershipMismatch,
     BalanceUnverified,
+    CodePositionReserved,
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
     MinNotionalNotMet,
+    NativeExitUnsettled,
     NotionalExceeded,
     OwnerAccountInactive,
     RiskSizingExceeded,
@@ -35,6 +37,7 @@ from src.trading.models import ExchangeMode, Order, OrderState
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import OrderRequest, OrderResponse
 from src.trading.services.account_service import ExchangeAccountService, ExecutionAccount
+from src.trading.services.native_sl_observation_service import is_native_sl
 from src.trading.services.protocols import OrderDispatcher, StrategySessionsPort
 
 logger = logging.getLogger(__name__)
@@ -93,6 +96,9 @@ class OrderService:
         if order is None:
             return CancelOutcome("not_found")
 
+        if is_native_sl(order):
+            # 보호 주문은 전용 risk 경로에서 귀속·terminal을 확인하며 취소한다.
+            return CancelOutcome("conflict")
         if order.state == OrderState.submitted:
             from src.tasks.trading import cancel_order_task
 
@@ -107,6 +113,12 @@ class OrderService:
             return CancelOutcome("conflict")
 
         return CancelOutcome("cancelled", order=await self._repo.get_by_id(order_id))
+
+    async def _require_entry_admission(self, req: OrderRequest) -> None:
+        if not req.reduce_only and not await self._repo.acquire_entry_admission(
+            req.exchange_account_id, req.symbol
+        ):
+            raise CodePositionReserved()
 
     async def execute(
         self,
@@ -393,6 +405,11 @@ class OrderService:
             else:
                 pre_existing = None
             if pre_existing is None:
+                if (
+                    not req.reduce_only
+                    and (await self._repo.has_unsettled_code_exit(req.exchange_account_id)) is True
+                ):
+                    raise NativeExitUnsettled()
                 try:
                     await self._kill_switch.ensure_not_gated(
                         strategy_id=req.strategy_id,
@@ -434,6 +451,7 @@ class OrderService:
                     cached_response = OrderResponse.model_validate(existing)
                 else:
                     # ASYNC-1: kill-switch gate 는 begin_nested 밖에서 이미 평가됨.
+                    await self._require_entry_admission(req)
                     order = await self._repo.save(
                         Order(
                             strategy_id=req.strategy_id,
@@ -468,6 +486,7 @@ class OrderService:
                     created_order_id = order.id
             else:
                 # ASYNC-1: kill-switch gate 는 begin_nested 밖에서 이미 평가됨.
+                await self._require_entry_admission(req)
                 order = await self._repo.save(
                     Order(
                         strategy_id=req.strategy_id,

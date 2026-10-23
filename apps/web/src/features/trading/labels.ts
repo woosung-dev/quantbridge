@@ -179,7 +179,10 @@ export const ORDER_EMPTY_REASON = {
  * 실현 손익 무데이터 title 을 고른다. 체결되지 않은 주문에도 pine_v2 추정 손익이 남아
  * 있으므로, 값을 감춘 이유를 밝히지 않으면 사용자는 셀이 왜 비었는지 알 수 없다.
  */
-export function realizedPnlEmptyReason(state: OrderState): string {
+export function realizedPnlEmptyReason(state: OrderState, hasRecordedFill = false): string {
+  if (hasRecordedFill && (state === "cancelled" || state === "rejected")) {
+    return ORDER_EMPTY_REASON.realizedPnlNotRecorded;
+  }
   if (state === "rejected") return ORDER_EMPTY_REASON.realizedPnlRejected;
   if (state === "cancelled") return ORDER_EMPTY_REASON.realizedPnlCancelled;
   if (state === "filled") return ORDER_EMPTY_REASON.realizedPnlNotRecorded;

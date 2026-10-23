@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const useLiveSessionsMock = vi.fn();
 const useUnrealizedPnlEstimateMock = vi.fn();
 const useStrategiesMock = vi.fn();
+const useCodeStrategiesMock = vi.fn();
+const liveSessionTableProps = vi.fn();
 const useExchangeAccountsMock = vi.fn();
 const useKillSwitchEventsMock = vi.fn();
 const liveSessionFormProps = vi.fn();
@@ -78,9 +80,15 @@ vi.mock("@/features/live-sessions", async () => ({
       </button>
     </>
   ),
-  LiveSessionTable: () => null,
+  LiveSessionTable: (props: unknown) => {
+    liveSessionTableProps(props);
+    return null;
+  },
   useLiveSessions: () => useLiveSessionsMock(),
   useUnrealizedPnlEstimate: () => useUnrealizedPnlEstimateMock(),
+}));
+vi.mock("@/features/strategy/use-code-strategies", () => ({
+  useCodeStrategies: () => useCodeStrategiesMock(),
 }));
 vi.mock("@/features/strategy/hooks", async () => ({
   strategyKeys: (await import("@/features/strategy/query-keys")).strategyKeys,
@@ -134,6 +142,7 @@ function setDefaults() {
     isPending: false,
   });
   useStrategiesMock.mockReturnValue({ data: { items: [] } });
+  useCodeStrategiesMock.mockReturnValue({ data: { items: [] } });
   useExchangeAccountsMock.mockReturnValue({ data: [], isError: false, isPending: false });
   useKillSwitchEventsMock.mockReturnValue({
     data: { items: [] },
@@ -472,6 +481,18 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
     expect(screen.getByTestId("kpi-unrealized-pnl")).toBeInTheDocument();
   });
 
+  it("코드 전략 이름도 조회하고 기존 등록 폼에는 legacy 전략만 전달한다", () => {
+    useStrategiesMock.mockReturnValue({ data: { items: [{ id: "legacy", name: "기존 전략" }] } });
+    useCodeStrategiesMock.mockReturnValue({ data: { items: [{ id: "code", name: "코드 전략" }] } });
+    render(<TradingCockpit />);
+    const table = liveSessionTableProps.mock.lastCall?.[0];
+    expect(table.resolveStrategyName("code")).toBe("코드 전략");
+    expect(table.resolveStrategyName("legacy")).toBe("기존 전략");
+    expect(liveSessionFormProps.mock.lastCall?.[0].strategies).toEqual([
+      { id: "legacy", name: "기존 전략" },
+    ]);
+  });
+
   // --- BL-664 — 새로고침의 무효화 범위 ------------------------------------
   // ★네 번째 도메인 `alert-rules` 는 codex 적대 리뷰가 잡았다 — 첫 판은 셋만 무효화했고
   //   §08 `SessionDiagnostics` 의 `useAlertRules`(`alert-rules/hooks.ts`)가 빠져 있었다.
@@ -481,6 +502,7 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
     const { tradingKeys } = await import("@/features/trading/query-keys");
     const { strategyKeys } = await import("@/features/strategy/query-keys");
     const { alertRuleKeys } = await import("@/features/alert-rules/query-keys");
+    const { codeStrategyKeys } = await import("@/features/strategy/code-schemas");
 
     render(<TradingCockpit />);
     invalidateQueriesMock.mockClear();
@@ -495,6 +517,7 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
       tradingKeys.all("user-1"),
       liveSessionKeys.all("user-1"),
       strategyKeys.all("user-1"),
+      codeStrategyKeys.list("user-1"),
       alertRuleKeys.all("user-1"),
     ]);
 

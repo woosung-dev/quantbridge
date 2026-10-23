@@ -1,4 +1,5 @@
 """strategy 도메인 예외."""
+
 from __future__ import annotations
 
 from fastapi import status
@@ -24,3 +25,11 @@ class StrategyHasBacktests(StrategyError):
     status_code = status.HTTP_409_CONFLICT
     code = "strategy_has_backtests"
     detail = "Strategy has associated backtests. Archive instead of delete."
+
+
+class CodeStrategyPolicyError(StrategyError):
+    """코드 전략은 검증된 버전과 명시적인 code_v1 실행 정책이 필요하다."""
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    code = "code_strategy_policy_required"
+    detail = "Use the explicit code_v1 strategy workflow and a valid immutable version."

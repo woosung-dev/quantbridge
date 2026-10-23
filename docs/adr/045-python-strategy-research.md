@@ -3,6 +3,9 @@
 - **상태:** Withdrawn (2026-10-21 사용자 최종 결정)
 - **관련:** ADR-003·041·042, PRD §5, [연구 범위](../development/python-strategy-research.md)
 
+> **2026-10-22:** 영구 미도입 범위는 [ADR-046](./046-generated-strategy-language-evaluation.md)으로
+> 대체한다. 실제 다중 언어 비교 후 승자를 제품에 도입하며, 철거한 서비스를 그대로 복구하지 않는다.
+
 ## 결정
 
 사용자 Python을 웹에서 편집·저장·서버 백테스트·자동매매하는 서비스를 제공하지 않는다.

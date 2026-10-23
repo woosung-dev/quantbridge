@@ -3448,6 +3448,11 @@ async def _evaluate_session_with_engine(
             qb_live_signal_skipped_total.labels(reason="session_inactive").inc()
             return {"skipped": "session_inactive"}
 
+        if getattr(sess, "execution_snapshot", None) is not None:
+            from src.tasks.code_live_signal import evaluate_code_session
+
+            return await evaluate_code_session(session, sess)
+
         # 2. strategy + settings validate (P2 #4)
         strategy = await strategy_repo.find_by_id_and_owner(sess.strategy_id, sess.user_id)
         if strategy is None:
@@ -3473,7 +3478,9 @@ async def _evaluate_session_with_engine(
         # request.security/timeframe.period — graceful 실행이나 결과 divergence) 감지 시
         # 세션 자동 비활성화. live 엔 allow_degraded_pine 동의 플래그 없음 → 하드 차단.
         # account/demo check 뒤에 배치 — non-demo 세션은 비활성화 아닌 skip 유지 (G1 P1#2).
-        cov = analyze_coverage(strategy.pine_source)
+        from src.strategy.code_contract import legacy_pine_source
+
+        cov = analyze_coverage(legacy_pine_source(strategy))
         preflight_cat: str | None = None
         preflight_symbols: tuple[str, ...] = ()
         equity_baseline_usdt = sess.equity_baseline_usdt
@@ -3677,7 +3684,7 @@ async def _evaluate_session_with_engine(
             else:
                 effective_capital = recalculated_capital
 
-        pyramiding = _extract_pyramiding(strategy.pine_source, session_id=sess.id)
+        pyramiding = _extract_pyramiding(legacy_pine_source(strategy), session_id=sess.id)
         run_live_kwargs: dict[str, Any] = {
             "initial_capital": float(effective_capital),
             "live_position_size_pct": parsed_settings.position_size_pct,

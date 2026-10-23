@@ -57,6 +57,8 @@ Pine AST 를 읽을 수 있는 Python 으로 렌더한 **읽기 전용** 산출�
 _Avoid_: transpile, Python 전략, "Python 으로 변환"(전부 실행을 함의한다)
 
 **Python Research Strategy**:
+**2026-10-22 [ADR-046]:** Sol 6.1 생성 전략의 Pine·Python·TypeScript 실제 실행을 비교한 뒤
+검증된 승자 언어를 제품에 도입한다. 아래의 철거 상태는 현재 코드 사실이며 영구 비범위가 아니다.
 **서비스에서 제공하지 않는다**(2026-10-21 사용자 결정, [ADR-045]). 웹 편집·저장·백테스트 API·
 Celery 작업·원격 실행기 연결은 제거했다. 기존 `PythonStrategy`·`PythonStrategyVersion`·`PythonBacktest`
 모델과 마이그레이션은 DB 이력 보존 전용이며 새 실행에 사용하지 않는다. 내부 오프라인 연구 도구와
@@ -73,8 +75,21 @@ _Avoid_: "LLM 변환"(= 기존 전략의 **번역**이고 그것은 [ADR-011](./
 
 ### Verification Context
 
+**Code Strategy**:
+`execution_policy=code_v1`인 언어별 실행 원문과 불변 `StrategyVersion`이다. Pine·Python·
+TypeScript는 격리 실행기에서 의도만 계산하고 공통 원장이 수량·SL·반익절·트레일링을
+소유한다([ADR-046](./docs/adr/046-generated-strategy-language-evaluation.md)). 기존 Pine
+전략과 별도 API로 저장하며 Python View나 과거 Python Research Strategy 테이블이 아니다.
+세 언어의 수동 실행 기반을 제공하며, 봉인 품질 평가의 권고는 **직접 생성 A / Python**이다.
+로컬 구독 CLI 생성·검토·수동 가져오기 경로, 실행 Python의 Gemini preview, 서버의 기존
+Gemini Pine 정본·읽기 전용 Python 생성기를 구분한다. 실행 Python preview도 명시적 적용과
+버전 저장 뒤 기존 백테스트로 제출하며 Demo를 자동 활성화하지 않는다.
+점수와 운영·경제 검증 범위는 [평가 보고서](./docs/architecture/generated-strategy-evaluation.md)가 갖는다.
+계약은 [`code-strategy-storage.md`](./docs/development/code-strategy-storage.md)를 따른다.
+
 **Backtest**:
-한 Strategy 를 과거 OHLCV 에 대해 pine_v2 로 실행한 시뮬레이션 결과(불변 입력 + 상태 + `metrics` JSONB).
+한 Strategy 를 과거 OHLCV 에 대해 실행한 시뮬레이션 결과(불변 입력 + 상태 + `metrics` JSONB).
+일반 Pine은 `pine_v2`, `code_v1`은 고정 버전의 언어별 격리 실행기와 공통 원장을 사용한다.
 
 **BacktestTrade**:
 Backtest 시뮬레이션 내부의 개별 가상 체결 기록.

@@ -234,6 +234,7 @@ async def run_tick(monkeypatch: pytest.MonkeyPatch, case: dict[str, Any]) -> dic
     # `SessionScope.from_live_session` 이 읽는다. 없으면 원장 그림자가 통째로
     # `fetch_failed` 로 접혀 그 tick 의 계측 표면이 사라진다.
     sess.deactivated_at = None
+    sess.execution_snapshot = None
 
     ids = {
         str(sess.id): "id:<session>",

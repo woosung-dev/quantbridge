@@ -234,11 +234,10 @@ def test_gemini_requires_generate_content(monkeypatch):
     ]
     from google import genai as genai_sdk
 
-    monkeypatch.setattr(
-        genai_sdk,
-        "Client",
-        lambda api_key: SimpleNamespace(models=SimpleNamespace(list=lambda: listed)),
-    )
+    monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "true")
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    client = Mock(return_value=SimpleNamespace(models=SimpleNamespace(list=lambda: listed)))
+    monkeypatch.setattr(genai_sdk, "Client", client)
     cat = C.fetch_provider(settings(gemini_model="gemini-3.5-flash-lite"), "gemini")
     assert [m.id for m in cat.models] == ["gemini-3.5-flash-lite"], (
         "generateContent 필터가 안 걸렸다"
@@ -248,6 +247,11 @@ def test_gemini_requires_generate_content(monkeypatch):
     assert got.display_name == "Gemini 3.5 Flash Lite"
     assert got.input_token_limit == 1048576
     assert cat.configured_listed is True
+    client.assert_called_once()
+    kwargs = client.call_args.kwargs
+    assert kwargs["enterprise"] is False
+    assert kwargs["vertexai"] is False
+    assert kwargs["http_options"].retry_options.attempts == 1
 
 
 # ── ⑸ TTL 캐시 ──────────────────────────────────────────────────────────────
@@ -333,7 +337,7 @@ def test_unknown_provider_is_rejected(monkeypatch):
 )
 def test_override_cannot_enable_a_disallowed_provider(monkeypatch, order, provider):
     fetcher = Mock(side_effect=AssertionError("허용 목록 밖의 provider 를 조회했습니다"))
-    monkeypatch.setitem(C._FETCHERS, provider, fetcher)
+    monkeypatch.setattr(C, "fetch_provider", fetcher)
 
     with pytest.raises(C.ModelNotAvailableError, match="허용되지 않은 provider"):
         C.resolve_override(settings(llm_provider_order=order), provider=provider, model="anything")

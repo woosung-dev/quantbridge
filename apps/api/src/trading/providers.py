@@ -7,17 +7,21 @@ Per-account ephemeral CCXT client 패턴 (spec §2.1):
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
 from typing import Any, Literal, NoReturn, Protocol
+from uuid import UUID
 
 import ccxt.async_support as ccxt_async
 
 from src.common.metrics import ccxt_timer, qb_closed_pnl_backfill_total
 from src.common.metrics_multiproc import _count_safely
+from src.trading.code_price_rules import protection_prices
 from src.trading.exceptions import BybitDemoOnlyError, ProviderError, TrailingContractError
 from src.trading.models import ExchangeMode, ExchangeName, OrderSide, OrderType
 from src.trading.product_policy import require_bybit_demo_account
@@ -31,8 +35,8 @@ _VALIDATED_CCXT_VERSIONS = frozenset({"4.5.49"})
 
 # closedPnl 조회 시 되돌아볼 여유 구간 (ms).
 # ccxt 4.5.49 의 `fetch_positions_history` 는 Bybit 응답을 받은 뒤 `filter_by_since_limit` 로 한 번
-# 더 거르는데, 이때 비교하는 값은 `parse_position` 이 **`createdTime`** (거래소가 청산 주문을 만든
-# 시각) 에서 뽑은 timestamp 다. 반면 우리가 넘기는 since 는 `Order.filled_at` = 체결을 **감지한**
+# 더 거르는데, 이때 비교하는 값은 `parse_position` 이 **`createdTime`** 에서 뽑은 timestamp 다.
+# 생성 대상은 공식 문서가 특정하지 않는다. 이 legacy 경로의 since 는 `Order.filled_at` = 체결을 **감지한**
 # 시각이다. WS 이벤트가 유실돼 reconciler(300s 주기) 나 늦은 watchdog 이 fill winner 가 되면
 # filled_at 이 createdTime 보다 한참 뒤라, 여유가 좁으면 ccxt 가 우리 행을 클라이언트 단에서
 # 버린다 → snapshot None → 재시도해도 창이 그대로라 영구 실패 + 오탐 알림.
@@ -161,6 +165,7 @@ class OrderSubmit:
     # oco_group_id: OCO 형제 추적용 app-side 식별자. ccxt params 미주입(거래소 네이티브
     #   OCO group param 부재) — sibling-cancel 오케스트레이션이 DB 에서 조회(Wave 2 deferred).
     oco_group_id: str | None = None
+    position_idx: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +198,17 @@ class OrderStatusFetch:
     filled_price: Decimal | None = None
     filled_quantity: Decimal | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+    # avgPrice 반올림값으로 재합성하지 않는 거래소 누적 체결대금이다.
+    cumulative_value: Decimal | None = None
+
+
+def bybit_cumulative_execution_value(raw: dict[str, Any]) -> Decimal | None:
+    """V5 원본·CCXT info의 정확한 cumExecValue만 읽는다. 평균가로 합성하지 않는다."""
+    value = raw.get("cumExecValue")
+    if value in (None, ""):
+        info = raw.get("info")
+        value = info.get("cumExecValue") if isinstance(info, dict) else None
+    return _decimal_or_none(value, finite_only=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -263,6 +279,44 @@ class ClosedPnlSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class CodeClosedPnlEvidence:
+    account_id: UUID
+    order_id: str
+    symbol: str
+    side: OrderSide
+    quantity: Decimal
+    pnl: Decimal
+    raw_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class CodeClosedPnlRead:
+    evidence: CodeClosedPnlEvidence | None = None
+    observed_hashes: tuple[str, ...] = ()
+    conflict: bool = False
+
+
+def closed_pnl_raw_hash(raw: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(raw, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    ).hexdigest()
+
+
+def _code_pnl_row_values(row: dict[str, Any], side: OrderSide) -> tuple[Decimal, Decimal] | None:
+    if row.get("execType") != "Trade" or row.get("side") != (
+        "Buy" if side == OrderSide.buy else "Sell"
+    ):
+        return None
+    try:
+        quantity, pnl = Decimal(str(row.get("closedSize"))), Decimal(str(row.get("closedPnl")))
+        return (
+            (quantity, pnl) if quantity.is_finite() and quantity > 0 and pnl.is_finite() else None
+        )
+    except InvalidOperation:
+        return None
+
+
+@dataclass(frozen=True, slots=True)
 class ClosedOrderMeta:
     """거래소 청산 주문의 출처 메타 — closed-pnl 행에 없는 createType/stopOrderType/orderLinkId 를 보강한다."""
 
@@ -307,7 +361,8 @@ def aggregate_closed_pnl_by_order(
 ) -> dict[str, ClosedPnlSnapshot]:
     """closedPnl 행을 orderId 별로 합산한다.
 
-    Bybit 는 한 청산 주문을 여러 closedPnl 행으로 쪼개 낼 수 있다. 마지막 행만 취하면
+    legacy는 서로 다른 원본 행을 합산한다. 공식 API는 분할 행과 수정 snapshot의
+    구별을 보장하지 않으므로 code_v1 확정에는 이 합계를 사용하지 않는다. 마지막 행만 취하면
     부분 손익이 저장되고, backfill CAS 가 realized_pnl_synced_at 을 채워 재시도를 막으므로
     그 부분값이 **영구 고정**된다. 단일 주문 조회(refresh)와 스윕이 반드시 같은 합산을
     쓰도록 여기 한 곳에 모은다.
@@ -318,7 +373,13 @@ def aggregate_closed_pnl_by_order(
     이 함수는 주문 단위 금액이 필요한 backfill 경로 전용이다.
     """
     grouped: dict[str, list[ClosedPnlSnapshot]] = {}
+    seen: set[tuple[str, str]] = set()
     for snapshot in snapshots:
+        if snapshot.raw is not None:
+            identity = (snapshot.order_id, closed_pnl_raw_hash(snapshot.raw))
+            if identity in seen:
+                continue
+            seen.add(identity)
         grouped.setdefault(snapshot.order_id, []).append(snapshot)
     merged: dict[str, ClosedPnlSnapshot] = {}
     for order_id, rows in grouped.items():
@@ -892,6 +953,8 @@ class BybitFuturesProvider:
                     partial_size=True,  # Bybit V5 — limit TP 의 tpslMode=Partial tpSize/slSize
                     size_str=amount,  # 주문 qty 와 동일한 precision 문자열로 size 정합
                 )
+                if order.position_idx is not None:
+                    params["positionIdx"] = order.position_idx
                 if params:
                     result = await exchange.create_order(
                         linear_symbol,
@@ -1035,6 +1098,163 @@ class BybitFuturesProvider:
                 await exchange.close()
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def get_code_market_rules(self, creds: Credentials, symbol: str) -> dict[str, Decimal]:
+        """code_v1 주문의 실제 눈금·최소 수량. 사용자 코드로 넘기지 않는다."""
+        require_bybit_demo_account(creds.exchange, creds.environment)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            await exchange.load_markets()
+            if exchange.precisionMode != ccxt_async.TICK_SIZE:
+                raise ProviderError("code market rules require tick-size precision")
+            market = exchange.market(_to_bybit_linear_symbol(symbol))
+            rules = {
+                "price_tick": Decimal(str(market["precision"]["price"])),
+                "qty_step": Decimal(str(market["precision"]["amount"])),
+                "min_qty": Decimal(str(market["limits"]["amount"]["min"])),
+            }
+            if any(not value.is_finite() or value <= 0 for value in rules.values()):
+                raise ProviderError("invalid code market rules")
+            return rules
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(f"code market rules failed: {type(exc).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_code_rules_close_failed")
+
+    async def set_code_protection(
+        self,
+        creds: Credentials,
+        *,
+        symbol: str,
+        direction: Literal["long", "short"],
+        entry_price: Decimal,
+        breakeven_required: bool,
+        stop_loss: Decimal,
+        distance: Decimal | None,
+        active_price: Decimal | None,
+    ) -> dict[str, Any]:
+        """code_v1 전용 Full SL·2R native trailing. raw V5 호출로 라우팅 추측을 피한다.
+
+        https://bybit-exchange.github.io/docs/v5/position/trading-stop
+        one-way(positionIdx=0)만 지원하며 ACK 뒤 독립 포지션 조회로 보호를 확인한다.
+        """
+        require_bybit_demo_account(creds.exchange, creds.environment)
+        for value in (stop_loss, distance, active_price):
+            if value is not None and (not value.is_finite() or value <= 0):
+                raise ProviderError("code protection prices must be finite and positive")
+        if (distance is None) != (active_price is None):
+            raise ProviderError("trailing distance and activation must be supplied together")
+        before = await self.fetch_open_positions(creds, symbol)
+        if (
+            len(before) != 1
+            or before[0].side != direction
+            or before[0].position_idx != 0
+            or before[0].entry_price is None
+        ):
+            raise ProviderError("code protection requires one matching one-way position")
+        observed_entry = before[0].entry_price
+        if (
+            not observed_entry.is_finite()
+            or observed_entry <= 0
+            or not entry_price.is_finite()
+            or entry_price <= 0
+        ):
+            raise ProviderError("code protection requires finite positive entry prices")
+        reference = (
+            max(entry_price, observed_entry)
+            if direction == "long"
+            else min(entry_price, observed_entry)
+        )
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            await exchange.load_markets()
+            if exchange.precisionMode != ccxt_async.TICK_SIZE:
+                raise ProviderError("code protection requires tick-size precision")
+            tick = Decimal(
+                str(
+                    (exchange.market(_to_bybit_linear_symbol(symbol)).get("precision") or {}).get(
+                        "price"
+                    )
+                )
+            )
+            applied = protection_prices(
+                direction=direction,
+                entry_price=reference,
+                stop_loss=stop_loss,
+                tick=tick,
+                distance=distance,
+                activation=active_price,
+                breakeven_required=breakeven_required,
+            )
+            request: dict[str, Any] = {
+                "category": "linear",
+                "symbol": _to_bybit_linear_symbol(symbol).split(":")[0].replace("/", ""),
+                "positionIdx": 0,
+                "tpslMode": "Full",
+                "stopLoss": applied["stop_loss"],
+                "slTriggerBy": "LastPrice",
+            }
+            if distance is not None and active_price is not None:
+                request.update(
+                    trailingStop=applied["trailing_distance"], activePrice=applied["active_price"]
+                )
+            response = await exchange.privatePostV5PositionTradingStop(request)
+            if str(response.get("retCode")) != "0":
+                raise ProviderError("Bybit code protection rejected")
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(f"code protection failed: {type(exc).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_code_protection_close_failed")
+        positions = await self.fetch_open_positions(creds, symbol)
+        if (
+            len(positions) != 1
+            or positions[0].position_idx != 0
+            or positions[0].side != direction
+            or positions[0].stop_loss_price != Decimal(str(applied["stop_loss"]))
+            or (
+                distance is not None
+                and positions[0].trailing_stop != Decimal(str(applied["trailing_distance"]))
+            )
+        ):
+            raise ProviderError("code protection acknowledgement not independently confirmed")
+        return {
+            "accepted": True,
+            **applied,
+            "entry_price_observed": str(observed_entry),
+            "verified_stop_loss": str(positions[0].stop_loss_price),
+            "verified_trailing_distance": str(positions[0].trailing_stop)
+            if positions[0].trailing_stop is not None
+            else None,
+            "active_price_readback_available": False,
+        }
 
     async def fetch_position(self, creds: Credentials, symbol: str) -> PositionInfo | None:
         """STEP B — 현재 linear 포지션 스냅샷(stale-position 가드). 무포지션이면 None.
@@ -1335,6 +1555,135 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
+    async def fetch_code_closed_pnl(
+        self,
+        creds: Credentials,
+        *,
+        account_id: UUID,
+        order_id: str,
+        symbol: str,
+        side: OrderSide,
+        since: datetime,
+    ) -> CodeClosedPnlRead:
+        """주문 생성·제출 하한부터 완료된 제한 조회의 단일 관측만 지원한다.
+
+        createdTime의 생성 대상은 공식 문서가 특정하지 않는다. 호출자가 전달한 이른 주문
+        시각에 기존 lookback을 적용하되 최근 7일만 조회하며 서로 다른 snapshot은 합산하지 않는다.
+        """
+        require_bybit_demo_account(creds.exchange, creds.environment)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        raw_symbol = _to_bybit_linear_symbol(symbol).split(":")[0].replace("/", "")
+        end = int(datetime.now(UTC).timestamp() * 1000)
+        start = max(
+            int(since.timestamp() * 1000) - _CLOSED_PNL_LOOKBACK_MS, end - _CLOSED_PNL_MAX_WINDOW_MS
+        )
+        candidates: dict[str, dict[str, Any]] = {}
+        invalid_matching = False
+        cursor = ""
+        seen_cursors: set[str] = set()
+        try:
+            for _ in range(_CLOSED_PNL_MAX_PAGES):
+                request: dict[str, Any] = {
+                    "category": "linear",
+                    "symbol": raw_symbol,
+                    "startTime": start,
+                    "endTime": end,
+                    "limit": 100,
+                }
+                if cursor:
+                    request["cursor"] = cursor
+                response = await exchange.privateGetV5PositionClosedPnl(request)
+                result = response.get("result")
+                if (
+                    str(response.get("retCode")) != "0"
+                    or not isinstance(result, dict)
+                    or result.get("category") != "linear"
+                    or not isinstance(result.get("list"), list)
+                    or len(result["list"]) > 100
+                ):
+                    return CodeClosedPnlRead(
+                        observed_hashes=tuple(sorted(candidates)),
+                        conflict=invalid_matching or len(candidates) > 1,
+                    )
+                for row in result["list"]:
+                    if (
+                        not isinstance(row, dict)
+                        or not isinstance(row.get("orderId"), str)
+                        or not row["orderId"]
+                    ):
+                        return CodeClosedPnlRead(
+                            observed_hashes=tuple(sorted(candidates)),
+                            conflict=invalid_matching or len(candidates) > 1,
+                        )
+                    matching = row["orderId"] == order_id
+                    if matching:
+                        candidates[closed_pnl_raw_hash(row)] = row
+                        invalid_matching = (
+                            invalid_matching or _code_pnl_row_values(row, side) is None
+                        )
+                    if row.get("symbol") != raw_symbol:
+                        return CodeClosedPnlRead(
+                            observed_hashes=tuple(sorted(candidates)),
+                            conflict=invalid_matching or matching or len(candidates) > 1,
+                        )
+                following = result.get("nextPageCursor")
+                if not isinstance(following, str):
+                    return CodeClosedPnlRead(
+                        observed_hashes=tuple(sorted(candidates)),
+                        conflict=invalid_matching or len(candidates) > 1,
+                    )
+                if following == "":
+                    break
+                if following in seen_cursors:
+                    return CodeClosedPnlRead(
+                        observed_hashes=tuple(sorted(candidates)),
+                        conflict=invalid_matching or len(candidates) > 1,
+                    )
+                seen_cursors.add(following)
+                cursor = following
+            else:
+                return CodeClosedPnlRead(
+                    observed_hashes=tuple(sorted(candidates)),
+                    conflict=invalid_matching or len(candidates) > 1,
+                )
+            hashes = tuple(sorted(candidates))
+            if len(candidates) != 1:
+                return CodeClosedPnlRead(
+                    observed_hashes=hashes, conflict=invalid_matching or len(candidates) > 1
+                )
+            raw_hash, row = next(iter(candidates.items()))
+            values = _code_pnl_row_values(row, side)
+            if values is None:
+                return CodeClosedPnlRead(observed_hashes=hashes, conflict=True)
+            quantity, pnl = values
+            return CodeClosedPnlRead(
+                CodeClosedPnlEvidence(
+                    account_id, order_id, raw_symbol, side, quantity, pnl, raw_hash
+                ),
+                hashes,
+            )
+        except Exception as exc:
+            if candidates:
+                return CodeClosedPnlRead(
+                    observed_hashes=tuple(sorted(candidates)),
+                    conflict=invalid_matching or len(candidates) > 1,
+                )
+            raise ProviderError(f"code closed PnL read failed: {type(exc).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("code_closed_pnl_close_failed")
+
     async def fetch_closed_pnl(
         self,
         creds: Credentials,
@@ -1421,11 +1770,10 @@ class BybitFuturesProvider:
             if oldest_ms is None:
                 break
             # ★커서를 oldest-1 로 내리면 그 밀리초에 남은 **동일 createdTime 행**을 영구히
-            # 건너뛴다. 한 청산 주문의 분할 행은 createdTime 을 공유할 수 있고(구분은
-            # updatedTime) 페이지 상한을 넘는 tie 가 조용히 사라진다. 그게 우리 주문이면
-            # aggregate_closed_pnl 이 부분합을 돌려주고 잘못된 realized_pnl 이 CAS 로
-            # 영구 고정된다. Bybit 은 tie-breaker 커서를 주지 않으므로 경계를 **포함**해
-            # 다시 읽는다 — 중복 행은 원장 UNIQUE(row_hash) 가 흡수하므로 이중 합산이 없다.
+            # 건너뛸 수 있다. 이 legacy CCXT 목록 경로는 V5 nextPageCursor를 보존하지
+            # 않으므로 경계를 포함해 다시 읽는다. 동일 raw는 집계에서 중복 제거하고
+            # 원장은 UNIQUE(row_hash)가 흡수한다. 서로 다른 raw의 독립성과 조회 완료를
+            # 증명하지 못한 legacy 손익 CAS는 BL-871의 잔여다.
             next_until_ms = oldest_ms
             if next_until_ms >= until_ms or next_until_ms <= start_ms:
                 # 꽉 찬 페이지에서 커서가 더 못 가면 완전 조회를 증명할 수 없다.
@@ -1657,6 +2005,84 @@ class BybitFuturesProvider:
             timer_label="bybit_futures",
             trigger=trigger,
         )
+
+    async def fetch_attached_sl_orders(
+        self, creds: Credentials, symbol: str, *, since: datetime
+    ) -> list[dict[str, Any]]:
+        """부모는 응답에서만 확인한다. Demo 최근 7일·각 endpoint 최대 2페이지다."""
+        require_bybit_demo_account(creds.exchange, creds.environment)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        raw_symbol = _to_bybit_linear_symbol(symbol).split(":")[0].replace("/", "")
+        start = max(
+            int(since.timestamp() * 1000), int(datetime.now(UTC).timestamp() * 1000) - 7 * 86400000
+        )
+        observed: list[dict[str, Any]] = []
+        try:
+            for fetch, history in (
+                (exchange.privateGetV5OrderRealtime, False),
+                (exchange.privateGetV5OrderHistory, True),
+            ):
+                cursor = ""
+                for _ in range(2):
+                    request: dict[str, Any] = {
+                        "category": "linear",
+                        "symbol": raw_symbol,
+                        "limit": 50,
+                    }
+                    if history:
+                        request["startTime"] = start
+                    if cursor:
+                        request["cursor"] = cursor
+                    response = await fetch(request)
+                    result = response.get("result")
+                    if (
+                        str(response.get("retCode")) != "0"
+                        or not isinstance(result, dict)
+                        or not isinstance(result.get("list"), list)
+                        or result.get("category") != "linear"
+                    ):
+                        raise ProviderError("malformed native SL history")
+                    for row in result["list"]:
+                        if not isinstance(row, dict):
+                            raise ProviderError("malformed native SL history row")
+                        if (
+                            isinstance(row, dict)
+                            and row.get("parentOrderLinkId")
+                            and row.get("stopOrderType") == "StopLoss"
+                        ):
+                            if (
+                                row.get("category", "linear") != "linear"
+                                or row.get("symbol") != raw_symbol
+                            ):
+                                raise ProviderError("native SL history scope mismatch")
+                            observed.append({**row, "category": "linear"})
+                    next_cursor = result.get("nextPageCursor")
+                    if not isinstance(next_cursor, str):
+                        raise ProviderError("malformed native SL history cursor")
+                    if not next_cursor:
+                        break
+                    if next_cursor == cursor:
+                        raise ProviderError("native SL history cursor repeated")
+                    cursor = str(next_cursor)
+                else:
+                    raise ProviderError("native SL history page budget exhausted")
+            # 전체 페이지를 읽어도 미관측을 체결 없음으로 사용하지 않는다.
+            return observed
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(f"native SL history failed: {type(exc).__name__}") from None
+        finally:
+            await exchange.close()
 
     async def fetch_order_by_client_id(
         self,
@@ -2134,6 +2560,7 @@ def _build_bybit_v5_order_status_fetch(order: dict[str, Any]) -> OrderStatusFetc
         filled_price=_decimal_or_none(order.get("avgPrice"), zero_as_none=True),
         filled_quantity=filled_quantity,
         raw=dict(order),
+        cumulative_value=bybit_cumulative_execution_value(order),
     )
 
 
@@ -2207,6 +2634,7 @@ def _build_order_status_fetch(exchange_order_id: str, result: dict[str, Any]) ->
         filled_price=_decimal_or_none(avg),
         filled_quantity=_decimal_or_none(filled_qty),
         raw=dict(result),
+        cumulative_value=bybit_cumulative_execution_value(result),
     )
 
 

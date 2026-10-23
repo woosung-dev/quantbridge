@@ -19,6 +19,8 @@ _ALLOWLIST_NON_SETTINGS = frozenset(
         "BYBIT_DEMO_SECRET",
         "BYBIT_SMOKE_API_KEY",
         "BYBIT_SMOKE_API_SECRET",
+        # 연구 CLI와 Docker CLI의 endpoint이며 API Settings 필드가 아니다.
+        "DOCKER_HOST",
         # Settings 를 안 거치고 `src/health/router.py` 가 os.environ 에서 직접 읽는다.
         "HEALTHZ_CELERY_TIMEOUT_S",
         "PINE_ALERT_HEURISTIC_MODE",

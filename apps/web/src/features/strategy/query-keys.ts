@@ -8,6 +8,8 @@
 import type { StrategyListQuery } from "./schemas";
 
 export const strategyKeys = {
+  codeResultDetail: (userId: string, id: string) =>
+    ["code-strategies", userId, "detail", id] as const,
   all: (userId: string) => ["strategies", userId] as const,
   lists: (userId: string) => [...strategyKeys.all(userId), "list"] as const,
   list: (userId: string, query: StrategyListQuery) =>

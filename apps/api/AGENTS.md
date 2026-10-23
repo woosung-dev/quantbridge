@@ -93,6 +93,7 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 | `scripts/` | 운영 entrypoint helper (`run_alembic_with_lock`) | `python -m src.scripts.*` 로 실행. 테스트·dogfood 스크립트는 여기가 아니라 `apps/api/scripts/`(앱 루트) |
 | `strategy/narrative/` | [ADR-040] 해설 층 LLM 클라이언트 | **DB 세션을 안 쥔다** — `convert/` 와 같은 형태(repository·models 없음). 결정론 브리핑은 `StrategyService` 가 갖고 여기는 LLM 왕복만 한다 |
 | `strategy/python_runtime/` | 내부 오프라인 연구용 프로토콜·격리 transport·청산 계산 | 서비스 API·Celery와 연결하지 않는다([ADR-045]). 로컬 연구의 소스 실행은 `infra/python-runner/`의 gVisor 이미지 내부뿐이다 |
+| `strategy/code_runtime/` | [ADR-046] 생성 전략의 언어 중립 프로토콜·격리 adapter·순수 명세/컴파일·공통 백테스트 | DB 세션을 갖지 않는 실행 라이브러리다. Pine/Python/TypeScript는 gVisor 실행기에서만 실행한다. `pine_worker.py`는 동일 Pine 해석기의 컨테이너 JSONL 진입점이다. 주문 권한은 trading이 가진다 |
 | `python_strategy/` | 미사용 연구 원장의 모델 선언 | 기존 DB·마이그레이션 이력 보존 전용이다. router·service·작업 실행을 제공하지 않는다([ADR-045]) |
 | `common/` · `core/` | 기술 기반 · 설정 | 도메인이 아니다 |
 

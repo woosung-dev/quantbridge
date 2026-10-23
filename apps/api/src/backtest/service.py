@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -15,7 +16,7 @@ from uuid import UUID
 
 import pandas as pd
 
-from src.backtest.config_mapper import build_engine_config_from_db
+from src.backtest.config_mapper import build_engine_config_from_db, timeframe_to_freq
 from src.backtest.data_coverage import DataCoverage, measure_data_coverage
 from src.backtest.dispatcher import TaskDispatcher
 from src.backtest.engine import PINE_V2_ENGINE_VERSION, run_backtest
@@ -70,7 +71,8 @@ from src.market_data.models import OHLCV
 from src.market_data.providers import OHLCVProvider
 from src.market_data.repository import OHLCVRepository
 from src.notifications.dispatcher import backtest_finished_payload, enqueue_push
-from src.strategy.exceptions import StrategyNotFoundError
+from src.strategy.code_contract import legacy_pine_source, read_code_version
+from src.strategy.exceptions import CodeStrategyPolicyError, StrategyNotFoundError
 from src.strategy.models import Strategy, StrategyVersion
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.sizing import extract_pine_default_qty
@@ -164,11 +166,24 @@ class BacktestService:
         strategy = await self.strategy_repo.find_by_id_and_owner(data.strategy_id, user_id)
         if strategy is None:
             raise StrategyNotFoundError()
+        if strategy.execution_policy == "code_v1":
+            if data.execution_policy != "code_v1":
+                raise CodeStrategyPolicyError()
+            version = await self.strategy_repo.get_version_by_id(
+                data.strategy_version_id or strategy.strategy_version_id, strategy_id=strategy.id
+            )
+            if version is None:
+                raise CodeStrategyPolicyError()
+            return await self._submit_code(
+                data, version, user_id=user_id, idempotency_key=idempotency_key, body_hash=body_hash
+            )
+        if data.execution_policy is not None or data.strategy_version_id is not None:
+            raise CodeStrategyPolicyError()
         strategy_version = await self._ensure_current_strategy_version(strategy)
 
         # Sprint Y1: pre-flight coverage check — 미지원 built-in 발견 시 즉시 reject
         # (whack-a-mole 패턴 종식 — backtest 실행 전에 명확히 안내)
-        coverage = analyze_coverage(strategy_version.pine_source)
+        coverage = analyze_coverage(legacy_pine_source(strategy_version))
         if not coverage.is_runnable:
             unsupported_list = list(coverage.all_unsupported)
             unsupported_str = ", ".join(unsupported_list)
@@ -209,7 +224,7 @@ class BacktestService:
         sizing_canonical = _resolve_sizing_canonical(
             data,
             strategy,
-            pine_source=strategy_version.pine_source,
+            pine_source=legacy_pine_source(strategy_version),
         )
 
         config_payload: dict[str, Any] = {
@@ -261,6 +276,77 @@ class BacktestService:
             raise TaskDispatchError() from exc
 
         bt.celery_task_id = task_id
+        await self.repo.commit()
+        return BacktestCreatedResponse(
+            backtest_id=bt.id, status=bt.status, created_at=bt.created_at
+        )
+
+    async def _submit_code(
+        self,
+        data: CreateBacktestRequest,
+        version: StrategyVersion,
+        *,
+        user_id: UUID,
+        idempotency_key: str | None,
+        body_hash: bytes | None,
+    ) -> BacktestCreatedResponse:
+        code = read_code_version(version, strategy_id=data.strategy_id)
+        if data.timeframe not in ("1h", "4h", "1d"):
+            raise CodeStrategyPolicyError(
+                "code_v1 1분 실행 백테스트는 현재 1h/4h/1d 신호 주기만 지원합니다"
+            )
+        if (
+            data.fill_timing != "next_bar_open"
+            or data.leverage != Decimal("1")
+            or data.trading_sessions
+        ):
+            raise CodeStrategyPolicyError()
+        qty_type = data.default_qty_type or "strategy.percent_of_equity"
+        qty_value = data.default_qty_value or data.position_size_pct or Decimal("100")
+        config = {
+            "execution_policy": "code_v1",
+            "execution_hash": code.execution_hash,
+            "language": code.language.value,
+            "risk_policy": "swing_two_bar_v1",
+            "warmup_bars": code.warmup_bars,
+            "fill_timing": "next_bar_open",
+            "leverage": 1.0,
+            "fees": float(data.fees_pct),
+            "slippage": float(data.slippage_pct),
+            "include_funding": data.include_funding,
+            "default_qty_type": qty_type,
+            "default_qty_value": float(qty_value),
+            "sizing_source": "form",
+            "sizing_basis": "form_equity",
+            "leverage_basis": 1.0,
+            "execution_resolution": "1min",
+        }
+        bt = Backtest(
+            user_id=user_id,
+            strategy_id=data.strategy_id,
+            strategy_version_id=version.id,
+            engine_version="code_v1",
+            symbol=data.symbol,
+            timeframe=data.timeframe,
+            period_start=data.period_start,
+            period_end=data.period_end,
+            initial_capital=data.initial_capital,
+            status=BacktestStatus.QUEUED,
+            idempotency_key=idempotency_key,
+            idempotency_payload_hash=body_hash,
+            config=config,
+        )
+        await self.repo.create(bt)
+        # worker가 즉시 시작해도 pinned row를 읽도록 publish 전에 확정한다.
+        await self.repo.commit()
+        try:
+            bt.celery_task_id = self.dispatcher.dispatch_backtest(bt.id)
+        except Exception as exc:
+            await self.repo.fail(
+                bt.id, error="Task dispatch failed", where_status=BacktestStatus.QUEUED
+            )
+            await self.repo.commit()
+            raise TaskDispatchError() from exc
         await self.repo.commit()
         return BacktestCreatedResponse(
             backtest_id=bt.id, status=bt.status, created_at=bt.created_at
@@ -336,6 +422,17 @@ class BacktestService:
             )
             await self.repo.commit()
             return BacktestStatus.FAILED if fail_rows else None
+        if (bt.engine_version == "code_v1" and strategy_version is None) or (
+            strategy_version is not None
+            and (strategy_version.execution_policy == "code_v1") != (bt.engine_version == "code_v1")
+        ):
+            fail_rows = await self.repo.fail(
+                backtest_id,
+                error="Strategy version execution policy mismatch",
+                where_status=BacktestStatus.QUEUED,
+            )
+            await self.repo.commit()
+            return BacktestStatus.FAILED if fail_rows else None
         if strategy_version is None:
             logger.warning(
                 "backtest_run_without_pinned_strategy_version",
@@ -350,14 +447,37 @@ class BacktestService:
                 )
                 await self.repo.commit()
                 return BacktestStatus.FAILED if fail_rows else None
-            pine_source = strategy.pine_source
+            pine_source = legacy_pine_source(strategy)
         else:
-            pine_source = strategy_version.pine_source
+            pine_source = ""
+            if bt.engine_version != "code_v1":
+                pine_source = legacy_pine_source(strategy_version)
 
         try:
             ohlcv = await self.provider.get_ohlcv(
-                bt.symbol, bt.timeframe, bt.period_start, bt.period_end
+                bt.symbol,
+                bt.timeframe,
+                bt.period_start
+                - timedelta(
+                    seconds=(
+                        read_code_version(strategy_version).warmup_bars
+                        * pd.Timedelta(timeframe_to_freq(bt.timeframe)).total_seconds()
+                    )
+                )
+                if bt.engine_version == "code_v1" and strategy_version is not None
+                else bt.period_start,
+                bt.period_end,
             )
+            if bt.engine_version == "code_v1" and strategy_version is not None:
+                warmup = read_code_version(strategy_version).warmup_bars
+                width = pd.Timedelta(timeframe_to_freq(bt.timeframe))
+                expected = pd.date_range(
+                    bt.period_start - warmup * width, bt.period_end, freq=width, inclusive="left"
+                )
+                if not ohlcv.index.equals(expected):
+                    raise CodeStrategyPolicyError(
+                        "워밍업과 평가 봉의 연속된 전체 범위가 필요합니다"
+                    )
         except Exception as exc:
             logger.exception("ohlcv_fetch_failed")
             fail_rows = await self.repo.fail(
@@ -406,7 +526,45 @@ class BacktestService:
                 start=bt.period_start,
                 end=bt.period_end,
             )
-        outcome = run_backtest(pine_source, ohlcv, config=config, funding_rates=funding_rates)
+        if bt.engine_version == "code_v1":
+            try:
+                if strategy_version is None:
+                    raise CodeStrategyPolicyError()
+                code = read_code_version(strategy_version, strategy_id=bt.strategy_id)
+                if (bt.config or {}).get("execution_hash") != code.execution_hash:
+                    raise CodeStrategyPolicyError()
+                execution = await self.provider.get_ohlcv(
+                    bt.symbol, "1m", bt.period_start, bt.period_end
+                )
+                from src.strategy.product_execution import run_product_backtest
+
+                outcome_result = await asyncio.to_thread(
+                    run_product_backtest,
+                    code,
+                    ohlcv,
+                    config,
+                    funding_rates=funding_rates,
+                    execution_ohlcv=execution,
+                )
+                outcome_status = "ok"
+                outcome_error = None
+                outcome_warnings = [
+                    "code_v1: fixed swing_two_bar_v1 risk policy; 1min OHLC path approximation"
+                ]
+            except Exception as exc:
+                logger.exception("code_strategy_execution_failed")
+                outcome_result = None
+                outcome_status = "error"
+                outcome_error = str(exc)
+                outcome_warnings = []
+        else:
+            outcome = run_backtest(pine_source, ohlcv, config=config, funding_rates=funding_rates)
+            outcome_result, outcome_status, outcome_error = (
+                outcome.result,
+                outcome.status,
+                str(outcome.error) if outcome.error is not None else None,
+            )
+            outcome_warnings = dedupe_engine_warnings(outcome.parse.warnings)
 
         # Guard #3: post-engine
         bt3 = await self.repo.get_by_id(backtest_id)
@@ -425,9 +583,9 @@ class BacktestService:
         # Spec §5.1 Step 10의 begin_nested() savepoint는 commit이 분리될 때의 원자성용.
         # 현재 설계는 complete() + insert_trades_bulk() + commit()을 단일 트랜잭션으로 묶으므로
         # savepoint 없이 atomically correct. 미래에 commit을 중간에 분리하지 말 것.
-        if outcome.status == "ok" and outcome.result is not None:
-            metrics_jsonb = metrics_to_jsonb(outcome.result.metrics)
-            equity_jsonb = equity_curve_to_jsonb(outcome.result.equity_curve)
+        if outcome_status == "ok" and outcome_result is not None:
+            metrics_jsonb = metrics_to_jsonb(outcome_result.metrics)
+            equity_jsonb = equity_curve_to_jsonb(outcome_result.equity_curve)
 
             # ★2026-08-15 surface-truth (U8) — 엔진이 남긴 경고를 원장에 싣는다.
             #   `v2_adapter.py:218-221` 이 「사용자가 silent success 받지 않도록 노출」이라
@@ -437,9 +595,13 @@ class BacktestService:
                 backtest_id,
                 metrics=metrics_jsonb,
                 equity_curve=equity_jsonb,
-                warnings=dedupe_engine_warnings(outcome.parse.warnings),
+                warnings=outcome_warnings,
                 data_coverage=measure_data_coverage(
-                    pd.DatetimeIndex(ohlcv.index), bt.timeframe, bt.period_start, bt.period_end
+                    pd.DatetimeIndex(ohlcv.loc[ohlcv.index >= bt.period_start].index),
+                    bt.timeframe,
+                    bt.period_start,
+                    bt.period_end,
+                    end_inclusive=bt.engine_version != "code_v1",
                 ).model_dump(mode="json"),
             )
             if completed_rows == 0:
@@ -448,16 +610,22 @@ class BacktestService:
                 return None
 
             trade_models = self._raw_trades_to_models(
-                outcome.result.trades, backtest_id, pd.DatetimeIndex(ohlcv.index)
+                outcome_result.trades,
+                backtest_id,
+                pd.DatetimeIndex(
+                    outcome_result.equity_curve.index
+                    if bt.engine_version == "code_v1"
+                    else ohlcv.index
+                ),
             )
             if trade_models:
                 await self.repo.insert_trades_bulk(trade_models)
             finished: BacktestStatus | None = BacktestStatus.COMPLETED
         else:
             error_str = (
-                str(outcome.error)
-                if outcome.error is not None
-                else (f"engine status={outcome.status}")
+                str(outcome_error)
+                if outcome_error is not None
+                else (f"engine status={outcome_status}")
             )
             fail_rows = await self.repo.fail(backtest_id, error=error_str)
             if fail_rows == 0:
@@ -478,7 +646,7 @@ class BacktestService:
 
         version = await self.strategy_repo.create_version(
             strategy_id=strategy.id,
-            pine_source=strategy.pine_source,
+            pine_source=legacy_pine_source(strategy),
         )
         await self.strategy_repo.set_current_version(strategy.id, version.id)
         strategy.strategy_version_id = version.id
@@ -842,6 +1010,13 @@ class BacktestService:
         # 사용자 입력값 — float coerce + 누락 키(또는 NULL config 전체)는 default 로 fallback.
         cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
         config_out = BacktestConfigOut(
+            execution_policy="code_v1" if bt.engine_version == "code_v1" else None,
+            default_qty_type=cfg_dict.get("default_qty_type")
+            if bt.engine_version == "code_v1"
+            else None,
+            default_qty_value=cfg_dict.get("default_qty_value")
+            if bt.engine_version == "code_v1"
+            else None,
             leverage=float(cfg_dict.get("leverage", _default.leverage)),
             fees=float(cfg_dict.get("fees", _default.fees)),
             slippage=float(cfg_dict.get("slippage", _default.slippage)),
@@ -1082,6 +1257,10 @@ def _compute_body_hash(data: CreateBacktestRequest, user_id: UUID) -> bytes:
     Decimal/datetime 을 JSON-safe string 으로 직렬화해 결정적 bytes 생성.
     """
     payload = {**data.model_dump(mode="json"), "user_id": str(user_id)}
+    if data.execution_policy is None:
+        payload.pop("execution_policy", None)
+    if data.strategy_version_id is None:
+        payload.pop("strategy_version_id", None)
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).digest()

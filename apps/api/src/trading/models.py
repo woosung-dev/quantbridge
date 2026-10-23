@@ -28,6 +28,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Index, LargeBinary, SQLModel
 
 from src.common.datetime_types import AwareDateTime
+from src.trading.order_fill_evidence import has_recorded_order_fill
 
 
 class ExchangeName(StrEnum):
@@ -280,6 +281,10 @@ class Order(SQLModel, table=True):
         default=None,
         sa_column=Column(JSONB, nullable=True),
     )
+    # 새 고정 리스크 정책의 세션·세대·주문 역할. NULL은 기존 주문 경로다.
+    risk_context: dict[str, object] | None = Field(
+        default=None, sa_column=Column(JSONB(none_as_null=True), nullable=True)
+    )
     idempotency_key: str | None = Field(default=None, max_length=200, nullable=True)
     exchange_order_id: str | None = Field(default=None, max_length=120, nullable=True)
     filled_price: Decimal | None = Field(
@@ -364,6 +369,11 @@ class Order(SQLModel, table=True):
             onupdate=lambda: datetime.now(UTC),
         ),
     )
+
+    @property
+    def has_recorded_fill(self) -> bool:
+        """표시용 체결 근거. risk_context 원문을 응답에 노출하지 않는다."""
+        return has_recorded_order_fill(self)
 
 
 class KillSwitchEvent(SQLModel, table=True):
@@ -527,6 +537,17 @@ class LiveSignalSession(SQLModel, table=True):
             nullable=False,
         ),
     )
+    strategy_version_id: UUID | None = Field(
+        default=None,
+        sa_column=Column(
+            ForeignKey(
+                "strategy_versions.id",
+                ondelete="RESTRICT",
+                name="fk_live_sessions_strategy_version",
+            ),
+            nullable=True,
+        ),
+    )
     exchange_account_id: UUID = Field(
         sa_column=Column(
             "exchange_account_id",
@@ -553,6 +574,9 @@ class LiveSignalSession(SQLModel, table=True):
     equity_baseline_usdt: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 8), nullable=True)
     )
+    execution_snapshot: dict[str, object] | None = Field(
+        default=None, sa_column=Column(JSONB(none_as_null=True), nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
@@ -574,6 +598,148 @@ class LiveSignalSession(SQLModel, table=True):
     # "사유 미기록" 으로 읽는다(0 이나 빈 문자열로 위장하지 않는다).
     deactivated_reason: str | None = Field(
         default=None, sa_column=Column(String(64), nullable=True)
+    )
+
+
+class LiveRiskState(SQLModel, table=True):
+    """거래소 확정 누적 체결과 보호 명령의 영속 원장. UI 캐시와 분리한다."""
+
+    __tablename__ = "live_risk_states"
+    __table_args__ = (
+        CheckConstraint("revision >= 0 AND generation >= 1", name="ck_live_risk_revision"),
+        CheckConstraint(
+            "cumulative_quantity >= 0 AND cumulative_value >= 0 AND position_quantity >= 0 "
+            "AND tp_filled_quantity >= 0 AND expected_quantity > 0 AND qty_step > 0 AND min_qty > 0",
+            name="ck_live_risk_quantities",
+        ),
+        CheckConstraint("fixed_r IS NULL OR fixed_r > 0", name="ck_live_risk_fixed_r"),
+        CheckConstraint("unsettled_exit_quantity >= 0", name="ck_live_risk_unsettled_exit"),
+        CheckConstraint("direction IN ('long','short')", name="ck_live_risk_direction"),
+        {"schema": "trading"},
+    )
+
+    session_id: UUID = Field(
+        sa_column=Column(
+            ForeignKey(
+                "trading.live_signal_sessions.id",
+                ondelete="RESTRICT",
+                name="fk_live_risk_states_session_id",
+            ),
+            primary_key=True,
+        )
+    )
+    revision: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default=text("0"))
+    )
+    generation: int = Field(
+        default=1, sa_column=Column(Integer, nullable=False, server_default=text("1"))
+    )
+    direction: str = Field(sa_column=Column(String(5), nullable=False))
+    entry_order_id: UUID = Field(
+        sa_column=Column(ForeignKey("trading.orders.id", ondelete="RESTRICT"), nullable=False)
+    )
+    expected_quantity: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
+    cumulative_quantity: Decimal = Field(
+        default=Decimal(0),
+        sa_column=Column(Numeric(18, 8), nullable=False, server_default=text("0")),
+    )
+    cumulative_value: Decimal = Field(
+        default=Decimal(0),
+        sa_column=Column(Numeric(28, 8), nullable=False, server_default=text("0")),
+    )
+    position_quantity: Decimal = Field(
+        default=Decimal(0),
+        sa_column=Column(Numeric(18, 8), nullable=False, server_default=text("0")),
+    )
+    unsettled_exit_quantity: Decimal = Field(
+        default=Decimal(0),
+        sa_column=Column(Numeric(18, 8), nullable=False, server_default=text("0")),
+    )
+    entry_terminal: bool = Field(
+        default=False, sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
+    entry_vwap: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
+    fixed_r: Decimal | None = Field(default=None, sa_column=Column(Numeric(18, 8), nullable=True))
+    reference_bars: list[dict[str, str]] = Field(sa_column=Column(JSONB, nullable=False))
+    qty_step: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
+    min_qty: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
+    provisional_stop: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
+    tp_filled_quantity: Decimal = Field(
+        default=Decimal(0),
+        sa_column=Column(Numeric(18, 8), nullable=False, server_default=text("0")),
+    )
+    trailing_active: bool = Field(
+        default=False, sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
+    protection_desired: dict[str, object] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    )
+    protection_applied: dict[str, object] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    )
+    exit_fills: dict[str, object] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    )
+    pending_reversal: str | None = Field(default=None, sa_column=Column(String(5), nullable=True))
+    close_requested: bool = Field(
+        default=False, sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
+    cancels_confirmed: bool = Field(
+        default=False, sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
+    new_entries_blocked: bool = Field(
+        default=False, sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
+    failure_reason: str | None = Field(default=None, sa_column=Column(String(200), nullable=True))
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
+    )
+
+
+class CodeRiskCommand(SQLModel, table=True):
+    """보호 명령의 최소 outbox. ACK 전 장애는 같은 key로 재배달한다."""
+
+    __tablename__ = "code_risk_commands"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','running','applied','failed','superseded')",
+            name="ck_code_risk_command_status",
+        ),
+        Index("ix_code_risk_commands_pending", "session_id", "status"),
+        {"schema": "trading"},
+    )
+    key: str = Field(sa_column=Column(String(240), primary_key=True))
+    session_id: UUID = Field(
+        sa_column=Column(
+            ForeignKey("trading.live_signal_sessions.id", ondelete="CASCADE"), nullable=False
+        )
+    )
+    generation: int = Field(sa_column=Column(Integer, nullable=False))
+    kind: str = Field(sa_column=Column(String(32), nullable=False))
+    payload: dict[str, object] = Field(sa_column=Column(JSONB, nullable=False))
+    status: str = Field(
+        default="pending", sa_column=Column(String(16), nullable=False, server_default="pending")
+    )
+    attempts: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default=text("0"))
+    )
+    lease_until: datetime | None = Field(
+        default=None, sa_column=Column(AwareDateTime(), nullable=True)
+    )
+    lease_token: UUID | None = Field(default=None)
+    error: str | None = Field(default=None, sa_column=Column(String(500), nullable=True))
+    result: dict[str, object] | None = Field(
+        default=None, sa_column=Column(JSONB(none_as_null=True), nullable=True)
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
     )
 
 

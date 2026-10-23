@@ -108,6 +108,46 @@ describe("RerunButton", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith("재실행 시작");
   });
 
+  it("코드 결과 재실행은 실행 정책과 저장된 수량·비용·다음 시가를 보존한다", () => {
+    const code = {
+      ...BACKTEST,
+      config: {
+        execution_policy: "code_v1" as const,
+        default_qty_type: "strategy.percent_of_equity" as const,
+        default_qty_value: 17,
+        leverage: 1,
+        fees: 0.0004,
+        slippage: 0.0002,
+        include_funding: true,
+        fill_timing: "next_bar_open",
+      },
+    };
+    render(<RerunButton backtest={code} isEnabled />);
+    fireEvent.click(screen.getByRole("button", { name: /재실행/ }));
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        execution_policy: "code_v1",
+        default_qty_type: "strategy.percent_of_equity",
+        default_qty_value: 17,
+        fill_timing: "next_bar_open",
+        leverage: 1,
+        fees_pct: 0.0004,
+        slippage_pct: 0.0002,
+        include_funding: true,
+      }),
+    );
+    expect(mockPush).toHaveBeenCalledWith("/backtests/new-backtest-id");
+  });
+
+  it("수량이 없는 코드 결과는 임의 기본값으로 재실행하지 않는다", () => {
+    render(
+      <RerunButton backtest={{ ...BACKTEST, config: { execution_policy: "code_v1" } }} isEnabled />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /재실행/ }));
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining("저장된 코드 실행 수량"));
+  });
+
   it("mutation 실패 시 toast.error 노출 + router.push 호출되지 않음", () => {
     mutationError = new Error("Network down");
     render(<RerunButton backtest={BACKTEST} isEnabled={true} />);

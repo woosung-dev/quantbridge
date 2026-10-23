@@ -21,6 +21,8 @@ import {
   type LiveSession,
 } from "@/features/live-sessions";
 import { strategyKeys, useStrategies } from "@/features/strategy/hooks";
+import { useCodeStrategies } from "@/features/strategy/use-code-strategies";
+import { codeStrategyKeys } from "@/features/strategy/code-schemas";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 import {
   ExchangeAccountsPanel,
@@ -68,6 +70,8 @@ export function TradingCockpit() {
     offset: 0,
     is_archived: false,
   });
+
+  const codeStrategiesQ = useCodeStrategies();
 
   const selectedId = searchParams.get("session");
 
@@ -132,8 +136,9 @@ export function TradingCockpit() {
   const strategyNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of strategyItems) map.set(s.id, s.name);
+    for (const s of codeStrategiesQ.data?.items ?? []) map.set(s.id, s.name);
     return map;
-  }, [strategyItems]);
+  }, [strategyItems, codeStrategiesQ.data?.items]);
   const accountLabelById = useMemo(() => {
     const map = new Map<string, string>();
     for (const a of accountItems) map.set(a.id, a.label ?? `${a.exchange} ${a.mode}`);
@@ -206,6 +211,7 @@ export function TradingCockpit() {
       tradingKeys.all(uid),
       liveSessionKeys.all(uid),
       strategyKeys.all(uid),
+      codeStrategyKeys.list(uid),
       alertRuleKeys.all(uid),
     ]) {
       void queryClient.invalidateQueries({ queryKey });
