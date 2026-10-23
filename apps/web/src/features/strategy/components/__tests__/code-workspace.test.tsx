@@ -1,6 +1,14 @@
 // 수동 편집 → 저장 버전 → 고정 정책 백테스트 여정. API와 인증만 대체하며 실제 훅을 사용한다.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,6 +36,7 @@ import { getAuthToken } from "@/lib/auth-client";
 import { ApiError, type RequestOptions } from "@/lib/api-client";
 import { CodeWorkspace } from "../code-workspace";
 import type { ExchangeAccount } from "@/features/trading/schemas";
+import { useCodeWorkspace } from "@/features/strategy/code-hooks";
 
 const STRATEGY_ID = "11111111-1111-4111-8111-111111111111";
 const SECOND_ID = "44444444-4444-4444-8444-444444444444";
@@ -172,6 +181,14 @@ async function ready() {
   await screen.findByRole("heading", { name: "코드 전략" });
 }
 
+function renderWorkspaceHook(client: QueryClient, initialStrategyId?: string) {
+  return renderHook(() => useCodeWorkspace(initialStrategyId), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+}
+
 function fillDraft() {
   fireEvent.change(screen.getByLabelText("전략 이름"), { target: { value: "수동 전략" } });
   fireEvent.change(screen.getByLabelText("소스 코드"), { target: { value: "manual version one" } });
@@ -188,6 +205,68 @@ afterEach(() => {
 });
 
 describe("코드 전략 작업 공간", () => {
+  it.each([false, true])(
+    "선택 여부 %s에서 미저장 상태의 action을 직접 호출해도 화면 판정과 같은 이유로 거부한다",
+    async (hasSelection) => {
+      const { client } = setup(hasSelection ? [saved()] : [], [], STRATEGY_ID);
+      await ready();
+      const { result } = renderWorkspaceHook(client, STRATEGY_ID);
+      if (hasSelection) {
+        expect(result.current.canBacktest).toBe(true);
+        act(() => result.current.change({ source: "unsaved source" }));
+      }
+      expect(result.current.canBacktest).toBe(false);
+      expect(result.current.canDemo).toBe(false);
+      expect(result.current.backtestBlockReason).toBe("변경한 코드를 먼저 저장하세요.");
+      expect(result.current.demoBlockReason).toBe("저장한 1시간 전략을 선택하세요.");
+      await act(async () => {
+        await expect(result.current.backtest.mutateAsync()).rejects.toThrow(
+          result.current.backtestBlockReason!,
+        );
+        await expect(result.current.demo.mutateAsync()).rejects.toThrow(
+          result.current.demoBlockReason!,
+        );
+      });
+      expect(
+        mocks.apiFetch.mock.calls.some(
+          ([path]) => path === "/api/v1/backtests" || path === "/api/v1/live-sessions",
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it.each([
+    { timeframe: "4h", account: demoAccount, reason: "저장한 1시간 전략을 선택하세요." },
+    {
+      timeframe: "1h",
+      account: { ...demoAccount, read_only: null },
+      reason: "주문 권한이 확인된 Bybit Demo 계정을 선택하세요.",
+    },
+  ])(
+    "$timeframe·$account.read_only 계정의 Demo action도 판정과 같은 이유로 거부한다",
+    async (entry) => {
+      const { client } = setup(
+        [{ ...saved(), timeframe: entry.timeframe }],
+        [entry.account],
+        STRATEGY_ID,
+      );
+      await ready();
+      const { result } = renderWorkspaceHook(client, STRATEGY_ID);
+      await waitFor(() => expect(result.current.accounts.isSuccess).toBe(true));
+      act(() => result.current.setAccountId(ACCOUNT_ID));
+      expect(result.current.canBacktest).toBe(true);
+      expect(result.current.backtestBlockReason).toBeNull();
+      expect(result.current.canDemo).toBe(false);
+      expect(result.current.demoBlockReason).toBe(entry.reason);
+      await act(async () => {
+        await expect(result.current.demo.mutateAsync()).rejects.toThrow(entry.reason);
+      });
+      expect(mocks.apiFetch.mock.calls.some(([path]) => path === "/api/v1/live-sessions")).toBe(
+        false,
+      );
+    },
+  );
+
   it("코드 목록을 기다리는 동안 계정 요청도 시작하고 완료 뒤 중복 요청하지 않는다", async () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {

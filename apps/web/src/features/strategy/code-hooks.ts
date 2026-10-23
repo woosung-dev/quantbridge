@@ -161,6 +161,17 @@ export function useCodeWorkspace(initialStrategyId?: string) {
     draft.symbol !== savedDraft.symbol ||
     draft.timeframe !== savedDraft.timeframe ||
     draft.allocation !== savedDraft.allocation;
+  // 화면과 action이 같은 검토 대상·거부 이유를 사용한다. 목록 갱신으로 버전을 교체하지 않는다.
+  const reviewed = dirty ? null : selected;
+  const backtestBlockReason = reviewed ? null : "변경한 코드를 먼저 저장하세요.";
+  const demoBlockReason =
+    !reviewed || draft.timeframe !== "1h"
+      ? "저장한 1시간 전략을 선택하세요."
+      : !demoAccounts.some((account) => account.id === accountId)
+        ? "주문 권한이 확인된 Bybit Demo 계정을 선택하세요."
+        : null;
+  const canBacktest = backtestBlockReason === null;
+  const canDemo = demoBlockReason === null;
   const save = useMutation({
     mutationFn: async () => {
       const body = SaveCodeStrategySchema.parse({
@@ -201,12 +212,12 @@ export function useCodeWorkspace(initialStrategyId?: string) {
   });
   const backtest = useMutation({
     mutationFn: async () => {
-      if (dirty || !selected) throw new Error("변경한 코드를 먼저 저장하세요.");
+      if (!canBacktest) throw new Error(backtestBlockReason!);
       const dates = CodePeriodSchema.parse(period);
       return submitCodeBacktest(
         {
-          strategy_id: selected.id,
-          strategy_version_id: selected.version.id,
+          strategy_id: reviewed!.id,
+          strategy_version_id: reviewed!.version.id,
           symbol: draft.symbol,
           timeframe: draft.timeframe,
           period_start: `${dates.start}T00:00:00Z`,
@@ -221,16 +232,11 @@ export function useCodeWorkspace(initialStrategyId?: string) {
   });
   const demo = useMutation({
     mutationFn: async () => {
-      if (dirty || !selected || draft.timeframe !== "1h") {
-        throw new Error("저장한 1시간 전략을 선택하세요.");
-      }
-      if (!demoAccounts.some((account) => account.id === accountId)) {
-        throw new Error("주문 권한이 확인된 Bybit Demo 계정을 선택하세요.");
-      }
+      if (!canDemo) throw new Error(demoBlockReason!);
       return submitCodeDemo(
         {
-          strategy_id: selected.id,
-          strategy_version_id: selected.version.id,
+          strategy_id: reviewed!.id,
+          strategy_version_id: reviewed!.version.id,
           exchange_account_id: accountId,
           source_policy: "code_v1",
           symbol: draft.symbol,
@@ -251,6 +257,10 @@ export function useCodeWorkspace(initialStrategyId?: string) {
     period,
     dirty,
     busy,
+    canBacktest,
+    canDemo,
+    backtestBlockReason,
+    demoBlockReason,
     preview,
     hasAppliedPreview: generated !== null,
     generation,
