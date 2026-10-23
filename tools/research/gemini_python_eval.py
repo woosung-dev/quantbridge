@@ -318,6 +318,92 @@ def source_hashes() -> dict[str, str]:
     }
 
 
+def bind_prior_probes(
+    manifest: dict, prior_root: Path, current_root: Path, *, key_hash: str
+) -> None:
+    """요청 형식 오류로 끝난 최초7회를 보존하고 새 품질 생성84회와 예산을 결합한다."""
+    prior_root = prior_root.resolve()
+    if prior_root == current_root.resolve() or not prior_root.is_relative_to(
+        ROOT / "runs"
+    ):
+        raise ValueError("이전 probe와 후속 cohort는 서로 다른 runs/ 경로여야 합니다")
+    previous = read_json(prior_root / "manifest.json")
+    credentials_path = prior_root / ".credential-binding.json"
+    previous_credentials = read_json(credentials_path)
+    if previous_credentials.get("key_file_sha256") != key_hash:
+        raise ValueError(
+            "후속 cohort는 이전 epoch와 같은 승인 키 파일을 사용해야 합니다"
+        )
+    ledger = Ledger(prior_root)
+    reserved = ledger.reserved()
+    completed = [row for row in ledger.rows if row["kind"] == "generation_completed"]
+    expected_slots = {f"{model}/0" for model in MODELS}
+    if (
+        previous.get("external_generation_attempts") != 0
+        or set(previous.get("models", [])) != set(MODELS)
+        or len(reserved) != 7
+        or len(completed) != 7
+        or {row["slot"] for row in reserved} != expected_slots
+        or {row["slot"] for row in completed} != expected_slots
+        or not previous.get("source_hashes")
+    ):
+        raise ValueError(
+            "이전 epoch는 지정7모델의 최초 probe7회만 소비한 상태여야 합니다"
+        )
+    paths = [
+        prior_root / "manifest.json",
+        prior_root / "attempts.jsonl",
+        credentials_path,
+    ]
+    for model in MODELS:
+        folder = prior_root / "trials" / model / "0"
+        generation = read_json(folder / "generation.json")
+        reservation = next(row for row in reserved if row["model"] == model)
+        completion = next(row for row in completed if row["model"] == model)
+        if (
+            reservation["slot"] != f"{model}/0"
+            or generation.get("status") != "failed"
+            or generation.get("status_code") != 400
+            or completion.get("status") != "failed"
+            or completion.get("status_code") != 400
+            or digest(read_json(folder / "request.json"))
+            != reservation.get("request_hash")
+        ):
+            raise ValueError("이전 probe의 요청·400 실패·소비 증거가 일치하지 않습니다")
+        paths.extend((folder / "generation.json", folder / "request.json"))
+    manifest["cohort"] = "gemini_python_6x2_json_schema_v2"
+    manifest["external_generation_attempts"] += 7
+    if manifest["external_generation_attempts"] > ATTEMPT_CEILING:
+        raise ValueError("이전 소비를 합치면 전체91회 상한을 넘습니다")
+    manifest["prior_probes"] = {
+        "root": str(prior_root),
+        "consumed_generation_attempts": 7,
+        "files": {
+            str(path.relative_to(prior_root)): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for path in paths
+        },
+        "source_hashes": previous["source_hashes"],
+        "interpretation": "최초 요청 형식400 실패는 보존하며 모델 접근 불가·품질0으로 단정하지 않는다",
+    }
+    manifest["availability_quality_index"] = 1
+    manifest["additional_hold_probe_attempts"] = 0
+
+
+def verify_prior_probes(manifest: dict) -> None:
+    prior = manifest.get("prior_probes")
+    if prior:
+        for name, checksum in prior["files"].items():
+            if (
+                hashlib.sha256((Path(prior["root"]) / name).read_bytes()).hexdigest()
+                != checksum
+            ):
+                raise ValueError(
+                    "보존한 이전 epoch의 manifest·장부·probe 증거가 바뀌었습니다"
+                )
+
+
 def evaluation_environment() -> dict:
     """현재 endpoint를 조회만 하며 VM·컨테이너·이미지를 기동하거나 바꾸지 않는다."""
     from src.strategy.python_runtime.sandbox import DEFAULT_IMAGE
@@ -428,6 +514,7 @@ class Runner:
         self.root, self.manifest, self.key = root, manifest, key
         self.caller, self.clock, self.sleep = caller, clock, sleep
         self.payload_validator = payload_validator
+        verify_prior_probes(manifest)
         self.ledger = Ledger(root)
         self.budget_lock = threading.Lock()
         self.stopped = {
@@ -456,6 +543,9 @@ class Runner:
             return
         if any(row["slot"] == slot for row in self.ledger.reserved()):
             return
+        if self.manifest.get("prior_probes") and index == 0:
+            self._not_run(model, index, "prior_epoch_probe_no_additional_hold_probe")
+            return
         reason = self.stopped.get(model)
         reset = (
             self.manifest["quota_evidence"].get("quota_day", {}).get("next_reset_utc")
@@ -478,8 +568,15 @@ class Runner:
         )
         if not found or "generateContent" not in (found.get("supported_actions") or []):
             reason = "not_listed_for_text_generation"
-        if index > 0:
-            available_path = self.root / "trials" / model / "0" / "generation.json"
+        availability_index = self.manifest.get("availability_quality_index", 0)
+        if index > availability_index:
+            available_path = (
+                self.root
+                / "trials"
+                / model
+                / str(availability_index)
+                / "generation.json"
+            )
             if (
                 not available_path.exists()
                 or read_json(available_path)["status"] != "completed"
@@ -520,6 +617,7 @@ class Runner:
                 break
             self.sleep(delay)
         with self.budget_lock:
+            verify_prior_probes(self.manifest)
             prior = self.ledger.reserved()
             same = [row for row in prior if row["model"] == model]
             if (
@@ -598,6 +696,8 @@ class Runner:
                     actual_model=observed.get("actual_model"),
                     finish_reason=observed.get("finish_reason"),
                     usage_known=observed.get("usage_known", False),
+                    diagnostic=observed.get("diagnostic"),
+                    error_reason=observed.get("error_reason"),
                     usage={
                         name: observed.get(name)
                         for name in (
@@ -618,7 +718,7 @@ class Runner:
                 or result["status_code"] == 429
             ):
                 self.stopped[model] = "quota_429_no_retry"
-            if index == 0:
+            if index == availability_index:
                 self.stopped[model] = "availability_failed"
         result["duration_seconds"] = self.clock() - started
         write_json(folder / "generation.json", result, immutable=True)
@@ -645,6 +745,7 @@ def evaluate(root: Path) -> None:
     from tools.research.sol_strategy_lab import public_check
 
     manifest = read_json(root / "manifest.json")
+    verify_prior_probes(manifest)
     if manifest["source_hashes"] != source_hashes():
         raise ValueError("동결한 생성·평가·실행 소스가 바뀌었습니다")
     if manifest["evaluation_environment"] != evaluation_environment():
@@ -708,6 +809,7 @@ def quantile(values: list[float], probability: float):
 
 def report(root: Path) -> dict:
     manifest, ledger = read_json(root / "manifest.json"), Ledger(root)
+    verify_prior_probes(manifest)
     if "source_hashes" in manifest and manifest["source_hashes"] != source_hashes():
         raise ValueError("동결한 생성·평가·실행 소스가 바뀌었습니다")
     rows = []
@@ -776,7 +878,10 @@ def report(root: Path) -> dict:
                 quality = 0
             scores.append(quality)
         observed_scores = [value for value in scores if value is not None]
-        availability_path = root / "trials" / model / "0/generation.json"
+        availability_index = manifest.get("availability_quality_index", 0)
+        availability_path = (
+            root / "trials" / model / str(availability_index) / "generation.json"
+        )
         availability = (
             read_json(availability_path)
             if availability_path.exists()
@@ -791,6 +896,8 @@ def report(root: Path) -> dict:
             {
                 "model": model,
                 "availability": availability,
+                "availability_quality_index": availability_index,
+                "prior_failed_probe_attempts": 1 if manifest.get("prior_probes") else 0,
                 "expected_artifacts": 12,
                 "generated": generated,
                 "generation_success_rate": generated / 12,
@@ -854,6 +961,11 @@ def report(root: Path) -> dict:
         "cohort": manifest["cohort"],
         "models": rows,
         "generation_attempts": len(ledger.reserved()),
+        "total_generation_attempts_with_prior": len(ledger.reserved())
+        + manifest["external_generation_attempts"],
+        "prior_failed_probe_attempts": manifest.get("prior_probes", {}).get(
+            "consumed_generation_attempts", 0
+        ),
         "attempt_ceiling": ATTEMPT_CEILING,
         "external_generation_attempts": manifest["external_generation_attempts"],
         "cost": "UNKNOWN",
@@ -878,6 +990,7 @@ def main() -> None:
     parser.add_argument("--quota-evidence", type=Path)
     parser.add_argument("--models-file", type=Path)
     parser.add_argument("--metadata-project-id")
+    parser.add_argument("--prior-probes", type=Path)
     args = parser.parse_args()
     root = args.run_dir.resolve()
     if not root.is_relative_to(ROOT / "runs"):
@@ -907,6 +1020,10 @@ def main() -> None:
                 manifest = build_manifest(
                     evidence, read_json(args.quota_evidence), listed
                 )
+                if args.prior_probes:
+                    bind_prior_probes(
+                        manifest, args.prior_probes, root, key_hash=key_hash
+                    )
                 manifest["evaluation_environment"] = evaluation_environment()
                 write_json(root / "manifest.json", manifest, immutable=True)
                 Runner(root, manifest, key).run()

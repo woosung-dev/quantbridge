@@ -80,7 +80,7 @@ class GeminiEvalTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
+        self.root = Path(self.directory.name).resolve()
         self.clock = FakeClock()
 
     def runner(self, data=None, caller=None):
@@ -223,6 +223,101 @@ class GeminiEvalTests(unittest.TestCase):
         result = subject.read_json(self.root / "trials" / subject.MODELS[0] / "0/generation.json")
         self.assertEqual(result["usage"]["input_tokens"], 23)
         self.assertIsNone(result["usage"]["output_tokens"])
+
+    def prior_probe_epoch(self):
+        prior = self.root / "runs" / "prior"
+        prior.mkdir(parents=True)
+        old = manifest()
+        old["source_hashes"] = {"provider": "old-schema-source"}
+        subject.write_json(prior / "manifest.json", old)
+        subject.write_json(
+            prior / ".credential-binding.json", {"key_file_sha256": "approved-fake-key"}
+        )
+
+        class BadSchema(Exception):
+            status_code = 400
+
+        def bad_schema(*args):
+            raise BadSchema("original failure body is never copied")
+
+        runner = subject.Runner(
+            prior,
+            old,
+            None,
+            caller=bad_schema,
+            clock=self.clock,
+            sleep=self.clock.sleep,
+            payload_validator=lambda value: value,
+        )
+        for model in subject.MODELS:
+            runner.attempt(model, 0)
+        return prior
+
+    def test_prior_seven_failed_probes_and_new_quality_84_share_exact_91_budget(self):
+        prior = self.prior_probe_epoch()
+        child = prior / "cohort-v2"
+        child.mkdir()
+        new = manifest()
+        with patch.object(subject, "ROOT", self.root):
+            subject.bind_prior_probes(new, prior, child, key_hash="approved-fake-key")
+        archived = {name: (prior / name).read_bytes() for name in new["prior_probes"]["files"]}
+        calls = []
+
+        def valid(*args):
+            calls.append(1)
+            return response()
+
+        runner = subject.Runner(
+            child,
+            new,
+            None,
+            caller=valid,
+            clock=self.clock,
+            sleep=self.clock.sleep,
+            payload_validator=lambda value: value,
+        )
+        runner.run()
+        self.assertEqual(len(calls), 84)
+        self.assertEqual(new["external_generation_attempts"] + len(runner.ledger.reserved()), 91)
+        self.assertTrue(all(not row["slot"].endswith("/0") for row in runner.ledger.reserved()))
+        self.assertEqual({name: (prior / name).read_bytes() for name in archived}, archived)
+
+    def test_failed_first_quality_generation_stops_model_without_extra_hold_probe(self):
+        prior = self.prior_probe_epoch()
+        child = prior / "cohort-v2"
+        child.mkdir()
+        new = manifest()
+        with patch.object(subject, "ROOT", self.root):
+            subject.bind_prior_probes(new, prior, child, key_hash="approved-fake-key")
+
+        class Forbidden(Exception):
+            status_code = 403
+
+        def forbidden(*args):
+            raise Forbidden("safe")
+
+        runner = subject.Runner(
+            child,
+            new,
+            None,
+            caller=forbidden,
+            clock=self.clock,
+            sleep=self.clock.sleep,
+            payload_validator=lambda value: value,
+        )
+        runner.run()
+        self.assertEqual(len(runner.ledger.reserved()), 7)
+        self.assertTrue(all(row["slot"].endswith("/1") for row in runner.ledger.reserved()))
+
+    def test_prior_archive_mutation_is_rejected_before_any_new_call(self):
+        prior = self.prior_probe_epoch()
+        new = manifest()
+        with patch.object(subject, "ROOT", self.root):
+            subject.bind_prior_probes(new, prior, prior / "cohort-v2", key_hash="approved-fake-key")
+        with (prior / "attempts.jsonl").open("a") as stream:
+            stream.write("\n")
+        with self.assertRaisesRegex(ValueError, "이전 epoch"):
+            subject.Runner(self.root, new, None, caller=lambda *args: response())
 
     def test_invalid_generated_code_keeps_reported_usage_and_source_without_availability(self):
         def reject(value):

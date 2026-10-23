@@ -13,7 +13,7 @@ SDK 스키마는 지킨다. `convert/service.py`도 같은 `complete_json` 계�
 | --- | --- | --- |
 | anthropic | tool use + `tool_choice` 고정 | 도구 응답이 없으면 실패로 본다 |
 | openai | Structured Outputs (`strict: true`) | 제약 디코딩이라 스키마 위반이 구조적으로 불가능 |
-| gemini | `response_mime_type` + `response_schema` | |
+| gemini | `response_mime_type` + `response_json_schema` | JSON Schema를 원형대로 전달 |
 
 ★**[BL-772] 계약** — provider 예외 문자열(엔드포인트·모델·요청 ID)을 위로 흘리지 않는다.
 SDK 원문은 로그에도 남기지 않으며 호출자는 안전한 분류·상태만 가진 `RuntimeError` 를 본다.
@@ -91,6 +91,58 @@ class ProviderCallError(RuntimeError):
         super().__init__(f"LLM provider 요청 실패: {category}")
 
 
+def _safe_diagnostic(exc: Exception) -> dict[str, str | None]:
+    """SDK 메시지는 메모리에서만 분류하고 정해진 enum 값만 반환한다."""
+    raw = getattr(exc, "message", None)
+    message = raw.lower() if isinstance(raw, str) else ""
+    if "api key" in message and ("not valid" in message or "invalid" in message):
+        diagnostic = "api_key_invalid"
+    elif any(
+        marker in message
+        for marker in (
+            "response_schema",
+            "responseschema",
+            "additional_properties",
+            "additionalproperties",
+            "response_json_schema",
+            "responsejsonschema",
+        )
+    ):
+        diagnostic = "schema_invalid"
+    elif "billing" in message and any(
+        marker in message for marker in ("required", "enable", "disabled")
+    ):
+        diagnostic = "billing_required"
+    elif "model" in message and any(
+        marker in message for marker in ("not found", "not supported", "unsupported")
+    ):
+        diagnostic = "model_unsupported"
+    else:
+        diagnostic = "unknown_validation"
+    reason = None
+    details = getattr(exc, "details", None)
+    if isinstance(details, dict):
+        error = details.get("error", details)
+        items = error.get("details", []) if isinstance(error, dict) else []
+        if isinstance(items, list):
+            for item in items:
+                if (
+                    isinstance(item, dict)
+                    and item.get("@type") == "type.googleapis.com/google.rpc.ErrorInfo"
+                    and item.get("reason")
+                    in {
+                        "API_KEY_INVALID",
+                        "API_KEY_SERVICE_BLOCKED",
+                        "SERVICE_DISABLED",
+                        "BILLING_DISABLED",
+                        "API_KEY_EXPIRED",
+                    }
+                ):
+                    reason = item["reason"]
+                    break
+    return {"diagnostic": diagnostic, "error_reason": reason}
+
+
 def _safe_failure(exc: Exception) -> ProviderCallError:
     if isinstance(exc, ProviderCallError):
         return exc
@@ -108,7 +160,8 @@ def _safe_failure(exc: Exception) -> ProviderCallError:
         category = "validation"
     else:
         category = "unavailable"
-    return ProviderCallError(category, status)
+    metadata = _safe_diagnostic(exc) if status in (400, 401, 403, 404, 422) else None
+    return ProviderCallError(category, status, metadata=metadata)
 
 
 def secret(value: Any) -> str:
@@ -278,7 +331,7 @@ def _call_gemini(
                 system_instruction=system,
                 max_output_tokens=max_output_tokens,
                 response_mime_type="application/json",
-                response_schema=schema,
+                response_json_schema=schema,
             ),
         )
         candidates = getattr(response, "candidates", None) or []

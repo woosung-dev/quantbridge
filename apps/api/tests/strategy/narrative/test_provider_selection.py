@@ -200,12 +200,68 @@ def test_openai_uses_structured_outputs_strict(monkeypatch):
     assert rf["json_schema"]["schema"]["additionalProperties"] is False
 
 
-def test_gemini_uses_response_schema(monkeypatch):
+def test_gemini_uses_json_schema_without_openapi_schema_conversion(monkeypatch):
     cap: dict[str, Any] = {}
     stub_gemini(monkeypatch, cap)
     call(settings("gemini", gemini="k"))
     assert cap["config"].response_mime_type == "application/json"
-    assert cap["config"].response_schema is not None
+    assert cap["config"].response_json_schema == SCHEMA
+    assert cap["config"].response_schema is None
+
+
+def test_gemini_json_schema_wire_preserves_strict_properties_without_network(monkeypatch):
+    """실제 SDK 직렬화를 MockTransport로 검사한다. 외부 HTTP는 발생하지 않는다."""
+    import httpx
+
+    from src.strategy.code_generate_prompt import CODE_GENERATION_SCHEMA
+
+    captured = []
+
+    def handle(request):
+        captured.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "content": {"parts": [{"text": json.dumps(PAYLOAD)}], "role": "model"},
+                        "finishReason": "STOP",
+                    }
+                ],
+                "modelVersion": "offline-gemini-version",
+            },
+        )
+
+    transport = httpx.MockTransport(handle)
+    create_client = P.genai.Client
+
+    def offline_client(**kwargs):
+        options = kwargs["http_options"]
+        kwargs["http_options"] = options.model_copy(
+            update={"client_args": {"transport": transport}}
+        )
+        return create_client(**kwargs)
+
+    monkeypatch.setattr(P.genai, "Client", offline_client)
+    result = P.complete_json(
+        settings("gemini", gemini="offline-test-only-key"),
+        system="공개 실행 계약",
+        user="실행 Python을 생성하세요",
+        schema=CODE_GENERATION_SCHEMA,
+        tool_name="emit_python_code_strategy",
+        max_output_tokens=16384,
+        timeout_seconds=180,
+    )
+    assert result.payload == PAYLOAD
+    assert result.actual_model == "offline-gemini-version"
+    assert len(captured) == 1
+    generation = captured[0]["generationConfig"]
+    assert generation["responseJsonSchema"] == CODE_GENERATION_SCHEMA
+    assert generation["responseJsonSchema"]["additionalProperties"] is False
+    assert generation["responseMimeType"] == "application/json"
+    assert "responseSchema" not in generation
+    assert "additional_properties" not in json.dumps(captured[0])
+    assert "property_ordering" not in json.dumps(captured[0])
 
 
 def test_gemini_quota_failure_does_not_call_paid_providers(monkeypatch):
@@ -410,6 +466,54 @@ def test_sdk_failure_metadata_is_safe_and_preserves_status(monkeypatch, caplog, 
     assert leaked not in str(error.value) + caplog.text
     assert all(record.exc_info is None for record in caplog.records)
     generate.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "message,diagnostic,reason",
+    [
+        ("API key not valid: private-test-value", "api_key_invalid", "API_KEY_INVALID"),
+        (
+            "Invalid responseSchema additional_properties: private-test-value",
+            "schema_invalid",
+            None,
+        ),
+        ("Billing must be enabled for private-test-value", "billing_required", "BILLING_DISABLED"),
+        ("Model private-test-value is not supported", "model_unsupported", None),
+        ("Private details private-test-value", "unknown_validation", None),
+    ],
+)
+def test_sdk_diagnostic_only_preserves_allowlisted_enums(
+    monkeypatch, caplog, message, diagnostic, reason
+):
+    from google.genai.errors import ClientError
+
+    exc = ClientError(
+        400,
+        {
+            "error": {
+                "code": 400,
+                "message": message,
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                        "reason": reason or "private-test-value",
+                        "metadata": {
+                            "key": "private-test-value",
+                            "consumer": "projects/private-test-value",
+                        },
+                    }
+                ],
+            }
+        },
+    )
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=Mock(side_effect=exc)))
+    monkeypatch.setattr(P.genai, "Client", lambda **kw: client)
+    with pytest.raises(P.ProviderCallError) as error:
+        call(settings("gemini", gemini="offline-test-only-key"))
+    assert error.value.metadata == {"diagnostic": diagnostic, "error_reason": reason}
+    observed = json.dumps(error.value.metadata) + str(error.value) + caplog.text
+    assert "private-test-value" not in observed
+    assert all(record.exc_info is None for record in caplog.records)
 
 
 def test_timeout_is_separate_from_provider_unavailability(monkeypatch, caplog):
