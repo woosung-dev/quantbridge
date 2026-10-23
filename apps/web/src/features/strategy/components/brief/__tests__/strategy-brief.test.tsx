@@ -184,6 +184,48 @@ describe("StrategyBriefPanel — 결정론 층", () => {
     expect(body).toContain("3");
   });
 
+  it("긴 파이썬 뷰는 펼칠 때만 줄 DOM과 원본 대응표를 만든다", () => {
+    const sourceMap: [number, number][] = [
+      [1, 9],
+      [1000, 1009],
+    ];
+    const iterateSourceMap = vi.spyOn(sourceMap, Symbol.iterator);
+    ready(
+      makeBrief({
+        python_view: {
+          code: `${Array.from({ length: 1000 }, (_, i) => `line_${i + 1} = ${i + 1}`).join("\n")}\n`,
+          source_map: sourceMap,
+          unrendered: 0,
+        },
+      }),
+    );
+    const { container } = render(<StrategyBriefPanel strategyId="s-1" />);
+    const button = screen.getByRole("button", { name: "펼치기" });
+    const body = container.querySelector("#python-view-body");
+
+    expect(body).not.toBeNull();
+    expect(body?.hasAttribute("hidden")).toBe(true);
+    expect(button.getAttribute("aria-controls")).toBe("python-view-body");
+    expect(container.querySelectorAll(".python-view-line")).toHaveLength(0);
+    expect(iterateSourceMap).not.toHaveBeenCalled();
+
+    fireEvent.click(button);
+
+    const rows = container.querySelectorAll(".python-view-line");
+    expect(rows).toHaveLength(1000);
+    expect(iterateSourceMap).toHaveBeenCalled();
+    expect(rows[0]?.querySelector(".sr-only")?.textContent).toBe("원본 9행 ");
+    expect(rows[0]?.querySelector(".python-view-code")?.textContent).toBe("line_1 = 1");
+    expect(rows[1]?.querySelector(".sr-only")).toBeNull();
+    expect(rows[999]?.querySelector(".sr-only")?.textContent).toBe("원본 1009행 ");
+    expect(body?.hasAttribute("hidden")).toBe(false);
+
+    fireEvent.click(button);
+    expect(container.querySelectorAll(".python-view-line")).toHaveLength(0);
+    expect(body?.hasAttribute("hidden")).toBe(true);
+    iterateSourceMap.mockRestore();
+  });
+
   it("옮기지 못한 곳이 있으면 「지운 것이 아니다」를 말한다", () => {
     ready(
       makeBrief({
@@ -289,5 +331,10 @@ describe("StrategyBriefPanel — 결정론 층", () => {
     expect(document.body.contains(btn)).toBe(true);
     expect(document.activeElement).toBe(btn);
     expect(btn.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(btn);
+    expect(document.body.contains(btn)).toBe(true);
+    expect(document.activeElement).toBe(btn);
+    expect(btn.getAttribute("aria-expanded")).toBe("false");
   });
 });

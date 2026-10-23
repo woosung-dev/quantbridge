@@ -2447,6 +2447,19 @@
             "title": "Strategy Id",
             "type": "string"
           },
+          "strategy_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "code_v1에서 실행할 소유 전략의 불변 버전 ID입니다. 생략하면 현재 버전을 사용하며 기존 Pine 경로에서는 허용하지 않습니다.",
+            "title": "Strategy Version Id"
+          },
           "symbol": {
             "maxLength": 32,
             "minLength": 3,

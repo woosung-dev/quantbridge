@@ -94,9 +94,12 @@ vi.stubGlobal("fetch", fetchMock);
 
 import OnboardingPage from "../page";
 import { createInitialState, useOnboardingStore } from "@/features/onboarding/store";
+import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
 
 function resetStoreAndMocks() {
+  resetAuthMock();
   useOnboardingStore.setState(createInitialState());
+  useOnboardingStore.getState().bindOwner(authMockState.userId!);
   if (typeof window !== "undefined") {
     window.localStorage.removeItem("qb-onboarding-v1");
   }
@@ -117,22 +120,30 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     cleanup();
   });
 
-  it("마운트 뒤 저장된 진행도를 복원한다(store 는 skipHydration — 첫 렌더는 SSR 과 같은 welcome)", () => {
+  it("마운트 뒤 같은 owner의 진행도를 복원한다", async () => {
     window.localStorage.setItem(
       "qb-onboarding-v1",
       JSON.stringify({
-        state: { step: "strategy", strategyId: null, backtestId: null, startedAt: Date.now() },
+        state: {
+          ownerUserId: authMockState.userId,
+          step: "strategy",
+          strategyId: null,
+          backtestId: null,
+          startedAt: Date.now(),
+        },
         version: 1,
       }),
     );
     render(<OnboardingPage />);
-    expect(screen.getByTestId("onboarding-step-panel").getAttribute("data-step")).toBe("strategy");
+    expect((await screen.findByTestId("onboarding-step-panel")).getAttribute("data-step")).toBe(
+      "strategy",
+    );
   });
 
-  it("step 전진/후진: setStep 호출 시 렌더 패널이 바뀐다", () => {
+  it("step 전진/후진: setStep 호출 시 렌더 패널이 바뀐다", async () => {
     render(<OnboardingPage />);
     // 초기 welcome panel 이 렌더
-    const panel = screen.getByTestId("onboarding-step-panel");
+    const panel = await screen.findByTestId("onboarding-step-panel");
     expect(panel.getAttribute("data-step")).toBe("welcome");
     expect(screen.getByText(/QuantBridge 에 오신 것을 환영합니다/)).toBeInTheDocument();
 
@@ -165,7 +176,7 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     useOnboardingStore.getState().setStep("strategy");
     render(<OnboardingPage />);
 
-    const triggerBtn = screen.getByRole("button", {
+    const triggerBtn = await screen.findByRole("button", {
       name: /샘플 전략 등록 및 다음 단계/,
     });
 
@@ -188,7 +199,7 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     expect(state.step).toBe("backtest");
   });
 
-  it("5분 TTL 만료 시 mount 시점에 welcome step 으로 reset", () => {
+  it("5분 TTL 만료 시 mount 시점에 welcome step 으로 reset", async () => {
     // 진행 중 상태를 시뮬레이션 (strategy step, strategyId 세팅, startedAt 과거)
     useOnboardingStore.setState({
       step: "backtest",
@@ -198,6 +209,7 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     });
 
     render(<OnboardingPage />);
+    await screen.findByTestId("onboarding-step-panel");
 
     const state = useOnboardingStore.getState();
     expect(state.step).toBe("welcome");

@@ -183,6 +183,7 @@ export function useCodeWorkspace(initialStrategyId?: string) {
       return submitCodeBacktest(
         {
           strategy_id: selected.id,
+          strategy_version_id: selected.version.id,
           symbol: draft.symbol,
           timeframe: draft.timeframe,
           period_start: `${dates.start}T00:00:00Z`,

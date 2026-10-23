@@ -61,6 +61,7 @@ export async function saveCodeStrategy(
 export async function submitCodeBacktest(
   body: {
     strategy_id: string;
+    strategy_version_id: string;
     symbol: string;
     timeframe: string;
     period_start: string;

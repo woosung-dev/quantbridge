@@ -250,6 +250,7 @@ describe("수동 코드 전략 API", () => {
     vi.stubGlobal("fetch", fetchMock);
     const body = {
       strategy_id: STRATEGY_ID,
+      strategy_version_id: VERSION_ID,
       symbol: "BTC/USDT",
       timeframe: "1h",
       period_start: "2026-01-01T00:00:00Z",
@@ -276,6 +277,7 @@ describe("수동 코드 전략 API", () => {
       submitCodeBacktest(
         {
           strategy_id: STRATEGY_ID,
+          strategy_version_id: VERSION_ID,
           symbol: "BTC/USDT",
           timeframe: "1h",
           period_start: "2026-01-01T00:00:00Z",
