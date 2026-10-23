@@ -132,6 +132,21 @@ epoch는 6 CPU·8 GiB VM에서 최대 6개이며 guest당 1 CPU·1 GiB와 900초
 새 계산은 시작·완료 증거를 남기고 단일 writer가 배타적으로 게시한다. 중단된 미게시 작업은
 별도 인프라 중단으로 보존하며 모델의 실패 행을 새로 만들지 않는다. 자원 변경이 wall timeout에
 주는 영향은 미확정이고, 실제 가속률은 별도로 관찰한다.
+원격 분산을 추가할 때는 공개 저장소의 무료 표준 `ubuntu-24.04-arm` runner만 사용한다.
+최대 16개 host에 각각 4개 worker를 배치하며 유료 runner·Actions artifact/cache·Packages·LFS를
+사용하지 않는다. 외부 Release에는 인증 암호문만 게시하고 단기 CI secret은 평가 환경에
+전달하지 않는다. 원본 source·hidden 입력·결과 원문과 실제 계정 키는 공개하지 않는다.
+원격의 수치 재생성이 기존 Mac 입력 digest와 달라지면 기존 Mac의 1,200봉 값을 JSON으로
+봉인해 전달한다. 별도 v8 입력 provider가 dtype·UTC index·freq와 두 원 digest를 검증한 뒤
+복사본을 공급하며 원 평가·oracle·채점 함수와 기대 hash는 유지한다. 기존 v7 실패 증거와
+입력 재생성 차이를 보존하고 제품 소스는 교체하지 않는다.
+호스트별 정확한 Python·package·원 이미지 ID·runsc SHA와 hidden 입력 digest, 수동 3언어
+fixture를 먼저 검증한다. 기존 완료 캐시는 원문 SHA로 보존하고, 인계 중 추가로 중단된
+미게시 native 작업도 별도 인프라 증거로 남기며 원 1,350 분모·실패·기간·5회 fresh 검증을
+줄이지 않는다. 원격 결과는 고정 shard와 입력 SHA를 검증한 단일 부모만 게시한다.
+혼합 host의 자원·처리량·timeout은 별도 epoch 기술 통계다. 동일 코드·입력·이미지라도
+호스트 성능과 wall deadline 영향은 달라질 수 있어 결과 동등성이나 품질 무손실을 보증하지 않는다.
+
 산출물마다 원 실행·동일 재실행·prefix·원본 및 반전 가격의 외부 포지션 probe에 각각
 새 transport를 사용한다. 캐시는 실제 평가 소스 SHA·입력 identity가 모두 맞아야 재사용한다.
 구형 결과에 SHA를 사후 부착해 인증하지 않는다.
@@ -221,3 +236,7 @@ Docker context는 바꾸지 않는다. gVisor·network none·read-only·nonroot�
 점수나 반복 선택을 바꾸지 않는다. `final_selection_allowed`는 본 평가 완료·증거 요건이며
 운영 승인이나 Demo 적합성을 뜻하지 않는다.
 실제 Demo 주문 관측과 배포는 별도 승인 전까지 미검증 상태로 남긴다.
+
+개발용 원격 사전 검사는 201개 1시간봉과 `freq="1h"`를 함께 고정한다.
+초기 사전 검사에서 누락된 freq는 transport 생성 전 데이터 검증으로 거절되었으며,
+해당 개발 fixture 실패를 연구 전략의 실패 점수나 완료 건수에 넣지 않는다.

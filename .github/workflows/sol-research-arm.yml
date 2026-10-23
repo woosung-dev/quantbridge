@@ -1,0 +1,121 @@
+# 설계: docs/development/sol-strategy-lab.md. 암호문만 외부로 보내고 계산은 원 동결 worker에 위임한다.
+name: Sol research ARM epoch 8
+
+on:
+  pull_request:
+    branches: [stage/sol-strategy-lab]
+    types: [labeled]
+    paths:
+      - .github/workflows/sol-research-arm.yml
+      - tools/research/sol_arm_bootstrap.py
+      - tools/research/sol_research_crypto.py
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-shard:
+    # PR 번호·입력 hash가 실제 검토값으로 교체되기 전에는 실행되지 않는다.
+    if: >-
+      github.repository == 'woosung-dev/quantbridge' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'stage/sol-research-arm-runners' &&
+      github.event.pull_request.number == 925 && github.run_attempt == 1 &&
+      (github.event.label.name == 'sol-research-arm-preflight' ||
+       github.event.label.name == 'sol-research-arm-execute')
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 330
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        shard: ${{ fromJSON(github.event.label.name == 'sol-research-arm-execute' && '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]' || '[0]') }}
+    concurrency:
+      group: sol-research-epoch8-${{ github.event.label.name }}-${{ matrix.shard }}
+      cancel-in-progress: false
+    env:
+      MODE: ${{ github.event.label.name == 'sol-research-arm-execute' && 'execute' || 'preflight' }}
+      SHARD: ${{ matrix.shard }}
+      # root 검토 후 고정한다. 0 hash는 helper가 거절한다. 저장소·경로는 공개 metadata다.
+      INPUT_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/input.enc
+      INPUT_SHA256: 'd5c85d3fd8bb1c9788d00f43692dea1244ba0066575b0acdab7131394a910f39'
+      OVERLAY_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/semantic-execute-v8.enc
+      OVERLAY_SHA256: '78ab7d23841efa1588d99bf2951002f5927e8d0b2cd04db3f5f22c8461e5e972'
+      REVISION_URL: https://github.com/woosung-dev/quantbridge/releases/download/sol-research-epoch7-20261023/revision-v8-freq1h.enc
+      REVISION_SHA256: '04e721d0636bf6a3beb9cb9e93d69a06fec1f73e9df8896527a39387f963150a'
+      CRYPTO_SHA256: '340b8d2bda7515addb4d70a7e3aed8784d4d7f546af68e6de8930e4ccf2b2d1e'
+      RELEASE_ID: '420970222'
+      RELEASE_TAG: sol-research-epoch7-20261023
+      UV_NO_CACHE: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        with:
+          install_args: python uv
+          cache: false
+          cache_save: false
+          env: false
+      - name: Prepare public bootstrap dependencies from repository lock
+        run: uv sync --project apps/api --frozen --no-dev
+      - name: Authenticate and extract private input
+        env:
+          SOL_RESEARCH_EPOCH7_KEY: ${{ secrets.SOL_RESEARCH_EPOCH7_KEY }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_arm_bootstrap.py prepare
+          --directory "$RUNNER_TEMP/sol-epoch7" --mode "$MODE" --shard "$SHARD"
+          --url "$INPUT_URL" --sha256 "$INPUT_SHA256"
+          --overlay-url "$OVERLAY_URL" --overlay-sha256 "$OVERLAY_SHA256"
+          --revision-url "$REVISION_URL" --revision-sha256 "$REVISION_SHA256"
+          --crypto tools/research/sol_research_crypto.py --crypto-sha256 "$CRYPTO_SHA256"
+      - name: Match frozen host dependency versions without cache storage
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_arm_bootstrap.py dependencies
+          --directory "$RUNNER_TEMP/sol-epoch7"
+      - name: Install only pinned runtime and exact native images
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_arm_bootstrap.py runtime
+          --directory "$RUNNER_TEMP/sol-epoch7"
+      - name: Reserve immutable execute shard before any calculation
+        if: env.MODE == 'execute'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_arm_bootstrap.py claim
+          --directory "$RUNNER_TEMP/sol-epoch7" --shard "$SHARD"
+          --release-id "$RELEASE_ID" --run-id "$GITHUB_RUN_ID"
+      - name: Preflight by default or execute exact assigned shard
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_arm_bootstrap.py run
+          --directory "$RUNNER_TEMP/sol-epoch7" --mode "$MODE" --shard "$SHARD"
+      - name: Observe and clean only owned isolated guests
+        if: always()
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_arm_bootstrap.py cleanup
+          --directory "$RUNNER_TEMP/sol-epoch7"
+      - name: Seal private result and diagnostics
+        if: always()
+        env:
+          SOL_RESEARCH_EPOCH7_KEY: ${{ secrets.SOL_RESEARCH_EPOCH7_KEY }}
+        run: >-
+          apps/api/.venv/bin/python tools/research/sol_arm_bootstrap.py pack
+          --directory "$RUNNER_TEMP/sol-epoch7" --shard "$SHARD"
+          --crypto tools/research/sol_research_crypto.py --crypto-sha256 "$CRYPTO_SHA256"
+      - name: Publish only ciphertext without Actions artifact or cache storage
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          result="$RUNNER_TEMP/sol-epoch7/result.enc"
+          if [ -f "$result" ]; then
+            asset="$RUNNER_TEMP/sol-epoch7/epoch8-$MODE-$SHARD-$GITHUB_RUN_ID.enc"
+            cp "$result" "$asset"
+            gh release upload "$RELEASE_TAG" "$asset" --repo woosung-dev/quantbridge
+          fi
