@@ -9,10 +9,14 @@
 인증된 `POST /strategies/code/generate`는 자연어 `prompt`, `warmup_bars`, JSON `params`를
 받아 Python 코드 스냅샷·가정·요청/응답 모델·관측 usage를 반환한다. 응답은 preview이며
 DB 저장이나 전략 실행을 하지 않는다. 구문·함수 진입점 확인은 실행·의미 검증 통과가 아니다.
+JSON Schema는 Gemini SDK의 `response_json_schema`로 전달해 `additionalProperties` 등
+JSON 필드를 원형대로 유지한다. OpenAPI 하위집합인 `response_schema`로 변환하지 않는다.
 
 사용자는 원문과 가정을 검토하고 적용을 눌러 편집기에 옮긴다. 버전 저장과 백테스트 요청은
 각각 별도 행동이다. 미저장 변경이 있으면 백테스트를 제출하지 않는다. 생성·적용·저장으로
 Demo를 시작하지 않는다. 계정 또는 선택 전략이 바뀐 뒤 도착한 오래된 생성 응답은 버린다.
+작업 공간의 인증 쿼리는 hydration 뒤 브라우저에서 시작한다. 원문·파라미터의 label은
+textarea 값과 분리해 코드가 바뀌어도 이름 연결을 유지한다.
 
 적용된 source·language·params·warmup이 유지될 때 생성 출처를 보존한다. 사용자가 코드를
 바꾸면 수동 편집 출처와 부모 버전을 기록한다. 이 provenance는 출처 설명이며 모델 생성이나

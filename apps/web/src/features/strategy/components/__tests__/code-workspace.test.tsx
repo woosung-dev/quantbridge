@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ apiFetch: vi.fn(), push: vi.fn() }));
@@ -23,6 +24,7 @@ import {
   type GenerateCodeStrategyResponse,
 } from "@/features/strategy/code-schemas";
 import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
+import { getAuthToken } from "@/lib/auth-client";
 import { ApiError, type RequestOptions } from "@/lib/api-client";
 import { CodeWorkspace } from "../code-workspace";
 import type { ExchangeAccount } from "@/features/trading/schemas";
@@ -184,6 +186,20 @@ afterEach(() => {
 });
 
 describe("코드 전략 작업 공간", () => {
+  it("서버 렌더는 브라우저 인증 토큰과 코드 목록을 요청하지 않는다", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    clients.push(client);
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <CodeWorkspace />
+      </QueryClientProvider>,
+    );
+    await Promise.resolve();
+    expect(html).toContain("코드 전략을 불러오는 중");
+    expect(getAuthToken).not.toHaveBeenCalled();
+    expect(mocks.apiFetch).not.toHaveBeenCalled();
+  });
+
   it("생성 preview는 명시 적용·저장·백테스트를 각각 눌러야 전진한다", async () => {
     setup();
     await ready();
@@ -202,6 +218,12 @@ describe("코드 전략 작업 공간", () => {
     expect(screen.getByRole("button", { name: "백테스트 실행" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "이 Python 초안 적용" }));
     expect(screen.getByLabelText("소스 코드")).toHaveValue(generatedPreview().code.source_code);
+    expect(
+      (screen.getByLabelText("소스 코드") as HTMLTextAreaElement).labels?.[0]?.textContent,
+    ).toBe("소스 코드");
+    expect(
+      (screen.getByLabelText("파라미터 JSON") as HTMLTextAreaElement).labels?.[0]?.textContent,
+    ).toBe("파라미터 JSON");
     expect(screen.getByLabelText("준비 봉 수")).toHaveValue(40);
     expect(screen.getByLabelText("실행 언어")).toHaveValue("python");
     expect(
