@@ -245,6 +245,29 @@ describe("OptimizerRunList — C 시맨틱 구조 (screen-09 02 목록)", () => 
 });
 
 describe("OptimizerRunDetail — C 시맨틱 구조 (screen-10)", () => {
+  it("실행 헤더 갱신에는 같은 grid 결과를 재정렬하지 않는다", () => {
+    const map = vi.spyOn(GRID_RESULT.cells, "map");
+    try {
+      runResult = { data: completedGridRun(), isLoading: false, error: null, refetch: vi.fn() };
+      const { rerender } = render(<OptimizerRunDetail runId={UUID} />);
+      expect(map).toHaveBeenCalledTimes(1);
+      runResult = {
+        ...runResult,
+        data: { ...completedGridRun(), completed_at: "2026-04-14T12:43:00+00:00" },
+      };
+      rerender(<OptimizerRunDetail runId={UUID} />);
+      expect(map).toHaveBeenCalledTimes(1);
+      runResult = {
+        ...runResult,
+        data: { ...completedGridRun(), result: { ...GRID_RESULT, direction: "minimize" } },
+      };
+      rerender(<OptimizerRunDetail runId={UUID} />);
+      expect(map).toHaveBeenCalledTimes(2);
+    } finally {
+      map.mockRestore();
+    }
+  });
+
   it("완료 grid — .report 헤더 + 상태 칩 + 파라미터 공간 trust-row", () => {
     runResult = { data: completedGridRun(), isLoading: false, error: null, refetch: vi.fn() };
     const { container } = render(<OptimizerRunDetail runId={UUID} />);

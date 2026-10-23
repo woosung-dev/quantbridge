@@ -200,6 +200,7 @@ function syncSeries(
   refs: SeriesRefs,
   snapshot: SeriesSnapshot,
   resolvedPalette?: ChartPalette,
+  previous?: SeriesSnapshot,
 ) {
   const { data, options, markers, benchmark, compare, area, histogram } = snapshot;
 
@@ -222,15 +223,15 @@ function syncSeries(
       lastValueVisible: true,
       ...options,
     });
-  } else {
+  } else if (previous === undefined || previous.options !== options) {
     refs.main.current.applyOptions({ ...options });
   }
-  refs.main.current.setData(toLineData(data));
+  if (previous === undefined || previous.data !== data) {
+    refs.main.current.setData(toLineData(data));
+  }
 
-  if (markers !== undefined) {
-    refs.main.current.setMarkers(toMarkers(markers));
-  } else {
-    refs.main.current.setMarkers([]);
+  if (previous === undefined || previous.markers !== markers) {
+    refs.main.current.setMarkers(markers === undefined ? [] : toMarkers(markers));
   }
 
   // benchmark line series.
@@ -244,10 +245,12 @@ function syncSeries(
         lastValueVisible: false,
         ...benchmark.options,
       });
-    } else {
+    } else if (previous === undefined || previous.benchmark?.options !== benchmark.options) {
       refs.benchmark.current.applyOptions({ ...benchmark.options });
     }
-    refs.benchmark.current.setData(toLineData(benchmark.data));
+    if (previous === undefined || previous.benchmark?.data !== benchmark.data) {
+      refs.benchmark.current.setData(toLineData(benchmark.data));
+    }
   } else if (refs.benchmark.current !== null) {
     chart.removeSeries(refs.benchmark.current);
     refs.benchmark.current = null;
@@ -263,10 +266,12 @@ function syncSeries(
         lastValueVisible: false,
         ...compare.options,
       });
-    } else {
+    } else if (previous === undefined || previous.compare?.options !== compare.options) {
       refs.compare.current.applyOptions({ ...compare.options });
     }
-    refs.compare.current.setData(toLineData(compare.data));
+    if (previous === undefined || previous.compare?.data !== compare.data) {
+      refs.compare.current.setData(toLineData(compare.data));
+    }
   } else if (refs.compare.current !== null) {
     chart.removeSeries(refs.compare.current);
     refs.compare.current = null;
@@ -284,10 +289,12 @@ function syncSeries(
         lastValueVisible: false,
         ...area.options,
       });
-    } else {
+    } else if (previous === undefined || previous.area?.options !== area.options) {
       refs.area.current.applyOptions({ ...area.options });
     }
-    refs.area.current.setData(toAreaData(area.data));
+    if (previous === undefined || previous.area?.data !== area.data) {
+      refs.area.current.setData(toAreaData(area.data));
+    }
   } else if (refs.area.current !== null) {
     chart.removeSeries(refs.area.current);
     refs.area.current = null;
@@ -302,16 +309,28 @@ function syncSeries(
         lastValueVisible: false,
         ...histogram.options,
       });
-    } else {
+    } else if (previous === undefined || previous.histogram?.options !== histogram.options) {
       refs.histogram.current.applyOptions({ ...histogram.options });
     }
-    refs.histogram.current.setData(toHistogramData(histogram.data));
+    if (previous === undefined || previous.histogram?.data !== histogram.data) {
+      refs.histogram.current.setData(toHistogramData(histogram.data));
+    }
   } else if (refs.histogram.current !== null) {
     chart.removeSeries(refs.histogram.current);
     refs.histogram.current = null;
   }
 
-  chart.timeScale().fitContent();
+  // 옵션·마커만 바뀌면 시계열 범위는 그대로이므로 사용자의 확대 상태를 보존한다.
+  if (
+    previous === undefined ||
+    previous.data !== data ||
+    previous.benchmark?.data !== benchmark?.data ||
+    previous.compare?.data !== compare?.data ||
+    previous.area?.data !== area?.data ||
+    previous.histogram?.data !== histogram?.data
+  ) {
+    chart.timeScale().fitContent();
+  }
 }
 
 // --- component ------------------------------------------------------------
@@ -346,6 +365,7 @@ export function TradingChart({
 }: TradingChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const syncedPropsRef = useRef<SeriesSnapshot | undefined>(undefined);
   const mainSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const benchmarkSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const compareSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
@@ -431,6 +451,7 @@ export function TradingChart({
 
       // 초기 시리즈 채움 — data effect 는 chart 생성 전(chartRef null)에 이미
       // 지나갔을 수 있으므로 여기서 최신 스냅샷으로 직접 sync.
+      const snapshot = propsRef.current;
       syncSeries(
         chart,
         {
@@ -440,9 +461,10 @@ export function TradingChart({
           area: areaSeriesRef,
           histogram: histogramSeriesRef,
         },
-        propsRef.current,
+        snapshot,
         palette,
       );
+      syncedPropsRef.current = snapshot;
     });
 
     return () => {
@@ -455,6 +477,7 @@ export function TradingChart({
         chartRef.current.remove();
         chartRef.current = null;
       }
+      syncedPropsRef.current = undefined;
       mainSeriesRef.current = null;
       benchmarkSeriesRef.current = null;
       compareSeriesRef.current = null;
@@ -472,6 +495,7 @@ export function TradingChart({
     if (chart === null) {
       return;
     }
+    const snapshot = { data, options, markers, benchmark, compare, area, histogram };
     syncSeries(
       chart,
       {
@@ -481,8 +505,11 @@ export function TradingChart({
         area: areaSeriesRef,
         histogram: histogramSeriesRef,
       },
-      { data, options, markers, benchmark, compare, area, histogram },
+      snapshot,
+      undefined,
+      syncedPropsRef.current,
     );
+    syncedPropsRef.current = snapshot;
     // themeKey: init effect 가 테마 토글 시 chart 를 재생성(series ref null) → 본 effect 가
     // 재실행되어 재생성된 chart 에 series 를 다시 채워야 함 (빈 차트 방지).
   }, [data, markers, benchmark, compare, area, histogram, options, themeKey]);

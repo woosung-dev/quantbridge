@@ -38,7 +38,7 @@ import type { Order } from "@/features/trading/schemas";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { EMPTY_CELL } from "@/lib/labels";
 
-import { displayRealizedPnl, realizedPnlSource } from "./orders-blotter";
+import { displayRealizedPnl, realizedPnlSource } from "./order-fill-display";
 
 type OrderDetailDrawerProps = {
   order: Order | null;

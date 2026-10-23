@@ -3,6 +3,13 @@
 // 테마 색(viewport.themeColor)도 여기서 export.
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import {
+  CircleCheckIcon,
+  InfoIcon,
+  Loader2Icon,
+  OctagonXIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { AppProviders } from "@/components/providers/app-providers";
 import { LegalNoticeBanner } from "@/components/legal-notice-banner";
 import { Toaster } from "@/components/ui/sonner";
@@ -10,6 +17,19 @@ import { PwaBootstrap } from "@/features/pwa/components/pwa-bootstrap";
 import { BRAND_PALETTE } from "@/lib/brand-palette";
 import { archivo, ibmPlexMono } from "@/lib/fonts";
 import "@/styles/globals.css";
+
+// shadcn 이식분은 그대로 두고, 로딩 아이콘의 회전만 HTML 래퍼에 적용한다.
+const TOAST_ICONS = {
+  success: <CircleCheckIcon className="size-4" />,
+  info: <InfoIcon className="size-4" />,
+  warning: <TriangleAlertIcon className="size-4" />,
+  error: <OctagonXIcon className="size-4" />,
+  loading: (
+    <span className="inline-flex animate-spin">
+      <Loader2Icon className="size-4" />
+    </span>
+  ),
+};
 
 // DESIGN.md §3.1 — Precision Instrument 타이포 3종.
 // 본문 Pretendard Variable 은 globals.css 의 dynamic-subset @import 로 로드
@@ -63,7 +83,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* 서비스 워커 등록 — 앱 로드당 1회, load 이후(첫 렌더를 막지 않는다). 아무것도 그리지 않는다. */}
         <PwaBootstrap />
         {/* Sonner Toaster — provider 체인 최하단 (z-index: modal 위) */}
-        <Toaster position="top-center" richColors closeButton />
+        <Toaster position="top-center" richColors closeButton icons={TOAST_ICONS} />
       </body>
     </html>
   );

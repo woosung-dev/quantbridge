@@ -5,14 +5,14 @@
 
 // [BL-786]: 셸을 `ServerIdentityProvider` 로 감싼다 — SSR 이 이미 아는 사용자 id 를 첫 렌더에
 // 주지 않으면 React Query 키가 `anon` → 진짜 id 로 흔들려 목록·배지 요청이 전부 두 번 나간다.
-// `getServerAuth()` 는 `React.cache` 라 같은 요청의 페이지 호출과 왕복을 공유한다.
+// 세션 조회는 같은 요청의 페이지 prefetch와 캐시를 공유하고, 셸은 JWT를 발급하지 않는다.
 import type { ReactNode } from "react";
 import { DashboardShell } from "@/features/dashboard/components/dashboard-shell";
 import { ServerIdentityProvider } from "@/components/providers/server-identity-provider";
 import { ShortcutHelpDialog } from "@/components/shortcut-help-dialog";
-import { getServerAuth } from "@/lib/auth-server";
+import { getServerSession } from "@/lib/auth-server";
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  const { userId } = await getServerAuth();
+  const { userId } = await getServerSession();
   return (
     <ServerIdentityProvider userId={userId}>
       <div className="min-h-dvh bg-[color:var(--bg)] text-[color:var(--text-primary)]">

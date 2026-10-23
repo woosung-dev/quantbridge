@@ -299,6 +299,15 @@ graph TB
 
 ### 프런트엔드 구독·파생 계산 경계
 
+- 신원만 필요한 랜딩·앱 셸은 `getServerSession`, FastAPI prefetch는 `getServerAuth`를 사용한다.
+  요청 단위 세션 캐시는 공유하고 prefetch의 세션 확인·JWT 발급은 병렬로 시작한다.
+- 공용 `TradingChart`는 마지막으로 적용한 데이터·옵션·마커 참조를 시리즈별로 비교한다.
+  비교 오버레이만 바뀌면 다른 시리즈의 변환·`setData`를 반복하지 않는다. 옵션·마커 변경은
+  시간축을 다시 맞추지 않으며, 테마·높이 변경 시 인스턴스 재생성 계약은 유지한다.
+- Monaco 옵션은 읽기 전용 상태가 바뀔 때만 다시 전달한다. 범용 debounce는 공유 훅이 소유한다.
+- 선택형 AI 초안·온보딩 후속 단계·주문 상세는 사용 시점에 로드한다. AI 초안은 처음 연 뒤
+  마운트를 유지해 입력 상태를 보존한다. 코드 전략의 목록·계정 조회는 병렬로 시작한다.
+- 평가 산식과 측정 조건은 [FE 성능 평가](../development/frontend-performance.md)를 따른다.
 - 전략 편집의 원문 구독은 `EditorSourceSection`과 `DiagnosticsStrip`이 소유한다.
   `EditorView`는 전략 ID·변경 여부만 구독하고, 저장 시 `useEditStore.getState()`로 최신 원문을 읽는다.
   소스 영역은 `memo`로 부모의 저장·삭제 상태 변경과 분리한다.

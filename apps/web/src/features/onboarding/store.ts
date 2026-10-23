@@ -98,7 +98,29 @@ export const useOnboardingStore = create<OnboardingState>()(
             },
           };
         }
-        return window.localStorage;
+        return {
+          getItem: (key) => {
+            try {
+              return window.localStorage.getItem(key);
+            } catch {
+              return null;
+            }
+          },
+          setItem: (key, value) => {
+            try {
+              window.localStorage.setItem(key, value);
+            } catch {
+              // 저장 공간이 차단되어도 현재 세션의 메모리 진행도는 유지한다.
+            }
+          },
+          removeItem: (key) => {
+            try {
+              window.localStorage.removeItem(key);
+            } catch {
+              // 저장소 삭제 실패가 화면의 진행도 초기화를 막지 않게 한다.
+            }
+          },
+        };
       }),
       // 복원은 OnboardingView의 마운트 effect가 수행한다. 서버와 클라이언트 첫 렌더는
       // 준비 화면으로 맞추고, 복원·owner 검증이 끝난 뒤에만 저장된 단계를 마운트한다.

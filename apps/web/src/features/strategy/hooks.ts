@@ -39,7 +39,7 @@ import {
   updateStrategySettings,
 } from "./api";
 import { strategyKeys } from "./query-keys";
-import { useDebouncedValue } from "./utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type {
   CreateStrategyRequest,
   ParsePreviewResponse,

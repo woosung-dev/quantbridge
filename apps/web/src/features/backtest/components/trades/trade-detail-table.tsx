@@ -22,7 +22,7 @@ import {
   formatPercent,
   tradesToCsv,
 } from "@/features/backtest/utils";
-import { useDebouncedValue } from "@/features/strategy/utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { EMPTY_CELL } from "@/lib/labels";
 import { StateBox } from "@/components/state-box";
 
@@ -99,14 +99,14 @@ export function TradeDetailTable({
   // 정렬·필터를 다시 도는 것은 늦춘다. 레포에 이미 있는 훅을 쓴다(선례: diagnostics-strip 500ms).
   const debouncedSearch = useDebouncedValue(filters.search, SEARCH_DEBOUNCE_MS);
 
-  // 추가 filter(검색/기간/PnL) → 기본 filter(방향/결과)+sort 순서로 적용한다.
+  // 필터와 정렬의 의존성을 분리해 정렬 변경 때 검색·기간·PnL 조건을 다시 읽지 않는다.
   // ★필터를 **먼저** 한다(js-combine-iterations · js-early-exit). 종전엔 2000건 전량을 정렬한 뒤
   //   걸렀으므로 검색어 한 글자마다 걸러질 행까지 정렬했다. 정렬은 입력 순서 index 로 tiebreak 하는
   //   안정 정렬이고 필터는 순서를 보존하므로 결과는 같다.
   // ★검색어 정규화(trim/소문자)는 행마다가 아니라 **한 번만** 한다.
   // ★dep 은 객체 `filters` 가 아니라 **스칼라 필드**다(H-1 "scalar dep 선호"). 객체를 쓰면
   //   키 한 글자마다 identity 가 갈려 이 memo 가 사실상 없는 것과 같아진다.
-  const filtered = useMemo(() => {
+  const matched = useMemo(() => {
     const rawQuery = debouncedSearch.trim();
     const q = rawQuery.toLowerCase();
     const periodStart = filters.periodStart;
@@ -120,10 +120,15 @@ export function TradeDetailTable({
       periodStart !== "" ||
       periodEnd !== "" ||
       pnlMin !== null ||
-      pnlMax !== null;
-    const narrowed = !needsFilter
+      pnlMax !== null ||
+      filters.direction !== "all" ||
+      filters.result !== "all";
+    return !needsFilter
       ? trades
       : trades.filter((t) => {
+          if (filters.direction !== "all" && t.direction !== filters.direction) return false;
+          if (filters.result === "win" && !(t.pnl > 0)) return false;
+          if (filters.result === "loss" && t.pnl > 0) return false;
           if (rawQuery !== "") {
             // [BL-860] 화면 번호는 1-based(리포트 원장과 같은 기준). 검색어도 그 번호로 받는다.
             const idxStr = (t.trade_index + 1).toString();
@@ -143,12 +148,6 @@ export function TradeDetailTable({
           if (pnlMax !== null && t.return_pct > pnlMax) return false;
           return true;
         });
-    return applyTradeFilterSort(
-      narrowed,
-      { direction: filters.direction, result: filters.result },
-      sortField,
-      sortDir,
-    );
   }, [
     trades,
     filters.direction,
@@ -158,9 +157,11 @@ export function TradeDetailTable({
     filters.pnlMinPct,
     filters.pnlMaxPct,
     debouncedSearch,
-    sortField,
-    sortDir,
   ]);
+  const filtered = useMemo(
+    () => applyTradeFilterSort(matched, { direction: "all", result: "all" }, sortField, sortDir),
+    [matched, sortField, sortDir],
+  );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   // render-time clamp (H-1) — page state 를 effect 로 되돌리지 않는다.

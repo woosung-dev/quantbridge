@@ -13,7 +13,7 @@ import { selectPineSource, useEditStore } from "@/features/strategy/edit-store";
 import { usePreviewParse } from "@/features/strategy/hooks";
 import { PARSE_STATUS_LABEL, UNSUPPORTED_POLICY_NOTE } from "@/features/strategy/labels";
 import { type InputDecl, isSweepable, type StrategyResponse } from "@/features/strategy/schemas";
-import { useDebouncedValue } from "@/features/strategy/utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { StrategyBriefPanel } from "@/features/strategy/components/brief/strategy-brief";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";

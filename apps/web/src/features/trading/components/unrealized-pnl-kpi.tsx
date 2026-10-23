@@ -21,7 +21,8 @@
 
 import { useEffect, useState } from "react";
 
-import { useUnrealizedPnlEstimate, type LiveSession } from "@/features/live-sessions";
+import { useUnrealizedPnlEstimate } from "@/features/live-sessions/unrealized";
+import type { LiveSession } from "@/features/live-sessions/schemas";
 
 const TICKER_STALE_MS = 15_000;
 

@@ -6,6 +6,7 @@
 // (S4 인계 — 원시 enum JSX 자식 렌더 금지). 4상태(로딩/에러/빈/채움)를 실제로 렌더한다.
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { AlertTriangleIcon, CheckIcon, InboxIcon, RefreshCwIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
@@ -20,7 +21,8 @@ import {
   ORDER_STATE_LABEL,
   ORDER_TRAILING_STOP_LABEL,
 } from "../labels";
-import { TestOrderDialog } from "./test-order-dialog";
+
+const TestOrderDialog = dynamic(() => import("./test-order-dialog").then((m) => m.TestOrderDialog));
 
 // 주문 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const ORDERS_ENDPOINT = "GET /api/v1/orders";

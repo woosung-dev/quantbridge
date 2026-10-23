@@ -12,10 +12,12 @@ export const metadata: Metadata = {
   title: "전략 편집",
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function StrategyEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // UUID 포맷 검증 — 잘못된 URL은 즉시 404.
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+  if (!UUID_REGEX.test(id)) {
     notFound();
   }
   return <EditorView id={id} />;

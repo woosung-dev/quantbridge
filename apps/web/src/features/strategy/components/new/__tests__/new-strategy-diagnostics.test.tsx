@@ -79,6 +79,23 @@ describe("NewStrategyWizard — 04 진단 구획", () => {
     hoisted.saveWizardDraft.mockReset();
   });
 
+  it("선택형 AI는 처음 펼칠 때 마운트하고 다시 접어도 작성한 요청을 보존한다", async () => {
+    const { container } = renderWizard();
+    const details = container.querySelector<HTMLDetailsElement>("details.create-ai-tools")!;
+    expect(screen.queryByLabelText("어떤 전략을 원하시나요?")).not.toBeInTheDocument();
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    const prompt = await screen.findByLabelText("어떤 전략을 원하시나요?");
+    fireEvent.change(prompt, { target: { value: "이동평균 상향 돌파 시 진입" } });
+    details.open = false;
+    fireEvent(details, new Event("toggle"));
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    expect(screen.getByLabelText("어떤 전략을 원하시나요?")).toHaveValue(
+      "이동평균 상향 돌파 시 진입",
+    );
+  });
+
   it("진단 섹션은 .diag-2 안에 지원 함수 사전·저장된 초안 두 .diag 카드를 그린다", () => {
     renderWizard();
     const section = screen.getByLabelText("진단");

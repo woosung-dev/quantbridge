@@ -5,6 +5,7 @@
 "use client";
 
 import Link from "next/link";
+import { memo } from "react";
 import {
   CheckIcon,
   AlertTriangleIcon,
@@ -282,7 +283,7 @@ function describeField(
 // Grid 결과 — KPI + 리더보드(전 셀) + 히트맵 이중 렌더 (screen-10 01/02/04).
 // ─────────────────────────────────────────────────────────────────────────────
 
-function GridResult({ result }: { result: GridSearchResult }) {
+const GridResult = memo(function GridResult({ result }: { result: GridSearchResult }) {
   const bestIdx = result.best_cell_index;
   const bestCell = bestIdx !== null ? result.cells[bestIdx] : null;
 
@@ -465,7 +466,7 @@ function GridResult({ result }: { result: GridSearchResult }) {
       </div>
     </section>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Bayesian / Genetic 결과 — 반복 이력 유지 (W1 라벨 경유, C 표로 재스킨).

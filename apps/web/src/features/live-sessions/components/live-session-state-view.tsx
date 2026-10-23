@@ -34,7 +34,9 @@ export function LiveSessionStateView({
       role={isError ? "alert" : "status"}
     >
       <div className={`mx-auto mb-2 grid size-10 place-items-center rounded-full ${iconBg}`}>
-        <Icon className={`size-5${iconClassName ? ` ${iconClassName}` : ""}`} strokeWidth={1.5} />
+        <span className={`inline-flex${iconClassName ? ` ${iconClassName}` : ""}`}>
+          <Icon className="size-5" strokeWidth={1.5} />
+        </span>
       </div>
       <p className="text-sm font-medium">{title}</p>
       <p className={`mt-1 text-xs ${toneText}`}>{description}</p>

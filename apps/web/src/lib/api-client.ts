@@ -146,13 +146,11 @@ export function describeApiError(err: unknown, fallback = "요청에 실패했�
       : undefined;
 
   if (Array.isArray(inner)) {
-    const messages = inner
-      .map((item) =>
-        item && typeof item === "object" && "msg" in item
-          ? String((item as { msg: unknown }).msg).replace(/^Value error,\s*/, "")
-          : null,
-      )
-      .filter((m): m is string => Boolean(m));
+    const messages = inner.flatMap((item) => {
+      if (!item || typeof item !== "object" || !("msg" in item)) return [];
+      const message = String(item.msg).replace(/^Value error,\s*/, "");
+      return message ? [message] : [];
+    });
     if (messages.length > 0) return messages.join(" · ");
   }
 

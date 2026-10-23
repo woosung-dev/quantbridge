@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSession = vi.fn();
 const getToken = vi.fn();
+const requestHeaders = vi.hoisted(() => ({ value: new Headers() }));
 
 vi.mock("next/headers", () => ({
-  headers: async () => new Headers({ cookie: "s=1" }),
+  headers: async () => requestHeaders.value,
 }));
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -19,6 +20,7 @@ beforeEach(() => {
   vi.resetModules();
   getSession.mockReset();
   getToken.mockReset();
+  requestHeaders.value = new Headers({ cookie: "s=1" });
 });
 
 afterEach(() => {
@@ -97,17 +99,49 @@ describe("getServerAuth", () => {
     await expect(result).resolves.toEqual({ userId: "u1", token: "jwt-x" });
   });
 
-  it("measures cache behavior for two calls in one module instance", async () => {
-    getSession.mockResolvedValue({ user: { id: "u1" } });
-    getToken.mockResolvedValue({ token: "jwt-x" });
-
+  it("skips session lookup and token issuance when the request has no cookies", async () => {
+    requestHeaders.value = new Headers();
     const getServerAuth = await load();
 
-    await expect(Promise.all([getServerAuth(), getServerAuth()])).resolves.toEqual([
-      { userId: "u1", token: "jwt-x" },
-      { userId: "u1", token: "jwt-x" },
-    ]);
-    expect(getSession).toHaveBeenCalled();
-    expect([1, 2]).toContain(getSession.mock.calls.length);
+    await expect(getServerAuth()).resolves.toEqual({ userId: null, token: null });
+    expect(getSession).not.toHaveBeenCalled();
+    expect(getToken).not.toHaveBeenCalled();
+  });
+});
+
+describe("getServerSession", () => {
+  it("returns verified identity without issuing a token", async () => {
+    getSession.mockResolvedValue({ user: { id: "u1" } });
+    const { getServerSession } = await import("@/lib/auth-server");
+
+    await expect(getServerSession()).resolves.toEqual({ userId: "u1" });
+    expect(getSession).toHaveBeenCalledOnce();
+    expect(getToken).not.toHaveBeenCalled();
+  });
+
+  it("skips authentication work when the request has no cookies", async () => {
+    requestHeaders.value = new Headers();
+    const { getServerSession } = await import("@/lib/auth-server");
+
+    await expect(getServerSession()).resolves.toEqual({ userId: null });
+    expect(getSession).not.toHaveBeenCalled();
+    expect(getToken).not.toHaveBeenCalled();
+  });
+
+  it("does not trust cookie presence as authentication", async () => {
+    getSession.mockResolvedValue(null);
+    const { getServerSession } = await import("@/lib/auth-server");
+
+    await expect(getServerSession()).resolves.toEqual({ userId: null });
+    expect(getSession).toHaveBeenCalledWith({ headers: requestHeaders.value });
+    expect(getToken).not.toHaveBeenCalled();
+  });
+
+  it("degrades to anonymous identity when session lookup fails", async () => {
+    getSession.mockRejectedValue(new Error("database unavailable"));
+    const { getServerSession } = await import("@/lib/auth-server");
+
+    await expect(getServerSession()).resolves.toEqual({ userId: null });
+    expect(getToken).not.toHaveBeenCalled();
   });
 });

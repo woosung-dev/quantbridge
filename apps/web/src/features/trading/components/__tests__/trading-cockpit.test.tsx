@@ -35,9 +35,10 @@ vi.mock("next/navigation", () => ({
 }));
 // ★키 팩토리는 흉내내지 않고 **진짜**를 쓴다 — query-keys 는 의존성 없는 leaf 라 배럴을 끌지 않는다.
 // 흉내내면 팩토리가 바뀌어도 이 시험이 초록이 된다.
-vi.mock("@/features/live-sessions", async () => ({
-  liveSessionKeys: (await import("@/features/live-sessions/query-keys")).liveSessionKeys,
+vi.mock("@/features/live-sessions/components/live-session-detail", () => ({
   LiveSessionDetail: () => <div data-testid="mock-detail" />,
+}));
+vi.mock("@/features/live-sessions/components/live-session-form", () => ({
   // BL-551 — 선택을 쓰는 지점은 목록 클릭과 **여기** 둘이다. 종전 `() => null` mock 은
   // `onSuccess` 경로를 한 번도 태우지 않아 한쪽만 URL 로 옮겨도 초록이었다.
   LiveSessionForm: ({
@@ -58,6 +59,8 @@ vi.mock("@/features/live-sessions", async () => ({
       </button>
     );
   },
+}));
+vi.mock("@/features/live-sessions/components/live-session-list", () => ({
   LiveSessionList: ({
     onSelect,
   }: {
@@ -80,11 +83,17 @@ vi.mock("@/features/live-sessions", async () => ({
       </button>
     </>
   ),
+}));
+vi.mock("@/features/live-sessions/components/live-session-table", () => ({
   LiveSessionTable: (props: unknown) => {
     liveSessionTableProps(props);
     return null;
   },
+}));
+vi.mock("@/features/live-sessions/hooks", () => ({
   useLiveSessions: () => useLiveSessionsMock(),
+}));
+vi.mock("@/features/live-sessions/unrealized", () => ({
   useUnrealizedPnlEstimate: () => useUnrealizedPnlEstimateMock(),
 }));
 vi.mock("@/features/strategy/use-code-strategies", () => ({
@@ -94,11 +103,10 @@ vi.mock("@/features/strategy/hooks", async () => ({
   strategyKeys: (await import("@/features/strategy/query-keys")).strategyKeys,
   useStrategies: () => useStrategiesMock(),
 }));
-vi.mock("@/features/trading", async () => ({
-  tradingKeys: (await import("@/features/trading/query-keys")).tradingKeys,
-  ExchangeAccountsPanel: () => null,
-  KillSwitchPanel: () => null,
-  OrdersPanel: () => null,
+vi.mock("../exchange-accounts-panel", () => ({ ExchangeAccountsPanel: () => null }));
+vi.mock("../kill-switch-panel", () => ({ KillSwitchPanel: () => null }));
+vi.mock("../orders-panel", () => ({ OrdersPanel: () => null }));
+vi.mock("@/features/trading/hooks", () => ({
   useExchangeAccounts: () => useExchangeAccountsMock(),
   useKillSwitchEvents: () => useKillSwitchEventsMock(),
 }));

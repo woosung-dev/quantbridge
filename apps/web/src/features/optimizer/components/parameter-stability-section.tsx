@@ -4,13 +4,19 @@
 // 보여 준다. 파생 규약·검증은 features/optimizer/param-stability.ts + 그 oracle 테스트 참조.
 // 한 값만 솟아 있으면 그 결과가 우연일 확률이 크다는 걸 시각화하는 것이 목적이다.
 
+import { memo } from "react";
+
 import { deriveParamStability } from "@/features/optimizer/param-stability";
 import { formatObjectiveValue } from "@/features/optimizer/format";
 import type { GridSearchResult } from "@/features/optimizer/schemas";
 import { OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
 import { EMPTY_CELL } from "@/lib/labels";
 
-export function ParameterStabilitySection({ result }: { result: GridSearchResult }) {
+export const ParameterStabilitySection = memo(function ParameterStabilitySection({
+  result,
+}: {
+  result: GridSearchResult;
+}) {
   const stability = deriveParamStability(result.cells, result.param_names, result.direction);
   const metricLabel = OBJECTIVE_METRIC_LABEL[result.objective_metric];
   // 목표값 단위 SSOT — 평균·스케일·요약 줄 전부 같은 분기(ratio 지표 %, sharpe 소수)를 쓴다.
@@ -98,4 +104,4 @@ export function ParameterStabilitySection({ result }: { result: GridSearchResult
       </div>
     </section>
   );
-}
+});

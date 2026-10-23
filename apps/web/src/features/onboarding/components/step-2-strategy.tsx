@@ -138,7 +138,11 @@ export function Step2Strategy({
           aria-busy={isBusy || undefined}
           aria-label="샘플 전략 등록 및 다음 단계"
         >
-          {isBusy && <Loader2Icon className="size-4 motion-safe:animate-spin" aria-hidden="true" />}
+          {isBusy ? (
+            <span className="inline-flex motion-safe:animate-spin" aria-hidden="true">
+              <Loader2Icon className="size-4" />
+            </span>
+          ) : null}
           {isBusy ? "등록 중" : "샘플로 시작하기"}
         </button>
       </div>

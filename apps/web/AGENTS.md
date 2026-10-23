@@ -30,7 +30,8 @@
 - 클라이언트는 **`useAuthCtx()` 하나만**(`hooks/use-auth-ctx.ts` → `uid`/`userId`/`isSignedIn`/`user`/`getToken`).
   `useSession()`·`getAuthToken()` 을 컴포넌트에서 직접 부르지 마라 — 공급자 교체가 그 seam 하나로 끝난 이유다.
   표시용 이름·이메일도 `user`를 통해 받는다. 집행 = `hooks/__tests__/auth-ctx-boundary.test.ts`
-- 서버 컴포넌트 = `getServerAuth()`(`lib/auth-server.ts`) → `{ userId, token }`
+- 서버 신원 조회 = `getServerSession()`(`lib/auth-server.ts`) → `{ userId }`. FastAPI prefetch에
+  JWT가 필요한 경우만 `getServerAuth()` → `{ userId, token }`. 두 경로는 요청 단위 세션 캐시를 공유한다
 - 직접 JWT 파싱 금지 (예외: `auth-client.ts` 가 **캐시 수명 계산에만** `exp` 를 읽는다)
 - ★**`getSessionCookie()` 를 인증 게이트로 쓰지 마라** — 쿠키 존재만 본다(공식 문서가 "THIS IS NOT SECURE!").
   `proxy.ts` 의 `/` → `/strategies` **UX 리다이렉트** 전용. 집행 = `proxy-gate.test.ts` 의 `not.toHaveBeenCalled()`

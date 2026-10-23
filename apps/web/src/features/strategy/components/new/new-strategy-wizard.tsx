@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FileCode2Icon, FolderOpenIcon, InfoIcon, SaveIcon, SearchIcon } from "lucide-react";
@@ -34,8 +35,9 @@ import {
   useDraftSnapshot,
 } from "@/features/strategy/draft";
 
-import { GenerateWithAI } from "@/features/strategy/components/new/generate-with-ai";
 import { ParseResultPanel } from "./parse-result-panel";
+
+const GenerateWithAI = dynamic(() => import("./generate-with-ai").then((m) => m.GenerateWithAI));
 
 const SYMBOL_OPTIONS = ["BTC/USDT", "ETH/USDT", "SOL/USDT"] as const;
 const TIMEFRAME_OPTIONS = ["15m", "1h", "4h", "1d"] as const;
@@ -81,6 +83,7 @@ export function NewStrategyWizard() {
   const [timeframe, setTimeframe] = useState<string>(TIMEFRAME_OPTIONS[1]);
   const [description, setDescription] = useState("");
   const [pineSource, setPineSource] = useState("");
+  const [hasOpenedAi, setHasOpenedAi] = useState(false);
   const pineEditorRef = useRef<PineEditorHandle>(null);
   const pineSourceSectionRef = useRef<HTMLElement>(null);
 
@@ -433,9 +436,16 @@ export function NewStrategyWizard() {
 
             {/* [ADR-041] 자연어 → 전략 생성. ★결과는 **바로 저장되지 않는다** —
                 `applyPineSource` 로 편집기에 넣을 뿐이고 판정은 위 03 파싱 결과가 다시 낸다. */}
-            <details className="create-ai-tools">
+            <details
+              className="create-ai-tools"
+              onToggle={(event) => {
+                if (event.currentTarget.open) setHasOpenedAi(true);
+              }}
+            >
               <summary>AI 초안 작성 (선택)</summary>
-              <GenerateWithAI symbol={symbol} timeframe={timeframe} onUsePine={applyPineSource} />
+              {hasOpenedAi ? (
+                <GenerateWithAI symbol={symbol} timeframe={timeframe} onUsePine={applyPineSource} />
+              ) : null}
             </details>
           </section>
         </div>

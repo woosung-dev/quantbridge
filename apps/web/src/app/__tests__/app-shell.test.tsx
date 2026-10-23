@@ -34,7 +34,7 @@ vi.mock("@/components/shortcut-help-dialog", () => ({
 }));
 
 vi.mock("@/lib/auth-server", () => ({
-  getServerAuth: vi.fn(),
+  getServerSession: vi.fn(),
 }));
 
 import DashboardLayout from "../(dashboard)/layout";
@@ -42,10 +42,10 @@ import RootLayout, { metadata, viewport } from "../layout";
 import { DashboardShell } from "@/features/dashboard/components/dashboard-shell";
 import { ServerIdentityProvider } from "@/components/providers/server-identity-provider";
 import { ShortcutHelpDialog } from "@/components/shortcut-help-dialog";
-import { getServerAuth } from "@/lib/auth-server";
+import { getServerSession } from "@/lib/auth-server";
 import { BRAND_PALETTE } from "@/lib/brand-palette";
 
-const mockedGetServerAuth = vi.mocked(getServerAuth);
+const mockedGetServerSession = vi.mocked(getServerSession);
 
 type ServerIdentityElement = ReactElement<{
   children: ReactNode;
@@ -122,19 +122,19 @@ describe("app shell contracts", () => {
   });
 
   it("dashboard layout은 SSR userId를 ServerIdentityProvider에 그대로 넘긴다", async () => {
-    mockedGetServerAuth.mockResolvedValue({ userId: "u-42", token: "t" });
+    mockedGetServerSession.mockResolvedValue({ userId: "u-42" });
 
     const element = (await DashboardLayout({
       children: <span>dashboard-child</span>,
     })) as ServerIdentityElement;
 
-    expect(mockedGetServerAuth).toHaveBeenCalledOnce();
+    expect(mockedGetServerSession).toHaveBeenCalledOnce();
     expect(element.type).toBe(ServerIdentityProvider);
     expect(element.props.userId).toBe("u-42");
   });
 
   it("dashboard layout은 null userId도 바꾸지 않고 ServerIdentityProvider에 넘긴다", async () => {
-    mockedGetServerAuth.mockResolvedValue({ userId: null, token: "t" });
+    mockedGetServerSession.mockResolvedValue({ userId: null });
     const element = (await DashboardLayout({
       children: <span>dashboard-child</span>,
     })) as ServerIdentityElement;
@@ -143,7 +143,7 @@ describe("app shell contracts", () => {
   });
 
   it("dashboard layout은 children을 DashboardShell 안에 넣는다", async () => {
-    mockedGetServerAuth.mockResolvedValue({ userId: "u-42", token: "t" });
+    mockedGetServerSession.mockResolvedValue({ userId: "u-42" });
     const child = <span>dashboard-child-marker</span>;
     const element = (await DashboardLayout({ children: child })) as ServerIdentityElement;
     const { shell } = dashboardNodes(element);
@@ -153,7 +153,7 @@ describe("app shell contracts", () => {
   });
 
   it("dashboard layout은 ShortcutHelpDialog도 함께 조립한다", async () => {
-    mockedGetServerAuth.mockResolvedValue({ userId: "u-42", token: "t" });
+    mockedGetServerSession.mockResolvedValue({ userId: "u-42" });
     const element = (await DashboardLayout({
       children: <span>dashboard-child</span>,
     })) as ServerIdentityElement;
