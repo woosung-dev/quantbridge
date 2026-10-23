@@ -1,10 +1,11 @@
 // screen-10 03 파라미터 안정성 섹션 시맨틱 구조 회귀 테스트 (프로토타입 .pgrid/.pcol/.prow/.pbar).
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 
 import { ParameterStabilitySection } from "@/features/optimizer/components/parameter-stability-section";
 import type { GridSearchCell, GridSearchResult } from "@/features/optimizer/schemas";
+import * as stability from "@/features/optimizer/param-stability";
 
 function cell(
   params: Record<string, number>,
@@ -45,7 +46,23 @@ const RESULT: GridSearchResult = {
 };
 
 describe("ParameterStabilitySection — screen-10 03 구조", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("부모 재렌더에서 같은 결과의 집계를 재사용하고 결과가 바뀌면 갱신한다", () => {
+    const derive = vi.spyOn(stability, "deriveParamStability");
+    const { rerender } = render(<ParameterStabilitySection result={RESULT} />);
+    expect(derive).toHaveBeenCalledTimes(1);
+    rerender(<ParameterStabilitySection result={RESULT} />);
+    expect(derive).toHaveBeenCalledTimes(1);
+    rerender(<ParameterStabilitySection result={{ ...RESULT, direction: "minimize" }} />);
+    expect(derive).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByTestId("param-stability-grid").querySelector(".prow.best")?.textContent,
+    ).toContain("fastLength 10");
+  });
 
   it(".pgrid 안에 파라미터별 .pcol 2개(fastLength/slowLength)를 그린다", () => {
     render(<ParameterStabilitySection result={RESULT} />);

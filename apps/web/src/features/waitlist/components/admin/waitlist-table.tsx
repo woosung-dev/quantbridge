@@ -142,7 +142,9 @@ export function WaitlistTable({ items, onApprove, isApproving }: WaitlistTablePr
                       {isApproving ? (
                         <span className="inline-flex items-center gap-1.5">
                           {/* 수제 SVG 대신 lucide 스피너 — 형제 컴포넌트 관례. */}
-                          <Loader2 className="size-3 motion-safe:animate-spin" aria-hidden="true" />
+                          <span className="inline-flex motion-safe:animate-spin" aria-hidden="true">
+                            <Loader2 className="size-3" />
+                          </span>
                           전송 중…
                         </span>
                       ) : (

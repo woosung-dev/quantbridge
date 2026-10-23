@@ -140,6 +140,46 @@ describe("useOnboardingStore — 5분 TTL 만료 시 자동 reset", () => {
 });
 
 describe("useOnboardingStore — 하이드레이션 시점", () => {
+  it("localStorage 접근 자체가 차단되어도 persist 복원과 메모리 진행도를 유지한다", async () => {
+    const access = vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw new DOMException("Storage access denied", "SecurityError");
+    });
+    try {
+      vi.resetModules();
+      const { useOnboardingStore: fresh } = await import("@/features/onboarding/store");
+      expect(fresh.persist).toBeDefined();
+      await fresh.persist.rehydrate();
+      fresh.getState().bindOwner("storage-blocked-user");
+      fresh.getState().setStep("strategy");
+      expect(fresh.getState()).toMatchObject({
+        ownerUserId: "storage-blocked-user",
+        step: "strategy",
+      });
+    } finally {
+      access.mockRestore();
+    }
+  });
+
+  it("저장 공간이 차단되어도 현재 온보딩 진행도는 메모리에서 갱신한다", () => {
+    const write = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage unavailable", "QuotaExceededError");
+    });
+    try {
+      expect(() => {
+        useOnboardingStore.getState().bindOwner("storage-blocked-user");
+        useOnboardingStore.getState().setStrategy(FIXED_STRATEGY_ID);
+        useOnboardingStore.getState().setStep("backtest");
+      }).not.toThrow();
+      expect(useOnboardingStore.getState()).toMatchObject({
+        ownerUserId: "storage-blocked-user",
+        strategyId: FIXED_STRATEGY_ID,
+        step: "backtest",
+      });
+    } finally {
+      write.mockRestore();
+    }
+  });
+
   it("owner 없는 이전 저장값이 메모리의 현재 owner를 상속하지 않는다", async () => {
     useOnboardingStore.getState().bindOwner("user-b");
     window.localStorage.setItem(

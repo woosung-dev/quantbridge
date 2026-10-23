@@ -1,11 +1,18 @@
 "use client";
 
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useMutation,
+  usePrefetchQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import { useExchangeAccounts } from "@/features/trading/hooks";
+import { listExchangeAccounts } from "@/features/trading/api";
+import { tradingKeys } from "@/features/trading/query-keys";
 import { liveSessionKeys } from "@/features/live-sessions/query-keys";
 
 import {
@@ -92,6 +99,12 @@ export function useCodeWorkspace(initialStrategyId?: string) {
   const { uid, getToken } = useAuthCtx();
   const router = useRouter();
   const client = useQueryClient();
+  // 목록 Suspense가 계정 조회를 가로막지 않도록 동일 캐시 키로 먼저 시작한다.
+  usePrefetchQuery({
+    queryKey: tradingKeys.exchangeAccounts(uid),
+    queryFn: async () => listExchangeAccounts(await getToken()),
+    retry: 1,
+  });
   const listing = useSuspenseQuery({
     queryKey: codeStrategyKeys.list(uid),
     queryFn: async () => listCodeStrategies(await getToken()),
@@ -99,6 +112,7 @@ export function useCodeWorkspace(initialStrategyId?: string) {
   const initial = listing.data.items.find((item) => item.id === initialStrategyId) ?? null;
   const [draft, setDraft] = useState(() => (initial ? fromSaved(initial) : newDraft()));
   const [selected, setSelected] = useState<CodeStrategy | null>(initial);
+  const savedDraft = useMemo(() => (selected ? fromSaved(selected) : null), [selected]);
   const [preview, setPreview] = useState<GenerateCodeStrategyResponse | null>(null);
   const [generated, setGenerated] = useState<CodeSnapshot | null>(null);
   const [generationRevision, setGenerationRevision] = useState(0);
@@ -137,7 +151,16 @@ export function useCodeWorkspace(initialStrategyId?: string) {
   );
   const [accountId, setAccountId] = useState("");
   const [period, setPeriod] = useState(defaultPeriod);
-  const dirty = selected === null || JSON.stringify(draft) !== JSON.stringify(fromSaved(selected));
+  const dirty =
+    savedDraft === null ||
+    draft.name !== savedDraft.name ||
+    draft.language !== savedDraft.language ||
+    draft.source !== savedDraft.source ||
+    draft.params !== savedDraft.params ||
+    draft.warmup !== savedDraft.warmup ||
+    draft.symbol !== savedDraft.symbol ||
+    draft.timeframe !== savedDraft.timeframe ||
+    draft.allocation !== savedDraft.allocation;
   const save = useMutation({
     mutationFn: async () => {
       const body = SaveCodeStrategySchema.parse({

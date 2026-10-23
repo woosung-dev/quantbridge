@@ -34,12 +34,9 @@ export function WalkForwardBarChart({ result }: Props) {
     }));
   }, [result.folds]);
 
-  const degradationText = useMemo(() => {
-    if (!result.valid_positive_regime) {
-      return "Degradation ratio: N/A (손실 구간 포함)";
-    }
-    return `Degradation ratio (IS/OOS): ${result.degradation_ratio}`;
-  }, [result.valid_positive_regime, result.degradation_ratio]);
+  const degradationText = result.valid_positive_regime
+    ? `Degradation ratio (IS/OOS): ${result.degradation_ratio}`
+    : "Degradation ratio: N/A (손실 구간 포함)";
 
   const truncationText =
     result.was_truncated && result.total_possible_folds > 0

@@ -126,11 +126,9 @@ export function Step3Backtest({
         {isRunning && (
           <>
             <div className="ob-run-row">
-              <LoaderIcon
-                className="text-[color:var(--copper)] motion-safe:animate-spin"
-                strokeWidth={2}
-                aria-hidden="true"
-              />
+              <span className="inline-flex motion-safe:animate-spin" aria-hidden="true">
+                <LoaderIcon className="text-[color:var(--copper)]" strokeWidth={2} />
+              </span>
               <div>
                 <p className="ob-run-title">
                   {create.isPending

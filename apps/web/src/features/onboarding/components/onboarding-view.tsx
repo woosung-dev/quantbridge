@@ -9,6 +9,7 @@
 // Selector 계약 (LESSON-004): scalar selector 만 사용.
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 
@@ -26,9 +27,20 @@ import { ONBOARDING_STEPS } from "@/features/onboarding/types";
 import { IllustrationFrame } from "./illustration-frame";
 import { ProgressStepper } from "./progress-stepper";
 import { Step1Welcome } from "./step-1-welcome";
-import { Step2Strategy } from "./step-2-strategy";
-import { Step3Backtest } from "./step-3-backtest";
-import { Step4Result } from "./step-4-result";
+
+function StepLoading() {
+  return <div aria-busy="true">단계를 불러오는 중입니다.</div>;
+}
+
+const Step2Strategy = dynamic(() => import("./step-2-strategy").then((m) => m.Step2Strategy), {
+  loading: StepLoading,
+});
+const Step3Backtest = dynamic(() => import("./step-3-backtest").then((m) => m.Step3Backtest), {
+  loading: StepLoading,
+});
+const Step4Result = dynamic(() => import("./step-4-result").then((m) => m.Step4Result), {
+  loading: StepLoading,
+});
 
 // 4단계 상수 — features/onboarding/types 의 ONBOARDING_STEP_LABEL 과 정합.
 const STEPPER_STEPS = [

@@ -107,6 +107,7 @@ function setup(
   items: CodeStrategy[] = [],
   accounts: ExchangeAccount[] = [],
   initialStrategyId?: string,
+  { listGate, staleTime = 0 }: { listGate?: Promise<void>; staleTime?: number } = {},
 ) {
   let stored = items;
   let version = 0;
@@ -149,11 +150,12 @@ function setup(
       stored = [item];
       return item;
     }
+    if (path === "/api/v1/strategies/code") await listGate;
     return { items: stored, total: stored.length };
   });
   const client = new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
+      queries: { retry: false, staleTime },
       mutations: { retry: false },
     },
   });
@@ -186,6 +188,52 @@ afterEach(() => {
 });
 
 describe("코드 전략 작업 공간", () => {
+  it("코드 목록을 기다리는 동안 계정 요청도 시작하고 완료 뒤 중복 요청하지 않는다", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // 서비스 QueryProvider와 동일한 60초 신선도에서 prefetch 캐시를 공유한다.
+    setup([saved()], [demoAccount], STRATEGY_ID, { listGate: gate, staleTime: 60_000 });
+    try {
+      await waitFor(() => {
+        expect(mocks.apiFetch).toHaveBeenCalledWith("/api/v1/strategies/code", expect.anything());
+        expect(mocks.apiFetch).toHaveBeenCalledWith("/api/v1/exchange-accounts", expect.anything());
+      });
+    } finally {
+      release();
+    }
+    await ready();
+    expect(
+      mocks.apiFetch.mock.calls.filter(([path]) => path === "/api/v1/exchange-accounts"),
+    ).toHaveLength(1);
+  });
+
+  it("기간만 편집할 때 긴 저장 원문을 다시 직렬화하지 않고 dirty 상태를 유지한다", async () => {
+    const item = saved();
+    item.version.source_code = "return hold\n".repeat(8000);
+    setup([item], [], STRATEGY_ID);
+    await ready();
+    const stringify = vi.spyOn(JSON, "stringify");
+    try {
+      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), { target: { value: "20000" } });
+      expect(screen.getByText("저장한 원문과 일치합니다.")).toBeInTheDocument();
+      expect(
+        stringify.mock.calls.filter(
+          ([value]) => value && typeof value === "object" && "source" in value,
+        ),
+      ).toHaveLength(0);
+      fireEvent.change(screen.getByLabelText("소스 코드"), { target: { value: "changed source" } });
+      expect(screen.getByText("변경 사항이 있습니다.")).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("소스 코드"), {
+        target: { value: item.version.source_code },
+      });
+      expect(screen.getByText("저장한 원문과 일치합니다.")).toBeInTheDocument();
+    } finally {
+      stringify.mockRestore();
+    }
+  });
+
   it("서버 렌더는 브라우저 인증 토큰과 코드 목록을 요청하지 않는다", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     clients.push(client);

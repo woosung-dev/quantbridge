@@ -4,9 +4,9 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useUnrealizedPnlEstimate } from "@/features/live-sessions";
+import { useUnrealizedPnlEstimate } from "@/features/live-sessions/unrealized";
 
-vi.mock("@/features/live-sessions", () => ({
+vi.mock("@/features/live-sessions/unrealized", () => ({
   useUnrealizedPnlEstimate: vi.fn(),
 }));
 

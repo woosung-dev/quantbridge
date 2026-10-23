@@ -476,26 +476,26 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     ).toHaveClass("dim");
   });
 
-  it("행 클릭과 native 상세 버튼으로 상세를 열고 닫는다", () => {
+  it("행 클릭과 native 상세 버튼으로 상세를 열고 닫는다", async () => {
     withOrders([makeOrder()]);
     render(<OrdersBlotter />);
 
     const row = screen.getByTestId("order-row-00000000-0000-4000-8000-000000000001");
     fireEvent.click(row);
-    expect(screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
     expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "BTC/USDT 주문 상세 열기" }));
-    expect(screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
 
     fireEvent.click(screen.getByRole("button", { name: "BTC/USDT 주문 상세 열기" }));
-    expect(screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
   });
 
   // ★2026-08-15 codex 적대 리뷰 P1 — 드로어가 금융 값을 오표시했다.
-  it("거부 주문의 상세는 실패 시각을 체결로 적지 않고, 추정 손익을 확정처럼 보이지 않는다", () => {
+  it("거부 주문의 상세는 실패 시각을 체결로 적지 않고, 추정 손익을 확정처럼 보이지 않는다", async () => {
     withOrders([
       makeOrder({
         state: "rejected",
@@ -510,14 +510,14 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     render(<OrdersBlotter />);
 
     fireEvent.click(screen.getByTestId("order-row-00000000-0000-4000-8000-000000000001"));
-    const dialog = screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" });
+    const dialog = await screen.findByRole("dialog", { name: "BTC/USDT 주문 상세" });
 
     expect(within(dialog).getByText("실패 시각")).toBeInTheDocument();
     expect(within(dialog).queryByText("체결 시각")).toBeNull();
     expect(within(dialog).queryByText("-111.70")).toBeNull();
   });
 
-  it("★음성 대조 — 체결 주문은 여전히 체결 시각과 확정 손익을 보여준다", () => {
+  it("★음성 대조 — 체결 주문은 여전히 체결 시각과 확정 손익을 보여준다", async () => {
     withOrders([
       makeOrder({
         state: "filled",
@@ -529,7 +529,7 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     render(<OrdersBlotter />);
 
     fireEvent.click(screen.getByTestId("order-row-00000000-0000-4000-8000-000000000001"));
-    const dialog = screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" });
+    const dialog = await screen.findByRole("dialog", { name: "BTC/USDT 주문 상세" });
 
     expect(within(dialog).getByText("체결 시각")).toBeInTheDocument();
     expect(within(dialog).queryByText("실패 시각")).toBeNull();

@@ -11,27 +11,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import {
-  LiveSessionDetail,
-  LiveSessionForm,
-  LiveSessionList,
-  LiveSessionTable,
-  liveSessionKeys,
-  useLiveSessions,
-  type LiveSession,
-} from "@/features/live-sessions";
+import { LiveSessionDetail } from "@/features/live-sessions/components/live-session-detail";
+import { LiveSessionForm } from "@/features/live-sessions/components/live-session-form";
+import { LiveSessionList } from "@/features/live-sessions/components/live-session-list";
+import { LiveSessionTable } from "@/features/live-sessions/components/live-session-table";
+import { liveSessionKeys } from "@/features/live-sessions/query-keys";
+import { useLiveSessions } from "@/features/live-sessions/hooks";
+import type { LiveSession } from "@/features/live-sessions/schemas";
 import { strategyKeys, useStrategies } from "@/features/strategy/hooks";
 import { useCodeStrategies } from "@/features/strategy/use-code-strategies";
 import { codeStrategyKeys } from "@/features/strategy/code-schemas";
 import type { StrategyListItem } from "@/features/strategy/schemas";
-import {
-  ExchangeAccountsPanel,
-  KillSwitchPanel,
-  OrdersPanel,
-  tradingKeys,
-  useExchangeAccounts,
-  useKillSwitchEvents,
-} from "@/features/trading";
+import { ExchangeAccountsPanel } from "./exchange-accounts-panel";
+import { KillSwitchPanel } from "./kill-switch-panel";
+import { OrdersPanel } from "./orders-panel";
+import { tradingKeys } from "../query-keys";
+import { useExchangeAccounts, useKillSwitchEvents } from "../hooks";
 import { alertRuleKeys } from "@/features/alert-rules/query-keys";
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import type { ExchangeAccount, KillSwitchEvent } from "@/features/trading/schemas";

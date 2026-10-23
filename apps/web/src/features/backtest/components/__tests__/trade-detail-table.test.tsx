@@ -43,6 +43,28 @@ beforeEach(() => {
 });
 
 describe("TradeDetailTable — 4상태", () => {
+  it("정렬만 바꾸면 기간 필터를 다시 실행하지 않고 표 순서를 갱신한다", () => {
+    const trades = [mkTrade(1, 30), mkTrade(2, 10), mkTrade(3, 20)];
+    const filter = vi.spyOn(trades, "filter");
+    render(
+      <TradeDetailTable
+        trades={trades}
+        isLoading={false}
+        isError={false}
+        endpoint={ENDPOINT}
+        filenamePrefix="bt-test"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("기간 시작"), {
+      target: { value: "2026-01-02" },
+    });
+    expect(filter).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("정렬"), { target: { value: "pnl:asc" } });
+    expect(filter).toHaveBeenCalledTimes(1);
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(rows.map((row) => within(row).getAllByRole("cell")[0]?.textContent)).toEqual(["3", "4"]);
+  });
+
   it("로딩 → 스켈레톤 렌더 (표 미노출)", () => {
     render(
       <TradeDetailTable
