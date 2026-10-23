@@ -94,3 +94,87 @@ def test_daily_grid_uses_utc_even_when_request_has_an_offset():
     result = measure_data_coverage(index, "1d", start, end)
     assert result.expected_bars == 2
     assert result.missing_bars == 0
+
+
+@pytest.mark.parametrize("end_inclusive,expected,missing", [(False, 48, 0), (True, 49, 1)])
+def test_complete_48_hours_respects_requested_end_boundary(end_inclusive, expected, missing):
+    start = datetime(2026, 4, 11, tzinfo=UTC)
+    end = datetime(2026, 4, 13, tzinfo=UTC)
+    index = pd.date_range(start, end, freq="1h", inclusive="left")
+    result = measure_data_coverage(index, "1h", start, end, end_inclusive=end_inclusive)
+    assert result.bar_count == 48
+    assert result.expected_bars == expected
+    assert result.missing_bars == missing
+
+
+def test_exclusive_end_still_counts_a_real_middle_gap():
+    start = datetime(2026, 4, 11, tzinfo=UTC)
+    end = datetime(2026, 4, 13, tzinfo=UTC)
+    index = pd.date_range(start, end, freq="1h", inclusive="left").delete(20)
+    result = measure_data_coverage(index, "1h", start, end, end_inclusive=False)
+    assert result.bar_count == 47
+    assert result.expected_bars == 48
+    assert result.missing_bars == 1
+
+
+def test_exclusive_unaligned_end_filters_against_original_utc_timestamp():
+    start = datetime.fromisoformat("2026-04-11T09:30:00+09:00")
+    end = datetime.fromisoformat("2026-04-11T11:30:00+09:00")
+    index = pd.date_range("2026-04-11T01:00Z", periods=2, freq="1h")
+    result = measure_data_coverage(index, "1h", start, end, end_inclusive=False)
+    assert result.expected_bars == 2  # 02:00도 원 종료 시각 02:30 UTC 이전이다.
+    assert result.missing_bars == 0
+
+
+@pytest.mark.asyncio
+async def test_code_coverage_persists_exclusive_evaluation_without_warmup(db_session, monkeypatch):
+    from decimal import Decimal
+    from unittest.mock import AsyncMock, Mock
+
+    from src.backtest.dispatcher import FakeTaskDispatcher
+    from src.backtest.engine.types import BacktestMetrics, BacktestResult
+    from src.backtest.models import BacktestStatus
+    from src.backtest.repository import BacktestRepository
+    from src.backtest.service import BacktestService
+    from src.strategy.code_service import CodeStrategyService
+    from src.strategy.repository import StrategyRepository
+    from tests.backtest.test_code_strategy_version_selection import _code_request, _request, _user
+
+    user = await _user(db_session)
+    strategy_repo = StrategyRepository(db_session)
+    strategy = await CodeStrategyService(strategy_repo).create(_code_request(), owner_id=user.id)
+    request = _request(
+        strategy.id,
+        period_start=datetime(2026, 4, 11, tzinfo=UTC),
+        period_end=datetime(2026, 4, 13, tzinfo=UTC),
+        include_funding=False,
+    )
+    index = pd.date_range(request.period_start, request.period_end, freq="1h", inclusive="left")
+    parent_index = pd.date_range(index[0] - pd.Timedelta(hours=50), index[-1], freq="1h")
+    parent = pd.DataFrame(
+        dict.fromkeys(("open", "high", "low", "close", "volume"), 100), index=parent_index
+    )
+    provider = AsyncMock()
+    provider.get_ohlcv.side_effect = [parent, parent]
+    result = BacktestResult(
+        metrics=BacktestMetrics(Decimal(0), Decimal(0), Decimal(0), Decimal(0), 0),
+        equity_curve=pd.Series([Decimal("10000")] * 48, index=index),
+    )
+    native = Mock(return_value=result)
+    monkeypatch.setattr("src.strategy.product_execution.run_product_backtest", native)
+    service = BacktestService(
+        repo=BacktestRepository(db_session),
+        strategy_repo=strategy_repo,
+        ohlcv_provider=provider,
+        dispatcher=FakeTaskDispatcher(),
+    )
+    submitted = await service.submit(request, user_id=user.id)
+    await service.run(submitted.backtest_id)
+    detail = await service.get(submitted.backtest_id, user_id=user.id)
+    assert detail.status == BacktestStatus.COMPLETED
+    native.assert_called_once()
+    assert detail.data_coverage.bar_count == 48
+    assert detail.data_coverage.expected_bars == 48
+    assert detail.data_coverage.missing_bars == 0
+    assert detail.data_coverage.actual_start == request.period_start
+    assert detail.data_coverage.actual_end == index[-1].to_pydatetime()

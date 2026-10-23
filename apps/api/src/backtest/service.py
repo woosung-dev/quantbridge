@@ -601,6 +601,7 @@ class BacktestService:
                     bt.timeframe,
                     bt.period_start,
                     bt.period_end,
+                    end_inclusive=bt.engine_version != "code_v1",
                 ).model_dump(mode="json"),
             )
             if completed_rows == 0:

@@ -16,6 +16,10 @@
 버전으로 대체하지 않는다. 전략 자체가 다른 소유자에게 속하면 기존과 같은 404다. 기존 Pine
 경로에 NULL이 아닌 버전 ID를 보내면 422이며, 생략한 기존 요청의 동작은 유지한다.
 
+코드 백테스트의 평가 구간은 `period_start` 포함·`period_end` 제외다. 결과의
+`data_coverage`도 워밍업을 제외한 같은 구간의 부모 봉을 센다. 기존 Pine 경로의
+양 끝 포함 커버리지 계산은 유지한다.
+
 코드 백테스트는 row를 먼저 commit한 뒤 작업을 publish하고, task ID를 두 번째 commit으로 저장한다. 즉시 시작한 worker도 row를 읽을 수 있다. publish 실패는 이미 저장된 QUEUED row를 조건부 FAILED로 기록·commit하고 `TaskDispatchError`를 반환한다. 이미 RUNNING 등으로 전이한 row를 실패로 덮어쓰지 않는다. legacy Pine dispatch 순서는 이 변경 범위에 포함하지 않는다.
 
 전략은 격리 실행기로만 전달한다. 이미지·gVisor·프로토콜·해시·데이터 오류는 FAILED이며 호스트 실행이나 Pine fallback이 없다. 스트레스·최적화는 코드 백테스트를 아직 지원하지 않아 422로 거부한다. 실행 확장은 기존 Pine 인터프리터·연구 compiler를 변경하지 않는 제품 helper에 둔다.
