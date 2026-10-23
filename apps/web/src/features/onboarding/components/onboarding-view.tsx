@@ -8,7 +8,9 @@
 //
 // Selector 계약 (LESSON-004): scalar selector 만 사용.
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+
+import { useAuthCtx } from "@/hooks/use-auth-ctx";
 
 import {
   maybeExpireAndReset,
@@ -44,6 +46,42 @@ const STEP_ILLUSTRATION = {
 } as const;
 
 export function OnboardingView() {
+  const { userId, isSignedIn } = useAuthCtx();
+  const [hydrated, setHydrated] = useState(false);
+  const ownerUserId = useOnboardingStore((s) => s.ownerUserId);
+  const bindOwner = useOnboardingStore((s) => s.bindOwner);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve(useOnboardingStore.persist.rehydrate()).then(() => {
+      if (!cancelled) {
+        maybeExpireAndReset();
+        setHydrated(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || !isSignedIn || !userId) return;
+    bindOwner(userId);
+    maybeExpireAndReset();
+  }, [hydrated, isSignedIn, userId, ownerUserId, bindOwner]);
+
+  // 자식의 자동 요청 effect보다 먼저, 렌더에서 이전 계정의 ID를 차단한다.
+  if (!hydrated || !isSignedIn || !userId || ownerUserId !== userId) {
+    return (
+      <main className="page" aria-busy="true">
+        온보딩을 준비하고 있습니다.
+      </main>
+    );
+  }
+  return <OnboardingContent key={userId} />;
+}
+
+function OnboardingContent() {
   // scalar selectors — 객체 selector 금지 (LESSON-004).
   const step = useOnboardingStore(selectStep);
   const strategyId = useOnboardingStore(selectStrategyId);
@@ -54,13 +92,6 @@ export function OnboardingView() {
   const setStrategy = useOnboardingStore((s) => s.setStrategy);
   const setBacktest = useOnboardingStore((s) => s.setBacktest);
   const reset = useOnboardingStore((s) => s.reset);
-
-  // 마운트 시 저장된 진행도 복원(store 의 `skipHydration` — 첫 렌더를 SSR 과 맞춘다) → TTL 초과
-  // 체크 → 초과하면 welcome 으로 돌아감. 저장소가 동기 localStorage 라 rehydrate 는 이 줄에서 끝난다.
-  useEffect(() => {
-    void useOnboardingStore.persist.rehydrate();
-    maybeExpireAndReset();
-  }, []);
 
   const handleNext = () => {
     setStep(nextStep(step));

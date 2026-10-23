@@ -1025,7 +1025,10 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 ~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 PR #926의 Gemini 실행 Python preview·저장·백테스트 연결과 소규모 평가 근거를 검토한다.**~~
 → **2026-10-23 PR #926은 구현·80회 평가와 exact-head CI를 완료했다. 후속 연구는 별도 문서 브랜치에서 원2회 배정의 실패를 보존한다.**
 
-**다음 행동 = PRD §5의 결과·가정 공개 기준으로 PR #927의 [Sol 약점 기반 Gemini hard9 보고서](./architecture/gemini-hard-case-comparison.md)를 검토한다. 9시도·7원문·공개4/7·의미2/4와 원문 없는503/429 두 슬롯, 명세 모호성·런타임 호환성·broker fixture 증거를 구분한다. 추가 추론·재평가는 종료했고 연구 VM은 Stopped다.**
+~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 PR #927의 [Sol 약점 기반 Gemini hard9 보고서](./architecture/gemini-hard-case-comparison.md)를 검토한다. 9시도·7원문·공개4/7·의미2/4와 원문 없는503/429 두 슬롯, 명세 모호성·런타임 호환성·broker fixture 증거를 구분한다. 추가 추론·재평가는 종료했고 연구 VM은 Stopped다.**~~
+→ **2026-10-23 PR #927·#926은 개발 통합 브랜치에 머지했다. 기존 생성·평가 원장은 보존하며 추가 연구 추론은 종료했다.**
+
+**다음 행동 = PRD §5의 결과·가정 공개 기준으로 Gemini Python 초안 검토·적용·저장·불변 버전 백테스트의 로컬 검증 PR을 검토한다. 실제 외부 추론과 오프라인 응답 검증, 합성 시세 실행과 시장 성과를 구분한다. main 반영과 운영 배포는 별도다.**
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.
 현재 [ADR-046](./adr/046-generated-strategy-language-evaluation.md)의 다중 언어 `code_v1`은 별도 경로다.

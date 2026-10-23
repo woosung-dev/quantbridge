@@ -170,14 +170,14 @@ class BacktestService:
             if data.execution_policy != "code_v1":
                 raise CodeStrategyPolicyError()
             version = await self.strategy_repo.get_version_by_id(
-                strategy.strategy_version_id, strategy_id=strategy.id
+                data.strategy_version_id or strategy.strategy_version_id, strategy_id=strategy.id
             )
             if version is None:
                 raise CodeStrategyPolicyError()
             return await self._submit_code(
                 data, version, user_id=user_id, idempotency_key=idempotency_key, body_hash=body_hash
             )
-        if data.execution_policy is not None:
+        if data.execution_policy is not None or data.strategy_version_id is not None:
             raise CodeStrategyPolicyError()
         strategy_version = await self._ensure_current_strategy_version(strategy)
 
@@ -1258,6 +1258,8 @@ def _compute_body_hash(data: CreateBacktestRequest, user_id: UUID) -> bytes:
     payload = {**data.model_dump(mode="json"), "user_id": str(user_id)}
     if data.execution_policy is None:
         payload.pop("execution_policy", None)
+    if data.strategy_version_id is None:
+        payload.pop("strategy_version_id", None)
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).digest()

@@ -208,6 +208,29 @@ describe("TradingChart", () => {
     expect(dataArg[2]!.color).toBeUndefined();
   });
 
+  it("keeps the first duplicate timestamp's value and color together", async () => {
+    const histogramPoints: HistogramPoint[] = [
+      { time: "2026-01-02T00:00:00Z", value: 40 },
+      { time: "2026-01-01T00:00:00Z", value: 120, color: "#0f9d6b" },
+      { time: "2026-01-01T00:00:00Z", value: -80, color: "#e0413e" },
+      { time: "2026-01-02T00:00:00Z", value: -20, color: "#e0413e" },
+    ];
+    render(
+      <TradingChart
+        data={POINTS}
+        histogram={{ data: histogramPoints }}
+        ariaLabel="Trade PnL bars"
+      />,
+    );
+    await flushChartInit();
+
+    const series = chartInstances[0]!.addHistogramSeries.mock.results[0]!.value as SeriesSpy;
+    expect(series.setData.mock.calls[0]![0]).toEqual([
+      { time: Date.parse("2026-01-01T00:00:00Z") / 1000, value: 120, color: "#0f9d6b" },
+      { time: Date.parse("2026-01-02T00:00:00Z") / 1000, value: 40 },
+    ]);
+  });
+
   it("removes histogram series when histogram prop is dropped", async () => {
     const histogramPoints: HistogramPoint[] = [{ time: "2026-01-01T00:00:00Z", value: 120 }];
     const { rerender } = render(

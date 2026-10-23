@@ -430,6 +430,7 @@ describe("코드 전략 작업 공간", () => {
         token: "test-token",
         body: expect.objectContaining({
           strategy_id: STRATEGY_ID,
+          strategy_version_id: "55555555-5555-4555-8555-555555555555",
           period_start: "2026-01-01T00:00:00Z",
           period_end: "2026-02-01T00:00:00Z",
           execution_policy: "code_v1",
@@ -437,6 +438,31 @@ describe("코드 전략 작업 공간", () => {
           leverage: "1",
           include_funding: true,
         }),
+      }),
+    );
+  });
+
+  it("목록의 최신 버전이 바뀌어도 화면에서 검토한 버전으로 백테스트를 요청한다", async () => {
+    const original = saved();
+    const { client } = setup([original], [], STRATEGY_ID);
+    await ready();
+    await screen.findByText("저장한 원문과 일치합니다.");
+    act(() => {
+      client.setQueryData(codeStrategyKeys.list("user-1"), {
+        items: [{ ...original, version: { ...original.version, id: SECOND_ID } }],
+        total: 1,
+      });
+    });
+    fireEvent.change(screen.getByLabelText("시작일 (UTC)"), { target: { value: "2026-01-01" } });
+    fireEvent.change(screen.getByLabelText("종료일 (UTC·미포함)"), {
+      target: { value: "2026-02-01" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "백테스트 실행" }));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(`/backtests/${BACKTEST_ID}`));
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      "/api/v1/backtests",
+      expect.objectContaining({
+        body: expect.objectContaining({ strategy_version_id: original.version.id }),
       }),
     );
   });

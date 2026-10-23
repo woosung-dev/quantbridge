@@ -175,15 +175,8 @@ function toAreaData(points: readonly ChartPoint[]): AreaData[] {
 }
 
 function toHistogramData(points: readonly HistogramPoint[]): HistogramData[] {
-  // toLineData 와 동일한 정렬/중복 제거 + per-point color 보존.
-  const colorByTime = new Map<number, string | undefined>();
-  for (const p of points) {
-    colorByTime.set(Number(toTime(p.time)), p.color);
-  }
-  return toLineData(points).map((d) => {
-    const color = colorByTime.get(Number(d.time));
-    return color !== undefined ? { ...d, color } : d;
-  });
+  // 동일 시각의 첫 값과 그 값의 색을 함께 보존한다.
+  return toLineData(points);
 }
 
 function toMarkers(markers: readonly ChartMarker[]): SeriesMarker<Time>[] {
