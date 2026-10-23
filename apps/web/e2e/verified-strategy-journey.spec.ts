@@ -42,6 +42,8 @@ for (const candidate of candidates) {
     await page.locator("#timeframe").selectOption("1h");
     await page.locator("#period_start").fill("2026-04-01");
     await page.locator("#period_end").fill("2026-06-30");
+    await expect(page.locator("#period_start")).toHaveValue("2026-04-01");
+    await expect(page.locator("#period_end")).toHaveValue("2026-06-30");
     const submitted = page.waitForResponse(
       (response) =>
         response.url().endsWith("/api/v1/backtests") && response.request().method() === "POST",
