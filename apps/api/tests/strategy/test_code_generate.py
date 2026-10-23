@@ -150,6 +150,28 @@ def test_partial_usage_does_not_claim_zero_input_or_output(monkeypatch):
     assert result.usage.total_tokens == 37
 
 
+def test_partially_reported_usage_keeps_known_input_and_unknown_output(monkeypatch):
+    stub(
+        monkeypatch,
+        completion(
+            usage_known=False,
+            input_tokens=23,
+            output_tokens=0,
+            reported_input_tokens=23,
+            reported_output_tokens=None,
+            thinking_tokens=None,
+            total_tokens=23,
+        ),
+    )
+    result = CodeGenerateService(settings()).generate(
+        GenerateCodeStrategyRequest(prompt="SMA 교차 전략을 만드세요")
+    )
+    assert result.usage.input_tokens == 23
+    assert result.usage.output_tokens is None
+    assert result.usage.thinking_tokens is None
+    assert result.usage.total_tokens == 23
+
+
 def test_shared_prompt_contains_public_risk_numeric_and_user_contract_only():
     system, user = build_generation_prompt("SMA3/SMA8 교차", warmup_bars=80, params={"slow": 8})
     assert PUBLIC_CONTRACT in system and RISK_CONTRACT in system

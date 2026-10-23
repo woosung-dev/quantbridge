@@ -61,6 +61,8 @@ class JsonCompletion:
     provider: str
     input_tokens: int = 0
     output_tokens: int = 0
+    reported_input_tokens: int | None = None
+    reported_output_tokens: int | None = None
     actual_model: str | None = None
     thinking_tokens: int | None = None
     total_tokens: int | None = None
@@ -94,7 +96,7 @@ def _safe_failure(exc: Exception) -> ProviderCallError:
         return exc
     code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
     status = code if isinstance(code, int) else None
-    if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+    if status in (408, 504) or isinstance(exc, (TimeoutError, httpx.TimeoutException)):
         category: ProviderFailureCategory = "timeout"
     elif status == 403:
         category = "forbidden"
@@ -192,8 +194,13 @@ def _call_anthropic(
                     provider="anthropic",
                     input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
                     output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+                    reported_input_tokens=getattr(usage, "input_tokens", None),
+                    reported_output_tokens=getattr(usage, "output_tokens", None),
                     actual_model=getattr(response, "model", None),
-                    usage_known=usage is not None,
+                    usage_known=(
+                        getattr(usage, "input_tokens", None) is not None
+                        and getattr(usage, "output_tokens", None) is not None
+                    ),
                 )
     # ★빈 결과를 성공으로 내면 화면이 침묵으로 거짓말한다.
     raise RuntimeError("도구 호출 응답이 오지 않았습니다")
@@ -233,9 +240,14 @@ def _call_openai(
         provider="openai",
         input_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
         output_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+        reported_input_tokens=getattr(usage, "prompt_tokens", None),
+        reported_output_tokens=getattr(usage, "completion_tokens", None),
         actual_model=getattr(response, "model", None),
         total_tokens=getattr(usage, "total_tokens", None),
-        usage_known=usage is not None,
+        usage_known=(
+            getattr(usage, "prompt_tokens", None) is not None
+            and getattr(usage, "completion_tokens", None) is not None
+        ),
     )
 
 
@@ -282,6 +294,8 @@ def _call_gemini(
             "finish_reason": finish,
             "input_tokens": int(getattr(usage, "prompt_token_count", 0) or 0),
             "output_tokens": int(getattr(usage, "candidates_token_count", 0) or 0),
+            "reported_input_tokens": getattr(usage, "prompt_token_count", None),
+            "reported_output_tokens": getattr(usage, "candidates_token_count", None),
             "thinking_tokens": getattr(usage, "thoughts_token_count", None),
             "total_tokens": getattr(usage, "total_token_count", None),
             "usage_known": (

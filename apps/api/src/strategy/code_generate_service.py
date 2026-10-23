@@ -96,14 +96,21 @@ class CodeGenerateService:
         except (SyntaxError, ValueError, TypeError, RecursionError):
             raise ProviderCallError("validation") from None
         usage = None
+        input_tokens = completion.reported_input_tokens
+        output_tokens = completion.reported_output_tokens
+        if completion.usage_known:
+            # 기존 호출자의 JsonCompletion 생성도 실제 보고값 계약을 유지한다.
+            input_tokens = completion.input_tokens if input_tokens is None else input_tokens
+            output_tokens = completion.output_tokens if output_tokens is None else output_tokens
         if (
-            completion.usage_known
+            input_tokens is not None
+            or output_tokens is not None
             or completion.thinking_tokens is not None
             or completion.total_tokens is not None
         ):
             usage = GenerationUsage(
-                input_tokens=completion.input_tokens if completion.usage_known else None,
-                output_tokens=completion.output_tokens if completion.usage_known else None,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
                 thinking_tokens=completion.thinking_tokens,
                 total_tokens=completion.total_tokens,
             )

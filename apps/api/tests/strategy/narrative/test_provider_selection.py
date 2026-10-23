@@ -262,6 +262,7 @@ def test_gemini_reports_actual_model_thinking_usage_and_explicit_request_budget(
     )
     assert result.actual_model == "actual-gemini-model"
     assert result.usage_known is True
+    assert (result.reported_input_tokens, result.reported_output_tokens) == (23, 11)
     assert (
         result.input_tokens,
         result.output_tokens,
@@ -311,6 +312,8 @@ def test_incomplete_finish_preserves_safe_usage_and_closes_client(monkeypatch, r
         "finish_reason": reason,
         "input_tokens": 23,
         "output_tokens": 11,
+        "reported_input_tokens": 23,
+        "reported_output_tokens": 11,
         "thinking_tokens": 9,
         "total_tokens": 43,
         "usage_known": True,
@@ -350,9 +353,46 @@ def test_gemini_client_closes_after_sdk_error(monkeypatch):
     close.assert_called_once()
 
 
+@pytest.mark.parametrize("finish", ["STOP", "MAX_TOKENS"])
+def test_partial_gemini_usage_preserves_each_reported_field(monkeypatch, finish):
+    response = SimpleNamespace(
+        text=json.dumps(PAYLOAD),
+        candidates=[SimpleNamespace(finish_reason=finish)],
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=23, candidates_token_count=None, total_token_count=23
+        ),
+    )
+    monkeypatch.setattr(
+        P.genai,
+        "Client",
+        lambda **kw: SimpleNamespace(
+            models=SimpleNamespace(generate_content=lambda **kw: response)
+        ),
+    )
+    if finish == "STOP":
+        result = call(settings("gemini", gemini="k"))
+        assert result.usage_known is False
+        assert (result.input_tokens, result.output_tokens) == (23, 0)
+        assert (result.reported_input_tokens, result.reported_output_tokens) == (23, None)
+    else:
+        with pytest.raises(P.ProviderCallError) as error:
+            call(settings("gemini", gemini="k"))
+        assert error.value.metadata["usage_known"] is False
+        assert error.value.metadata["reported_input_tokens"] == 23
+        assert error.value.metadata["reported_output_tokens"] is None
+        assert error.value.metadata["total_tokens"] == 23
+
+
 @pytest.mark.parametrize(
     "code,category",
-    [(403, "forbidden"), (404, "not_found"), (429, "rate_limited"), (400, "validation")],
+    [
+        (403, "forbidden"),
+        (404, "not_found"),
+        (429, "rate_limited"),
+        (400, "validation"),
+        (408, "timeout"),
+        (504, "timeout"),
+    ],
 )
 def test_sdk_failure_metadata_is_safe_and_preserves_status(monkeypatch, caplog, code, category):
     from google.genai.errors import ClientError
