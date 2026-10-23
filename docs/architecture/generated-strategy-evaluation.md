@@ -200,8 +200,9 @@ Python은 이미 새 draft의 기본값이다. [기존 저장 계약](../develop
 Pine은 자체 `pine_v2`이며 TradingView 실행과 완전 동등하다는 주장은 없다.
 
 서버의 기존 무료 Gemini 생성기는 **Pine 정본과 읽기용 Python** DTO다. 연구 Sol의
-자연어→세 언어 생성과 구분한다. 웹 자연어→세 언어 생성기와 유료 API 연결은 보류이며,
-Sol의 이번 점수를 Gemini 생성 품질로 승계하지 않는다. 실제 Demo 주문·배포는 수행하지 않았다.
+자연어→세 언어 생성과 구분한다. 별도 [Gemini 실행 Python preview](../development/gemini-python-generation.md)는
+코드 작업 공간의 검토·적용·저장 흐름에 연결한다. Gemini 비교는 독립된 소규모 코호트이며
+Sol의 이번 점수를 승계하지 않는다. 유료 API 연결·실제 Demo 주문·배포는 수행하지 않는다.
 
 ## 재현 근거와 검증 한계
 

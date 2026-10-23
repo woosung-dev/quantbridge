@@ -20,6 +20,7 @@ import {
   codeStrategyKeys,
   type CodeStrategy,
   type SaveCodeStrategy,
+  type GenerateCodeStrategyResponse,
 } from "@/features/strategy/code-schemas";
 import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
 import { ApiError, type RequestOptions } from "@/lib/api-client";
@@ -75,6 +76,31 @@ function saved(name = "이전 전략", id = STRATEGY_ID): CodeStrategy {
   };
 }
 
+function generatedPreview(): GenerateCodeStrategyResponse {
+  return {
+    status: "preview",
+    code: {
+      schema_version: 1,
+      execution_policy: "code_v1",
+      language: "python",
+      source_code: 'def on_bar(ctx, state):\n    return {"action": "hold"}\n',
+      warmup_bars: 40,
+      params: { fast: 10, slow: 30 },
+      provenance: {
+        kind: "gemini_generated",
+        provider: "gemini",
+        requested_model: "configured-model",
+        actual_model: null,
+      },
+    },
+    assumptions: ["완료 봉에서만 진입 조건을 판단합니다."],
+    provider: "gemini",
+    requested_model: "configured-model",
+    actual_model: null,
+    usage: { input_tokens: 100, output_tokens: 20, thinking_tokens: null, total_tokens: null },
+  };
+}
+
 function setup(
   items: CodeStrategy[] = [],
   accounts: ExchangeAccount[] = [],
@@ -83,6 +109,7 @@ function setup(
   let stored = items;
   let version = 0;
   mocks.apiFetch.mockImplementation(async (path: string, options?: RequestOptions) => {
+    if (path === "/api/v1/strategies/code/generate") return generatedPreview();
     if (path === "/api/v1/exchange-accounts") return { items: accounts };
     if (path === "/api/v1/live-sessions")
       return {
@@ -157,6 +184,184 @@ afterEach(() => {
 });
 
 describe("코드 전략 작업 공간", () => {
+  it("생성 preview는 명시 적용·저장·백테스트를 각각 눌러야 전진한다", async () => {
+    setup();
+    await ready();
+    fillDraft();
+    fireEvent.change(screen.getByLabelText("진입·청산 조건"), {
+      target: { value: "빠른 평균이 느린 평균을 돌파하면 롱" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Python 초안 생성" }));
+    await screen.findByTestId("code-generation-preview");
+    expect(screen.getByLabelText("소스 코드")).toHaveValue("manual version one");
+    expect(screen.getByText(/응답 모델:/)).toHaveTextContent("미보고 · 확인 안 됨");
+    expect(screen.getByText(/토큰 사용량:/)).toHaveTextContent("사고 미보고");
+    expect(
+      mocks.apiFetch.mock.calls.filter(([, options]) => options?.method === "POST"),
+    ).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "백테스트 실행" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "이 Python 초안 적용" }));
+    expect(screen.getByLabelText("소스 코드")).toHaveValue(generatedPreview().code.source_code);
+    expect(screen.getByLabelText("준비 봉 수")).toHaveValue(40);
+    expect(screen.getByLabelText("실행 언어")).toHaveValue("python");
+    expect(
+      mocks.apiFetch.mock.calls.filter(([, options]) => options?.method === "POST"),
+    ).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "전략 저장" }));
+    await screen.findByText("저장한 원문과 일치합니다.");
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      "/api/v1/strategies/code",
+      expect.objectContaining({
+        body: expect.objectContaining({ code: generatedPreview().code }),
+      }),
+    );
+    expect(
+      mocks.apiFetch.mock.calls.some(
+        ([path]) => path === "/api/v1/backtests" || path === "/api/v1/live-sessions",
+      ),
+    ).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "백테스트 실행" }));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(`/backtests/${BACKTEST_ID}`));
+  });
+
+  it.each(["source", "language", "params", "warmup"] as const)(
+    "적용 후 %s를 수정하면 생성 출처를 수동 출처로 바꾼다",
+    async (field) => {
+      setup([saved()], [], STRATEGY_ID);
+      await ready();
+      fireEvent.change(screen.getByLabelText("진입·청산 조건"), {
+        target: { value: "빠른 평균이 느린 평균을 돌파하면 롱" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Python 초안 생성" }));
+      await screen.findByTestId("code-generation-preview");
+      fireEvent.click(screen.getByRole("button", { name: "이 Python 초안 적용" }));
+      const edit = {
+        source: ["소스 코드", "changed source"],
+        language: ["실행 언어", "typescript"],
+        params: ["파라미터 JSON", '{"fast": 11, "slow": 30}'],
+        warmup: ["준비 봉 수", "41"],
+      }[field];
+      fireEvent.change(screen.getByLabelText(edit[0]!), { target: { value: edit[1] } });
+      fireEvent.click(screen.getByRole("button", { name: "새 버전 저장" }));
+      await screen.findByText("저장한 원문과 일치합니다.");
+      expect(mocks.apiFetch).toHaveBeenCalledWith(
+        `/api/v1/strategies/code/${STRATEGY_ID}`,
+        expect.objectContaining({
+          body: expect.objectContaining({
+            code: expect.objectContaining({
+              provenance: { origin: "manual_editor", parent_version_id: saved().version.id },
+            }),
+          }),
+        }),
+      );
+    },
+  );
+
+  it("파라미터 JSON의 공백과 키 순서만 바꾸면 생성 출처를 보존한다", async () => {
+    setup();
+    await ready();
+    fillDraft();
+    fireEvent.change(screen.getByLabelText("진입·청산 조건"), {
+      target: { value: "빠른 평균이 느린 평균을 돌파하면 롱" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Python 초안 생성" }));
+    await screen.findByTestId("code-generation-preview");
+    fireEvent.click(screen.getByRole("button", { name: "이 Python 초안 적용" }));
+    fireEvent.change(screen.getByLabelText("파라미터 JSON"), {
+      target: { value: '{ "slow": 30, "fast": 10 }' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "전략 저장" }));
+    await screen.findByText("저장한 원문과 일치합니다.");
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      "/api/v1/strategies/code",
+      expect.objectContaining({
+        body: expect.objectContaining({
+          code: expect.objectContaining({ provenance: generatedPreview().code.provenance }),
+        }),
+      }),
+    );
+  });
+
+  it.each(["새 코드", "이전 전략 · Python"])(
+    "생성 대기 중 %s로 이동하면 늦은 응답을 적용할 수 없다",
+    async (button) => {
+      setup([saved()]);
+      await ready();
+      const previous = mocks.apiFetch.getMockImplementation()!;
+      let resolvePreview: (value: GenerateCodeStrategyResponse) => void = () => {};
+      const pending = new Promise<GenerateCodeStrategyResponse>((resolve) => {
+        resolvePreview = resolve;
+      });
+      mocks.apiFetch.mockImplementation((path: string, options?: RequestOptions) =>
+        path === "/api/v1/strategies/code/generate" ? pending : previous(path, options),
+      );
+      fireEvent.change(screen.getByLabelText("진입·청산 조건"), {
+        target: { value: "빠른 평균이 느린 평균을 돌파하면 롱" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Python 초안 생성" }));
+      await screen.findByRole("button", { name: "Python 초안 만드는 중…" });
+      fireEvent.click(screen.getByRole("button", { name: button }));
+      await act(async () => resolvePreview(generatedPreview()));
+      expect(screen.queryByTestId("code-generation-preview")).toBeNull();
+      expect(screen.getByLabelText("진입·청산 조건")).toHaveValue("");
+      expect(screen.getByLabelText("소스 코드")).toHaveValue(
+        button === "새 코드" ? "" : saved().version.source_code,
+      );
+    },
+  );
+
+  it("생성 quota 실패는 한 번만 요청하고 원문과 실행 상태를 보존한다", async () => {
+    setup();
+    await ready();
+    fillDraft();
+    mocks.apiFetch.mockRejectedValueOnce(
+      new ApiError(429, "code_generate_quota", "무료 한도를 확인하세요."),
+    );
+    fireEvent.change(screen.getByLabelText("진입·청산 조건"), {
+      target: { value: "빠른 평균이 느린 평균을 돌파하면 롱" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Python 초안 생성" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("무료 한도를 확인하세요.");
+    expect(
+      mocks.apiFetch.mock.calls.filter(([path]) => path === "/api/v1/strategies/code/generate"),
+    ).toHaveLength(1);
+    expect(screen.getByLabelText("소스 코드")).toHaveValue("manual version one");
+    expect(screen.queryByTestId("code-generation-preview")).toBeNull();
+    expect(screen.getByRole("button", { name: "백테스트 실행" })).toBeDisabled();
+  });
+
+  it("생성 응답 전에 사용자가 바뀌면 이전 사용자의 preview를 보이지 않는다", async () => {
+    const { client, rerender } = setup();
+    await ready();
+    let resolvePreview: (value: GenerateCodeStrategyResponse) => void = () => {};
+    const pending = new Promise<GenerateCodeStrategyResponse>((resolve) => {
+      resolvePreview = resolve;
+    });
+    const previous = mocks.apiFetch.getMockImplementation()!;
+    mocks.apiFetch.mockImplementation((path: string, options?: RequestOptions) =>
+      path === "/api/v1/strategies/code/generate" ? pending : previous(path, options),
+    );
+    fireEvent.change(screen.getByLabelText("진입·청산 조건"), {
+      target: { value: "빠른 평균이 느린 평균을 돌파하면 롱" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Python 초안 생성" }));
+    await screen.findByRole("button", { name: "Python 초안 만드는 중…" });
+    authMockState.userId = "user-2";
+    authMockState.token = "second-token";
+    await act(async () =>
+      rerender(
+        <QueryClientProvider client={client}>
+          <CodeWorkspace />
+        </QueryClientProvider>,
+      ),
+    );
+    await ready();
+    await act(async () => resolvePreview(generatedPreview()));
+    expect(screen.queryByTestId("code-generation-preview")).toBeNull();
+    expect(screen.getByLabelText("진입·청산 조건")).toHaveValue("");
+    expect(screen.getByLabelText("소스 코드")).toHaveValue("");
+  });
+
   it("저장 → dirty 실행 금지 → 새 버전 저장 → 고정 정책 요청 → 결과 화면으로 이동한다", async () => {
     const { client } = setup();
     await ready();

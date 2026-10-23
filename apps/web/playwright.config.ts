@@ -226,6 +226,7 @@ export default defineConfig({
       testMatch: /\.spec\.ts$/,
       testIgnore: [
         /verified-strategy-journey\.spec\.ts$/, // 별도 실제 서비스 여정 설정
+        /code-generation-journey\.spec\.ts$/, // 별도 생성 검토·저장 여정 설정
         /(^|\/)smoke\.spec\.ts$/, // chromium
         /live-smoke\.spec\.ts$/, // chromium-live-smoke
         /design-canon-.*\.spec\.ts$/, // chromium-design-canon

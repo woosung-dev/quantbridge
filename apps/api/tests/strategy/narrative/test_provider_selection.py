@@ -237,6 +237,156 @@ def test_gemini_quota_failure_does_not_call_paid_providers(monkeypatch):
     paid.assert_not_called()
 
 
+def test_gemini_reports_actual_model_thinking_usage_and_explicit_request_budget(monkeypatch):
+    response = SimpleNamespace(
+        text=json.dumps(PAYLOAD),
+        model_version="actual-gemini-model",
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=23,
+            candidates_token_count=11,
+            thoughts_token_count=9,
+            total_token_count=43,
+        ),
+    )
+    generate = Mock(return_value=response)
+    client = Mock(return_value=SimpleNamespace(models=SimpleNamespace(generate_content=generate)))
+    monkeypatch.setattr(P.genai, "Client", client)
+    result = P.complete_json(
+        settings("gemini", gemini="k"),
+        system="s",
+        user="u",
+        schema=SCHEMA,
+        tool_name="t",
+        max_output_tokens=16384,
+        timeout_seconds=180,
+    )
+    assert result.actual_model == "actual-gemini-model"
+    assert result.usage_known is True
+    assert (
+        result.input_tokens,
+        result.output_tokens,
+        result.thinking_tokens,
+        result.total_tokens,
+    ) == (23, 11, 9, 43)
+    assert client.call_args.kwargs["http_options"].timeout == 180000
+    assert client.call_args.kwargs["http_options"].retry_options.attempts == 1
+    assert generate.call_args.kwargs["config"].max_output_tokens == 16384
+    assert generate.call_args.kwargs["config"].temperature is None
+    assert generate.call_args.kwargs["config"].thinking_config is None
+    generate.assert_called_once()
+
+
+def test_missing_gemini_usage_is_not_claimed_as_reported_zero(monkeypatch):
+    cap: dict[str, Any] = {}
+    stub_gemini(monkeypatch, cap)
+    result = call(settings("gemini", gemini="k"))
+    assert result.usage_known is False
+    assert result.actual_model is None
+    assert result.thinking_tokens is None and result.total_tokens is None
+
+
+@pytest.mark.parametrize("reason", ["MAX_TOKENS", "SAFETY", "BLOCKLIST"])
+def test_incomplete_finish_preserves_safe_usage_and_closes_client(monkeypatch, reason):
+    response = SimpleNamespace(
+        text=json.dumps(PAYLOAD),
+        model_version="actual-gemini-model",
+        candidates=[SimpleNamespace(finish_reason=reason)],
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=23,
+            candidates_token_count=11,
+            thoughts_token_count=9,
+            total_token_count=43,
+        ),
+    )
+    close = Mock()
+    client = SimpleNamespace(
+        models=SimpleNamespace(generate_content=Mock(return_value=response)), close=close
+    )
+    monkeypatch.setattr(P.genai, "Client", lambda **kw: client)
+    with pytest.raises(P.ProviderCallError) as error:
+        call(settings("gemini", gemini="k"))
+    assert error.value.category == "validation"
+    assert error.value.metadata == {
+        "actual_model": "actual-gemini-model",
+        "finish_reason": reason,
+        "input_tokens": 23,
+        "output_tokens": 11,
+        "thinking_tokens": 9,
+        "total_tokens": 43,
+        "usage_known": True,
+    }
+    assert "payload" not in error.value.metadata and "response" not in error.value.metadata
+    close.assert_called_once()
+
+
+@pytest.mark.parametrize("text", ["", "invalid JSON", "[]"])
+def test_invalid_response_preserves_reported_usage_and_closes_client(monkeypatch, text):
+    close = Mock()
+    response = SimpleNamespace(
+        text=text,
+        model_version="actual-gemini-model",
+        candidates=[SimpleNamespace(finish_reason="STOP")],
+        usage_metadata=SimpleNamespace(prompt_token_count=23, candidates_token_count=11),
+    )
+    client = SimpleNamespace(
+        models=SimpleNamespace(generate_content=Mock(return_value=response)), close=close
+    )
+    monkeypatch.setattr(P.genai, "Client", lambda **kw: client)
+    with pytest.raises(P.ProviderCallError) as error:
+        call(settings("gemini", gemini="k"))
+    assert error.value.metadata["usage_known"] is True
+    assert error.value.metadata["input_tokens"] == 23
+    assert error.value.metadata["output_tokens"] == 11
+    close.assert_called_once()
+
+
+def test_gemini_client_closes_after_sdk_error(monkeypatch):
+    close = Mock()
+    generate = Mock(side_effect=TimeoutError("test-secret-must-not-appear"))
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=generate), close=close)
+    monkeypatch.setattr(P.genai, "Client", lambda **kw: client)
+    with pytest.raises(P.ProviderCallError):
+        call(settings("gemini", gemini="k"))
+    close.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "code,category",
+    [(403, "forbidden"), (404, "not_found"), (429, "rate_limited"), (400, "validation")],
+)
+def test_sdk_failure_metadata_is_safe_and_preserves_status(monkeypatch, caplog, code, category):
+    from google.genai.errors import ClientError
+
+    leaked = "temporary-test-secret-must-not-appear"
+    generate = Mock(side_effect=ClientError(code, {"error": {"code": code, "message": leaked}}))
+    monkeypatch.setattr(
+        P.genai,
+        "Client",
+        Mock(return_value=SimpleNamespace(models=SimpleNamespace(generate_content=generate))),
+    )
+    with pytest.raises(P.ProviderCallError) as error:
+        call(settings("gemini", gemini="k"))
+    assert (error.value.category, error.value.status_code) == (category, code)
+    assert leaked not in str(error.value) + caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
+    generate.assert_called_once()
+
+
+def test_timeout_is_separate_from_provider_unavailability(monkeypatch, caplog):
+    import httpx
+
+    generate = Mock(side_effect=httpx.ReadTimeout("temporary-test-secret-must-not-appear"))
+    monkeypatch.setattr(
+        P.genai,
+        "Client",
+        Mock(return_value=SimpleNamespace(models=SimpleNamespace(generate_content=generate))),
+    )
+    with pytest.raises(P.ProviderCallError) as error:
+        call(settings("gemini", gemini="k"))
+    assert error.value.category == "timeout"
+    assert "temporary-test-secret" not in caplog.text + str(error.value)
+
+
 def test_strict_helper_fills_nested_objects():
     """중첩 object/array 까지 채워야 한다 — 하나라도 빠지면 OpenAI 가 400 을 준다."""
     nested = {

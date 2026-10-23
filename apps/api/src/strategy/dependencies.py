@@ -10,6 +10,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.database import get_async_session
+from src.core.config import get_settings
+from src.strategy.code_generate_service import CodeGenerateService
 from src.strategy.code_service import CodeStrategyService
 from src.strategy.repository import StrategyRepository
 from src.strategy.service import StrategyService
@@ -54,3 +56,7 @@ async def get_code_strategy_service(
     session: AsyncSession = Depends(get_async_session),
 ) -> CodeStrategyService:
     return CodeStrategyService(StrategyRepository(session))
+
+
+def get_code_generate_service() -> CodeGenerateService:
+    return CodeGenerateService(get_settings())

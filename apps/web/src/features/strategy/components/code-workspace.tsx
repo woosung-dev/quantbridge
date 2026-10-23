@@ -7,6 +7,7 @@ import { CODE_LANGUAGE_LABELS, type CodeLanguage } from "@/features/strategy/cod
 import { useCodeWorkspace } from "@/features/strategy/code-hooks";
 import { describeApiError } from "@/lib/api-client";
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
+import { CodeGenerationPanel } from "./code-generation-panel";
 
 export function CodeWorkspace({ initialStrategyId }: { initialStrategyId?: string }) {
   const { uid } = useAuthCtx();
@@ -50,6 +51,17 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
           </div>
         </div>
       </section>
+
+      <CodeGenerationPanel
+        key={work.generationRevision}
+        preview={work.preview}
+        hasAppliedPreview={work.hasAppliedPreview}
+        isPending={work.generation.isPending}
+        error={work.generation.error}
+        disabled={work.busy}
+        onGenerate={work.generate}
+        onApply={work.applyPreview}
+      />
 
       <section className="section" aria-labelledby="code-editor-title">
         <header className="section-head">
