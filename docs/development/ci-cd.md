@@ -43,6 +43,11 @@ documentation · backend_static · backend ×3샤드 · backend_coverage · e2e 
 공식 archive 미러를 우선하고 Azure를 fallback으로 사용하며 기존 서명 검증을 유지한다.
 이는 패키지 전송 지연에 대한 설정이며 실제 소요 시간은 해당 CI 로그로 확인한다.
 
+CI의 공개 live smoke와 전략 여정은 Playwright `webServer`에서 `pnpm dev --webpack`을
+사용한다. 두 독립 CI 작업에서 관측한 Turbopack Google font import-map 오류로 준비 단계가
+실패한 경계를 우회하며, 네트워크 장애를 원인으로 단정하지 않는다. 로컬 기본 dev와
+production build, 기존 테스트 범위·대기시간·재시도 설정은 유지한다.
+
 - 실행: `pnpm exec playwright test --config playwright.journey.config.ts --grep s5_ema_trend`.
 - API/브라우저 포트는 CI 전용 8100/3100이다. 로컬 공유 스택에 이 잡을 대신 실행하지 않는다.
 - API/worker 준비 단계는 2분, 개별 health 요청은 연결 2초·전체 25초로 제한한다.

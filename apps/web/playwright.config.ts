@@ -5,8 +5,8 @@ import { getBaseURL, getFrontendPort, hasConfiguredBaseURL } from "./e2e/_base-u
 // Sprint FE-01 LESSON-004: React Query + Next.js 조합 infinite loop 검출용 E2E.
 // vitest jsdom이 못 잡는 Fast Refresh / StrictMode / Query refetch 케이스 실제 브라우저 재현.
 //
-// CI/로컬 모두 pnpm dev 사용 — prod build는 Clerk API 의존 페이지가 prerender 실패.
-// dev는 Clerk placeholder key로도 기동 가능. CI ubuntu는 초기 컴파일이 느리니 240s 대기.
+// CI 브라우저 검증은 webpack을 명시하고 로컬은 기본 dev를 쓴다.
+// CI Ubuntu의 초기 컴파일 준비는 기존 240s 한도를 유지한다.
 //
 // Sprint 25 — projects 분리 (codex G.0 iter 1 P1 #4 + iter 2 P2 #3):
 //   chromium         — public routes only (smoke.spec.ts)
@@ -245,7 +245,7 @@ export default defineConfig({
   webServer: hasConfiguredBaseURL()
     ? undefined
     : {
-        command: `pnpm dev --port ${fePort}`,
+        command: `pnpm dev${isCI ? " --webpack" : ""} --port ${fePort}`,
         url: baseURL,
         reuseExistingServer: !isCI,
         timeout: isCI ? 240_000 : 120_000,
