@@ -254,9 +254,9 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Import, execute, inspect and stress-test a strategy
+      - name: Verify Pine execution and Python generation review journey
         working-directory: apps/web
-        run: pnpm exec playwright test --config playwright.journey.config.ts --grep s5_ema_trend
+        run: pnpm exec playwright test --config playwright.journey.config.ts --grep 's5_ema_trend|code_generation_preview'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

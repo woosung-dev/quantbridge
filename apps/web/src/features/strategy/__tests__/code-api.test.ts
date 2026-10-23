@@ -8,7 +8,12 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 });
 
 import { ApiError } from "@/lib/api-client";
-import { listCodeStrategies, saveCodeStrategy, submitCodeBacktest } from "../code-api";
+import {
+  generateCodeStrategy,
+  listCodeStrategies,
+  saveCodeStrategy,
+  submitCodeBacktest,
+} from "../code-api";
 import { getCodeResultStrategy } from "../code-result-api";
 import { createBacktest } from "@/features/backtest/api";
 import type { CodeLanguage, SaveCodeStrategy } from "../code-schemas";
@@ -70,6 +75,49 @@ afterEach(() => {
 });
 
 describe("수동 코드 전략 API", () => {
+  it("Gemini Python preview 요청은 저장과 별도이며 미보고 모델·usage를 보존한다", async () => {
+    const preview = {
+      status: "preview",
+      code: request().code,
+      assumptions: ["완료 봉에서 판단합니다."],
+      provider: "gemini",
+      requested_model: "configured-model",
+      actual_model: null,
+      usage: null,
+    };
+    apiFetchMock.mockResolvedValueOnce(preview);
+    const body = { prompt: "빠른 평균이 느린 평균을 돌파하면 진입", warmup_bars: 200, params: {} };
+    expect(await generateCodeStrategy(body, TOKEN)).toEqual(preview);
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/strategies/code/generate", {
+      method: "POST",
+      token: TOKEN,
+      body,
+    });
+  });
+
+  it("짧은 생성 요청은 전송 전에, Pine preview는 응답 검증에서 거절한다", async () => {
+    await expect(
+      generateCodeStrategy({ prompt: "짧음", warmup_bars: 200, params: {} }, TOKEN),
+    ).rejects.toThrow();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    apiFetchMock.mockResolvedValueOnce({
+      status: "preview",
+      code: request("pine").code,
+      assumptions: [],
+      provider: "gemini",
+      requested_model: "configured-model",
+      actual_model: null,
+      usage: null,
+    });
+    await expect(
+      generateCodeStrategy(
+        { prompt: "충분히 자세한 생성 조건입니다", warmup_bars: 200, params: {} },
+        TOKEN,
+      ),
+    ).rejects.toThrow();
+  });
+
   it.each(["python", "typescript", "pine"] as const)(
     "목록의 %s 버전을 검증하고 토큰을 전달한다",
     async (language) => {

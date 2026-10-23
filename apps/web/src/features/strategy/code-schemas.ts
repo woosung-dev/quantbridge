@@ -25,6 +25,31 @@ export const CodeSnapshotSchema = z.object({
   params: JsonObjectSchema,
   provenance: JsonObjectSchema,
 });
+export type CodeSnapshot = z.infer<typeof CodeSnapshotSchema>;
+export const GenerateCodeStrategyRequestSchema = z.object({
+  prompt: z.string().trim().min(10).max(2000),
+  warmup_bars: z.number().int().min(1).max(10000),
+  params: JsonObjectSchema,
+});
+export type GenerateCodeStrategyRequest = z.infer<typeof GenerateCodeStrategyRequestSchema>;
+const ReportedTokensSchema = z.number().int().nonnegative().nullable();
+export const GenerateCodeStrategyResponseSchema = z.object({
+  status: z.literal("preview"),
+  code: CodeSnapshotSchema.extend({ language: z.literal("python") }),
+  assumptions: z.array(z.string()),
+  provider: z.literal("gemini"),
+  requested_model: z.string().min(1),
+  actual_model: z.string().nullable(),
+  usage: z
+    .object({
+      input_tokens: ReportedTokensSchema,
+      output_tokens: ReportedTokensSchema,
+      thinking_tokens: ReportedTokensSchema,
+      total_tokens: ReportedTokensSchema,
+    })
+    .nullable(),
+});
+export type GenerateCodeStrategyResponse = z.infer<typeof GenerateCodeStrategyResponseSchema>;
 export const SaveCodeStrategySchema = z.object({
   name: z.string().trim().min(1).max(120),
   symbol: z.string().trim().min(3).max(32),

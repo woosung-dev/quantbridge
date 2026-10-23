@@ -81,7 +81,9 @@ TypeScript는 격리 실행기에서 의도만 계산하고 공통 원장이 수
 소유한다([ADR-046](./docs/adr/046-generated-strategy-language-evaluation.md)). 기존 Pine
 전략과 별도 API로 저장하며 Python View나 과거 Python Research Strategy 테이블이 아니다.
 세 언어의 수동 실행 기반을 제공하며, 봉인 품질 평가의 권고는 **직접 생성 A / Python**이다.
-로컬 구독 CLI 생성·검토·수동 가져오기 경로와 서버의 기존 Gemini Pine 생성기를 구분한다.
+로컬 구독 CLI 생성·검토·수동 가져오기 경로, 실행 Python의 Gemini preview, 서버의 기존
+Gemini Pine 정본·읽기 전용 Python 생성기를 구분한다. 실행 Python preview도 명시적 적용과
+버전 저장 뒤 기존 백테스트로 제출하며 Demo를 자동 활성화하지 않는다.
 점수와 운영·경제 검증 범위는 [평가 보고서](./docs/architecture/generated-strategy-evaluation.md)가 갖는다.
 계약은 [`code-strategy-storage.md`](./docs/development/code-strategy-storage.md)를 따른다.
 

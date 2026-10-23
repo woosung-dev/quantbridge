@@ -3326,6 +3326,95 @@
         "title": "ExcursionStatsOut",
         "type": "object"
       },
+      "GenerateCodeStrategyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "prompt": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "warmup_bars": {
+            "default": 200,
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Warmup Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "GenerateCodeStrategyRequest",
+        "type": "object"
+      },
+      "GenerateCodeStrategyResponse": {
+        "description": "미저장 preview. 구문 검사는 실제 실행·의미 검증 성공이 아니다.",
+        "properties": {
+          "actual_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Model"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "code": {
+            "$ref": "#/components/schemas/PythonCodeSnapshot"
+          },
+          "provider": {
+            "const": "gemini",
+            "default": "gemini",
+            "title": "Provider",
+            "type": "string"
+          },
+          "requested_model": {
+            "title": "Requested Model",
+            "type": "string"
+          },
+          "status": {
+            "const": "preview",
+            "default": "preview",
+            "title": "Status",
+            "type": "string"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenerationUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "assumptions",
+          "requested_model"
+        ],
+        "title": "GenerateCodeStrategyResponse",
+        "type": "object"
+      },
       "GenerateStrategyRequest": {
         "properties": {
           "model": {
@@ -3433,6 +3522,60 @@
           "is_runnable"
         ],
         "title": "GenerateStrategyResponse",
+        "type": "object"
+      },
+      "GenerationUsage": {
+        "properties": {
+          "input_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Tokens"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tokens"
+          }
+        },
+        "title": "GenerationUsage",
         "type": "object"
       },
       "GridSweepMetricsCellOut": {
@@ -6391,6 +6534,62 @@
           "removed"
         ],
         "title": "PushTestResponse",
+        "type": "object"
+      },
+      "PythonCodeSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "execution_policy": {
+            "const": "code_v1",
+            "title": "Execution Policy",
+            "type": "string"
+          },
+          "language": {
+            "const": "python",
+            "default": "python",
+            "title": "Language",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "provenance": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provenance",
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_code": {
+            "maxLength": 131072,
+            "minLength": 1,
+            "title": "Source Code",
+            "type": "string"
+          },
+          "warmup_bars": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Warmup Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "execution_policy",
+          "source_code",
+          "warmup_bars",
+          "provenance"
+        ],
+        "title": "PythonCodeSnapshot",
         "type": "object"
       },
       "PythonView": {
@@ -11083,6 +11282,48 @@
           }
         },
         "summary": "Create Code Strategy",
+        "tags": [
+          "strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/code/generate": {
+      "post": {
+        "description": "Python preview만 반환한다. 검토·저장·백테스트는 별도 사용자 동작이다.",
+        "operationId": "generate_code_strategy_api_v1_strategies_code_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateCodeStrategyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateCodeStrategyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Code Strategy",
         "tags": [
           "strategies"
         ]

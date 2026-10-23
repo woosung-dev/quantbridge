@@ -13,10 +13,10 @@ SDK 스키마는 지킨다. `convert/service.py`도 같은 `complete_json` 계�
 | --- | --- | --- |
 | anthropic | tool use + `tool_choice` 고정 | 도구 응답이 없으면 실패로 본다 |
 | openai | Structured Outputs (`strict: true`) | 제약 디코딩이라 스키마 위반이 구조적으로 불가능 |
-| gemini | `response_mime_type` + `response_schema` | |
+| gemini | `response_mime_type` + `response_json_schema` | JSON Schema를 원형대로 전달 |
 
 ★**[BL-772] 계약** — provider 예외 문자열(엔드포인트·모델·요청 ID)을 위로 흘리지 않는다.
-상세는 `logger.exception` 으로 로그에만 남고, 호출자는 provider 중립 `RuntimeError` 만 본다.
+SDK 원문은 로그에도 남기지 않으며 호출자는 안전한 분류·상태만 가진 `RuntimeError` 를 본다.
 """
 
 from __future__ import annotations
@@ -25,9 +25,10 @@ import copy
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import anthropic
+import httpx
 from google import genai
 from google.genai import types as genai_types
 from openai import OpenAI
@@ -60,6 +61,107 @@ class JsonCompletion:
     provider: str
     input_tokens: int = 0
     output_tokens: int = 0
+    reported_input_tokens: int | None = None
+    reported_output_tokens: int | None = None
+    actual_model: str | None = None
+    thinking_tokens: int | None = None
+    total_tokens: int | None = None
+    usage_known: bool = False
+    finish_reason: str | None = None
+
+
+ProviderFailureCategory = Literal[
+    "forbidden", "not_found", "rate_limited", "validation", "timeout", "unavailable"
+]
+
+
+class ProviderCallError(RuntimeError):
+    """SDK 예외 원문 대신 분류와 HTTP 상태만 보존한다."""
+
+    def __init__(
+        self,
+        category: ProviderFailureCategory,
+        status_code: int | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.category = category
+        self.status_code = status_code
+        self.metadata = metadata or {}
+        super().__init__(f"LLM provider 요청 실패: {category}")
+
+
+def _safe_diagnostic(exc: Exception) -> dict[str, str | None]:
+    """SDK 메시지는 메모리에서만 분류하고 정해진 enum 값만 반환한다."""
+    raw = getattr(exc, "message", None)
+    message = raw.lower() if isinstance(raw, str) else ""
+    if "api key" in message and ("not valid" in message or "invalid" in message):
+        diagnostic = "api_key_invalid"
+    elif any(
+        marker in message
+        for marker in (
+            "response_schema",
+            "responseschema",
+            "additional_properties",
+            "additionalproperties",
+            "response_json_schema",
+            "responsejsonschema",
+        )
+    ):
+        diagnostic = "schema_invalid"
+    elif "billing" in message and any(
+        marker in message for marker in ("required", "enable", "disabled")
+    ):
+        diagnostic = "billing_required"
+    elif "model" in message and any(
+        marker in message for marker in ("not found", "not supported", "unsupported")
+    ):
+        diagnostic = "model_unsupported"
+    else:
+        diagnostic = "unknown_validation"
+    reason = None
+    details = getattr(exc, "details", None)
+    if isinstance(details, dict):
+        error = details.get("error", details)
+        items = error.get("details", []) if isinstance(error, dict) else []
+        if isinstance(items, list):
+            for item in items:
+                if (
+                    isinstance(item, dict)
+                    and item.get("@type") == "type.googleapis.com/google.rpc.ErrorInfo"
+                    and item.get("reason")
+                    in {
+                        "API_KEY_INVALID",
+                        "API_KEY_SERVICE_BLOCKED",
+                        "SERVICE_DISABLED",
+                        "BILLING_DISABLED",
+                        "API_KEY_EXPIRED",
+                    }
+                ):
+                    reason = item["reason"]
+                    break
+    return {"diagnostic": diagnostic, "error_reason": reason}
+
+
+def _safe_failure(exc: Exception) -> ProviderCallError:
+    if isinstance(exc, ProviderCallError):
+        return exc
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    status = code if isinstance(code, int) else None
+    if status in (408, 504) or isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+        category: ProviderFailureCategory = "timeout"
+    elif status == 403:
+        category = "forbidden"
+    elif status == 404:
+        category = "not_found"
+    elif status == 429:
+        category = "rate_limited"
+    elif status in (400, 422) or isinstance(exc, (ValueError, TypeError)):
+        category = "validation"
+    else:
+        category = "unavailable"
+    metadata = _safe_diagnostic(exc) if status in (400, 401, 403, 404, 422) else None
+    return ProviderCallError(category, status, metadata=metadata)
 
 
 def secret(value: Any) -> str:
@@ -145,6 +247,13 @@ def _call_anthropic(
                     provider="anthropic",
                     input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
                     output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+                    reported_input_tokens=getattr(usage, "input_tokens", None),
+                    reported_output_tokens=getattr(usage, "output_tokens", None),
+                    actual_model=getattr(response, "model", None),
+                    usage_known=(
+                        getattr(usage, "input_tokens", None) is not None
+                        and getattr(usage, "output_tokens", None) is not None
+                    ),
                 )
     # ★빈 결과를 성공으로 내면 화면이 침묵으로 거짓말한다.
     raise RuntimeError("도구 호출 응답이 오지 않았습니다")
@@ -184,43 +293,88 @@ def _call_openai(
         provider="openai",
         input_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
         output_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+        reported_input_tokens=getattr(usage, "prompt_tokens", None),
+        reported_output_tokens=getattr(usage, "completion_tokens", None),
+        actual_model=getattr(response, "model", None),
+        total_tokens=getattr(usage, "total_tokens", None),
+        usage_known=(
+            getattr(usage, "prompt_tokens", None) is not None
+            and getattr(usage, "completion_tokens", None) is not None
+        ),
     )
 
 
 def _call_gemini(
-    settings: Settings, *, system: str, user: str, schema: dict[str, Any], tool_name: str
+    settings: Settings,
+    *,
+    system: str,
+    user: str,
+    schema: dict[str, Any],
+    tool_name: str,
+    max_output_tokens: int = 4096,
+    timeout_seconds: float | None = None,
 ) -> JsonCompletion:
     client = genai.Client(
         api_key=_key_for(settings, "gemini"),
         enterprise=False,
         vertexai=False,
         http_options=genai_types.HttpOptions(
-            retry_options=genai_types.HttpRetryOptions(attempts=1)
+            retry_options=genai_types.HttpRetryOptions(attempts=1),
+            timeout=int(timeout_seconds * 1000) if timeout_seconds is not None else None,
         ),
     )
-    response = client.models.generate_content(
-        model=settings.gemini_model,
-        contents=user,
-        config=genai_types.GenerateContentConfig(
-            system_instruction=system,
-            max_output_tokens=4096,
-            response_mime_type="application/json",
-            response_schema=schema,
-        ),
-    )
-    # ★안전 필터 차단 등으로 text 가 비면 실패다 — 위 openai 어댑터와 같은 이유.
-    if not response.text:
-        raise RuntimeError("응답 본문이 비어 있습니다")
-    payload = json.loads(response.text)
-    if not isinstance(payload, dict):
-        raise RuntimeError("JSON 객체가 아닙니다")
-    usage = getattr(response, "usage_metadata", None)
-    return JsonCompletion(
-        payload=payload,
-        provider="gemini",
-        input_tokens=int(getattr(usage, "prompt_token_count", 0) or 0),
-        output_tokens=int(getattr(usage, "candidates_token_count", 0) or 0),
-    )
+    try:
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            contents=user,
+            config=genai_types.GenerateContentConfig(
+                system_instruction=system,
+                max_output_tokens=max_output_tokens,
+                response_mime_type="application/json",
+                response_json_schema=schema,
+            ),
+        )
+        candidates = getattr(response, "candidates", None) or []
+        raw_finish = getattr(candidates[0], "finish_reason", None) if candidates else None
+        finish = getattr(raw_finish, "value", raw_finish)
+        known_reasons = {reason.value for reason in genai_types.FinishReason}
+        finish = finish if finish in known_reasons else None
+        if getattr(getattr(response, "prompt_feedback", None), "block_reason", None):
+            finish = "PROMPT_BLOCKED"
+        usage = getattr(response, "usage_metadata", None)
+        metadata: dict[str, Any] = {
+            "actual_model": getattr(response, "model_version", None),
+            "finish_reason": finish,
+            "input_tokens": int(getattr(usage, "prompt_token_count", 0) or 0),
+            "output_tokens": int(getattr(usage, "candidates_token_count", 0) or 0),
+            "reported_input_tokens": getattr(usage, "prompt_token_count", None),
+            "reported_output_tokens": getattr(usage, "candidates_token_count", None),
+            "thinking_tokens": getattr(usage, "thoughts_token_count", None),
+            "total_tokens": getattr(usage, "total_token_count", None),
+            "usage_known": (
+                usage is not None
+                and getattr(usage, "prompt_token_count", None) is not None
+                and getattr(usage, "candidates_token_count", None) is not None
+            ),
+        }
+        # 잘린 JSON이 우연히 완전한 객체여도 성공으로 간주하지 않는다.
+        if (finish is not None and finish != "STOP") or not response.text:
+            raise ProviderCallError("validation", metadata=metadata)
+        try:
+            payload = json.loads(response.text)
+            if not isinstance(payload, dict):
+                raise ValueError("JSON 객체가 아닙니다")
+        except (ValueError, TypeError):
+            raise ProviderCallError("validation", metadata=metadata) from None
+        return JsonCompletion(payload=payload, provider="gemini", **metadata)
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                # cleanup 실패가 이미 관찰한 응답·실패 분류를 덮어쓰지 않게 한다.
+                logger.warning("llm provider cleanup failed provider=gemini")
 
 
 _ADAPTERS = {
@@ -237,11 +391,13 @@ def complete_json(
     user: str,
     schema: dict[str, Any],
     tool_name: str,
+    max_output_tokens: int = 4096,
+    timeout_seconds: float | None = None,
 ) -> JsonCompletion:
     """설정 순서대로 시도해 provider·usage를 포함한 구조화 결과를 돌려준다.
 
     키가 없는 provider 는 건너뛰고, 실패하면 다음으로 넘어간다. 전부 실패하면 RuntimeError.
-    ★provider 예외 문자열은 **로그에만** 남는다([BL-772]).
+    ★provider 예외 문자열·traceback은 로그와 응답에 남기지 않는다([BL-772]).
     """
     candidates = available_providers(settings)
     if not candidates:
@@ -250,14 +406,29 @@ def complete_json(
             "LLM_PROVIDER_ORDER 및 해당 provider 의 API 키 설정을 확인하세요"
         )
 
+    failure = ProviderCallError("unavailable")
     for name in candidates:
         try:
+            if name == "gemini":
+                return _call_gemini(
+                    settings,
+                    system=system,
+                    user=user,
+                    schema=schema,
+                    tool_name=tool_name,
+                    max_output_tokens=max_output_tokens,
+                    timeout_seconds=timeout_seconds,
+                )
             return _ADAPTERS[name](
                 settings, system=system, user=user, schema=schema, tool_name=tool_name
             )
         except Exception as exc:
-            logger.exception(
-                "llm provider failed provider=%s exc_type=%s", name, type(exc).__name__
+            failure = _safe_failure(exc)
+            logger.warning(
+                "llm provider failed provider=%s category=%s status=%s",
+                name,
+                failure.category,
+                failure.status_code,
             )
 
-    raise RuntimeError("LLM provider 를 사용할 수 없습니다")
+    raise failure from None

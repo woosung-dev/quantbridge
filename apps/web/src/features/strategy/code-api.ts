@@ -7,11 +7,27 @@ import {
   CodeDemoRequestSchema,
   CodeStrategySchema,
   SaveCodeStrategySchema,
+  GenerateCodeStrategyRequestSchema,
+  GenerateCodeStrategyResponseSchema,
   type SaveCodeStrategy,
   type CodeDemoRequest,
+  type GenerateCodeStrategyRequest,
 } from "./code-schemas";
 
 const CODE_PATH = "/api/v1/strategies/code";
+
+export async function generateCodeStrategy(
+  body: GenerateCodeStrategyRequest,
+  token: string | null,
+) {
+  return GenerateCodeStrategyResponseSchema.parse(
+    await apiFetch<unknown>(`${CODE_PATH}/generate`, {
+      method: "POST",
+      token,
+      body: GenerateCodeStrategyRequestSchema.parse(body),
+    }),
+  );
+}
 
 export async function listCodeStrategies(token: string | null) {
   return CodeStrategyListSchema.parse(await apiFetch<unknown>(CODE_PATH, { token }));

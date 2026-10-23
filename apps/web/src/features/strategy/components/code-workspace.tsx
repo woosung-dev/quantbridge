@@ -1,28 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useSyncExternalStore } from "react";
 
 import { CODE_LANGUAGE_LABELS, type CodeLanguage } from "@/features/strategy/code-schemas";
 import { useCodeWorkspace } from "@/features/strategy/code-hooks";
 import { describeApiError } from "@/lib/api-client";
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
+import { CodeGenerationPanel } from "./code-generation-panel";
+
+const subscribeNever = () => () => {};
 
 export function CodeWorkspace({ initialStrategyId }: { initialStrategyId?: string }) {
   const { uid } = useAuthCtx();
+  // Suspense 쿼리의 브라우저 토큰 accessor가 SSR에서 상대 URL로 fetch하지 않게 한다.
+  const mounted = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+  if (!mounted) return <CodeWorkspaceLoading />;
   return (
-    <Suspense
-      fallback={
-        <main className="page" role="status">
-          코드 전략을 불러오는 중…
-        </main>
-      }
-    >
+    <Suspense fallback={<CodeWorkspaceLoading />}>
       <CodeWorkspaceContent
         key={`${uid}:${initialStrategyId ?? ""}`}
         initialStrategyId={initialStrategyId}
       />
     </Suspense>
+  );
+}
+
+function CodeWorkspaceLoading() {
+  return (
+    <main className="page" role="status">
+      코드 전략을 불러오는 중…
+    </main>
   );
 }
 
@@ -50,6 +62,17 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
           </div>
         </div>
       </section>
+
+      <CodeGenerationPanel
+        key={work.generationRevision}
+        preview={work.preview}
+        hasAppliedPreview={work.hasAppliedPreview}
+        isPending={work.generation.isPending}
+        error={work.generation.error}
+        disabled={work.busy}
+        onGenerate={work.generate}
+        onApply={work.applyPreview}
+      />
 
       <section className="section" aria-labelledby="code-editor-title">
         <header className="section-head">
@@ -84,9 +107,10 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
                 </select>
               </label>
             </div>
-            <label className="field-label">
-              소스 코드
+            <div className="field-label">
+              <label htmlFor="code-source">소스 코드</label>
               <textarea
+                id="code-source"
                 className="textarea mono"
                 rows={16}
                 spellCheck={false}
@@ -95,7 +119,7 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
                 placeholder="검토한 전략 원문을 붙여 넣으세요. 출력은 hold / long / short / close 의도만 허용합니다."
                 onChange={(event) => work.change({ source: event.target.value })}
               />
-            </label>
+            </div>
             <div className="grid gap-4 md:grid-cols-3">
               <label className="field-label">
                 거래 심볼
@@ -131,15 +155,16 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
                 />
               </label>
             </div>
-            <label className="field-label">
-              파라미터 JSON
+            <div className="field-label">
+              <label htmlFor="code-params">파라미터 JSON</label>
               <textarea
+                id="code-params"
                 className="textarea mono"
                 rows={3}
                 value={draft.params}
                 onChange={(event) => work.change({ params: event.target.value })}
               />
-            </label>
+            </div>
             <label className="field-label">
               자본 배분 비율 (%)
               <input

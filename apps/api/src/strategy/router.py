@@ -16,18 +16,26 @@ from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
 from src.common.rate_limit import limiter
 from src.core.config import settings
+from src.strategy.code_generate_service import CodeGenerateService
 from src.strategy.code_schemas import (
     CodeStrategyListResponse,
     CodeStrategyResponse,
+    GenerateCodeStrategyRequest,
+    GenerateCodeStrategyResponse,
     SaveCodeStrategyRequest,
 )
 from src.strategy.code_service import CodeStrategyService
-from src.strategy.dependencies import get_code_strategy_service, get_strategy_service
+from src.strategy.dependencies import (
+    get_code_generate_service,
+    get_code_strategy_service,
+    get_strategy_service,
+)
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import ParseStatus
 from src.strategy.narrative.catalog import ModelNotAvailableError, resolve_override
 from src.strategy.narrative.dependencies import get_generate_service
 from src.strategy.narrative.generate_service import GenerateService
+from src.strategy.narrative.providers import ProviderCallError
 from src.strategy.narrative.schemas import (
     GenerateStrategyRequest,
     GenerateStrategyResponse,
@@ -156,6 +164,30 @@ async def generate_strategy(
             "전략 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
             exc,
         ) from exc
+
+
+@router.post("/code/generate", response_model=GenerateCodeStrategyResponse)
+@limiter.limit("4/minute")
+async def generate_code_strategy(
+    request: Request,
+    response: Response,
+    data: GenerateCodeStrategyRequest,
+    _: CurrentUser = Depends(get_current_user),
+    service: CodeGenerateService = Depends(get_code_generate_service),
+) -> GenerateCodeStrategyResponse:
+    """Python preview만 반환한다. 검토·저장·백테스트는 별도 사용자 동작이다."""
+    try:
+        return await asyncio.to_thread(service.generate, data)
+    except ProviderCallError as exc:
+        status = 502 if exc.category == "validation" else 504 if exc.category == "timeout" else 503
+        raise HTTPException(
+            status_code=status,
+            detail={
+                "code": f"code_generate_{exc.category}",
+                "detail": "Python 전략 생성에 실패했습니다. 입력과 무료 API 상태를 확인해 주세요.",
+                "provider_status": exc.status_code,
+            },
+        ) from None
 
 
 @router.post("/code", status_code=201, response_model=CodeStrategyResponse)

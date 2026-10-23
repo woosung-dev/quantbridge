@@ -13,6 +13,11 @@ const strategies = {
 };
 
 let mockSearchParams = new URLSearchParams();
+let strategyDetail: {
+  id: string;
+  settings: { leverage: number; position_size_pct: number };
+  trading_sessions: string[];
+} | null = null;
 const routerPush = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -31,9 +36,8 @@ vi.mock("@/features/strategy/hooks", () => ({
     return { isPending: true, isError: false, data: undefined };
   },
   useStrategies: () => strategies,
-  // Sprint 38 BL-188 v3 — BacktestForm 가 useStrategy fetch (settings prefill).
-  // 본 테스트 묶음은 sizing UI 와 무관 — null 반환으로 manual 기본 동작 유지.
-  useStrategy: () => ({ data: null, isLoading: false, isError: false }),
+  // 기본은 null로 manual을 유지하고 늦은 설정 응답 회귀에서만 프리필 데이터를 전달한다.
+  useStrategy: () => ({ data: strategyDetail, isLoading: false, isError: false }),
 }));
 
 // `useCreateBacktest` 는 호출 직전에 전달된 onSuccess/onError 콜백을 캡처해
@@ -64,6 +68,7 @@ vi.mock("sonner", () => ({
 }));
 
 beforeEach(() => {
+  strategyDetail = null;
   mockSearchParams = new URLSearchParams();
   routerPush.mockReset();
   mutate.mockReset();
@@ -77,6 +82,37 @@ afterEach(() => {
 });
 
 describe("BacktestForm — searchParams strategy_id 프리필", () => {
+  it("늦게 도착한 전략 설정은 편집 중인 날짜 필드를 초기값으로 되돌리지 않는다", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    const view = render(<BacktestForm />);
+    const start = screen.getByLabelText("시작일") as HTMLInputElement;
+    // 브라우저의 날짜 편집이 DOM에 반영되고 change가 커밋되기 전 설정 응답이 도착한다.
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+      start,
+      "2026-04-01",
+    );
+    strategyDetail = {
+      id: "abc",
+      settings: { leverage: 1, position_size_pct: 17 },
+      trading_sessions: ["asia"],
+    };
+    await act(async () => view.rerender(<BacktestForm />));
+    expect(start).toHaveValue("2026-04-01");
+    await act(async () => {
+      fireEvent.change(start, { target: { value: "2026-04-01" } });
+      fireEvent.change(screen.getByLabelText("종료일"), { target: { value: "2026-06-30" } });
+      fireEvent.click(screen.getByTestId("backtest-submit"));
+    });
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        period_start: "2026-04-01T00:00:00.000Z",
+        period_end: "2026-06-30T00:00:00.000Z",
+        position_size_pct: 17,
+        trading_sessions: ["asia"],
+      }),
+    );
+  });
+
   it("searchParams strategy_id=abc 일 때 숨김 input value 가 'abc'", () => {
     mockSearchParams = new URLSearchParams("strategy_id=abc");
     const { container } = render(<BacktestForm />);

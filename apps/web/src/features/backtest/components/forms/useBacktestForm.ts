@@ -103,7 +103,7 @@ export function useBacktestForm() {
     },
   });
 
-  const { control, setValue, reset, getValues, handleSubmit } = form;
+  const { control, setValue, handleSubmit } = form;
 
   const [submitError, setSubmitError] = useState<unknown>(null);
   // ★동의는 **전략에 묶인다** (2026-08-15 적대 리뷰 P2). 종전에는 전략과 무관한 boolean 이라
@@ -199,17 +199,11 @@ export function useBacktestForm() {
           .split("|")
           .filter((s): s is TradingSession => s === "asia" || s === "london" || s === "ny")
       : [];
-    const current = getValues();
-    reset(
-      {
-        ...current,
-        sizing_source: computedSource,
-        position_size_pct: computedSource === "live" && livePct != null ? livePct : null,
-        trading_sessions: allowedSessions,
-      },
-      { keepDirtyValues: false },
-    );
-  }, [strategyId, livePct, liveLeverage, sessionsKey, pineDeclared, reset, getValues]);
+    // 전체 reset은 응답 도착 순간 편집 중인 날짜 DOM까지 초기값으로 되돌린다.
+    setValue("sizing_source", computedSource);
+    setValue("position_size_pct", computedSource === "live" && livePct != null ? livePct : null);
+    setValue("trading_sessions", allowedSessions);
+  }, [strategyId, livePct, liveLeverage, sessionsKey, pineDeclared, setValue]);
 
   const handleDatePreset = useCallback(
     (preset: DatePreset) => {

@@ -2,13 +2,14 @@
 
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import { useExchangeAccounts } from "@/features/trading/hooks";
 import { liveSessionKeys } from "@/features/live-sessions/query-keys";
 
 import {
+  generateCodeStrategy,
   listCodeStrategies,
   saveCodeStrategy,
   submitCodeBacktest,
@@ -16,10 +17,13 @@ import {
 } from "./code-api";
 import {
   CodePeriodSchema,
+  GenerateCodeStrategyRequestSchema,
   SaveCodeStrategySchema,
   codeStrategyKeys,
   type CodeLanguage,
+  type CodeSnapshot,
   type CodeStrategy,
+  type GenerateCodeStrategyResponse,
 } from "./code-schemas";
 
 type Draft = {
@@ -65,6 +69,25 @@ function defaultPeriod() {
   };
 }
 
+function canonicalParams(params: unknown): string | undefined {
+  return JSON.stringify(params, (_key, value: unknown) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
+        )
+      : value,
+  );
+}
+
+function sameCode(draft: Draft, snapshot: CodeSnapshot): boolean {
+  return (
+    draft.source === snapshot.source_code &&
+    draft.language === snapshot.language &&
+    draft.warmup === snapshot.warmup_bars &&
+    canonicalParams(JSON.parse(draft.params)) === canonicalParams(snapshot.params)
+  );
+}
+
 export function useCodeWorkspace(initialStrategyId?: string) {
   const { uid, getToken } = useAuthCtx();
   const router = useRouter();
@@ -76,6 +99,37 @@ export function useCodeWorkspace(initialStrategyId?: string) {
   const initial = listing.data.items.find((item) => item.id === initialStrategyId) ?? null;
   const [draft, setDraft] = useState(() => (initial ? fromSaved(initial) : newDraft()));
   const [selected, setSelected] = useState<CodeStrategy | null>(initial);
+  const [preview, setPreview] = useState<GenerateCodeStrategyResponse | null>(null);
+  const [generated, setGenerated] = useState<CodeSnapshot | null>(null);
+  const [generationRevision, setGenerationRevision] = useState(0);
+  const generationEpoch = useRef(0);
+  const generation = useMutation({
+    retry: false,
+    mutationFn: async (request: {
+      prompt: string;
+      warmup: number;
+      params: string;
+      epoch: number;
+    }) =>
+      generateCodeStrategy(
+        GenerateCodeStrategyRequestSchema.parse({
+          prompt: request.prompt,
+          warmup_bars: request.warmup,
+          params: JSON.parse(request.params),
+        }),
+        await getToken(),
+      ),
+    onSuccess: (result, request) => {
+      if (generationEpoch.current === request.epoch) setPreview(result);
+    },
+  });
+  const clearGeneration = () => {
+    generationEpoch.current += 1;
+    generation.reset();
+    setPreview(null);
+    setGenerated(null);
+    setGenerationRevision((revision) => revision + 1);
+  };
   const accounts = useExchangeAccounts();
   const demoAccounts = (accounts.data ?? []).filter(
     (account) =>
@@ -98,13 +152,11 @@ export function useCodeWorkspace(initialStrategyId?: string) {
           warmup_bars: draft.warmup,
           params: JSON.parse(draft.params),
           provenance:
-            selected &&
-            draft.source === selected.version.source_code &&
-            draft.language === selected.version.language &&
-            draft.params === JSON.stringify(selected.version.params, null, 2) &&
-            draft.warmup === selected.version.warmup_bars
-              ? selected.version.provenance
-              : { origin: "manual_editor", parent_version_id: selected?.version.id ?? null },
+            generated && sameCode(draft, generated)
+              ? generated.provenance
+              : selected && sameCode(draft, selected.version)
+                ? selected.version.provenance
+                : { origin: "manual_editor", parent_version_id: selected?.version.id ?? null },
         },
         settings: {
           ...selected?.settings,
@@ -120,6 +172,7 @@ export function useCodeWorkspace(initialStrategyId?: string) {
     onSuccess: async (item) => {
       setSelected(item);
       setDraft(fromSaved(item));
+      setGenerated(null);
       await client.invalidateQueries({ queryKey: codeStrategyKeys.list(uid) });
     },
   });
@@ -174,6 +227,37 @@ export function useCodeWorkspace(initialStrategyId?: string) {
     period,
     dirty,
     busy,
+    preview,
+    hasAppliedPreview: generated !== null,
+    generation,
+    generationRevision,
+    generate: (prompt: string) => {
+      generationEpoch.current += 1;
+      setPreview(null);
+      generation.mutate({
+        prompt,
+        warmup: draft.warmup,
+        params: draft.params,
+        epoch: generationEpoch.current,
+      });
+    },
+    applyPreview: () => {
+      if (!preview || busy) return;
+      const code = preview.code;
+      setDraft((previous) => ({
+        ...previous,
+        source: code.source_code,
+        language: code.language,
+        warmup: code.warmup_bars,
+        params: JSON.stringify(code.params, null, 2),
+      }));
+      setGenerated(code);
+      setPreview(null);
+      generation.reset();
+      save.reset();
+      backtest.reset();
+      demo.reset();
+    },
     save,
     backtest,
     demo,
@@ -186,6 +270,7 @@ export function useCodeWorkspace(initialStrategyId?: string) {
     changePeriod: (patch: Partial<typeof period>) =>
       setPeriod((previous) => ({ ...previous, ...patch })),
     load: (item: CodeStrategy) => {
+      clearGeneration();
       setSelected(item);
       setDraft(fromSaved(item));
       save.reset();
@@ -193,6 +278,7 @@ export function useCodeWorkspace(initialStrategyId?: string) {
       demo.reset();
     },
     reset: () => {
+      clearGeneration();
       setSelected(null);
       setDraft(newDraft());
       save.reset();

@@ -4,7 +4,7 @@ import { getBaseURL } from "./e2e/_base-url";
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: /verified-strategy-journey\.spec\.ts$/,
+  testMatch: /(?:verified-strategy-journey|code-generation-journey)\.spec\.ts$/,
   fullyParallel: false,
   workers: 1,
   retries: 0,
