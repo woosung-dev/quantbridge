@@ -119,6 +119,12 @@ OHLCV 공백을 이전 봉으로 늘려 귀속하지 않는다. 봉 내부 체�
 - ★**테스트는 기본 비활성**이다(`tests/conftest.py` autouse). 켜 두면 캐시가 테스트 프로세스 사이에서도 살아남아 파스 계수를 바꾼다 — 실제로 n13 계수 테스트 3건이 그렇게 red 였다.
 - 판정은 **초가 아니라 계수·digest 동일성**이다: `test_parse_ast_disk_cache.py`(10건) · `test_parse_call_census.py`(6건).
 
+## 저장 판정과 공유 타입
+
+`StrategyService.create/update`는 파싱 결과에 `_status_with_coverage`를 적용해 `ok`·`unsupported`·`error`를 저장한다. 파싱 실패인 `error`가 지원 범위 밖인 `unsupported`보다 우선한다. 미지원 원문의 저장은 허용하며, 실행 차단은 백테스트 제출의 Coverage Analyzer가 담당한다. `heikinashi`·`request.security`·`timeframe.period` 등 degraded 호출은 제출 시 `allow_degraded_pine=true`의 명시 동의가 필요하다.
+
+과거 Pine v1 인터프리터가 철거됐어도 `apps/api/src/strategy/pine/`은 공유 타입 모듈로 현역이다. `ParseOutcome`·`PineError`·`SignalResult`를 `backtest/engine/types.py`와 `v2_adapter.py`가 사용한다.
+
 ## 지원 범위와 Trust Layer
 
 `coverage.py`의 지원 집합과 `interpreter.py`의 실제 바인딩은 함께 바뀌어야 한다. 이 둘의 정합과 실행 회귀는 [`trust-layer-architecture.md`](./trust-layer-architecture.md)가 설명하며, 사용자에게 보이는 지원/미지원 목록은 [`supported-indicators.md`](../domain/supported-indicators.md)가 맡는다.
@@ -132,6 +138,10 @@ OHLCV 공백을 이전 봉으로 늘려 귀속하지 않는다. 봉 내부 체�
 
 ## 소비자 경계
 
+Optimizer는 파라미터 조합마다, Stress Test의 Walk-Forward·Param-Stability·Cost-Assumption은 평가 단위마다 `v2_adapter.run_backtest_v2`를 재실행한다. Monte Carlo는 완료된 Backtest의 거래를 재표집하므로 엔진을 재실행하지 않는다.
+
+라이브 조건부 진입 체결은 [ADR-025](../adr/025-conditional-fill-ownership.md)에 따라 주문 원장이 소유한다. 원장이 증언하지 않은 체결을 엔진이 만들지 않으며, 증언한 체결은 봉·트리거 재판정과 무관하게 반영한다. 따라서 라이브 재생에는 전략·OHLCV 외에 주문 원장이 입력으로 필요하며, 이 입력은 백테스트·Optimizer·Stress Test로 새면 안 된다.
+
 Backtest가 `pine_v2` 실행의 단일 소비자 경계다. Optimizer와 Stress Test는 이를 재실행하거나 완료된 Backtest 산출물을 사용한다. 따라서 실행 의미론을 바꾸면 세 도메인의 회귀를 함께 검증한다.
 
 ★**실행이 아닌 소비자가 하나 더 있다 — 전략 브리핑**([ADR-040](../adr/040-strategy-brief-outside-trust-layer.md)).
@@ -142,4 +152,4 @@ Backtest가 `pine_v2` 실행의 단일 소비자 경계다. Optimizer와 Stress 
 ★`StrategyCall` 에 `line` 이 붙어 있고 그 값이 화면의 「소스 어디서 나오나」다 —
 `tests/fixtures/pine_corpus_v2/ast_content_report.json` 이 그 계약을 strict equality 로 잠근다.
 
-현재 용어·관계의 짧은 정본은 [`CONTEXT.md`](../../CONTEXT.md), 도메인 상태는 [`domain-overview.md`](../domain/domain-overview.md)에 둔다.
+용어는 [`GLOSSARY.md`](../../GLOSSARY.md), 도메인 관계는 [`domain-overview.md`](../domain/domain-overview.md), 상태 전이는 [`state-machines.md`](../domain/state-machines.md)에 둔다.

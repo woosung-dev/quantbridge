@@ -86,7 +86,7 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 
 | 디렉터리 | 무엇인가 | 왜 3-Layer 가 아닌가 |
 | --- | --- | --- |
-| `market_data/` | OHLCV provider(CCXT·Timescale·fixture) 공급 | **공개 REST 가 없는 내부 전용 subdomain**(`CONTEXT.md` Data Context). `main.py` 에 마운트되지 않고 `backtest`·`optimizer`·`stress_test`·`tasks`·`trading` 이 라이브러리로 쓴다. router/service/schemas 없음 |
+| `market_data/` | OHLCV provider(CCXT·Timescale·fixture) 공급 | **공개 REST 가 없는 내부 전용 subdomain**([도메인 개요](../../docs/domain/domain-overview.md)). `main.py` 에 마운트되지 않고 `backtest`·`optimizer`·`stress_test`·`tasks`·`trading` 이 라이브러리로 쓴다. router/service/schemas 없음 |
 | `realtime/` | WS 라우터 + **JWT/JWKS 검증기**(`auth.py`) + 연결 manager | 검증기는 도메인이 아니라 횡단 관심사다. 원장은 `auth/` 가 갖는다 |
 | `health/` | `/healthz`·`/livez` | 상태 프로브. 소유 엔티티가 없다 |
 | `tasks/` | Celery task entrypoint | HTTP 표면이 아니다. prefork-safe 규칙은 §9 |

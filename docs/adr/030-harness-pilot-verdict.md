@@ -1,5 +1,7 @@
 # ADR-030: 순차 step 러너(harness) 파일럿 종결 — **조종 장치를 걷어내고 증거 장치를 남긴다**
 
+> **현재 문서 좌표:** 아래 `CONTEXT.md` 가드레일 경로는 루트 `GLOSSARY.md`로 이전됐다. 현행 목록은 `tools/harness/execute.py`의 `GUARDRAIL_FILES`가 정한다.
+
 > **상태:** 확정 (Accepted — 2026-08-13, 사용자 판정)
 > **일자:** 2026-08-13
 > **결정자:** woosung (기안: Claude)

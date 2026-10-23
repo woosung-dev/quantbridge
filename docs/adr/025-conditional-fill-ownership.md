@@ -1,5 +1,7 @@
 # ADR-025: 조건부 진입 체결의 소유권 — 라이브에서는 원장이 증언한 체결만 인정한다
 
+> **현재 문서 좌표:** 아래 `CONTEXT.md` 인용의 용어는 [`GLOSSARY.md`](../../GLOSSARY.md), 체결 권한·소비자 경계는 [Pine 실행 아키텍처](../architecture/pine-execution-architecture.md#소비자-경계)를 따른다.
+
 > **상태:** 확정 (Accepted — 2026-08-06, 12h 전향 예측 전건 충족. 실측 = [`status.md`](../status.md) · 전문 = §tombstone 의 git 좌표)
 > **일자:** 2026-08-05 (Proposed) → 2026-08-06 (Accepted)
 > **출처:** 2026-08-05 conditional-stop-ownership ([BL-595] 사망 5건 부검 · 5/5 재현)

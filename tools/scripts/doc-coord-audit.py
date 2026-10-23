@@ -18,7 +18,7 @@ BASELINE_PATH = Path("tools/scripts/doc-coord-audit.baseline.json")
 
 # Step 3에서 baseline은 0건 종결 상태를 동결한다. 기본 판정은 여전히 --check이며,
 # --baseline은 기존 CLI 계약을 보존하면서 파일별 0건 상태가 흔들렸는지 확인한다.
-# 가드레일 4축(CONTEXT.md, AGENTS.md, apps/api/AGENTS.md, apps/web/AGENTS.md)은 lane이
+# 가드레일 4축(GLOSSARY.md, AGENTS.md, apps/api/AGENTS.md, apps/web/AGENTS.md)은 lane이
 # 고칠 수 없는 파일이다. 수정 가능한 DESIGN.md와 반응형 spec만 시작 대상으로 둔다.
 COORDINATE_TARGETS = (
     Path("DESIGN.md"),

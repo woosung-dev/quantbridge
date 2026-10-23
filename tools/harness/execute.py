@@ -13,7 +13,7 @@
      30분 초과 시 러너가 크래시하고 트리가 dirty 로 남았다(파일럿 B 를 죽인 그 결함).
   ③ **가드레일 4축** — 원본은 `docs/*.md` 전량 glob 인데 우리 docs 최상위는 상태
      문서(상태/원장/교훈, 실측 814k자)라 주입하면 안 되는 것만 들어간다(ADR-030 ①).
-     CONTEXT.md · AGENTS.md · apps/api/AGENTS.md · apps/web/AGENTS.md 4축으로 고정.
+     GLOSSARY.md · AGENTS.md · apps/api/AGENTS.md · apps/web/AGENTS.md 4축으로 고정.
   ④ **커밋 1회/step + 산출물 비커밋** — 원본은 step 당 feat+chore 2커밋(우리 PR
      중앙값의 5배 노이즈)에 codex 트랜스크립트(step 당 0.5~1.2MB 실측)까지 커밋했다.
      산출물은 `phases/<dir>/runs/`(gitignore) 에만 남긴다.
@@ -64,7 +64,7 @@ def _in_linked_worktree(root: Path) -> bool:
 
 
 # 가드레일 4축 — 하나라도 없으면 시작하지 않는다 (무근거 주입 금지).
-GUARDRAIL_FILES = ["CONTEXT.md", "AGENTS.md", "apps/api/AGENTS.md", "apps/web/AGENTS.md"]
+GUARDRAIL_FILES = ["GLOSSARY.md", "AGENTS.md", "apps/api/AGENTS.md", "apps/web/AGENTS.md"]
 
 # codex 실행 플래그. `--dangerously-bypass-approvals-and-sandbox` 는 무인 자동화 전용이고,
 # `--dangerously-bypass-hook-trust` 는 `.codex/hooks.json`(위험명령 차단·Stop 경량 게이트)을

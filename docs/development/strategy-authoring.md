@@ -31,6 +31,14 @@
 - Monaco의 Pine 라인 번호 색은 dark/light `BRAND_PALETTE.textMuted`를 사용해 각 gutter 배경에서 본문 텍스트 대비를 유지한다.
 - `AI 초안 작성 (선택)`은 기본 접힘이다. 펼치기만으로는 API 요청을 하지 않는다. 설명을 입력한 뒤 `AI 로 만들기`를 누르면 생성 요청을 시작한다. 결과는 저장되지 않으며, 실행 가능한 결과에서 `이 Pine 코드 쓰기`를 눌러 편집기에 넣는다. 이후 파싱 판정은 편집기의 현재 원문 기준으로 다시 수행한다.
 
+## 브리핑·생성·Python View의 권한
+
+- Strategy Brief의 결정론 층(`ast_extractor`·`coverage`·`ast_classifier`·`SignalExtractor`)이 실행 가능·미지원·degraded·Track 판정을 소유한다. LLM 해설은 `pine_lines` 근거가 있을 때만 렌더하며 실패해도 결정론 층으로 화면을 완결한다. CI 판정용 Trust Layer와 별개다([ADR-040](../adr/040-strategy-brief-outside-trust-layer.md)).
+- Python View는 `pine_v2/py_renderer.py`가 생성하는 읽기 전용 Python과 `source_map`이다. 실행 경로가 없으며 의미 보존을 보증하지 않는다([ADR-042](../adr/042-pine-to-python-readonly-renderer.md)).
+- 기존 Pine 생성기는 Pine 정본과 읽기용 Python을 반환한다. 생성 Pine은 Coverage Analyzer의 all-or-nothing 판정을 통과해야 하며, 사용자의 검토·적용 전에는 저장하지 않는다([ADR-041](../adr/041-ai-strategy-generation.md)).
+- 생성 Python과 Pine에서 렌더한 Python의 식별자 집합 비교는 의미 동등성을 판정하지 못한다. 화면은 「다를 수 있습니다」로 안내하며 어긋나면 렌더링본을 정본으로 제시한다.
+- 실행 Python의 Gemini preview는 [별도 계약](./gemini-python-generation.md)을 따른다. 명시적 적용·불변 버전 저장 후 기존 백테스트로 제출하며 Demo를 자동 활성화하지 않는다. 로컬 구독 CLI 생성·검토·수동 가져오기 경로와 서버 생성기를 구분한다.
+
 ## 이동과 작은 화면
 
 - Pine 원문이 있을 때 `판정 결과 보기` 링크가 `#strategy-parse-result`로 이동하고, 판정 헤더의 `원문 다시 보기` 링크가 `#strategy-pine-source`로 돌아간다. 두 섹션은 `tabIndex={-1}`로 포커스 이동을 허용한다.

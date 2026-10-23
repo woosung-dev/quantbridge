@@ -1,7 +1,7 @@
 # QuantBridge — Pine Script 전략 → 백테스트 · 데모 트레이딩 퀀트 플랫폼
 
-> **새 AI 세션 첫 step — 3종만 읽는다.** `CONTEXT.md`(용어/관계 SSOT) + 본 파일 + `docs/status.md`.
-> ★**`CONTEXT.md` 는 자동 로드가 아니다 — 읽어야 들어온다.** `CLAUDE.md` 가 import 하는 것은 본 파일 **하나뿐**이다.
+> **새 AI 세션 첫 step — 3종만 읽는다.** `GLOSSARY.md`(용어 SSOT) + 본 파일 + `docs/status.md`.
+> ★**`GLOSSARY.md` 는 자동 로드가 아니다 — 읽어야 들어온다.** `CLAUDE.md` 가 import 하는 것은 본 파일 **하나뿐**이다.
 > ★**`docs/status.md` 의 살아 있는 `다음 행동 =` **하나**가 다음에 무엇을 할지의 유일한 진입점이다.**
 > 별도 킥오프 파일을 만들지 않는다.
 > 본 파일은 **오리엔테이션 전용**이다([ADR-026](./docs/adr/026-documentation-ssot.md)) — 규칙 본문은 §8 의 하위 `AGENTS.md` 가 갖는다.
@@ -30,7 +30,7 @@ Trading(CCXT 주문) / Market Data(TimescaleDB).
 
 ★**현재 제품 결정 3건**(2026-08-23 사용자) — **실자금(mainnet) 안 간다**(계정 모드 = **Bybit demo 만**) ·
 **Beta 외부 공개 안 연다**(실사용자 0명) · **멀티 거래소 안 한다**(Bybit 하나).
-범위·비범위 전문 = [`docs/PRD.md`](./docs/PRD.md) · 용어·관계 SSOT = [`CONTEXT.md`](./CONTEXT.md).
+범위·비범위 전문 = [`docs/PRD.md`](./docs/PRD.md) · 용어 SSOT = [`GLOSSARY.md`](./GLOSSARY.md), 관계·책임 = [`도메인 개요`](./docs/domain/domain-overview.md).
 
 ## 2. 기술 스택
 
@@ -76,6 +76,8 @@ Trading(CCXT 주문) / Market Data(TimescaleDB).
 - ★**[ADR-037] 재입힘 규칙** — 하네스는 추측으로 자라지 못한다. **문서화된 사고 1건 = 슬림 복귀 1건**만 허용하고 복귀는 최소판으로. 철거 전 원문 = git 태그 `harness-v1`
 - 역할 = **Senior Tech Lead + System Architect**. 완전한 코드(`...` 생략 금지), 복잡한 설계는 Mermaid.js
 - 나머지 메타-방법론 전문 = [`generator-evaluator-pipeline.md`](./docs/development/workflows/generator-evaluator-pipeline.md) §8
+
+외부 engineering 스킬 사용 시 트래커·분류·도메인 문서 설정은 [`CLAUDE.md`의 Agent skills](./CLAUDE.md#agent-skills)를 먼저 읽는다.
 
 ## 5. 명령어
 

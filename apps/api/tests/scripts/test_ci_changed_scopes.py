@@ -43,7 +43,7 @@ def test_script_exists_and_is_executable() -> None:
         ("docs/status.md", "docs/backlog.md", "docs/lessons.md"),
         ("README.md",),
         ("phases/index.json",),
-        ("CONTEXT.md", "AGENTS.md"),
+        ("GLOSSARY.md", "AGENTS.md"),
     ],
 )
 def test_docs_only_skips_both(paths: tuple[str, ...]) -> None:

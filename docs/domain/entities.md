@@ -35,7 +35,7 @@
   - `id: UUID`, `user_id: UUID FK` (→ users.id CASCADE)
   - `name: str`, `description: str | None`
   - `pine_source: str` (Pine 코드 원본), `pine_version: PineVersion` (`v4` / `v5`)
-  - `parse_status: ParseStatus` (`ok` / `unsupported` / `error` — 파서는 `ok`/`error` 만 set, `unsupported` 는 예약값)
+  - `parse_status: ParseStatus` (`ok` / `unsupported` / `error` — 저장 시 파싱·지원 검사 결과를 반영하며 파싱 실패가 우선)
   - `parse_errors: JSONB | None`
   - `timeframe / symbol: str | None`, `tags: JSONB`, `trading_sessions: JSONB` (Sprint 7d session gate)
   - `settings: JSONB | None` (Sprint 26 Live Signal params — leverage/margin_mode/position_size_pct)

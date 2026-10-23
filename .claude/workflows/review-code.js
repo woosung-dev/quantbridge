@@ -11,7 +11,7 @@ export const meta = {
 // args = { diff: string, files: string, repoDocs: string, scope?: string }
 //   diff:     통합 diff 텍스트 (변경 라인 번호 포함)
 //   files:    변경 파일 목록(개행 구분)
-//   repoDocs: AGENTS.md + CONTEXT.md + apps/api/AGENTS.md + apps/web/AGENTS.md 본문(가드레일)
+//   repoDocs: AGENTS.md + GLOSSARY.md + apps/api/AGENTS.md + apps/web/AGENTS.md 본문(가드레일)
 //   scope:    리뷰 범위 설명 (예: "main...HEAD") — 표시용
 let input = args
 if (typeof input === 'string') {

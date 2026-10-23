@@ -95,22 +95,29 @@ Guard #3: post-engine (결과 저장 직전)
 stateDiagram-v2
     [*] --> OK : create()/parse() 성공
     [*] --> ERROR : create()/parse() 실패 (lexer/parser)
+    [*] --> UNSUPPORTED : create() 파싱 성공·지원 범위 밖
     OK --> OK : update() (재파싱 성공)
     ERROR --> OK : update() (Pine 수정 후 재파싱 성공)
     OK --> ERROR : update() (재파싱 실패)
+    OK --> UNSUPPORTED : update() 지원 범위 밖
+    ERROR --> UNSUPPORTED : update() 파싱 성공·지원 범위 밖
+    UNSUPPORTED --> OK : update() 파싱·지원 검사 통과
+    UNSUPPORTED --> ERROR : update() 재파싱 실패
     OK --> ARCHIVED : archive() (is_archived=true)
     ERROR --> ARCHIVED : archive()
+    UNSUPPORTED --> ARCHIVED : archive()
     ARCHIVED --> [*]
 ```
 
 ### 상태 정의
 
-> Strategy 는 단일 status 컬럼이 없다 — `parse_status` (StrEnum: `ok` / `unsupported` / `error`) + `is_archived` (bool) 조합. create()/update() 시 `_parse` 가 즉시 실행되어 parse_status 를 terminal 값으로 set (영속 PENDING 상태 없음). **파서는 `ok` 또는 `error` 만 set 한다** (`service.py:114,130`); `unsupported` 는 enum 예약값으로 현재 코드에서 미사용 — 미지원 함수는 parse_status 가 아니라 **backtest 제출 시 coverage analyzer** 가 판정한다 (`is_runnable = parse_status==ok AND coverage.is_runnable`, `service.py:176`; ADR-003 all-or-nothing).
+> Strategy는 `parse_status` (`ok` / `unsupported` / `error`)와 `is_archived` 조합으로 상태를 표현한다. create/update 시 `_parse`와 `_status_with_coverage`가 즉시 저장 판정을 만든다(영속 PENDING 없음). 파싱 실패인 `error`가 우선하며, 파싱 성공 후 지원 범위 밖이면 `unsupported`다. 저장은 허용하고 실행 허용 여부는 백테스트 제출 시 Coverage Analyzer가 판정한다([ADR-003](../adr/003-pine-runtime-safety-and-parser-scope.md)).
 
 | 논리 상태                            | parse_status | is_archived |
 | ------------------------------------ | ------------ | ----------- |
 | OK (백테스트 가능 후보)              | `ok`         | false       |
 | ERROR (파싱 실패, parse_errors 기록) | `error`      | false       |
+| UNSUPPORTED (파싱 성공·지원 범위 밖) | `unsupported` | false       |
 | ARCHIVED                             | (any)        | true        |
 
 ### 가드

@@ -8,7 +8,7 @@ AGENTS.md 한 줄·프롬프트 한 문장이 에이전트 행동을 바꾸므�
 
 - **review 트랙** — 리뷰 하네스가 AGENTS.md의 CRITICAL 룰 위반(Decimal·Repository·
   SecretStr·prefork·H-1~H-3)을 일관되게 잡아내고, 정상 코드를 오탐하지 않는지.
-- **qa 트랙** — 라이브 `CONTEXT.md`+`AGENTS.md`가 코드베이스 질문(규약·함정)에 정확히
+- **qa 트랙** — 라이브 `GLOSSARY.md`+`AGENTS.md`가 코드베이스 질문(규약·함정)에 정확히
   답할 만큼 충분한지, 그리고 응답자가 틀린 전제에 동조하지 않는지(환각 방지).
   함정 한 줄을 AGENTS.md에서 지우면 해당 qa 케이스가 회귀로 잡힌다.
 
@@ -25,7 +25,7 @@ golden set → subject(리뷰어/응답자) 실행 → LLM-as-judge 채점 → �
     둘 다 틀린 전제 반박 가드(워크트리 celery · pytest DATABASE_URL 단독 주입).
 - **리뷰어**(`reviewer.ts`): review 트랙 대상. AGENTS.md 룰 요약(`rules.ts`)을 적용해
   코드를 리뷰하는 경량 단일 호출(Sonnet, temperature 0). 산문 리뷰를 출력한다.
-- **응답자**(`responder.ts`): qa 트랙 대상. **라이브 `CONTEXT.md`+`AGENTS.md`**를
+- **응답자**(`responder.ts`): qa 트랙 대상. **라이브 `GLOSSARY.md`+`AGENTS.md`**를
   컨텍스트로 받아 질문에 답하는 경량 단일 호출(Sonnet, temperature 0).
 - **judge**(`judge.ts`): 다른 모델(Opus)이 "subject가 기대대로 했나"를 pass/fail로
   채점한다(`judge`=review, `judgeQa`=qa).
@@ -55,7 +55,7 @@ pnpm typecheck                     # 키 불필요 — tsc --noEmit
 - **경량 리뷰어 ≠ 실제 리뷰 워크플로우.** 게이트 속도를 위해 단일 호출로 대리한다.
   산문 입출력이라 `reviewer.ts`만 headless 리뷰로 교체하면 실제 워크플로우를 eval할
   수 있다(judge·게이트는 불변).
-- **qa 응답자는 CONTEXT.md+AGENTS.md를 통째로 받는다.** 사실이 문서에 있으면 거의
+- **qa 응답자는 GLOSSARY.md+AGENTS.md를 통째로 받는다.** 사실이 문서에 있으면 거의
   맞힌다 — 즉 positive qa 케이스는 추론력 테스트가 아니라 **문서 커버리지 회귀
   센티넬**이다(그 줄을 지우면 red). 진짜 변별력은 전제반박 가드(틀린 전제에 동조
   안 하나)에서 나온다.
