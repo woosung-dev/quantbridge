@@ -1025,7 +1025,7 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 ~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 PR #926의 Gemini 실행 Python preview·저장·백테스트 연결과 소규모 평가 근거를 검토한다.**~~
 → **2026-10-23 PR #926은 구현·80회 평가와 exact-head CI를 완료했다. 후속 연구는 별도 문서 브랜치에서 원2회 배정의 실패를 보존한다.**
 
-**다음 행동 = PRD §5의 결과·가정 공개 기준으로 PR #927의 [Gemini 3.8·3.5 Lite 다언어 비교](./architecture/gemini-language-comparison.md)의 504 실패·원문 확보3/6과6/6·실행/의미 차이·bundle/단일 요청 조건을 검토한다.**
+**다음 행동 = PRD §5의 결과·가정 공개 기준으로 PR #927의 [Sol·Gemini 3.8·Lite 언어별 두 사례 비교 보고서](./architecture/gemini-language-comparison.md)를 검토한다. 3.8은 첫6중2원문·총11시도 후6원문 모두90점이며, 180초 첫 시도와 가용성 복구·360초 진단 조건을 구분한다. 추가 추론·재평가는 종료했고 연구 VM은 Stopped다.**
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.
 현재 [ADR-046](./adr/046-generated-strategy-language-evaluation.md)의 다중 언어 `code_v1`은 별도 경로다.
