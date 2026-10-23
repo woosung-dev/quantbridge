@@ -22,7 +22,7 @@ const waitlistMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth-server", () => ({
-  getServerAuth: vi.fn(),
+  getServerSession: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -129,10 +129,10 @@ vi.mock("@/features/waitlist/components/waitlist-product", () => ({
 import * as LandingPageModule from "../page";
 import LandingPage from "../page";
 import WaitlistPage, { metadata as waitlistMetadata } from "../waitlist/page";
-import { getServerAuth } from "@/lib/auth-server";
+import { getServerSession } from "@/lib/auth-server";
 import { redirect } from "next/navigation";
 
-const mockedGetServerAuth = vi.mocked(getServerAuth);
+const mockedGetServerSession = vi.mocked(getServerSession);
 const mockedRedirect = vi.mocked(redirect);
 
 const LANDING_SECTION_NAMES = [
@@ -149,7 +149,7 @@ const LANDING_SECTION_NAMES = [
 ] as const;
 
 async function renderAnonymousLanding(): Promise<string> {
-  mockedGetServerAuth.mockResolvedValue({ userId: null, token: null });
+  mockedGetServerSession.mockResolvedValue({ userId: null });
   const page = await LandingPage();
   return renderToStaticMarkup(page);
 }
@@ -165,7 +165,7 @@ afterEach(() => vi.resetAllMocks());
 
 describe("랜딩 페이지의 인증 전 서버 렌더", () => {
   it("userId 가 있으면 정확히 한 번 /strategies 로 redirect 한다", async () => {
-    mockedGetServerAuth.mockResolvedValue({ userId: "user-123", token: "token" });
+    mockedGetServerSession.mockResolvedValue({ userId: "user-123" });
 
     await LandingPage();
 
@@ -175,7 +175,7 @@ describe("랜딩 페이지의 인증 전 서버 렌더", () => {
 
   it("redirect 가 던지면 랜딩 섹션을 렌더하지 않고 즉시 끝난다", async () => {
     const redirectSignal = new Error("NEXT_REDIRECT");
-    mockedGetServerAuth.mockResolvedValue({ userId: "user-123", token: "token" });
+    mockedGetServerSession.mockResolvedValue({ userId: "user-123" });
     mockedRedirect.mockImplementation(() => {
       throw redirectSignal;
     });

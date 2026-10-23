@@ -161,6 +161,94 @@ describe("TradingChart", () => {
     expect(markerArg[0]!.text).toBe("ENTRY");
   });
 
+  it("updates only the changed compare data without resending other series", async () => {
+    const benchmark = { data: POINTS };
+    const area = { data: POINTS };
+    const histogram = { data: POINTS };
+    const { rerender } = render(
+      <TradingChart
+        data={POINTS}
+        benchmark={benchmark}
+        compare={{ data: POINTS }}
+        area={area}
+        histogram={histogram}
+        ariaLabel="Compare chart"
+      />,
+    );
+    await flushChartInit();
+    const chart = chartInstances[0]!;
+    const main = chart.addLineSeries.mock.results[0]!.value as SeriesSpy;
+    const baseline = chart.addLineSeries.mock.results[1]!.value as SeriesSpy;
+    const compare = chart.addLineSeries.mock.results[2]!.value as SeriesSpy;
+    const drawdown = chart.addAreaSeries.mock.results[0]!.value as SeriesSpy;
+    const bars = chart.addHistogramSeries.mock.results[0]!.value as SeriesSpy;
+    const changed = POINTS.map((point) => ({ ...point, value: point.value + 100 }));
+
+    rerender(
+      <TradingChart
+        data={POINTS}
+        benchmark={benchmark}
+        compare={{ data: changed }}
+        area={area}
+        histogram={histogram}
+        ariaLabel="Compare chart"
+      />,
+    );
+
+    expect(compare.setData).toHaveBeenCalledTimes(2);
+    for (const unchanged of [main, baseline, drawdown, bars]) {
+      expect(unchanged.setData).toHaveBeenCalledTimes(1);
+    }
+    expect(main.setMarkers).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates markers and options without resetting data or the visible time range", async () => {
+    const benchmark = { data: POINTS };
+    const { rerender } = render(
+      <TradingChart data={POINTS} benchmark={benchmark} ariaLabel="Equity chart" />,
+    );
+    await flushChartInit();
+    const chart = chartInstances[0]!;
+    const main = chart.addLineSeries.mock.results[0]!.value as SeriesSpy;
+    const baseline = chart.addLineSeries.mock.results[1]!.value as SeriesSpy;
+    chart.timeScale.mockClear();
+
+    rerender(
+      <TradingChart
+        data={POINTS}
+        benchmark={{ data: POINTS, options: { color: "#123456" } }}
+        options={{ color: "#654321" }}
+        markers={MARKERS}
+        ariaLabel="Equity chart"
+      />,
+    );
+
+    expect(main.applyOptions).toHaveBeenLastCalledWith({ color: "#654321" });
+    expect(baseline.applyOptions).toHaveBeenLastCalledWith({ color: "#123456" });
+    expect(main.setMarkers).toHaveBeenCalledTimes(2);
+    expect(main.setData).toHaveBeenCalledTimes(1);
+    expect(baseline.setData).toHaveBeenCalledTimes(1);
+    expect(chart.timeScale).not.toHaveBeenCalled();
+  });
+
+  it("fills an overlay again after it is removed and re-added", async () => {
+    const benchmark = { data: POINTS };
+    const { rerender } = render(
+      <TradingChart data={POINTS} benchmark={benchmark} ariaLabel="Equity chart" />,
+    );
+    await flushChartInit();
+    const chart = chartInstances[0]!;
+    rerender(<TradingChart data={POINTS} ariaLabel="Equity chart" />);
+    rerender(<TradingChart data={POINTS} benchmark={benchmark} ariaLabel="Equity chart" />);
+
+    expect(chart.removeSeries).toHaveBeenCalledTimes(1);
+    expect(chart.addLineSeries).toHaveBeenCalledTimes(3);
+    const recreated = chart.addLineSeries.mock.results[2]!.value as SeriesSpy;
+    expect(recreated.setData).toHaveBeenCalledTimes(1);
+    const main = chart.addLineSeries.mock.results[0]!.value as SeriesSpy;
+    expect(main.setData).toHaveBeenCalledTimes(1);
+  });
+
   it("creates benchmark line series and area overlay when props provided", async () => {
     render(
       <TradingChart

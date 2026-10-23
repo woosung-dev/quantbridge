@@ -1,7 +1,7 @@
 // 랜딩 페이지 (/) — C 디자인 언어 이식. 인증 사용자는 /strategies 로 redirect.
 // screen-14-landing.html 6섹션 구조: 히어로 → 기능 → 작동 방식 → 지원 현황 → 성능 → FAQ → 시작.
 import { redirect } from "next/navigation";
-import { getServerAuth } from "@/lib/auth-server";
+import { getServerSession } from "@/lib/auth-server";
 import { GeoBlockBanner } from "@/components/geo-block-banner";
 
 import { LandingCta } from "@/features/marketing/components/landing-cta";
@@ -15,7 +15,7 @@ import { LandingPerformance } from "@/features/marketing/components/landing-perf
 import { LandingSupport } from "@/features/marketing/components/landing-support";
 
 export default async function LandingPage() {
-  const { userId } = await getServerAuth();
+  const { userId } = await getServerSession();
   if (userId) {
     redirect("/strategies");
   }

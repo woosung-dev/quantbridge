@@ -4,9 +4,9 @@
 // ⌘+Enter / Ctrl+Enter 커맨드 등록 → 상위 onTriggerParse delegate.
 
 import dynamic from "next/dynamic";
-import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, type Ref } from "react";
 import { useTheme } from "next-themes";
-import type { BeforeMount, OnMount } from "@monaco-editor/react";
+import type { BeforeMount, EditorProps, OnMount } from "@monaco-editor/react";
 import { ibmPlexMono } from "@/lib/fonts";
 import { registerPineLanguage } from "./pine-language";
 
@@ -34,6 +34,7 @@ type MonacoNamespace = Parameters<OnMount>[1];
 
 export function PineEditor(props: PineEditorProps) {
   const parseRef = useRef(props.onTriggerParse);
+  const onChangeRef = useRef(props.onChange);
   const mountedEditorRef = useRef<{
     editor: MonacoEditorInstance;
     monaco: MonacoNamespace;
@@ -41,7 +42,13 @@ export function PineEditor(props: PineEditorProps) {
   // H-3: render 중 ref 를 쓰지 않고 commit 마다 최신 callback 을 동기화한다.
   useEffect(() => {
     parseRef.current = props.onTriggerParse;
+    onChangeRef.current = props.onChange;
   });
+
+  // Monaco의 모델 listener는 유지하면서 최신 부모 callback에 변경 값을 전달한다.
+  const handleChange = useCallback((value: string | undefined) => {
+    onChangeRef.current(value ?? "");
+  }, []);
 
   useImperativeHandle(
     props.ref,
@@ -84,30 +91,37 @@ export function PineEditor(props: PineEditorProps) {
     });
   };
 
+  // Monaco는 options 참조가 바뀔 때마다 updateOptions를 실행한다.
+  const readOnly = props.readOnly;
+  const options = useMemo<EditorProps["options"]>(
+    () => ({
+      readOnly: readOnly,
+      // Precision Instrument: IBM Plex Mono — next/font 가 생성한 해시 family 명을
+      // 직접 주입 (Monaco 는 CSS 변수 해석 불가, 리터럴 "IBM Plex Mono" 금지 — lib/fonts.ts).
+      fontFamily: ibmPlexMono.style.fontFamily,
+      fontSize: 13,
+      lineHeight: 20,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      wordWrap: "on",
+      tabSize: 4,
+      renderLineHighlight: "line",
+      smoothScrolling: true,
+      padding: { top: 16, bottom: 16 },
+    }),
+    [readOnly],
+  );
+
   return (
     <MonacoEditor
       height={props.height ?? 400}
       defaultLanguage="pine"
       theme={monacoTheme}
       value={props.value}
-      onChange={(v) => props.onChange(v ?? "")}
+      onChange={handleChange}
       beforeMount={handleBeforeMount}
       onMount={handleMount}
-      options={{
-        readOnly: props.readOnly,
-        // Precision Instrument: IBM Plex Mono — next/font 가 생성한 해시 family 명을
-        // 직접 주입 (Monaco 는 CSS 변수 해석 불가, 리터럴 "IBM Plex Mono" 금지 — lib/fonts.ts).
-        fontFamily: ibmPlexMono.style.fontFamily,
-        fontSize: 13,
-        lineHeight: 20,
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        wordWrap: "on",
-        tabSize: 4,
-        renderLineHighlight: "line",
-        smoothScrolling: true,
-        padding: { top: 16, bottom: 16 },
-      }}
+      options={options}
     />
   );
 }
