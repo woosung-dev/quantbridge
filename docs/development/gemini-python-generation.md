@@ -60,3 +60,4 @@ short는 `1.1×(H−E)`다. 10%는 가격 자체가 아닌 위험 거리의 buff
 실제 생성물의 공개 실행과 독립 의미 검증은 연구 전용 VM의 기존 gVisor runner에서 직접
 수행한다. 워크트리와 다른 소스를 mount한 공유 Celery worker를 실행 증거로 사용하지 않는다.
 작업 브랜치 head에 연결된 CI의 backend·frontend·여정 검증이 최종 품질 게이트다.
+모델별 관측 결과와 한계는 [소규모 평가](../architecture/gemini-python-evaluation.md)가 갖는다.

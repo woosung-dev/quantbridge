@@ -1022,7 +1022,7 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 ~~**다음 행동 = PRD §5에 따라 공개 추세 원문 50개의 1h·4h·1d V1·선택형 스윙 청산 V2 검증을 이어간다.**~~
 → **2026-10-22 사용자 지시로 Sol 6.1 다중 언어 전략 생성·실행 비교를 우선한다. 기존 Pine 검증의 남은 계약은 보존한다.**
 
-**다음 행동 = PRD §5의 결과·가정 공개 기준으로 Gemini 실행 Python preview의 검토·저장·백테스트 연결과 소규모 평가 근거를 검토한다.**
+**다음 행동 = PRD §5의 결과·가정 공개 기준으로 PR #926의 Gemini 실행 Python preview·저장·백테스트 연결과 소규모 평가 근거를 검토한다.**
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.
 현재 [ADR-046](./adr/046-generated-strategy-language-evaluation.md)의 다중 언어 `code_v1`은 별도 경로다.
