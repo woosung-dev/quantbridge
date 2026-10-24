@@ -110,6 +110,29 @@ def test_cleanup_failure_does_not_replace_an_execution_failure():
     assert raised.value.__notes__ == ["격리 실행기 회수 실패: OSError"]
 
 
+def test_pine_constructor_cleanup_failure_preserves_interruption_through_real_session():
+    original = KeyboardInterrupt()
+    with (
+        patch(
+            "src.strategy.python_runtime.sandbox.DockerPythonTransport.__init__", return_value=None
+        ),
+        patch(
+            "src.strategy.python_runtime.sandbox.DockerPythonTransport.exchange",
+            side_effect=original,
+        ),
+        patch(
+            "src.strategy.python_runtime.sandbox.DockerPythonTransport.close",
+            side_effect=OSError("cleanup failed"),
+        ) as close,
+        pytest.raises(KeyboardInterrupt) as raised,
+        CodeExecutionSession("source", "pine", {}, frame([(100, 110, 90, 100)] * 3)),
+    ):
+        pytest.fail("Pine load must be interrupted")
+    assert raised.value is original
+    assert raised.value.__notes__ == ["격리 실행기 회수 실패: OSError"]
+    close.assert_called_once_with()
+
+
 def test_cleanup_failure_after_success_is_not_hidden():
     adapter = transport({"ready": 1})
     adapter.close.side_effect = OSError("cleanup failed")

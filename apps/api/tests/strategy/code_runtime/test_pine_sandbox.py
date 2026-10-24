@@ -51,15 +51,18 @@ def test_invalid_deadline_and_unavailable_image_never_use_host_interpreter() -> 
         run_code_backtest('//@version=5\nstrategy("no fallback")', "pine", data, cfg())
 
 
-def test_interruption_during_pine_load_closes_transport() -> None:
+@pytest.mark.parametrize("cleanup_error", [None, OSError("cleanup failed")])
+def test_interruption_during_pine_load_closes_transport(cleanup_error) -> None:
     data = frame([(100, 101, 99, 100)] * 3)
+    original = KeyboardInterrupt()
     with (
         patch.object(DockerPythonTransport, "__init__", return_value=None),
-        patch.object(DockerPythonTransport, "exchange", side_effect=KeyboardInterrupt),
-        patch.object(DockerPythonTransport, "close") as close,
-        pytest.raises(KeyboardInterrupt),
+        patch.object(DockerPythonTransport, "exchange", side_effect=original),
+        patch.object(DockerPythonTransport, "close", side_effect=cleanup_error) as close,
+        pytest.raises(KeyboardInterrupt) as raised,
     ):
         PineSignalTransport(data)
+    assert raised.value is original
     close.assert_called_once()
 
 
