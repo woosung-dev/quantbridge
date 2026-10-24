@@ -356,6 +356,18 @@ sequenceDiagram
 - private WebSocket은 **Bybit Demo 계정만** 연결한다. 과거 live/OKX 행은 보존하되 stream 재등록·자격증명 복호화 전에 차단한다.
 - 공개 ticker·과거 OHLCV/funding 수집은 사용자 private egress와 별도 경계다.
 
+### 7.6 Trading 브라우저 조회 조합
+
+`useTradingCockpitData(selectedId)`는 기존 조회 훅을 사용해 코크핏의 현황·포지션 대상·세션 표·
+등록 폼·선택 상태와 새로고침을 제공한다. 화면은 URL 선택과 표현을 소유하고, ticker와
+미실현 손익의 구독·타이머는 `UnrealizedPnlKpi` leaf에 둔다. query 결과나 이름 Map을 화면에
+노출하지 않으며 계정·세션·킬 스위치의 로딩·오류 상태는 각각 유지한다.
+
+- 현황 KPI는 전체 활성 세션을 세고, 등록 quota와 세션별 private 조회는 활성 Bybit Demo 세션만 쓴다.
+- 잔고 대상은 해당 세션이 참조하는 계정을 중복 제거한 목록이다. 계정 포지션은 세션이 없어도 모든 Bybit Demo 계정을 조회하며 UID·read-only 메타데이터를 보존한다.
+- 세션 표의 이름은 Pine 다음 Code를 연결하고, 등록 폼에는 기존 Pine 전략만 제공한다. 종료 세션도 같은 비활성 포함 캐시에서 선택하며, 캐시의 선택 행이 있으면 refetch·오류보다 우선 표시한다.
+- 새로고침은 현재 UID의 trading·live-sessions·strategies·code-strategies·alert-rules 다섯 query prefix만 무효화한다. 비활성 포함 목록 키는 기존 목록 키의 자식으로 유지해 다른 소비자와 요청을 공유한다.
+
 ---
 
 ## 8. 페이지네이션 패턴

@@ -5,11 +5,7 @@
 // React Query 는 키가 다르면 다른 쿼리이므로 **같은 화면에서 목록 요청이 두 벌** 나갔다.
 //
 // 이 파일은 그 기전을 직접 잰다 — 대조군(키가 갈린 경우 2회)을 함께 둬서 "1회" 가 우연이
-// 아님을 보인다. 그리고 cockpit 이 실제로 `true` 를 넘기는지 소스로 래칫을 건다(기전을 고쳐도
-// 호출부가 되돌아가면 무의미하므로).
-
-import { readFileSync } from "node:fs";
-import path from "node:path";
+// 아님을 보인다. 실제 코크핏 조합의 인자·운영 quota는 Trading 조회 조합 테스트가 검증한다.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
@@ -38,15 +34,6 @@ vi.mock("../api", () => ({
 
 import { useLiveSessions } from "../hooks";
 import { liveSessionKeys } from "../query-keys";
-
-/** 소스 래칫이 **코드**만 보게 한다 — 블록 주석과 줄 주석을 지운다. */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-}
-
-// ★파일시스템 경로다 — `@/` 별칭은 `path.resolve` 에 의미가 없다.
-//   2026-08-16 ADR-035 이동에서 이 줄을 별칭으로 바꿨다가 ENOENT 로 red 가 났다.
-const COCKPIT = path.resolve(__dirname, "../../trading/components/trading-cockpit.tsx");
 
 function makeClient() {
   // 한 화면 = 한 QueryClient. 두 훅이 이 캐시를 공유한다.
@@ -121,31 +108,5 @@ describe("라이브 세션 목록 쿼리 (BL-423)", () => {
     await client.invalidateQueries({ queryKey: liveSessionKeys.list("test-user") });
 
     await waitFor(() => expect(listLiveSessionsMock).toHaveBeenCalledTimes(2));
-  });
-
-  it("cockpit 이 비활성 포함으로 호출한다 — 호출부 래칫", () => {
-    // ★주석을 걷어내고 잰다. 이 래칫은 **호출부**를 재야 하는데 종전에는 파일 원문을 그대로
-    // 훑어서 산문에 그 호출 형태를 인용하기만 해도 빨개졌다(2026-08-09 실측 — BL-533 이
-    // 미러 state 를 지우며 남긴 「예전에는 활성만 조회했다」 설명이 이 래칫에 걸렸다).
-    // 반대 방향 오류가 더 나쁘다 — 주석에 형태만 적어두면 양성 단언이 **코드 없이도** 만족된다.
-    const source = stripComments(readFileSync(COCKPIT, "utf8"));
-
-    expect(source).toContain("useLiveSessions(true)");
-    // 인자 없는 호출로 되돌아가면 키가 다시 갈린다.
-    expect(source).not.toContain("useLiveSessions()");
-  });
-
-  it("★운영 대상 소비자가 넓어진 목록을 쓰지 않는다 — quota·KPI 래칫", () => {
-    // 목록을 비활성까지 넓히면서 생긴 위험: `sessionItems` 를 활성 카운트로 쓰면
-    // **최근 종료 세션 5건만으로 quota(≤5)가 잠긴다** — 새 세션을 못 시작한다.
-    // KPI 타일은 활성 전체를 표시하되, 새 세션 quota 는 Bybit Demo 운영 대상만 센다.
-    // legacy 계정/세션이 quota 를 잠그거나 egress 대상으로 되살아나면 안 된다.
-    const source = readFileSync(COCKPIT, "utf8");
-
-    expect(source).toContain("activeSessionsCount={operatingActiveSessions.length}");
-    expect(source).not.toContain("sessionItems.length");
-    // 기존 세션은 목록의 read-only 표면에 남지만, private 포지션 조회에는 넣지 않는다.
-    expect(source).toContain("sessions={operatingActiveSessions}");
-    expect(source).toContain("demoSessionIds={operatingSessionIds}");
   });
 });

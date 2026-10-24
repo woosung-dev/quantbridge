@@ -129,7 +129,7 @@ def test_exclusive_unaligned_end_filters_against_original_utc_timestamp():
 @pytest.mark.asyncio
 async def test_code_coverage_persists_exclusive_evaluation_without_warmup(db_session, monkeypatch):
     from decimal import Decimal
-    from unittest.mock import AsyncMock, Mock
+    from unittest.mock import AsyncMock
 
     from src.backtest.dispatcher import FakeTaskDispatcher
     from src.backtest.engine.types import BacktestMetrics, BacktestResult
@@ -155,13 +155,13 @@ async def test_code_coverage_persists_exclusive_evaluation_without_warmup(db_ses
         dict.fromkeys(("open", "high", "low", "close", "volume"), 100), index=parent_index
     )
     provider = AsyncMock()
-    provider.get_ohlcv.side_effect = [parent, parent]
+    provider.get_ohlcv.return_value = parent
     result = BacktestResult(
         metrics=BacktestMetrics(Decimal(0), Decimal(0), Decimal(0), Decimal(0), 0),
         equity_curve=pd.Series([Decimal("10000")] * 48, index=index),
     )
-    native = Mock(return_value=result)
-    monkeypatch.setattr("src.strategy.product_execution.run_product_backtest", native)
+    native = AsyncMock(return_value=result)
+    monkeypatch.setattr("src.strategy.product_execution.CodeBacktestExecution.run", native)
     service = BacktestService(
         repo=BacktestRepository(db_session),
         strategy_repo=strategy_repo,
@@ -172,7 +172,7 @@ async def test_code_coverage_persists_exclusive_evaluation_without_warmup(db_ses
     await service.run(submitted.backtest_id)
     detail = await service.get(submitted.backtest_id, user_id=user.id)
     assert detail.status == BacktestStatus.COMPLETED
-    native.assert_called_once()
+    native.assert_awaited_once()
     assert detail.data_coverage.bar_count == 48
     assert detail.data_coverage.expected_bars == 48
     assert detail.data_coverage.missing_bars == 0

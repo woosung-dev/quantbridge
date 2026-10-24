@@ -327,10 +327,10 @@ async def test_code_worker_unavailable_is_failed_and_never_calls_legacy(monkeypa
         {k: [Decimal("100")] * len(index) for k in ("open", "high", "low", "close", "volume")},
         index=index,
     )
-    provider.get_ohlcv.side_effect = [parent, parent]
-    native = Mock(side_effect=PythonRunnerUnavailable("image unavailable"))
+    provider.get_ohlcv.return_value = parent
+    native = AsyncMock(side_effect=PythonRunnerUnavailable("image unavailable"))
     legacy = Mock(side_effect=AssertionError("legacy must not execute"))
-    monkeypatch.setattr("src.strategy.product_execution.run_product_backtest", native)
+    monkeypatch.setattr("src.strategy.product_execution.CodeBacktestExecution.run", native)
     monkeypatch.setattr("src.backtest.service.run_backtest", legacy)
     svc = BacktestService(
         repo=repo, strategy_repo=strategy_repo, ohlcv_provider=provider, dispatcher=Mock()
@@ -338,7 +338,7 @@ async def test_code_worker_unavailable_is_failed_and_never_calls_legacy(monkeypa
     assert await svc._run(bt.id) == BacktestStatus.FAILED
     assert "image unavailable" in repo.fail.call_args.kwargs["error"]
     legacy.assert_not_called()
-    native.assert_called_once()
+    native.assert_awaited_once()
     assert repo.commit.await_count == 2
 
 

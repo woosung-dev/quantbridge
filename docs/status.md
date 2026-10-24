@@ -1041,6 +1041,7 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 → **2026-10-24 사용자 선택으로 에디터 픽 원문 비교를 먼저 진행한다. 운영 스키마 해소와 [BL-871]은 미완이며 앱 저장 전 별도 확인한다.**
 
 **다음 행동 = PRD §5의 결과·가정 공개 기준으로 에디터 픽의 실행 가능한 고유 Pine 200개를 소싱하고, 같은 원문의 Terra·Antigravity Gemini 3.8 Flash 구독 CLI Python 재현을 BTC 1h·4h·1d / 6·12·24개월에서 비교한다. 6원문·54셀 파일럿부터 실제 종료·실패·native 범위를 확인하며 통과한 경로만 앱에 저장한다. 계약 = [에디터 픽 비교](./development/editor-picks-comparison.md).**
+운영 DB `20261021_0002 → 20261022_0005`의 DDL 5개와 이미지 `sha-e2173c1`의 배포는 [배포 런북 §3](./operations/backend-deploy.md#3-사람이-하는-것)에 따른 명시 승인 대기다. 외부 백업 왕복·격리 복원·기존 데이터 보존은 확인했다. 실제 gVisor 검증과 legacy 손익 [BL-871](./backlog.md#bl-871)은 별도 검증이다.
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.
 현재 [ADR-046](./adr/046-generated-strategy-language-evaluation.md)의 다중 언어 `code_v1`은 별도 경로다.
