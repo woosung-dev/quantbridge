@@ -98,13 +98,29 @@ _RENDERING_METHODS: frozenset[str] = frozenset(
         "label.get_x",  # Sprint 58 BL-242b: DrFX dogfood 누락
         "label.set_x",  # Sprint 58 BL-242b
         "label.set_y",  # Sprint 58 BL-242b
+        "label.get_y",
+        "label.get_text",
+        "label.set_text",
+        "label.set_color",
+        "label.set_textcolor",
         "line.delete",
         "line.get_price",
         "line.set_xy1",
         "line.set_xy2",
+        "line.get_x1",
+        "line.get_x2",
+        "line.get_y1",
+        "line.get_y2",
+        "line.set_x1",
+        "line.set_x2",
+        "line.set_y1",
+        "line.set_y2",
+        "line.set_color",
         "table.cell",
         "table.cell_set_bgcolor",  # Sprint 58 BL-242b
         "table.delete",
+        "table.clear",
+        "table.merge_cells",
     }
 )
 
@@ -139,6 +155,10 @@ _DISPLAY_CONSTANTS: frozenset[str] = frozenset(
         "plot.style_circles",
         "plot.style_cross",
         "plot.style_columns",
+        "plot.style_area",
+        "plot.style_areabr",
+        "plot.style_histogram",
+        "plot.style_stepline",
         "hline.style_dotted",
     }
 )
@@ -274,6 +294,12 @@ _MATH_FUNCTIONS: frozenset[str] = frozenset(
         "math.ceil",
         "math.sum",
         "math.avg",
+        "math.sin",
+        "math.cos",
+        "math.tan",
+        "math.asin",
+        "math.acos",
+        "math.atan",
     }
 )
 
@@ -310,6 +336,10 @@ _V4_ALIASES: frozenset[str] = frozenset(
         "barssince",
         "valuewhen",
         "timestamp",
+        "pow",
+        "exp",
+        "log",
+        "sum",
     }
 )
 
@@ -771,6 +801,14 @@ def analyze_coverage(source: str) -> CoverageReport:
     unsupp_funcs_set = (
         set(unsupp_funcs_raw) | set(known_found) | {item["name"] for item in exit_quantities}
     )
+    # 라이브러리의 전역 코드도 실행 대상이다. 별칭 호출이 known namespace가
+    # 아니라는 이유로 외부 의존성을 조용히 지원한 것으로 판정하지 않는다.
+    imports = re.finditer(
+        r"(?m)^[\t ]*import\s+([A-Za-z0-9_]+/[A-Za-z0-9_]+/\d+)"
+        r"(?:\s+as\s+[A-Za-z_]\w*)?[\t ]*$",
+        clean,
+    )
+    unsupp_funcs_set.update(f"import {match[1]}" for match in imports)
     # 명시적인 숫자 캐스트는 v4부터 지원한다. 문자열 속 버전 표기는 사용하지 않는다.
     if pine_version < 4:
         unsupp_funcs_set.update(f for f in used_funcs if f in _CAST_FUNCTIONS)

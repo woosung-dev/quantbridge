@@ -73,8 +73,9 @@ loop의 같은 written call은 persistent 상태를 공유한다. 함수 내부 
 함수 local/parameter를 가리는 loop counter, global/parameter 재할당, UDF named 인자는 명시적으로
 거부한다. 이 제한을 함수 전체 Pine 동치로 표현하지 않는다. `varip` 저장소 구분을 유지하더라도
 historical/replay 검사로 실제 realtime tick의 rollback 동작까지 입증한 것은 아니다.
-`+=` 등 compound assignment는 전역/함수 내부 모두 명시적 런타임 오류로 거부하며,
-현재 지원하는 `:=`와 구별한다. 정상 Pine compound 연산을 구현했다는 뜻은 아니다.
+`+=`·`-=`·`*=`·`/=`·`%=`는 기존 변수의 `:=`와 같은 쓰기 경계를 사용한다.
+우변은 한 번만 평가하며 함수의 전역·매개변수 재할당은 계속 거부한다. 함수의 마지막
+문장이 대입이면 마지막 바인딩 값을 반환한다. `for`의 종료 경계가 `na`이면 본문을 실행하지 않는다.
 
 근거는 [Pine v5 UDF](https://www.tradingview.com/pine-script-docs/v5/language/user-defined-functions/)와
 [실행 모델의 scope별 이력](https://www.tradingview.com/pine-script-docs/language/execution-model/#time-series-in-scopes)이다.

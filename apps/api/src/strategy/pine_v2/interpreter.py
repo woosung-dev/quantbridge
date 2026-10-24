@@ -87,6 +87,16 @@ _V4_ALIASES: dict[str, str] = {
     "sqrt": "math.sqrt",
     "avg": "math.avg",
     "stdev": "ta.stdev",
+    "pow": "math.pow",
+    "exp": "math.exp",
+    "log": "math.log",
+    "sum": "math.sum",
+    "sin": "math.sin",
+    "cos": "math.cos",
+    "tan": "math.tan",
+    "asin": "math.asin",
+    "acos": "math.acos",
+    "atan": "math.atan",
 }
 
 # Pine enum constants — value 매핑 (location.absolute, extend.right, shape.*, etc.)
@@ -105,6 +115,10 @@ _ATTR_CONSTANTS: dict[str, str] = {
     "plot.style_circles": "circles",
     "plot.style_cross": "cross",
     "plot.style_columns": "columns",
+    "plot.style_area": "area",
+    "plot.style_areabr": "areabr",
+    "plot.style_histogram": "histogram",
+    "plot.style_stepline": "stepline",
     "hline.style_dotted": "dotted",
     "hline.style_solid": "solid",
     "hline.style_dashed": "dashed",
@@ -297,6 +311,23 @@ _RENDERING_FACTORIES: dict[str, str] = {
     "label.delete": "label_delete",
     "table.cell": "table_cell",
     "table.delete": "table_delete",
+    "table.clear": "table_clear",
+    "table.merge_cells": "table_merge_cells",
+    "label.set_text": "label_set_text",
+    "label.get_text": "label_get_text",
+    "label.get_y": "label_get_y",
+    "label.set_y": "label_set_y",
+    "label.set_color": "label_set_color",
+    "label.set_textcolor": "label_set_textcolor",
+    "line.set_color": "line_set_color",
+    "line.get_x1": "line_get_x1",
+    "line.get_x2": "line_get_x2",
+    "line.get_y1": "line_get_y1",
+    "line.get_y2": "line_get_y2",
+    "line.set_x1": "line_set_x1",
+    "line.set_x2": "line_set_x2",
+    "line.set_y1": "line_set_y1",
+    "line.set_y2": "line_set_y2",
 }
 
 # 연산자 매핑
@@ -489,7 +520,7 @@ class Interpreter:
         elif isinstance(node, pyne_ast.ReAssign):
             self._exec_reassign(node)
         elif isinstance(node, pyne_ast.AugAssign):
-            raise PineRuntimeError("compound assignment is not supported")
+            self._exec_augassign(node)
         elif isinstance(node, pyne_ast.If):
             self._exec_if(node)
         elif isinstance(node, pyne_ast.ForTo):
@@ -632,6 +663,31 @@ class Interpreter:
             else:
                 self._transient[target_name] = value
 
+    def _exec_augassign(self, node: Any) -> None:
+        """복합 대입은 기존 binding의 산술 후 재할당이며 RHS를 한 번만 평가한다."""
+        target = node.target
+        if not isinstance(target, pyne_ast.Name) or type(node.op).__name__ not in {
+            "Add",
+            "Sub",
+            "Mult",
+            "Div",
+            "Mod",
+        }:
+            raise PineRuntimeError("compound assignment target/operator is not supported")
+        declared = (
+            bool(self._scope_stack and target.id in self._scope_stack[-1])
+            or target.id in self._transient
+            or self.store.is_declared(f"main::{target.id}")
+        )
+        if not declared:
+            raise PineRuntimeError(f"compound assignment requires a declared variable: {target.id}")
+        self._exec_reassign(
+            pyne_ast.ReAssign(
+                target=target,
+                value=pyne_ast.BinOp(left=target, op=node.op, right=node.value),
+            )
+        )
+
     def _exec_if(self, node: Any) -> None:
         """if-else 분기."""
         if self._truthy(self._eval_expr(node.test)):
@@ -697,6 +753,9 @@ class Interpreter:
             raise PineRuntimeError("for loop counter must be an identifier")
         start = self._eval_expr(node.start)
         end = self._eval_expr(node.end)
+        # TV는 to=na인 루프의 body를 실행하지 않는다. 기존 값·카운터를 만들지 않는다.
+        if _is_na(end):
+            return
         for bound, label in ((start, "from"), (end, "to")):
             if bound is None or (isinstance(bound, float) and math.isnan(bound)):
                 raise PineRuntimeError(f"for loop '{label}' bound is na")
@@ -774,7 +833,7 @@ class Interpreter:
 
     # ---- array.* (G2, 2026-07-12 pine-batch QA) -------------------------
 
-    def _eval_array_call(self, name: str, node: Any) -> Any:
+    def _eval_array_call(self, name: str, node: Any, receiver: list[Any] | None = None) -> Any:
         """`array.*` 최소 서브셋 — `_names.ARRAY_FUNCTIONS` 와 1:1.
 
         - Pine array 는 참조 타입 → Python list. TV 와 동일하게 범위 밖 index 는
@@ -784,7 +843,18 @@ class Interpreter:
         - `new_<type>` 의 initial_value 기본값은 TV 와 동일하게 na.
         """
         args = [self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args]
+        if receiver is not None:
+            args.insert(0, receiver)
         op = name.removeprefix("array.")
+
+        if op == "from":
+            values = [value for value in args if not _is_na(value)]
+            if values and not (
+                all(type(value) in (int, float) for value in values)
+                or all(type(value) is type(values[0]) for value in values)
+            ):
+                raise PineRuntimeError("array.from: elements must have compatible types")
+            return list(args)
 
         if op.startswith("new_"):
             if op not in (
@@ -811,6 +881,13 @@ class Interpreter:
             got = type(args[0]).__name__ if args else "no argument"
             raise PineRuntimeError(f"{name}: first argument must be an array, got {got}")
         arr: list[Any] = args[0]
+
+        if op == "copy":
+            return list(arr)
+        if op == "indexof":
+            if len(args) != 2:
+                raise PineRuntimeError("array.indexof: expected array and value")
+            return next((index for index, value in enumerate(arr) if value == args[1]), -1)
 
         if op == "push":
             arr.append(args[1] if len(args) > 1 else float("nan"))
@@ -842,13 +919,22 @@ class Interpreter:
             return None
         if op == "size":
             return len(arr)
-        if op == "avg":
+        if op in ("avg", "sum", "max", "min"):
             values = [value for value in arr if not _is_na(value)]
             if any(
                 isinstance(value, bool) or not isinstance(value, (int, float)) for value in values
             ):
-                raise PineRuntimeError("array.avg: elements must be int or float")
-            return sum(values) / len(values) if values else float("nan")
+                raise PineRuntimeError(f"{name}: elements must be int or float")
+            if not values:
+                return float("nan")
+            if op == "avg":
+                return sum(values) / len(values)
+            if op == "sum":
+                return sum(values)
+            rank = args[1] if len(args) > 1 else 0
+            if type(rank) is not int or not 0 <= rank < len(values):
+                raise PineRuntimeError(f"{name}: rank out of bounds")
+            return sorted(values, reverse=op == "max")[rank]
 
         raise PineRuntimeError(f"array function not supported: {name}")
 
@@ -1085,6 +1171,8 @@ class Interpreter:
 
     def _resolve_name_if_declared(self, name: str) -> Any:
         """_resolve_name의 안전 버전 — 미정의면 None 반환 (렌더링 handle 검사용)."""
+        if self._scope_stack and name in self._scope_stack[-1]:
+            return self._scope_stack[-1][name]
         key = f"main::{name}"
         if self.store.is_declared(key):
             return self.store.get(key)
@@ -1281,6 +1369,8 @@ class Interpreter:
             if name == "math.exp":
                 # BL-374: math.exp(1000) → OverflowError → na (inf 무음오염 차단).
                 return _na_safe(lambda: math.exp(args[0]))
+            if name in {"math.sin", "math.cos", "math.tan", "math.asin", "math.acos", "math.atan"}:
+                return _na_safe(lambda: getattr(math, name.removeprefix("math."))(args[0]))
             raise PineRuntimeError(f"math function not supported: {name}")
 
         # array.* — G2 (2026-07-12 pine-batch QA) 최소 서브셋. Pine array 는 참조
@@ -1372,15 +1462,51 @@ class Interpreter:
 
         # ta.* / na / nz — stdlib 디스패치 (참조: STDLIB_NAMES 모듈-level frozenset)
         if name in STDLIB_NAMES:
-            args = [
-                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
-            ]
+            # 새 TA 함수는 공식 키워드명을 검증한 뒤 원문 순서로 한 번만 평가한다.
+            signatures = {
+                "ta.cum": ("source",),
+                "ta.stoch": ("source", "high", "low", "length"),
+                "ta.linreg": ("source", "length", "offset"),
+                "ta.vwma": ("source", "length"),
+                "ta.roc": ("source", "length"),
+                "ta.cci": ("source", "length"),
+            }
+            signature = signatures.get(name)
+            if signature is not None:
+                positions = []
+                named_seen = False
+                for index, arg in enumerate(node.args):
+                    keyword = arg.name if isinstance(arg, pyne_ast.Arg) else None
+                    if keyword:
+                        named_seen = True
+                        if keyword not in signature:
+                            raise PineRuntimeError(f"{name}: unknown argument {keyword}")
+                        position = signature.index(keyword)
+                    else:
+                        if named_seen:
+                            raise PineRuntimeError(f"{name}: positional argument after keyword")
+                        position = index
+                    if position >= len(signature) or position in positions:
+                        raise PineRuntimeError(f"{name}: duplicate or excess argument")
+                    positions.append(position)
+                if len(positions) != len(signature):
+                    raise PineRuntimeError(f"{name}: missing required argument")
+                args = [None] * len(signature)
+                for position, arg in zip(positions, node.args, strict=True):
+                    args[position] = self._eval_expr(
+                        arg.value if isinstance(arg, pyne_ast.Arg) else arg
+                    )
+            else:
+                args = [
+                    self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
+                ]
             return self.stdlib.call(
                 name,
                 id(node),
                 args,
                 high=self.bar.current("high"),
                 low=self.bar.current("low"),
+                volume=self.bar.current("volume"),
                 close_prev=self._prev_close,
                 pine_version=self.bar.pine_version,
             )
@@ -1409,6 +1535,8 @@ class Interpreter:
             handle = self._resolve_name_if_declared(head)
             if isinstance(handle, (LineObject, BoxObject, LabelObject, TableObject)):
                 return self._exec_rendering_method(handle, tail, node)
+            if isinstance(handle, list):
+                return self._eval_array_call(f"array.{tail}", node, receiver=handle)
 
         if self.capture_signals and name in {
             "plotshape",
@@ -1587,8 +1715,6 @@ class Interpreter:
         loop_counters: set[str] = set()
 
         def visit(node: Any, in_block: bool = False) -> None:
-            if isinstance(node, pyne_ast.AugAssign):
-                raise PineRuntimeError("UDF compound assignment is not supported")
             if isinstance(node, pyne_ast.Assign):
                 if in_block:
                     raise PineRuntimeError("UDF lexical block declarations are not supported")
@@ -1600,7 +1726,7 @@ class Interpreter:
                             if name.id in params or name.id in declarations:
                                 raise PineRuntimeError(f"UDF duplicate binding: {name.id}")
                             declarations[name.id] = self._detect_var_kind(node)
-            if isinstance(node, pyne_ast.ReAssign):
+            if isinstance(node, (pyne_ast.ReAssign, pyne_ast.AugAssign)):
                 targets = getattr(node, "targets", None) or [getattr(node, "target", None)]
                 reassignments.update(t.id for t in targets if isinstance(t, pyne_ast.Name))
             if isinstance(node, (pyne_ast.ForTo, pyne_ast.ForIn)):
@@ -1686,6 +1812,15 @@ class Interpreter:
                         last_expr_val = self._eval_expr(inner)
                 else:
                     self._exec_stmt(stmt)
+                    if isinstance(stmt, (pyne_ast.Assign, pyne_ast.ReAssign, pyne_ast.AugAssign)):
+                        targets = getattr(stmt, "targets", None) or [getattr(stmt, "target", None)]
+                        target = targets[0]
+                        if isinstance(target, pyne_ast.Name):
+                            last_expr_val = self._resolve_name(target.id)
+                        elif isinstance(target, pyne_ast.Tuple):
+                            last_expr_val = tuple(
+                                self._resolve_name(cast(pyne_ast.Name, item).id) for item in target.elts
+                            )
             local_frame.staged.update(
                 {
                     (local_frame.path, name): value

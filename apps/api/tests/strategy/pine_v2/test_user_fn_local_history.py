@@ -293,15 +293,14 @@ def test_function_loop_counter_scope_restores_outer_loop_and_global() -> None:
     [
         "f(x) =>\n    x += 1\n    x\na=f(1)\n",
         "var total=0\nf(x) =>\n    total += x\n    total\na=f(1)\n",
-        "f(x) =>\n    total=0\n    total += x\n    total\na=f(1)\n",
     ],
 )
-def test_udf_compound_assignment_is_rejected_instead_of_silently_skipped(body: str) -> None:
-    with pytest.raises(PineRuntimeError, match="compound assignment"):
+def test_udf_compound_assignment_cannot_write_parameter_or_global(body: str) -> None:
+    with pytest.raises(PineRuntimeError, match="parameter or nonlocal"):
         run_historical(_source(body), _frame(), strict=True)
 
 
-@pytest.mark.parametrize("operator", ["+=", "-="])
-def test_global_compound_assignment_is_explicitly_unsupported(operator: str) -> None:
-    with pytest.raises(PineRuntimeError, match="compound assignment"):
-        run_historical(_source(f"v=1\nv {operator} 2\n"), _frame(), strict=True)
+@pytest.mark.parametrize("operator,expected", [("+=", 3), ("-=", -1)])
+def test_global_compound_assignment_updates_declared_binding(operator: str, expected: int) -> None:
+    result = run_historical(_source(f"v=1\nv {operator} 2\n"), _frame(), strict=True)
+    _assert_series(result.var_series["v"], [expected] * 3)

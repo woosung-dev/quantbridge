@@ -1,0 +1,3607 @@
+{
+  "schema_version": 1,
+  "reference_kind": "tradingview_native_synthetic_partial_window",
+  "symbol": "BINANCE:BTCUSDT",
+  "timeframe": "1h",
+  "observed_at": "2026-10-24T23:49:27.644Z",
+  "source_sha256": "881a309e41555e01d4e7bedd667f3da446f8e7d5af5ec3928b26262b4cb897c3",
+  "raw_capture_sha256": "45c1eac22e0aaff3fc102210e63a895da412ddf5eba7d8452ed6192aee1dad6f",
+  "study_id": "KAMHDz",
+  "initial_bar_observed": false,
+  "row_count": 399,
+  "rows": [
+    {
+      "epoch": 1791446400,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12336.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791450000,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12338.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791453600,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12340.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791457200,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12342.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791460800,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791464400,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12343.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791468000,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12346.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791471600,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791475200,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12348.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791478800,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12350.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791482400,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12352.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791486000,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12354.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791489600,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12358.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791493200,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12360.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791496800,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12362.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791500400,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12364.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791504000,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791507600,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12365.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791511200,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12368.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791514800,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791518400,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12370.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791522000,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12372.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791525600,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12374.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791529200,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12376.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791532800,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12380.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791536400,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12382.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791540000,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12384.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791543600,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12386.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791547200,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791550800,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12387.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791554400,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12390.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791558000,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791561600,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12392.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791565200,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12394.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791568800,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12396.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791572400,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12398.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791576000,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12402.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791579600,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12404.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791583200,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12406.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791586800,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12408.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791590400,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791594000,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12409.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791597600,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12412.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791601200,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791604800,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12414.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791608400,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12416.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791612000,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12418.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791615600,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12420.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791619200,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12424.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791622800,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12426.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791626400,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12428.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791630000,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12430.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791633600,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791637200,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12431.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791640800,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12434.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791644400,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791648000,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12436.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791651600,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12438.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791655200,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12440.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791658800,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12442.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791662400,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12446.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791666000,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12448.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791669600,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12450.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791673200,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12452.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791676800,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791680400,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12453.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791684000,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12456.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791687600,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791691200,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12458.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791694800,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12460.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791698400,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12462.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791702000,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12464.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791705600,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12468.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791709200,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12470.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791712800,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12472.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791716400,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12474.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791720000,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791723600,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12475.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791727200,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12478.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791730800,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791734400,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12480.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791738000,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12482.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791741600,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12484.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791745200,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12486.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791748800,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12490.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791752400,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12492.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791756000,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12494.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791759600,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12496.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791763200,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791766800,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12497.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791770400,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12500.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791774000,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791777600,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12502.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791781200,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12504.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791784800,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12506.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791788400,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12508.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791792000,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12512.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791795600,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12514.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791799200,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12516.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791802800,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12518.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791806400,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791810000,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12519.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791813600,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12522.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791817200,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791820800,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12524.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791824400,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12526.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791828000,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12528.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791831600,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12530.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791835200,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12534.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791838800,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12536.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791842400,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12538.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791846000,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12540.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791849600,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791853200,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12541.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791856800,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12544.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791860400,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791864000,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12546.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791867600,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12548.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791871200,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12550.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791874800,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12552.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791878400,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12556.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791882000,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12558.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791885600,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12560.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791889200,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12562.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791892800,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791896400,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12563.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791900000,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12566.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791903600,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791907200,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12568.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791910800,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12570.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791914400,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12572.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791918000,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12574.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791921600,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12578.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791925200,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12580.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791928800,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12582.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791932400,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12584.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791936000,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791939600,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12585.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791943200,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12588.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791946800,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791950400,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12590.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791954000,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12592.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791957600,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12594.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791961200,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12596.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791964800,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12600.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791968400,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12602.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1791972000,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12604.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1791975600,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12606.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1791979200,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791982800,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12607.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791986400,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12610.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791990000,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791993600,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12612.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1791997200,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12614.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792000800,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12616.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792004400,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12618.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792008000,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12622.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792011600,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12624.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792015200,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12626.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792018800,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12628.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792022400,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792026000,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12629.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792029600,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12632.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792033200,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792036800,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12634.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792040400,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12636.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792044000,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12638.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792047600,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12640.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792051200,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12644.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792054800,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12646.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792058400,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12648.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792062000,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12650.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792065600,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792069200,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12651.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792072800,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12654.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792076400,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792080000,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12656.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792083600,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12658.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792087200,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12660.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792090800,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12662.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792094400,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12666.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792098000,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12668.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792101600,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12670.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792105200,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12672.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792108800,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792112400,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12673.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792116000,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12676.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792119600,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792123200,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12678.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792126800,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12680.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792130400,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12682.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792134000,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12684.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792137600,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12688.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792141200,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12690.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792144800,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12692.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792148400,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12694.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792152000,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792155600,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12695.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792159200,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12698.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792162800,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792166400,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12700.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792170000,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12702.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792173600,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12704.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792177200,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12706.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792180800,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12710.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792184400,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12712.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792188000,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12714.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792191600,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12716.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792195200,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792198800,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12717.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792202400,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12720.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792206000,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792209600,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12722.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792213200,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12724.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792216800,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12726.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792220400,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12728.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792224000,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12732.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792227600,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12734.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792231200,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12736.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792234800,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12738.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792238400,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792242000,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12739.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792245600,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12742.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792249200,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792252800,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12744.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792256400,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12746.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792260000,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12748.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792263600,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12750.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792267200,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12754.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792270800,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12756.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792274400,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12758.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792278000,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12760.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792281600,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792285200,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12761.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792288800,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12764.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792292400,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792296000,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12766.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792299600,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12768.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792303200,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12770.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792306800,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12772.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792310400,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12776.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792314000,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12778.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792317600,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12780.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792321200,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12782.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792324800,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792328400,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12783.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792332000,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12786.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792335600,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792339200,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12788.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792342800,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12790.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792346400,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12792.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792350000,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12794.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792353600,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12798.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792357200,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12800.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792360800,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12802.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792364400,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12804.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792368000,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792371600,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12805.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792375200,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12808.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792378800,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792382400,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12810.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792386000,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12812.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792389600,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12814.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792393200,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12816.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792396800,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12820.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792400400,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12822.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792404000,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12824.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792407600,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12826.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792411200,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792414800,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12827.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792418400,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12830.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792422000,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792425600,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12832.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792429200,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12834.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792432800,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12836.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792436400,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12838.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792440000,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12842.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792443600,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12844.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792447200,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12846.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792450800,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12848.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792454400,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792458000,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12849.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792461600,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12852.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792465200,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792468800,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12854.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792472400,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12856.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792476000,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12858.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792479600,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12860.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792483200,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12864.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792486800,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12866.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792490400,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12868.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792494000,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12870.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792497600,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792501200,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12871.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792504800,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12874.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792508400,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792512000,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12876.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792515600,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12878.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792519200,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12880.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792522800,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12882.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792526400,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12886.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792530000,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12888.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792533600,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12890.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792537200,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12892.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792540800,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792544400,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12893.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792548000,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12896.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792551600,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792555200,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12898.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792558800,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12900.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792562400,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12902.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792566000,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12904.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792569600,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12908.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792573200,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12910.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792576800,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12912.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792580400,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12914.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792584000,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792587600,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12915.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792591200,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12918.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792594800,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792598400,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12920.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792602000,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12922.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792605600,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12924.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792609200,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12926.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792612800,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12930.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792616400,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12932.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792620000,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12934.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792623600,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12936.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792627200,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792630800,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12937.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792634400,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12940.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792638000,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792641600,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12942.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792645200,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12944.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792648800,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12946.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792652400,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12948.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792656000,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12952.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792659600,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12954.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792663200,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12956.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792666800,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12958.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792670400,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792674000,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12959.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792677600,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12962.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792681200,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792684800,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12964.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792688400,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12966.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792692000,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12968.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792695600,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12970.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792699200,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12974.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792702800,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12976.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792706400,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 12978.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792710000,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 12980.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792713600,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792717200,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 12981.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792720800,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 12984.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792724400,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792728000,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 12986.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792731600,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 12988.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792735200,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 12990.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792738800,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 12992.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792742400,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 12996.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792746000,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 12998.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792749600,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 13000.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792753200,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 13002.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792756800,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792760400,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 13003.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792764000,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 13006.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792767600,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792771200,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 13008.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792774800,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 13010.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792778400,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 13012.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792782000,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 13014.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792785600,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 13018.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792789200,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 13020.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792792800,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 13022.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792796400,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 13024.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792800000,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792803600,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 13025.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792807200,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 13028.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792810800,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792814400,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 13030.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792818000,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 13032.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792821600,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 13034.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792825200,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 13036.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792828800,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 13040.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792832400,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 13042.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792836000,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 13044.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    },
+    {
+      "epoch": 1792839600,
+      "phase": 11.0,
+      "controlled_value": 2.0,
+      "cum": 13046.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792843200,
+      "phase": 0.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792846800,
+      "phase": 1.0,
+      "controlled_value": 1.0,
+      "cum": 13047.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792850400,
+      "phase": 2.0,
+      "controlled_value": 3.0,
+      "cum": 13050.0,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792854000,
+      "phase": 3.0,
+      "controlled_value": null,
+      "cum": null,
+      "stoch": 100.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792857600,
+      "phase": 4.0,
+      "controlled_value": 2.0,
+      "cum": 13052.0,
+      "stoch": 50.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792861200,
+      "phase": 5.0,
+      "controlled_value": 2.0,
+      "cum": 13054.0,
+      "stoch": 0.0,
+      "linreg": null,
+      "linreg_offset_1": null
+    },
+    {
+      "epoch": 1792864800,
+      "phase": 6.0,
+      "controlled_value": 2.0,
+      "cum": 13056.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792868400,
+      "phase": 7.0,
+      "controlled_value": 2.0,
+      "cum": 13058.0,
+      "stoch": 0.0,
+      "linreg": 2.0,
+      "linreg_offset_1": 2.0
+    },
+    {
+      "epoch": 1792872000,
+      "phase": 8.0,
+      "controlled_value": 4.0,
+      "cum": 13062.0,
+      "stoch": 100.0,
+      "linreg": 3.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792875600,
+      "phase": 9.0,
+      "controlled_value": 2.0,
+      "cum": 13064.0,
+      "stoch": 0.0,
+      "linreg": 2.6666666666666665,
+      "linreg_offset_1": 2.6666666666666665
+    },
+    {
+      "epoch": 1792879200,
+      "phase": 10.0,
+      "controlled_value": 2.0,
+      "cum": 13066.0,
+      "stoch": 0.0,
+      "linreg": 1.666666666666666,
+      "linreg_offset_1": 2.666666666666666
+    }
+  ],
+  "pine_version": 5,
+  "source_code": "//@version=5\nindicator(\"QB diagnostic expansion primitives v5\", overlay=false)\nphase = bar_index % 12\nv = phase == 0 or phase == 3 ? na : phase == 1 ? 1.0 : phase == 2 ? 3.0 : phase == 8 ? 4.0 : 2.0\nplot(phase, title=\"phase\")\nplot(v, title=\"controlled_value\")\nplot(ta.cum(v), title=\"cum\")\nplot(ta.stoch(v,v,v,3), title=\"stoch\")\nplot(ta.linreg(v,3,0), title=\"linreg\")\nplot(ta.linreg(v,3,1), title=\"linreg_offset_1\")\n"
+}

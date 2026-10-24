@@ -58,6 +58,7 @@ class TableObject:
     cells: dict[tuple[int, int], str] = field(default_factory=dict)
     deleted: bool = False
     extras: dict[str, Any] = field(default_factory=dict)
+    merged_cells: list[tuple[int, int, int, int]] = field(default_factory=list)
 
 
 class RenderingRegistry:
@@ -113,6 +114,33 @@ class RenderingRegistry:
     def line_delete(self, line: LineObject) -> None:
         line.deleted = True
 
+    def line_get_x1(self, line: LineObject) -> float:
+        return line.x1
+
+    def line_get_x2(self, line: LineObject) -> float:
+        return line.x2
+
+    def line_get_y1(self, line: LineObject) -> float:
+        return line.y1
+
+    def line_get_y2(self, line: LineObject) -> float:
+        return line.y2
+
+    def line_set_x1(self, line: LineObject, x: float) -> None:
+        self.line_set_xy1(line, x, line.y1)
+
+    def line_set_x2(self, line: LineObject, x: float) -> None:
+        self.line_set_xy2(line, x, line.y2)
+
+    def line_set_y1(self, line: LineObject, y: float) -> None:
+        self.line_set_xy1(line, line.x1, y)
+
+    def line_set_y2(self, line: LineObject, y: float) -> None:
+        self.line_set_xy2(line, line.x2, y)
+
+    def line_set_color(self, line: LineObject, color: Any) -> None:
+        line.extras["color"] = color
+
     # ---- box ----
     def box_new(
         self,
@@ -155,6 +183,24 @@ class RenderingRegistry:
     def label_set_x(self, label: LabelObject, x: float) -> None:
         label.x = x
 
+    def label_set_y(self, label: LabelObject, y: float) -> None:
+        label.y = y
+
+    def label_get_y(self, label: LabelObject) -> float:
+        return label.y
+
+    def label_set_text(self, label: LabelObject, text: str) -> None:
+        label.text = text
+
+    def label_get_text(self, label: LabelObject) -> str:
+        return label.text
+
+    def label_set_color(self, label: LabelObject, color: Any) -> None:
+        label.extras["color"] = color
+
+    def label_set_textcolor(self, label: LabelObject, textcolor: Any) -> None:
+        label.extras["textcolor"] = textcolor
+
     def label_delete(self, label: LabelObject) -> None:
         # label[1]은 첫 봉에서 na다. 지울 이전 라벨이 없는 정상 경로다.
         if isinstance(label, float) and math.isnan(label):
@@ -177,3 +223,45 @@ class RenderingRegistry:
 
     def table_delete(self, table: TableObject) -> None:
         table.deleted = True
+
+    def table_clear(
+        self,
+        table: TableObject,
+        start_column: int,
+        start_row: int,
+        end_column: int | None = None,
+        end_row: int | None = None,
+    ) -> None:
+        """생략한 종료 좌표는 시작 좌표와 같으며 양끝을 포함한다."""
+        right = start_column if end_column is None else end_column
+        bottom = start_row if end_row is None else end_row
+        if min(start_column, start_row) < 0 or right < start_column or bottom < start_row:
+            raise ValueError("table.clear의 셀 범위가 올바르지 않습니다")
+        for column, row in list(table.cells):
+            if start_column <= column <= right and start_row <= row <= bottom:
+                del table.cells[column, row]
+
+    def table_merge_cells(
+        self,
+        table: TableObject,
+        start_column: int,
+        start_row: int,
+        end_column: int,
+        end_row: int,
+    ) -> None:
+        """병합 범위는 화면 메타데이터이며 왼쪽 위 셀의 값을 보존한다."""
+        if (
+            min(start_column, start_row) < 0
+            or end_column < start_column
+            or end_row < start_row
+        ):
+            raise ValueError("table.merge_cells의 셀 범위가 올바르지 않습니다")
+        for left, top, right, bottom in table.merged_cells:
+            if not (
+                end_column < left
+                or start_column > right
+                or end_row < top
+                or start_row > bottom
+            ):
+                raise ValueError("이미 병합한 셀과 겹칠 수 없습니다")
+        table.merged_cells.append((start_column, start_row, end_column, end_row))

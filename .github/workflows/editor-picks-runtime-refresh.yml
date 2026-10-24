@@ -6,7 +6,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - tools/scripts/editor-picks-runtime-refresh.py
-      - apps/api/src/strategy/pine_v2/stdlib.py
+      - apps/api/src/strategy/pine_v2/**
       - .github/workflows/editor-picks-runtime-refresh.yml
 
 permissions:
@@ -58,7 +58,7 @@ jobs:
         run: >-
           apps/api/.venv/bin/python -m tools.research.editor_picks.remote runtime
           --run-dir runs/editor-picks-runtime-parent
-      - name: Overlay stdlib and verify exported computation sources
+      - name: Overlay changed Pine files and verify exported computation sources
         env:
           EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
         run: |

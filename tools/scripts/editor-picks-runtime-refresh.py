@@ -1,4 +1,4 @@
-"""일회용 ARM에서 고정 Pine 부모에 stdlib만 덧입히고 실제 파일을 검증한다.
+"""일회용 ARM에서 고정 Pine 부모에 바뀐 계산 파일을 덧입히고 검증한다.
 
 기존 암호 입력 prepare와 remote runtime 설치 후 호출한다. create/export만 사용해
 컨테이너·생성 전략을 실행하지 않으며 새 runtime 전용 번들만 암호화한다.
@@ -30,6 +30,7 @@ from tools.research.editor_picks.remote import CONTEXT  # noqa: E402
 
 PINE_TAG = "quantbridge-pine-runner:local"
 STDLIB = "apps/api/src/strategy/pine_v2/stdlib.py"
+PINE_DIRECTORY = "apps/api/src/strategy/pine_v2"
 
 
 def digest(path: Path) -> str:
@@ -98,10 +99,13 @@ def refresh(args) -> dict:
     expected = {str(path.relative_to(ROOT)): digest(path) for path in pine_paths}
     if len(expected) != 25 or set(expected) != set(old_proof["pine_files"]):
         raise ValueError("고정 Pine 계산 파일 25개의 범위가 다릅니다")
-    if expected[STDLIB] == old_proof["pine_files"][STDLIB] or any(
-        expected[name] != value for name, value in old_proof["pine_files"].items() if name != STDLIB
-    ):
-        raise ValueError("부모와 달라진 계산 소스는 수정한 stdlib 하나여야 합니다")
+    changed = {
+        name: {"parent_sha256": old_proof["pine_files"][name], "sha256": value}
+        for name, value in expected.items()
+        if value != old_proof["pine_files"][name]
+    }
+    if not changed:
+        raise ValueError("부모와 달라진 Pine 계산 소스가 없습니다")
     commands = []
     env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "LANG"}}
 
@@ -122,8 +126,12 @@ def refresh(args) -> dict:
     docker("image", "tag", parent["Id"], parent_tag)
     with tempfile.TemporaryDirectory(prefix="editor-runtime-refresh-") as temporary:
         context = Path(temporary)
-        shutil.copyfile(ROOT / STDLIB, context / "stdlib.py")
-        recipe = f"FROM {parent_tag}\nCOPY stdlib.py /runner/src/strategy/pine_v2/stdlib.py\n"
+        overlay = context / "pine_overlay"
+        for name in changed:
+            destination = overlay / Path(name).relative_to(PINE_DIRECTORY)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / name, destination)
+        recipe = f"FROM {parent_tag}\nCOPY pine_overlay/ /runner/src/strategy/pine_v2/\n"
         (context / "Dockerfile").write_text(recipe)
         docker("build", "--pull=false", "--network=none", "--no-cache", "--tag", PINE_TAG, context)
         child = inspect(PINE_TAG)
@@ -149,7 +157,7 @@ def refresh(args) -> dict:
                 "Shell",
             )
         ):
-            raise ValueError("stdlib 파일 외에 image 실행 설정이 바뀌었습니다")
+            raise ValueError("Pine 계산 파일 외에 image 실행 설정이 바뀌었습니다")
 
         def exported(tag, paths, sdk=False):
             container = docker("create", "--entrypoint", "/bin/false", tag).stdout.strip()
@@ -208,11 +216,7 @@ def refresh(args) -> dict:
         "pine_image_id": child["Id"],
         "parent_archive_sha256": old["images_tar_sha256"],
         "parent_source_proof_sha256": digest(root / "runtime/source-proof.json"),
-        "overlay": {
-            "file": STDLIB,
-            "parent_sha256": old_proof["pine_files"][STDLIB],
-            "sha256": expected[STDLIB],
-        },
+        "overlay": {"files": changed},
         "dockerfile": recipe,
         "docker_commands": commands,
         "generated_strategy_executed": False,

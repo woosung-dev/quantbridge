@@ -54,8 +54,10 @@ apps/api/.venv/bin/python -m tools.research.editor_picks --run-dir runs/editor-p
    `plan --pilot` → Linux gVisor의 `execute --plan <pilot-plan.json>` → `report --plan ...` 순서다.
 5. 정적 검토 200개를 확보한 뒤 `seal`·`generate`·`plan`으로 전체 계획을 만든다.
    대상 인디케이터 목록을 전부 수집·판정해도 200개 미달이면 scope 감사 근거를 남긴 후
-   `seal --allow-partial`로 실확보 수와 목표 200개를 함께 동결한다. 미확보 슬롯도 전체 분모에 남긴다.
+   `seal --allow-partial`로 실확보 수와 목표 200개를 함께 중간 동결할 수 있다. 미확보 슬롯도 전체 분모에 남긴다.
    Pine 실제 실행에서 탈락하면 cohort와 결과를 보존한 새 epoch에서 후속 원문을 추가한다.
+   부분 회차의 종결은 세션 목표 200개의 완료가 아니다. 지원 확장·소싱·원본 대조를 계속하며
+   200개 고유 원본의 실제 기술 검증을 별도 집계한다.
    `execute --shard N --shards M`은 고정 셀을 분배하며 실제 runner 동시성을 보장하지 않는다.
 
 사용자가 승인한 Gemini 장기 재시도도 실패하면 이후 생성은 Terra만 진행한다. Gemini 실패와
@@ -174,12 +176,17 @@ envelope 파일 해시·실제 종료·정확한 셀 소유 집합·native 배�
 원본 봉투를 복사하지 않으며 선택 manifest identity의 `remote/mixed-<identity>/`에만 종결한다.
 앱 저장 묶음도 같은 검증 함수를 재호출해 혼합 출처를 결박하며, 전체 검증 전에는 저장하지 않는다.
 
-Pine stdlib 교정용 `.github/workflows/editor-picks-runtime-refresh.yml`은 소유자의 정확한 PR head와
+Pine 계산 지원 확장용 `.github/workflows/editor-picks-runtime-refresh.yml`은 소유자의 정확한 PR head와
 GitHub 변수 `EDITOR_PICKS_RUNTIME_REFRESH_HEAD`가 일치할 때만 별도 ARM 준비 작업을 실행한다.
-기존 `EDITOR_PICKS_INPUT_URL/SHA256`의 인증된 부모 이미지를 적재하고 stdlib만 COPY한 자식의
+기존 `EDITOR_PICKS_INPUT_URL/SHA256`의 인증된 부모 이미지를 적재하고 바뀐 Pine 계산 파일만 COPY한 자식의
 단일 layer·실행 설정·25개 Pine 파일·worker·계산 class·Python loader/SDK를 검증한다.
 로컬 Docker·운영 배포·생성 전략 실행 없이 새 runtime 전용 `.enc`만 보존한다. 새 epoch 입력을
 만들기 전 부모/자식 이미지 ID·소스 SHA를 확인하고 갱신 변수를 해제한다.
+
+복합 대입·UDF 마지막 대입 반환·NA 종료 경계·배열 통계·삼각 함수·좌표/문자열 객체 상태와
+여섯 TA 함수 지원은 원문 전체 실행 전에 독립 회귀와 실제 TradingView 통제 관측으로 확인한다.
+지원 함수 수·정적 적격 수·생성 완료 수를 실제 원본 실행·native 기술 통과 수로 합산하지 않는다.
+외부 라이브러리 import는 별칭 메서드처럼 보이더라도 의존성을 확보·검증하기 전 정적 미지원이다.
 
 새 receipt는 분봉 drawdown·buy-and-hold 곡선을 지표 요약에 중복하지 않는다. 전체 곡선은
 같은 원시 `result.json.gz`에 유지하고 나머지 지표·신호·거래 원장·경제 판정은 그대로 보존한다.

@@ -45,6 +45,7 @@ def test_refresh_pins_parent_verifies_exported_files_and_emits_only_encrypted_bu
         path.write_text("value = 1\n")
     parent_hashes = {name: sha((checkout / name).read_bytes()) for name in paths}
     (checkout / refresh.STDLIB).write_text("value = 2\n")
+    (checkout / paths[1]).write_text("other_value = 3\n")
     files = {
         "apps/api/src/strategy/code_runtime/pine_worker.py": "worker = 1\n",
         "apps/api/src/strategy/code_runtime/pine.py": "class _PineInterpreterTransport:\n    pass\n",
@@ -101,7 +102,11 @@ def test_refresh_pins_parent_verifies_exported_files_and_emits_only_encrypted_bu
             return SimpleNamespace(stdout=json.dumps([value]))
         if args[0] == "build":
             context = Path(args[-1])
-            assert sorted(path.name for path in context.iterdir()) == ["Dockerfile", "stdlib.py"]
+            assert sorted(path.name for path in context.iterdir()) == ["Dockerfile", "pine_overlay"]
+            overlay = context / "pine_overlay"
+            assert sorted(path.name for path in overlay.iterdir()) == ["file_0.py", "stdlib.py"]
+            assert (overlay / "file_0.py").read_bytes() == (checkout / paths[1]).read_bytes()
+            assert (overlay / "stdlib.py").read_bytes() == (checkout / refresh.STDLIB).read_bytes()
             assert "RUN " not in (context / "Dockerfile").read_text()
             assert (
                 ids[refresh.PINE_TAG].removeprefix("sha256:")
@@ -160,6 +165,12 @@ def test_refresh_pins_parent_verifies_exported_files_and_emits_only_encrypted_bu
     assert old_archive.read_bytes() == b"old images"
     proof = read(args.output_dir / "runtime/source-proof.json")
     assert len(proof["pine_files"]) == 25 and proof["generated_strategy_executed"] is False
+    assert set(proof["overlay"]["files"]) == {refresh.STDLIB, paths[1]}
+    for name, hashes in proof["overlay"]["files"].items():
+        assert hashes == {
+            "parent_sha256": parent_hashes[name],
+            "sha256": sha((checkout / name).read_bytes()),
+        }
     assert not any(command[1] in {"run", "start", "exec"} for command in commands)
     plaintext = tmp_path / "recovered.tar.gz"
     transform("decrypt", args.cipher, plaintext, key, refresh.CONTEXT)

@@ -56,6 +56,12 @@ TA_FUNCTIONS: frozenset[str] = frozenset(
         "ta.cross",  # crossover or crossunder
         "ta.mom",  # Momentum = src - src[length]
         "ta.obv",  # On Balance Volume (attribute 접근 — interpreter 처리)
+        "ta.stoch",
+        "ta.cum",
+        "ta.linreg",
+        "ta.vwma",
+        "ta.roc",
+        "ta.cci",
     }
 )
 
@@ -99,6 +105,12 @@ ARRAY_FUNCTIONS: frozenset[str] = frozenset(
         "array.shift",
         "array.unshift",
         "array.avg",
+        "array.from",
+        "array.copy",
+        "array.indexof",
+        "array.sum",
+        "array.max",
+        "array.min",
     }
 )
 

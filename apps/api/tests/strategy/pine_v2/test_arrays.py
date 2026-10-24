@@ -10,7 +10,7 @@
 - Pine array 는 **참조 타입** — `var float[] x = array.new_float(0)` 후 in-place
   mutation 이 bar 간 영속 (PersistentStore 는 객체 identity 보관).
 - 범위 밖 index → PineRuntimeError (TV runtime error 와 동일하게 loud).
-- 미지원 array 함수 (array.sum 등) 는 coverage preflight + runtime 양쪽에서 fail
+- 미지원 array 함수 (array.variance 등) 는 coverage preflight + runtime 양쪽에서 fail
   (부분 실행 금지 Golden Rule).
 """
 
@@ -99,7 +99,7 @@ class TestArrayOps:
             run_historical(src, _ohlcv(1), strict=True)
 
     def test_unsupported_array_fn_raises(self) -> None:
-        src = _wrap("a = array.new_float(2, 1.0)\nv = array.sum(a)")
+        src = _wrap("a = array.new_float(2, 1.0)\nv = array.variance(a)")
         with pytest.raises(PineRuntimeError, match="array"):
             run_historical(src, _ohlcv(1), strict=True)
 
@@ -251,10 +251,10 @@ class TestArrayCoverage:
 
     def test_unlisted_array_fn_still_unsupported(self) -> None:
         """array namespace 잔여 함수는 여전히 preflight 하드 fail (부분 실행 금지)."""
-        src = _wrap("a = array.new_float(2, 1.0)\nv = array.sum(a)")
+        src = _wrap("a = array.new_float(2, 1.0)\nv = array.variance(a)")
         cov = analyze_coverage(src)
         assert not cov.is_runnable
-        assert "array.sum" in cov.all_unsupported
+        assert "array.variance" in cov.all_unsupported
 
     def test_bs_indicator_now_runnable(self) -> None:
         """G2 종착 검증 — bs (i4_bs.pine, array 8종+루프 사용) 가 coverage 통과.
