@@ -1,0 +1,337 @@
+"""실제 에디터 픽 UI 캡처와 검토한 신호 바인딩을 연결한다."""
+
+from __future__ import annotations
+
+import ast
+import inspect
+import re
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
+from pathlib import Path
+from urllib.parse import urlsplit
+
+from tools.research.editor_picks.common import (
+    ROOT,
+    checked_file,
+    identity,
+    immutable,
+    lock,
+    now,
+    read,
+    sha,
+    write,
+)
+
+
+def ingest(root: Path) -> dict:
+    with lock(root / "catalogue.lock"):
+        return _ingest(root)
+
+
+def _ingest(root: Path) -> dict:
+    items = {}
+    for path in sorted((root / "captures").glob("*.json")):
+        payload = read(path)
+        if payload.get("schema_version") != 1:
+            raise ValueError("UI 수집 스키마가 다릅니다")
+        listings = {row["url"]: row for row in payload["listings"]}
+        for row in payload["captures"]:
+            listing = listings[row["listing_url"]]
+            parsed = urlsplit(listing["url"])
+            if (
+                parsed.scheme != "https"
+                or parsed.hostname != "www.tradingview.com"
+                or not re.fullmatch(
+                    r"/scripts/editors-picks/(?:page-\d+/)?", parsed.path
+                )
+                or not any(item["url"] == row["url"] for item in listing["items"])
+            ):
+                raise ValueError("에디터 픽 목록 관측 근거가 없습니다")
+            publication = re.fullmatch(
+                r"https://www.tradingview.com/script/([A-Za-z0-9]{8})[^?#]*/",
+                row["url"],
+            )
+            if publication is None or publication[1] != row["id"]:
+                raise ValueError("게시물 ID와 URL이 다릅니다")
+            item = {key: value for key, value in row.items() if key != "source"}
+            item["capture"] = {
+                "path": str(path.relative_to(root)),
+                "sha256": sha(path.read_bytes()),
+            }
+            if row["status"] == "captured":
+                response = urlsplit(row["source_response_url"])
+                if (
+                    response.hostname != "pine-facade.tradingview.com"
+                    or not response.path.startswith("/pine-facade/get/")
+                    or row.get("script_access") not in {"open_no_auth", "open"}
+                ):
+                    raise ValueError("UI가 받은 공개 원문 응답이 아닙니다")
+                source = row["source"].encode()
+                source_hash = sha(source)
+                target = root / "sources" / f"{row['id']}-{source_hash[:12]}.pine"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.exists() and target.read_bytes() != source:
+                    raise ValueError("원문 파일이 변경됐습니다")
+                target.write_bytes(source)
+                item.update(
+                    source_file=str(target.relative_to(root)),
+                    source_sha256=source_hash,
+                    license_notices=[
+                        line
+                        for line in row["source"].splitlines()
+                        if re.search(
+                            r"license|copyright|©|all rights reserved", line, re.I
+                        )
+                    ],
+                )
+            previous = items.get(row["id"])
+            if (
+                previous
+                and previous.get("source_sha256")
+                and item.get("source_sha256")
+                and previous["source_sha256"] != item["source_sha256"]
+            ):
+                raise ValueError("같은 게시물의 원문 버전 변경: 새 실험이 필요합니다")
+            if not previous or not previous.get("source_sha256"):
+                items[row["id"]] = item
+    seen = {}
+    for item in items.values():
+        digest = item.get("source_sha256")
+        if digest in seen:
+            item["duplicate_of"] = seen[digest]
+        elif digest:
+            seen[digest] = item["id"]
+
+    def order(item):
+        match = re.search(r"/page-(\d+)/", item["listing_url"])
+        return int(match[1]) if match else 1, item["listing_position"]
+
+    catalogue = {
+        "schema_version": 1,
+        "observed_at": now(),
+        "items": sorted(items.values(), key=order),
+    }
+    write(root / "catalogue.json", catalogue)
+    return catalogue
+
+
+def raw_signal_strategy(adapted):
+    """연구용 생성 진입문의 포지션 guard만 제거하고 원문 계산은 보존한다."""
+    code = adapted.strategy_source
+    for binding in adapted.bindings:
+        direction = binding["direction"]
+        if direction not in {"long", "short"}:
+            raise ValueError("원시 신호 연구는 진입 방향만 지원합니다")
+        temporary = re.escape(binding["condition_variable"])
+        operator = "<=" if direction == "long" else ">="
+        # unique()가 원문 이름과 분리한 조건 변수와 생성 flag의 최상위 if만 수정한다.
+        pattern = rf"^(if {temporary}) and strategy\.position_size {operator} 0 (and not qb_adapt_{direction}_submitted_*)(\r?)$"
+        code, count = re.subn(pattern, r"\1 \2\3", code, flags=re.MULTILINE)
+        if count != 1:
+            raise ValueError("생성 진입문의 고유 position guard를 확인할 수 없습니다")
+    if code.count("\n") != adapted.strategy_source.count("\n"):
+        raise ValueError("연구 신호 어댑터가 원문 줄 지도를 변경했습니다")
+    return replace(
+        adapted,
+        strategy_source=code,
+        converted_sha256=sha(code.encode()),
+        warnings=[
+            *adapted.warnings,
+            "raw_signal_v1: 같은 방향 신호도 제출하며 중복 진입은 공통 원장이 처리합니다",
+        ],
+    )
+
+
+def screen_one(root: Path, identifier: str) -> dict:
+    from scripts.pine_validation.strategy_adapter import adapt_strategy
+    from src.strategy.pine_v2.coverage import analyze_coverage
+
+    item = next(
+        x for x in read(root / "catalogue.json")["items"] if x["id"] == identifier
+    )
+    if item.get("duplicate_of") or item["status"] != "captured":
+        return {
+            "id": identifier,
+            "status": "excluded",
+            "reason": item.get("duplicate_of", item["status"]),
+        }
+    source = (
+        checked_file(root, item["source_file"], item["source_sha256"])
+        .read_bytes()
+        .decode()
+    )
+    coverage = analyze_coverage(source)
+    base = {"id": identifier, "source_sha256": item["source_sha256"]}
+    if not coverage.is_runnable or coverage.has_degraded:
+        return {**base, "status": "unsupported", "detail": str(coverage)}
+    review_path = root / "reviews" / f"{identifier}.json"
+    if not review_path.exists():
+        return {**base, "status": "needs_binding_review"}
+    review = read(review_path)
+    if (
+        review.get("decision") == "exclude"
+        and review.get("source_sha256") == item["source_sha256"]
+    ):
+        return {**base, "status": "excluded", "reason": review["basis"]}
+    if (
+        review.get("source_sha256") != item["source_sha256"]
+        or not review.get("reviewed_by")
+        or not review.get("basis")
+        or not review.get("family")
+        or {b["direction"] for b in review["signal_bindings"]} != {"long", "short"}
+        or not 200 <= review.get("warmup_bars", 0) <= 10000
+    ):
+        raise ValueError("원문 해시·양방향 신호·준비봉·검토 근거가 필요합니다")
+    adapted = adapt_strategy(source, review["signal_bindings"], fixed_quantity=None)
+    base_adapted_sha256 = adapted.converted_sha256
+    adapted = raw_signal_strategy(adapted)
+    code = adapted.strategy_source
+    if not analyze_coverage(code).is_runnable:
+        return {**base, "status": "adaptation_unsupported"}
+    path = root / "adapted" / f"{identifier}.pine"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(code.encode())
+    return {
+        **item,
+        **review,
+        "status": "static_eligible",
+        "adapted_file": str(path.relative_to(root)),
+        "adapted_sha256": sha(code.encode()),
+        "adaptation": adapted.to_dict(),
+        "research_adapter": {"policy": "raw_signal_v1", "base_adapted_sha256": base_adapted_sha256},
+        "execution_verified": False,
+    }
+
+
+def _screen_implementation_hash() -> str:
+    paths = sorted((ROOT / "apps/api/src/strategy/pine_v2").rglob("*.py"))
+    paths += [ROOT / "apps/api/scripts/pine_validation/strategy_adapter.py"]
+    return identity(
+        {
+            "dependencies": {
+                str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in paths
+            },
+            # 스케줄러 수정은 기존 판정을 무효화하지 않는다.
+            "binding": ast.dump(ast.parse(inspect.getsource(screen_one))),
+            "research_adapter": ast.dump(ast.parse(inspect.getsource(raw_signal_strategy))),
+            "file_validation": ast.dump(ast.parse(inspect.getsource(checked_file))),
+        }
+    )
+
+
+def _screen_request(root: Path, item: dict, timeout: int, implementation: str) -> str:
+    review = root / "reviews" / f"{item['id']}.json"
+    return identity(
+        {
+            "item": item,
+            "review": sha(review.read_bytes()) if review.exists() else None,
+            "implementation": implementation,
+            "timeout": timeout,
+        }
+    )
+
+
+def screen(root: Path, timeout: int = 15, workers: int = 4) -> list[dict]:
+    if not 1 <= workers <= 4:
+        raise ValueError("정적 검사 병렬 수는 1~4입니다")
+    with lock(root / "screening.lock"):
+        implementation = _screen_implementation_hash()
+        items = read(root / "catalogue.json")["items"]
+        if len({item["id"] for item in items}) != len(items):
+            raise ValueError("같은 게시물 ID를 동시에 검사할 수 없습니다")
+
+        def scan(item: dict) -> dict:
+            destination = root / "screening" / f"{item['id']}.json"
+            if item.get("source_sha256"):
+                checked_file(root, item["source_file"], item["source_sha256"])
+            request_hash = _screen_request(root, item, timeout, implementation)
+            if destination.exists():
+                previous = read(destination)
+                if previous.get("screen_request_sha256") == request_hash:
+                    if previous.get("status") == "static_eligible":
+                        checked_file(
+                            root, previous["adapted_file"], previous["adapted_sha256"]
+                        )
+                    return previous
+            review = root / "reviews" / f"{item['id']}.json"
+            try:
+                completed = subprocess.run(  # noqa: S603 — 현재 Python의 고정 정적 검사 모듈만 실행
+                    [
+                        sys.executable,
+                        "-m",
+                        "tools.research.editor_picks",
+                        "--run-dir",
+                        str(root),
+                        "screen-one",
+                        "--id",
+                        item["id"],
+                    ],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout * 3 if review.exists() else timeout,
+                )
+                if completed.returncode:
+                    row = {
+                        "id": item["id"],
+                        "status": "screen_failed",
+                        "error": completed.stderr[-1500:],
+                    }
+                else:
+                    row = read(destination)
+            except subprocess.TimeoutExpired:
+                row = {"id": item["id"], "status": "parser_timeout"}
+            if request_hash != _screen_request(root, item, timeout, implementation):
+                row = {"id": item["id"], "status": "screen_input_changed"}
+            else:
+                row["screen_request_sha256"] = request_hash
+            write(destination, row)
+            return row
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            rows = {
+                item["id"]: row
+                for item, row in zip(items, pool.map(scan, items), strict=True)
+            }
+        # 수집이 계속되는 동안 추가된 원문을 이전 스냅샷으로 숨기지 않는다.
+        with lock(root / "catalogue.lock"):
+            current = read(root / "catalogue.json")["items"]
+            result = []
+            for item in current:
+                row = rows.get(item["id"])
+                if row is None or row.get("screen_request_sha256") != _screen_request(
+                    root, item, timeout, implementation
+                ):
+                    row = {"id": item["id"], "status": "screen_pending"}
+                result.append(row)
+            write(root / "screening.json", result)
+            return result
+
+
+def seal(root: Path, count: int = 200, pilot: bool = False, allow_partial: bool = False) -> dict:
+    if count < 1 or (pilot and allow_partial):
+        raise ValueError("양수 목표가 필요하며 파일럿 부분 동결은 허용하지 않습니다")
+    selected = [
+        row
+        for row in read(root / "screening.json")
+        if row["status"] == "static_eligible"
+    ][:count]
+    if (
+        not selected
+        or (len(selected) != count and not allow_partial)
+        or len({item["source_sha256"] for item in selected}) != len(selected)
+    ):
+        raise ValueError("중복 없는 검토 원문이 필요합니다")
+    cohort = {
+        "schema_version": 1,
+        "target": count,
+        "items": selected,
+        "source_count": len(selected),
+        "execution_verified": False,
+        "selection_policy": "editor_pick_order_then_pine_eligibility_not_returns",
+        "complete": False,
+    }
+    immutable(root / ("pilot-cohort.json" if pilot else "cohort.json"), cohort)
+    return cohort

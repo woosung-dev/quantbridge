@@ -1,0 +1,107 @@
+name: Editor picks research
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - tools/research/editor_picks/**
+      - tools/scripts/editor-picks-resume-cache.py
+      - .github/workflows/editor-picks-research.yml
+
+permissions:
+  contents: read
+
+jobs:
+  execute:
+    if: >-
+      github.repository == 'woosung-dev/quantbridge' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/editor-picks-comparison-20261024' &&
+      github.event.pull_request.head.sha == vars.EDITOR_PICKS_EXECUTE_HEAD &&
+      vars.EDITOR_PICKS_INPUT_URL != '' && vars.EDITOR_PICKS_INPUT_SHA256 != ''
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 330
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    concurrency:
+      group: editor-picks-${{ github.event.pull_request.head.sha }}-${{ matrix.shard }}
+      cancel-in-progress: false
+    env:
+      INPUT_URL: ${{ vars.EDITOR_PICKS_INPUT_URL }}
+      INPUT_SHA: ${{ vars.EDITOR_PICKS_INPUT_SHA256 }}
+      PLAN_FILE: ${{ vars.EDITOR_PICKS_PLAN_FILE || 'pilot-plan.json' }}
+      RESEARCH_RELEASE: editor-picks-research-20261024
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        with:
+          install_args: python uv
+          cache: false
+      - run: uv sync --project apps/api --frozen --no-dev
+      - name: Download exact owner research ciphertext
+        run: |
+          python3 -c 'import os,re; u=os.environ["INPUT_URL"]; s=os.environ["INPUT_SHA"]; assert u.startswith("https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/") and re.fullmatch("[a-f0-9]{64}",s) and os.environ["PLAN_FILE"] in ("pilot-plan.json","full-plan.json")'
+          curl --fail --location --retry 2 "$INPUT_URL" --output "$RUNNER_TEMP/input.enc"
+      - name: Authenticate and unpack input
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+        run: |
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote prepare \
+            --run-dir runs/editor-picks-20261024 --cipher "$RUNNER_TEMP/input.enc" \
+            --archive "$RUNNER_TEMP/input.tar.gz" --sha256 "$INPUT_SHA" \
+            --key-env EDITOR_PICKS_RESEARCH_KEY
+      - name: Install pinned isolated runtime on disposable runner
+        run: >-
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote runtime
+          --run-dir runs/editor-picks-20261024
+      - name: Authenticate completed cells from the previous eight shards
+        if: ${{ env.PLAN_FILE == 'full-plan.json' && env.INPUT_SHA == 'd6bb30be7ce131da4556a005ce8db1063fd22387fd3b3fb90a591d9e327cdb85' }}
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+        run: |
+          for source_shard in 0 1 2 3 4 5 6 7; do
+            resume_cipher="$RUNNER_TEMP/resume-${source_shard}.enc"
+            curl --fail --location --retry 2 \
+              "https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/result-40076727025-1-${source_shard}.enc" \
+              --output "$resume_cipher"
+            apps/api/.venv/bin/python tools/scripts/editor-picks-resume-cache.py \
+              --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" \
+              --shard "$SHARD" --shards 20 --cipher "$resume_cipher" \
+              --source-head 18d60e3fc3b629ad07a66d04ee6e23160369104d \
+              --source-run-id 40076727025 --source-attempt 1 \
+              --source-input-sha d6bb30be7ce131da4556a005ce8db1063fd22387fd3b3fb90a591d9e327cdb85 \
+              --source-shard "$source_shard" --source-shards 8 \
+              --key-env EDITOR_PICKS_RESEARCH_KEY
+            rm -- "$resume_cipher"
+          done
+      - name: Execute assigned cells and native checks without credentials
+        run: >-
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote worker
+          --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" --shards 20
+      - name: Preserve authenticated result and actual exit evidence
+        if: always()
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote finish \
+            --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" --shards 20 \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --input-sha "$INPUT_SHA" \
+            --archive "$RUNNER_TEMP/result.tar.gz" \
+            --cipher "$RUNNER_TEMP/result-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SHARD}.enc" \
+            --key-env EDITOR_PICKS_RESEARCH_KEY
+          gh release upload "$RESEARCH_RELEASE" \
+            "$RUNNER_TEMP/result-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SHARD}.enc"

@@ -44,6 +44,9 @@ _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "bl595"
 _PINE_SOURCE_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "pine_corpus_v2" / "s1_pbr.pine"
 )
+_REPLAY_EXPECTATIONS = json.loads(
+    (_FIXTURE_DIR.parent / "bl595_replay" / "pivot_older_ties_v1.json").read_text()
+)
 @dataclass(frozen=True, slots=True)
 class DeathFixture:
     prefix: str
@@ -133,12 +136,23 @@ def _ledger_net(fixture: DeathFixture) -> Decimal:
 def test_every_death_has_a_fixture() -> None:
     """★공허화 방지 — 픽스처가 사라지면 아래 파라미터가 0개가 되어 전부 조용히 통과한다."""
     assert len(_FIXTURES) == 5, f"사망 픽스처 5건을 기대했는데 {len(_FIXTURES)}건이다"
+    assert set(_REPLAY_EXPECTATIONS["cases"]) == {fixture.prefix for fixture in _FIXTURES}
+    assert (
+        hashlib.sha256(_PINE_SOURCE_PATH.read_bytes()).hexdigest()
+        == _REPLAY_EXPECTATIONS["source_sha256"]
+    )
 
 
 @pytest.mark.parametrize("fixture", _FIXTURES, ids=str)
 def test_fixture_shape(fixture: DeathFixture) -> None:
     """픽스처가 판정에 필요한 것을 전부 싣고 있는가 (조용한 결측 방지)."""
     payload = fixture.payload
+    replay = _REPLAY_EXPECTATIONS["cases"][fixture.prefix]
+    assert (
+        hashlib.sha256((_FIXTURE_DIR / f"{fixture.prefix}.json").read_bytes()).hexdigest()
+        == replay["historical_fixture_sha256"]
+    )
+    assert str(payload["oracle"]["engine_position_previous_tick"]) == replay["historical_position_size"]
     assert len(payload["ohlcv"]) == 300
     assert payload["oracle"]["ledger_net_at_death"] not in (None, "0")
     assert Decimal(str(payload["oracle"]["engine_position_previous_tick"])) != 0
@@ -150,8 +164,8 @@ def test_fixture_shape(fixture: DeathFixture) -> None:
 def test_replay_without_ledger_authority_reproduces_the_death(fixture: DeathFixture) -> None:
     """★판별력 — 수리 전 동작이 사망 시점의 `direction` 발산을 실제로 재현한다.
 
-    이 테스트는 수리 뒤에도 **계속 green 이어야 한다** — 인자를 안 넘기면 기존 경로이기
-    때문이다. red 로 바뀌면 라이브 전용 분기가 기본 경로로 샌 것이다.
+    원장 권한을 넘기지 않은 기본 경로의 방향 발산을 보존한다. native 함수 의미 교정으로
+    수량이 달라질 수 있으므로 현재 replay 기대값과 역사적 사망 기록은 따로 비교한다.
     """
     engine = _engine_position(fixture)
     ledger = _ledger_net(fixture)
@@ -159,9 +173,9 @@ def test_replay_without_ledger_authority_reproduces_the_death(fixture: DeathFixt
         f"{fixture.prefix}: 엔진 {engine} vs 원장 {ledger} 이 direction 발산이 아니다 "
         "— 픽스처가 사망을 재현하지 못하므로 아래 수리 테스트의 green 은 근거가 없다"
     )
-    # 재구성이 충실한지 한 번 더 — 영속 보고서와 비트 단위로 같아야 한다.
+    # 현재 replay는 native 동률 교정 버전의 기대값과 비교한다. 역사적 보고서는 보존한다.
     # ★`Decimal(float)` 은 이진 전개를 그대로 편다. 문자열을 거쳐야 보고서 값과 비교된다.
-    assert engine == Decimal(str(fixture.payload["oracle"]["engine_position_previous_tick"]))
+    assert engine == Decimal(_REPLAY_EXPECTATIONS["cases"][fixture.prefix]["current_position_size"])
 
 
 @pytest.mark.parametrize("fixture", _FIXTURES, ids=str)
