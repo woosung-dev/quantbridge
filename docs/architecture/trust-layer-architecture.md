@@ -37,4 +37,8 @@ flowchart LR
 3. 사용자에게 노출되는 지원 목록이 변하면 [`supported-indicators.md`](../domain/supported-indicators.md)도 갱신한다.
 4. 회귀 기준 자체를 바꾸면 ADR 또는 dev-log에 근거를 남긴다.
 
+Pivot의 앞쪽 동률 허용·뒤쪽 동률 거부는 [실제 native 통제 fixture](../../apps/api/tests/fixtures/pine_native/pivot_ties_v4.json)로 확인한다.
+관련 P-3 두 corpus의 교정 근거·소스·기준선 전후 SHA는 [golden 교정 sidecar](../../apps/api/tests/fixtures/pine_native/pivot_golden_correction_v1.json)에 결박한다.
+BL-595의 역사적 사망 기록은 보존하며, 현재 엔진의 replay 기대값은 [별도 버전 fixture](../../apps/api/tests/fixtures/bl595_replay/pivot_older_ties_v1.json)로 구분한다.
+
 Pine 실행의 전체 경로는 [`pine-execution-architecture.md`](./pine-execution-architecture.md), 현재 제품 약속은 [`PRD.md`](../PRD.md)를 따른다.

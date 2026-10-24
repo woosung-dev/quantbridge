@@ -166,6 +166,14 @@ apps/api/.venv/bin/python tools/scripts/editor-picks-postprocess.py remote final
 경제 결과를 reconcile하고 보고서를 만든다. 파생 `verification/`은 불변 `native-checks/`와
 분리한다. 등록 export는 별도 단계이며 파일럿 finalization으로 전체 검증을 대체하지 않는다.
 
+교정 실행에서 첫 셀 이전 `docker info` 시간 초과로 실패한 shard는 같은 입력·head·plan의
+해당 GitHub job만 재시도한다. 성공한 다른 shard를 재실행하거나 첫 실패 증거를 덮지 않는다.
+성과 열람 전에 `retry-selection.json`에 shard별 실제 attempt와 실패 원인 파일 SHA를 고정한다.
+별도 `tools/scripts/editor-picks-finalize-retry.py`가 각 attempt의 원래 namespace·인증 수거 근거·
+envelope 파일 해시·실제 종료·정확한 셀 소유 집합·native 배정을 다시 검증한다. attempt를 바꿔
+원본 봉투를 복사하지 않으며 선택 manifest identity의 `remote/mixed-<identity>/`에만 종결한다.
+앱 저장 묶음도 같은 검증 함수를 재호출해 혼합 출처를 결박하며, 전체 검증 전에는 저장하지 않는다.
+
 Pine stdlib 교정용 `.github/workflows/editor-picks-runtime-refresh.yml`은 소유자의 정확한 PR head와
 GitHub 변수 `EDITOR_PICKS_RUNTIME_REFRESH_HEAD`가 일치할 때만 별도 ARM 준비 작업을 실행한다.
 기존 `EDITOR_PICKS_INPUT_URL/SHA256`의 인증된 부모 이미지를 적재하고 stdlib만 COPY한 자식의
