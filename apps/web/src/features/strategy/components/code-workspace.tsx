@@ -242,7 +242,8 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
             <button
               type="button"
               className="btn btn-primary"
-              disabled={work.dirty || !work.selected}
+              disabled={work.busy || !work.canBacktest}
+              title={work.backtestBlockReason ?? undefined}
               onClick={() => work.backtest.mutate()}
             >
               {work.backtest.isPending ? "요청 중…" : "백테스트 실행"}
@@ -292,13 +293,8 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
           <button
             type="button"
             className="btn btn-primary"
-            disabled={
-              work.busy ||
-              work.dirty ||
-              !work.selected ||
-              draft.timeframe !== "1h" ||
-              !work.demoAccounts.some((account) => account.id === work.accountId)
-            }
+            disabled={work.busy || !work.canDemo}
+            title={work.demoBlockReason ?? undefined}
             onClick={() => work.demo.mutate()}
           >
             {work.demo.isPending ? "시작 중…" : "데모 자동매매 시작"}
