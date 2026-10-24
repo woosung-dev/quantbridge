@@ -99,7 +99,7 @@ margin_mode는 isolated다. 공통 R 정책·비용·펀딩 한계·요청 모�
 ## 일회용 ARM 실행과 암호문 수거
 
 `.github/workflows/editor-picks-research.yml`은 소유자 PR의 **정확한 head SHA**와 입력 암호문
-URL/SHA 변수가 일치할 때만 8개 ARM shard를 실행한다. `EDITOR_PICKS_PLAN_FILE`은
+URL/SHA 변수가 일치할 때만 20개 ARM shard를 실행한다. `EDITOR_PICKS_PLAN_FILE`은
 `pilot-plan.json`(기본) 또는 `full-plan.json`만 허용해 단계별 실행을 구분한다. 로컬·운영 Docker daemon은 수정하지 않는다.
 일회용 GitHub Linux ARM의 `/home/runner/work/`에서만 고정 runsc 보조 파일·이미지 archive의 SHA를
 먼저 확인해 설치하고 이미지 ID·아키텍처를 다시 검사한다. 런타임 증거에 계산 코드 대조 증거도 보존한다.
@@ -107,6 +107,10 @@ URL/SHA 변수가 일치할 때만 8개 ARM shard를 실행한다. `EDITOR_PICKS
 입력과 결과는 별도 키 파일 또는 `EDITOR_PICKS_RESEARCH_KEY`로 AES-GCM 청크 인증한다. 이 키는
 연구 입력 디렉터리 밖에 두며 실제 셀 worker에는 전달하지 않는다. 공개 release에는 `.enc`만 올린다.
 실제 subprocess 종료 코드, shard별 셀 소비 요약, runtime 증거, 원시 결과를 함께 암호화한다.
+전체 실행은 기존 8개 shard의 고정 run/head/input SHA에 인증된 완료 셀을 20개 shard에 재배정한다.
+입력 계획과 금융 계산 Python은 바꾸지 않는다. 이력 암호문은 한 번에 하나만 내려받아 검증하고
+현재 shard의 완료 셀만 보존한 뒤 해당 임시 암호문을 삭제한다. 누락 asset·인증 오류는 실행 실패다.
+재개 처리는 worker 이전의 별도 secret 환경에서 수행하며 전략 코드를 호스트에서 실행하지 않는다.
 full worker는 경제 셀 실행 후 코호트 순서의 `index % shards`로 배정된 원문을 같은 무자격
 환경에서 native 검증 CLI로 실행한다. 전략 실행은 기존 gVisor를 사용한다. 경제·native의 실제
 종료 코드를 terminal에 따로 남기고 하나라도 실패 종료하면 worker도 실패한다.
@@ -116,17 +120,17 @@ worker의 `verification/<ID>.json`은 수거할 때 불변 `native-checks/<ID>.j
 이전 실행 결과를 다른 실행의 결과로 수거할 수 없다.
 
 수거 시 원래 입력을 보존한 run-dir을 사용한다. 아래 `HEAD`, `RUN_ID`, `ATTEMPT`, `INPUT_SHA`는
-실제 실행값으로 정하고 `SHARD`는 0..7을 각각 실행한다. 키 파일은 32바이트 원시 키다.
+실제 실행값으로 정하고 `SHARD`는 0..19를 각각 실행한다. 키 파일은 32바이트 원시 키다.
 
 ```bash
 apps/api/.venv/bin/python -m tools.research.editor_picks.remote collect \
   --run-dir runs/editor-picks-20261024 --plan pilot-plan.json \
   --cipher "$RESULT_CIPHER" --archive "$UNIQUE_RESULT_ARCHIVE" --key-file "$KEY_FILE" \
   --head "$HEAD" --run-id "$RUN_ID" --attempt "$ATTEMPT" --input-sha "$INPUT_SHA" \
-  --shard "$SHARD" --shards 8
+  --shard "$SHARD" --shards 20
 apps/api/.venv/bin/python -m tools.research.editor_picks.remote finalize \
   --run-dir runs/editor-picks-20261024 --plan pilot-plan.json \
-  --head "$HEAD" --run-id "$RUN_ID" --attempt "$ATTEMPT" --input-sha "$INPUT_SHA" --shards 8
+  --head "$HEAD" --run-id "$RUN_ID" --attempt "$ATTEMPT" --input-sha "$INPUT_SHA" --shards 20
 ```
 
 `collect`는 전체 인증·파일 목록·해시·기존 파일 충돌을 검사한 뒤 병합한다. 동일 파일 재수신은
