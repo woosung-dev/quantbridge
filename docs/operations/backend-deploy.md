@@ -53,6 +53,14 @@ main 머지 ──release.yml(arm64)──▶ GHCR :sha-<7>
 ★**의존성을 넘는 롤백도 된다** — 이미지에 구워져 있다. 종전 「pyproject 를 넘는 롤백은 이 경로로 할 수 없다」는 사라졌다.
 ★**DB 롤백**(백업 복원 · alembic downgrade)은 종전대로 **[확인 필요] 절차**다 — 원문 tombstone 의 §3.4⑶⑷ 를 보되 실행 전 별도 승인.
 
+### 3.1 DDL 승인 전에 확인할 것
+
+1. `--status`의 DB revision과 배포할 **이미지 digest·revision·Alembic head**를 고정한다. 테스트·문서만 바뀐 main에는 새 이미지가 없을 수 있다.
+2. 새 `0700` 디렉터리를 `QB_BACKUP_DIR`로 지정해 `db-backup.sh run`을 실행한다. 기존 백업의 보관 정리를 피하고, OCI의 dump·meta를 다시 내려받아 원본과 SHA-256이 같은지 확인한다. 덤프·환경 파일은 `0600`으로 보관한다.
+3. 원본과 PostgreSQL·TimescaleDB 버전이 같은 **전용 복원 컨테이너**를 포트 미공개·`--network none`으로 만든다. `CREATE EXTENSION IF NOT EXISTS timescaledb` → `timescaledb_pre_restore()` → `pg_restore --exit-on-error --no-owner --no-acl` → `timescaledb_post_restore()`로 복원하고 meta의 행·chunk 범위를 대조한다. `verify-restore`는 지정 컨테이너에 임시 DB를 만들고 지우므로 운영 컨테이너에서 실행하지 않는다.
+4. 다른 writer가 없는 복원본에서 기존 컬럼 전체의 행 수·정렬 지문을 기록하고, 고정한 배포 이미지의 `run_alembic_with_lock`으로 upgrade·재실행을 검증한다. 변경 대상인 `alembic_version`은 지문에서 제외하고 별도 확인한다. 기존 컬럼 보존과 새 컬럼 기본값·NULL·FK·CHECK·인덱스를 대조한다. 복원 데이터로 API·worker를 기동하지 않는다.
+5. 적용할 DDL·대상 이미지·백업 위치·복구 한계를 명시해 승인을 받는다. `--timeout 30`은 **advisory lock 획득 대기만** 제한하며 DDL 잠금·실행시간의 상한이 아니다. 복원본 소요시간은 운영 무중단 보장이 아니다. 새 데이터가 생긴 뒤 downgrade가 거부되거나 원장이 삭제될 수 있으므로 코드 롤백과 DB 복구를 구분한다.
+
 ## 4. 검증 (배포 직후)
 
 ```bash
