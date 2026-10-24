@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
-
 from tools.research.editor_picks.common import (
     ARMS,
     TIMEFRAMES,
@@ -16,7 +15,7 @@ from tools.research.editor_picks.common import (
     sha,
     write,
 )
-from tools.research.editor_picks.execution import artifact, require_runtime
+from tools.research.editor_picks.execution import artifact, implementation, require_runtime
 
 
 def receipts(root: Path, frozen: dict) -> dict:
@@ -29,18 +28,72 @@ def receipts(root: Path, frozen: dict) -> dict:
             continue
         if value["job_hash"] != identity(request):
             raise ValueError("작업 완료 기록이 다른 요청을 가리킵니다")
-        if (
-            value.get("job") != request.get("job")
-            or identity(value["job"]) not in assigned
-        ):
+        if value.get("job") != request.get("job") or identity(value["job"]) not in assigned:
             raise ValueError("완료 기록이 배정한 셀과 다릅니다")
+        required = {"request.json"}
+        if value["status"] == "completed":
+            required |= {"result.json.gz", "signals.json.gz"}
+            selection = frozen["artifacts"][value["job"]["id"]][value["job"]["arm"]]
+            if (
+                "source_sha256" not in selection
+                or request.get("source_sha256") != selection["source_sha256"]
+            ):
+                raise ValueError("완료 기록의 코드가 동결 생성물과 다릅니다")
+        if not required <= value["files"].keys():
+            raise ValueError("완료 기록의 필수 원시 근거가 없습니다")
         for name, digest in value["files"].items():
             checked_file(path.parent, name, digest)
         key = identity(value["job"])
         if key in rows:
             raise ValueError("한 계획의 동일 셀이 중복 완료됐습니다")
-        rows[key] = {**value, "evidence_folder": str(path.parent)}
+        rows[key] = {
+            **value,
+            "evidence_folder": str(path.parent),
+            "execution_images": request.get("images"),
+        }
     return rows
+
+
+def frozen_inputs(root: Path, frozen: dict) -> dict:
+    checked_file(root, frozen["cohort_file"], frozen["cohort_sha256"])
+    checked_file(root, "data/dataset.json", frozen["dataset_sha256"])
+    if frozen["implementation"] != implementation():
+        raise ValueError("동결 검증 구현이 바뀌었습니다")
+    return read(root / frozen["cohort_file"])
+
+
+def exact_cells(completed: dict, jobs: list[dict], arm: str, images: dict) -> int:
+    exact = 0
+    for job in jobs:
+        if job["arm"] != arm:
+            continue
+        row = completed.get(identity(job))
+        pine = completed.get(identity({**job, "arm": "pine"}))
+        if (
+            row
+            and pine
+            and row["status"] == pine["status"] == "completed"
+            and row["action_sha256"] == pine["action_sha256"]
+            and row["ledger_sha256"] == pine["ledger_sha256"]
+            and row["execution_images"] == pine["execution_images"] == images
+        ):
+            exact += 1
+    return exact
+
+
+def native_export_gate(root: Path, identifier: str, proof: dict, arm: str, digest: str) -> None:
+    windows = proof["native_windows"]
+    if set(windows) != set(TIMEFRAMES):
+        raise ValueError("native 검증의 세 시간봉 근거가 부족합니다")
+    for tf, window in windows.items():
+        check = window.get("checks", {}).get(arm, {})
+        if (
+            window.get("status") != "checked_partial_window"
+            or check.get("passed") is not True
+            or check.get("source_sha256") != digest
+        ):
+            raise ValueError("native 검증을 통과한 현재 생성물 근거가 없습니다")
+        checked_file(root, f"native/{identifier}/{tf}.json", window["capture_sha256"])
 
 
 def session_actions(source, language, frame, params, images):
@@ -64,15 +117,10 @@ def session_actions(source, language, frame, params, images):
             bar = {
                 "index": index,
                 "timestamp": timestamp.isoformat(),
-                **{
-                    key: str(row[key])
-                    for key in ("open", "high", "low", "close", "volume")
-                },
+                **{key: str(row[key]) for key in ("open", "high", "low", "close", "volume")},
             }
             actions.append(
-                session.action(
-                    bar, {"direction": "flat", "size": "0", "average_price": None}
-                )
+                session.action(bar, {"direction": "flat", "size": "0", "average_price": None})
             )
     return actions
 
@@ -83,7 +131,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
     frozen = read(plan_path)
     if frozen["phase"] != "full":
         raise ValueError("파일럿을 전체 기술 검증으로 승격할 수 없습니다")
-    cohort = read(root / frozen["cohort_file"])
+    cohort = frozen_inputs(root, frozen)
     item = next(row for row in cohort["items"] if row["id"] == identifier)
     images = require_runtime()
     completed = receipts(root, frozen)
@@ -96,7 +144,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
         "arms": {},
         "native_windows": {},
     }
-    native_success = {arm: True for arm in ARMS}
+    native_success = dict.fromkeys(ARMS, True)
     for tf in TIMEFRAMES:
         native_path = root / "native" / identifier / f"{tf}.json"
         if not native_path.exists():
@@ -105,9 +153,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
             continue
         try:
             raw = read(native_path)
-            source = checked_file(
-                root, item["source_file"], item["source_sha256"]
-            ).read_bytes()
+            source = checked_file(root, item["source_file"], item["source_sha256"]).read_bytes()
             native = parse_native_capture(
                 raw,
                 source=source,
@@ -131,10 +177,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
             expected = dict.fromkeys(native.ohlcv.index, "hold")
             for event in events:
                 action = event.direction
-                if (
-                    action not in {"long", "short"}
-                    or expected[event.bar_time] != "hold"
-                ):
+                if action not in {"long", "short"} or expected[event.bar_time] != "hold":
                     raise ValueError("native 사건의 방향 또는 동봉 충돌이 모호합니다")
                 expected[event.bar_time] = action
             if {"long", "short"} - set(expected.values()):
@@ -188,28 +231,8 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
             }
             native_success = dict.fromkeys(ARMS, False)
     jobs = [job for job in frozen["jobs"] if job["id"] == identifier]
-    pine_rows = {
-        identity({**job, "arm": "pine"}): completed.get(
-            identity({**job, "arm": "pine"})
-        )
-        for job in jobs
-    }
     for arm in ARMS:
-        selected = [job for job in jobs if job["arm"] == arm]
-        exact = 0
-        for job in selected:
-            row, baseline = (
-                completed.get(identity(job)),
-                pine_rows[identity({**job, "arm": "pine"})],
-            )
-            if (
-                row
-                and baseline
-                and row["status"] == baseline["status"] == "completed"
-                and row["action_sha256"] == baseline["action_sha256"]
-                and row["ledger_sha256"] == baseline["ledger_sha256"]
-            ):
-                exact += 1
+        exact = exact_cells(completed, jobs, arm, images)
         result["arms"][arm] = {
             "status": "passed" if native_success[arm] and exact == 36 else "incomplete",
             "exact_economic_cells": exact,
@@ -226,7 +249,8 @@ def export(root: Path, plan_path: Path) -> dict:
     frozen = read(plan_path)
     if frozen["phase"] != "full":
         raise ValueError("전체 계획만 앱 저장 묶음을 만들 수 있습니다")
-    cohort = read(root / frozen["cohort_file"])
+    cohort = frozen_inputs(root, frozen)
+    completed = receipts(root, frozen)
     requests = []
     for item in cohort["items"]:
         path = root / "verification" / f"{item['id']}.json"
@@ -242,9 +266,13 @@ def export(root: Path, plan_path: Path) -> dict:
             if proof["arms"][arm]["status"] != "passed":
                 continue
             source, language, digest = artifact(root, item, arm)
-            for window in proof["native_windows"].values():
-                if window["checks"][arm]["source_sha256"] != digest:
-                    raise ValueError("검증 후 생성 원문이 바뀌었습니다")
+            selection = frozen["artifacts"][item["id"]][arm]
+            if selection != {"language": language, "source_sha256": digest}:
+                raise ValueError("검증 후 동결 생성물이 바뀌었습니다")
+            native_export_gate(root, item["id"], proof, arm, digest)
+            jobs = [job for job in frozen["jobs"] if job["id"] == item["id"]]
+            if exact_cells(completed, jobs, arm, proof["images"]) != 36:
+                raise ValueError("현재 원시 근거로 경제 36셀의 일치를 확인할 수 없습니다")
             provenance = {
                 "origin": "editor_picks_reproduction",
                 "experiment": root.name,

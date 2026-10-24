@@ -22,6 +22,8 @@ def exact(stream, length):
 
 
 def transform(mode, source, destination, key, context):
+    if mode not in {"encrypt", "decrypt"}:
+        raise ValueError("invalid_transform_mode")
     if len(key) != 32 or not context or len(context.encode()) > 256:
         raise ValueError("invalid_key_or_context")
     cipher = AESGCM(key)

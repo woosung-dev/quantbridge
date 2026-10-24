@@ -76,6 +76,8 @@ jobs:
         run: |
           apps/api/.venv/bin/python -m tools.research.editor_picks.remote finish \
             --run-dir runs/editor-picks-20261024 --shard "$SHARD" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --input-sha "$INPUT_SHA" \
             --archive "$RUNNER_TEMP/result.tar.gz" \
             --cipher "$RUNNER_TEMP/result-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SHARD}.enc" \
             --key-env EDITOR_PICKS_RESEARCH_KEY

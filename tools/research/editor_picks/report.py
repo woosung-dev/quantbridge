@@ -32,6 +32,10 @@ METRICS = (
     "total_fees",
     "total_slippage",
     "avg_trade_abs",
+    "avg_closed_episode_r",
+    "closed_episode_win_rate_pct",
+    "exposure_minute_pct",
+    "closed_episodes",
 )
 
 
@@ -47,15 +51,12 @@ def signal_quality(expected: list[dict], observed: list[dict]) -> dict:
         actual = sum(row["action"] == action for row in observed)
         reference = sum(row["action"] == action for row in expected)
         true = sum(
-            a["action"] == b["action"] == action
-            for a, b in zip(expected, observed, strict=True)
+            a["action"] == b["action"] == action for a, b in zip(expected, observed, strict=True)
         )
         result.update(
             {
                 f"{action}_precision": str(Decimal(true) / actual) if actual else None,
-                f"{action}_recall": str(Decimal(true) / reference)
-                if reference
-                else None,
+                f"{action}_recall": str(Decimal(true) / reference) if reference else None,
                 f"{action}_observed": actual,
                 f"{action}_reference": reference,
             }
@@ -97,9 +98,7 @@ def build(root: Path, plan_path: Path) -> dict:
                 )
                 observed = json.loads(
                     gzip.decompress(
-                        (
-                            Path(evidence["evidence_folder"]) / "signals.json.gz"
-                        ).read_bytes()
+                        (Path(evidence["evidence_folder"]) / "signals.json.gz").read_bytes()
                     )
                 )
                 row.update(signal_quality(expected, observed))
@@ -112,8 +111,7 @@ def build(root: Path, plan_path: Path) -> dict:
         "observed_cells": len(completed),
         "status_counts": dict(Counter(row["status"] for row in rows)),
         "arms": {
-            arm: dict(Counter(row["status"] for row in rows if row["arm"] == arm))
-            for arm in ARMS
+            arm: dict(Counter(row["status"] for row in rows if row["arm"] == arm)) for arm in ARMS
         },
         "complete": len(completed) == frozen["expected_cells"]
         and all(row["status"] != "not_run" for row in rows),
@@ -123,6 +121,8 @@ def build(root: Path, plan_path: Path) -> dict:
         "promotable": False,
         "limitations": [
             "중첩 6·12·24개월은 독립 holdout이 아닙니다.",
+            "평균 R·완료 승률은 부분 익절을 합친 episode의 비용 후 손익 기준입니다.",
+            "노출은 보유한 1분봉 비율이며 봉 내부 청산 시 해당 분봉을 포함합니다.",
             "LLM Python은 독립 정답 오라클이 아닙니다.",
             "성과는 실제 tick 체결·마크가격 펀딩을 보증하지 않습니다.",
             "펀딩 완전성 UNKNOWN과 경제 수치선 실패를 구분합니다.",
@@ -141,9 +141,7 @@ def build(root: Path, plan_path: Path) -> dict:
         return html.escape("" if value is None else str(value))
 
     cells = "".join(
-        "<tr>"
-        + "".join(f"<td>{escape(row.get(key))}</td>" for key in columns)
-        + "</tr>"
+        "<tr>" + "".join(f"<td>{escape(row.get(key))}</td>" for key in columns) + "</tr>"
         for row in rows
     )
     heading = "".join(f"<th>{escape(key)}</th>" for key in columns)

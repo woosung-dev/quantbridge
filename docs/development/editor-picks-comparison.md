@@ -39,8 +39,7 @@ apps/api/.venv/bin/python -m tools.research.editor_picks --run-dir runs/editor-p
 2. `ingest`는 관측된 에디터 픽 목록과 원문 응답을 확인한다. `screen`은 별도 프로세스 제한 시간으로
    정적 coverage와 방향 검토를 검사한다. 실행 검증과 다르다. `reviews/<id>.json`에는 원문 SHA,
    `reviewed_by`, `basis`, `family`, `warmup_bars`, `inputs`, 줄·열·방향 `signal_bindings`를 명시한다.
-3. 검토 원문 6개로 `seal --pilot` 후 `generate --pilot`을 실행한다. 각 구독 CLI는 동시에 1건만
-   호출한다. Gemini JSON Schema CLI 옵션은 사용하지 않고 stream-json의 단일 SUCCESS turn과
+3. 검토 원문 6개로 `seal --pilot` 후 `generate --pilot`을 실행한다. 같은 원문의 동일 경로는 한 번만 호출하며 독립 원문은 제한된 동시성으로 처리한다. Gemini JSON Schema CLI 옵션은 사용하지 않고 stream-json의 단일 SUCCESS turn과
    JSON payload를 함께 확인한다. 도구 사용·다중 turn·비정상 종료·부분 출력은 실패다.
 4. `freeze --end YYYY-MM-DD`로 24개월 부모봉과 1분봉을 수집하고 `validate-data`로 확인한다.
    API 페이지를 재사용하되 원문·시세 명세가 달라지면 새 실험으로 분리한다.
@@ -48,6 +47,9 @@ apps/api/.venv/bin/python -m tools.research.editor_picks --run-dir runs/editor-p
 5. 정적 검토 200개를 확보한 뒤 `seal`·`generate`·`plan`으로 전체 계획을 만든다.
    Pine 실제 실행에서 탈락하면 cohort와 결과를 보존한 새 epoch에서 후속 원문을 추가한다.
    `execute --shard N --shards M`은 고정 셀을 분배하며 실제 runner 동시성을 보장하지 않는다.
+
+사용자가 승인한 Gemini 장기 재시도도 실패하면 이후 생성은 Terra만 진행한다. Gemini 실패와
+원래 3경로 계획의 분모는 유지하며 모델을 임의 대체하지 않는다.
 
 생성 최초 시도와 공개 구문/프로토콜 오류에 대한 최대 2회 수정은 별도 디렉터리다. 중단된 생성은
 자동 재호출하지 않는다. 완료 캐시의 요청·파일 해시를 확인하며 실패 결과도 보존한다.
@@ -69,7 +71,43 @@ Terra Python·Gemini Python 최대 3개를 저장하며 기본 화면은 BTC·1h
 운영 API/DDL 차이·인증이 막히면 저장 요청 묶음까지 완성하고 해당 단계의 blocked 근거를 남긴다.
 
 보고서는 검색 가능한 HTML과 전체 CSV/JSON이다. 신호 일치와 승률, 비용 포함 수익과 열린 손익을
-구분한다. 부분 익절은 같은 episode로 센다. PF/Sharpe 등의 정의상 NULL을 0으로 보정하지 않는다.
+구분한다. 부분 익절은 같은 episode로 센다. 평균 R은 비용 후 완료 episode 손익을 최초 R×최초 수량으로
+나눈 값이며, 완료 episode 승률은 미종료 포지션을 제외한다. 분봉 노출은 부분 청산 분봉을
+포함하고 시가 전량 청산 분봉은 제외한 보유 구간의 합집합이다. 저장 직전 native 세 주기 캡처 SHA와
+동일 실행 이미지의 경제 36셀을 다시 검사한다. PF/Sharpe 등의 정의상 NULL을 0으로 보정하지 않는다.
 중첩 과거 구간·에디터 선정 편향·유사 계열을 독립 표본이나 미사용 holdout으로 부르지 않는다.
 관측 펀딩 grid는 과거 일정의 독립 완전성 증거가 아니며 `funding_data_incomplete=None`을 통과로
 바꾸지 않는다. 기존 경제 기준 통과 0을 모든 전략의 적자로 해석하지 않는다.
+
+## 일회용 ARM 실행과 암호문 수거
+
+`.github/workflows/editor-picks-research.yml`은 소유자 PR의 **정확한 head SHA**와 입력 암호문
+URL/SHA 변수가 일치할 때만 8개 ARM shard를 실행한다. 로컬·운영 Docker daemon은 수정하지 않는다.
+일회용 GitHub Linux ARM의 `/home/runner/work/`에서만 고정 runsc 보조 파일·이미지 archive의 SHA를
+먼저 확인해 설치하고 이미지 ID·아키텍처를 다시 검사한다. 런타임 증거에 계산 코드 대조 증거도 보존한다.
+
+입력과 결과는 별도 키 파일 또는 `EDITOR_PICKS_RESEARCH_KEY`로 AES-GCM 청크 인증한다. 이 키는
+연구 입력 디렉터리 밖에 두며 실제 셀 worker에는 전달하지 않는다. 공개 release에는 `.enc`만 올린다.
+실제 subprocess 종료 코드, shard별 셀 소비 요약, runtime 증거, 원시 결과를 함께 암호화한다.
+`finish`·`collect`는 head/run ID/attempt/입력 암호문 SHA/plan SHA/shard를 암호 인증에 결합하므로
+이전 실행 결과를 다른 실행의 결과로 수거할 수 없다.
+
+수거 시 원래 입력을 보존한 run-dir을 사용한다. 아래 `HEAD`, `RUN_ID`, `ATTEMPT`, `INPUT_SHA`는
+실제 실행값으로 정하고 `SHARD`는 0..7을 각각 실행한다. 키 파일은 32바이트 원시 키다.
+
+```bash
+apps/api/.venv/bin/python -m tools.research.editor_picks.remote collect \
+  --run-dir runs/editor-picks-20261024 --plan pilot-plan.json \
+  --cipher "$RESULT_CIPHER" --archive "$UNIQUE_RESULT_ARCHIVE" --key-file "$KEY_FILE" \
+  --head "$HEAD" --run-id "$RUN_ID" --attempt "$ATTEMPT" --input-sha "$INPUT_SHA" \
+  --shard "$SHARD" --shards 8
+apps/api/.venv/bin/python -m tools.research.editor_picks.remote finalize \
+  --run-dir runs/editor-picks-20261024 --plan pilot-plan.json \
+  --head "$HEAD" --run-id "$RUN_ID" --attempt "$ATTEMPT" --input-sha "$INPUT_SHA" --shards 8
+```
+
+`collect`는 전체 인증·파일 목록·해시·기존 파일 충돌을 검사한 뒤 병합한다. 동일 파일 재수신은
+허용하되 기존 결과를 덮지 않는다. `finalize`는 모든 shard의 실제 종료 코드 0·고정 plan·배정 셀
+소비 수와 전체 receipt 분모를 함께 요구한다. 누락/실패 종료는 `remote/finalization.json`에 남기고
+종료 코드 1을 반환한다. 셀 자체의 미지원·전략 실패도 보고서의 실패 분모로 보존하므로 실행 완주와
+성과 통과는 별개다. full-plan의 native 검증·등록 export는 별도 단계이며 파일럿 finalization으로 대체하지 않는다.

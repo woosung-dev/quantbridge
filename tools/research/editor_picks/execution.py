@@ -5,19 +5,21 @@ from __future__ import annotations
 import gzip
 import itertools
 import json
+import shutil
 import subprocess
 import time
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
-
 from tools.research.editor_picks.common import (
     ARMS,
     PERIODS,
     ROOT,
     SCENARIOS,
     TIMEFRAMES,
+    cached,
     checked_file,
     identity,
     immutable,
@@ -36,11 +38,18 @@ def implementation() -> dict:
     paths += sorted((ROOT / "apps/api/src/strategy/python_runtime").glob("*.py"))
     paths += sorted((ROOT / "apps/api/src/backtest/engine").glob("*.py"))
     paths += sorted((ROOT / "apps/api/src/strategy/pine_v2").rglob("*.py"))
-    paths += [ROOT / relative for relative in (
-        "tools/research/cli.py", "tools/research/data.py", "tools/research/sol_economics.py",
-        "tools/research/sol_economic_data.py", "apps/api/src/core/config.py",
-        "apps/api/src/strategy/pine/types.py", "infra/python-runner/main.py",
-    )]
+    paths += [
+        ROOT / relative
+        for relative in (
+            "tools/research/cli.py",
+            "tools/research/data.py",
+            "tools/research/sol_economics.py",
+            "tools/research/sol_economic_data.py",
+            "apps/api/src/core/config.py",
+            "apps/api/src/strategy/pine/types.py",
+            "infra/python-runner/main.py",
+        )
+    ]
     return {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in paths}
 
 
@@ -82,11 +91,7 @@ def plan(root: Path, pilot: bool = False) -> dict:
         "schema_version": 1,
         "phase": "pilot" if pilot else "full",
         "jobs": jobs,
-        "expected_cells": target
-        * len(ARMS)
-        * len(TIMEFRAMES)
-        * len(period_options)
-        * len(costs),
+        "expected_cells": target * len(ARMS) * len(TIMEFRAMES) * len(period_options) * len(costs),
         "cohort_file": cohort_file,
         "cohort_sha256": sha((root / cohort_file).read_bytes()),
         "dataset_sha256": sha((root / "data/dataset.json").read_bytes()),
@@ -116,16 +121,25 @@ def artifact(root: Path, item: dict, arm: str) -> tuple[str, str, str]:
         if value["status"] == "completed":
             request_path = checked_file(folder, "request.json", value["files"]["request.json"])
             request = read(request_path)
+            if value["job_hash"] != identity(request):
+                raise ValueError("생성 완료 기록의 요청 해시가 다릅니다")
+            for name, expected in value["files"].items():
+                checked_file(folder, name, expected)
             from tools.research.editor_picks.common import MODELS
             from tools.research.editor_picks.generation import CONTRACT
 
             if not request["prompt"].startswith(CONTRACT + "\n"):
                 raise ValueError("생성 공개 계약이 현재 코호트와 다릅니다")
-            context = json.loads(request["prompt"][len(CONTRACT) + 1:])
-            if (request["requested_model"] != MODELS[arm]
-                    or request["source_sha256"] != item["source_sha256"]
-                    or context["bindings"] != item["signal_bindings"]
-                    or context["inputs"] != item.get("inputs", {})):
+            context = json.loads(request["prompt"][len(CONTRACT) + 1 :])
+            if (
+                request["arm"] != arm
+                or request["attempt"] != attempt
+                or request["requested_model"] != MODELS[arm]
+                or request["source_sha256"] != item["source_sha256"]
+                or sha(context["source"].encode()) != item["source_sha256"]
+                or context["bindings"] != item["signal_bindings"]
+                or context["inputs"] != item.get("inputs", {})
+            ):
                 raise ValueError("생성 요청의 모델·원문·입력이 코호트와 다릅니다")
             path = checked_file(folder, "source.py", value["files"]["source.py"])
             return path.read_bytes().decode(), "python", sha(path.read_bytes())
@@ -133,8 +147,11 @@ def artifact(root: Path, item: dict, arm: str) -> tuple[str, str, str]:
 
 
 def require_runtime() -> dict:
-    process = subprocess.run(
-        ["docker", "info", "--format", "{{json .Runtimes}}"],
+    docker = shutil.which("docker")
+    if docker is None:
+        raise RuntimeError("Docker 실행 파일이 없습니다")
+    process = subprocess.run(  # noqa: S603 — 고정 Docker 조회 명령만 실행
+        [docker, "info", "--format", "{{json .Runtimes}}"],
         capture_output=True,
         text=True,
         timeout=15,
@@ -145,8 +162,8 @@ def require_runtime() -> dict:
     images = {}
     for language in ("pine", "python"):
         name = f"quantbridge-{language}-runner:local"
-        images[language] = subprocess.run(
-            ["docker", "image", "inspect", "--format", "{{.Id}}", name],
+        images[language] = subprocess.run(  # noqa: S603 — 내부 고정 이미지 이름만 조회
+            [docker, "image", "inspect", "--format", "{{.Id}}", name],
             capture_output=True,
             text=True,
             timeout=15,
@@ -174,12 +191,55 @@ def data(root_text: str, dataset_hash: str) -> dict:
     }
 
 
+def episode_metrics(payload: dict, trace: list[dict]) -> dict:
+    """부분 익절을 합친 episode의 비용 후 R과 분봉 보유 비율을 계산한다."""
+    trades = payload["trades"]
+    closed = [trade for trade in trades if trade["status"] == "closed"]
+    entries = {
+        fill["generation"] - 1: fill["plan"]
+        for fill in trace
+        if fill["type"] == "fill" and fill["kind"] == "entry"
+    }
+    multiples = []
+    intervals = []
+    bars = len(payload["equity_curve"])
+    for trade in trades:
+        start = trade["entry_bar_index"]
+        end = trade["exit_bar_index"]
+        stop = bars if end is None else end + (trade["exit_phase"] != "bar_open")
+        if not 0 <= start <= stop <= bars:
+            raise ValueError("episode 보유 구간이 실행 분봉 범위를 벗어납니다")
+        intervals.append((start, stop))
+        if trade["status"] == "closed":
+            plan = entries.get(trade["trade_index"])
+            if plan is None:
+                raise ValueError("완료 episode의 초기 위험 근거가 없습니다")
+            initial_risk = Decimal(plan["risk"]) * Decimal(plan["initial_qty"])
+            if initial_risk <= 0:
+                raise ValueError("완료 episode의 초기 위험은 양수여야 합니다")
+            multiples.append(Decimal(trade["pnl"]) / initial_risk)
+    exposed, previous_end = 0, 0
+    for start, stop in sorted(intervals):
+        exposed += max(0, stop - max(start, previous_end))
+        previous_end = max(previous_end, stop)
+    wins = sum(Decimal(trade["pnl"]) > 0 for trade in closed)
+    return {
+        "avg_closed_episode_r": str(sum(multiples, Decimal(0)) / len(multiples))
+        if multiples
+        else None,
+        "closed_episode_win_rate_pct": str(Decimal(wins) * 100 / len(closed)) if closed else None,
+        "exposure_minute_pct": str(Decimal(exposed) * 100 / bars) if bars else None,
+        "closed_episodes": len(closed),
+    }
+
+
 def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
+    from tools.research.sol_economic_data import economic_verdict, stress_scenarios
+    from tools.research.sol_economics import scenario_config
+
     from src.strategy.code_runtime.backtest import run_code_backtest
     from src.strategy.code_runtime.session import create_code_transport
     from src.strategy.python_runtime.serialization import json_value, result_payload
-    from tools.research.sol_economics import scenario_config
-    from tools.research.sol_economic_data import economic_verdict, stress_scenarios
 
     if (
         sha((root / frozen["cohort_file"]).read_bytes()) != frozen["cohort_sha256"]
@@ -190,25 +250,22 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
     item = items.get(job["id"])
     request = {"plan": identity(frozen), "job": job, "images": images}
     source = language = None
-    try:
-        if item is None:
-            raise ValueError("source_not_acquired")
+    if item is None:
+        request["unavailable_reason"] = "source_not_acquired"
+    else:
         selection = frozen["artifacts"][job["id"]][job["arm"]]
         if "unavailable_reason" in selection:
-            raise ValueError(selection["unavailable_reason"])
-        source, language, source_hash = artifact(root, item, job["arm"])
-        if selection != {"language": language, "source_sha256": source_hash}:
-            raise ValueError("경제 측정 전에 동결한 생성물이 바뀌었습니다")
-        request["source_sha256"] = source_hash
-    except ValueError as error:
-        request["unavailable_reason"] = str(error)
+            request["unavailable_reason"] = selection["unavailable_reason"]
+        else:
+            source, language, source_hash = artifact(root, item, job["arm"])
+            if selection != {"language": language, "source_sha256": source_hash}:
+                raise ValueError("경제 측정 전에 동결한 생성물이 바뀌었습니다")
+            request["source_sha256"] = source_hash
     folder = root / "results" / identity(request)
     with lock(folder / ".lock"):
-        if (folder / "receipt.json").exists():
-            value = read(folder / "receipt.json")
-            for name, digest in value["files"].items():
-                checked_file(folder, name, digest)
-            return value
+        previous = cached(folder, request)
+        if previous is not None and previous["status"] != "interrupted":
+            return previous
         immutable(folder / "request.json", request)
         if source is None:
             return receipt(
@@ -229,8 +286,7 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             tf = job["timeframe"]
             freq = {"1h": "1h", "4h": "4h", "1d": "1D"}[tf]
             frame = loaded[tf].loc[
-                (loaded[tf].index >= start - warmup * pd.Timedelta(freq))
-                & (loaded[tf].index < end)
+                (loaded[tf].index >= start - warmup * pd.Timedelta(freq)) & (loaded[tf].index < end)
             ]
             minute = loaded["1min"].loc[
                 (loaded["1min"].index >= start) & (loaded["1min"].index < end)
@@ -239,12 +295,8 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
                 (loaded["funding"].index >= start) & (loaded["funding"].index < end)
             ]
             scenario = next(s for s in stress_scenarios() if s["id"] == job["scenario"])
-            from decimal import Decimal
-
             funding = funding.map(
-                lambda rate: (
-                    Decimal(str(rate)) * Decimal(scenario["funding_multiplier"])
-                )
+                lambda rate: Decimal(str(rate)) * Decimal(scenario["funding_multiplier"])
             )
             config = scenario_config(tf, scenario)
             trace = []
@@ -269,6 +321,7 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
                 trace=trace,
             )
             payload = result_payload(result)
+            payload["metrics"].update(episode_metrics(payload, json_value(trace)))
             raw = json.dumps(
                 {"result": payload, "trace": json_value(trace)}, allow_nan=False
             ).encode()
@@ -281,9 +334,7 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             action_hash = identity(
                 [{key: row[key] for key in ("timestamp", "action")} for row in actions]
             )
-            signal_rows = [
-                {key: row[key] for key in ("timestamp", "action")} for row in actions
-            ]
+            signal_rows = [{key: row[key] for key in ("timestamp", "action")} for row in actions]
             (folder / "signals.json.gz").write_bytes(
                 gzip.compress(json.dumps(signal_rows).encode(), mtime=0)
             )

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ast
+import inspect
 import re
+from concurrent.futures import ThreadPoolExecutor
 import subprocess
 import sys
 from pathlib import Path
@@ -11,7 +14,9 @@ from urllib.parse import urlsplit
 from tools.research.editor_picks.common import (
     ROOT,
     checked_file,
+    identity,
     immutable,
+    lock,
     now,
     read,
     sha,
@@ -20,6 +25,11 @@ from tools.research.editor_picks.common import (
 
 
 def ingest(root: Path) -> dict:
+    with lock(root / "catalogue.lock"):
+        return _ingest(root)
+
+
+def _ingest(root: Path) -> dict:
     items = {}
     for path in sorted((root / "captures").glob("*.json")):
         payload = read(path)
@@ -162,68 +172,108 @@ def screen_one(root: Path, identifier: str) -> dict:
     }
 
 
-def screen(root: Path, timeout: int = 15) -> list[dict]:
-    rows = []
-    from tools.research.editor_picks.common import identity
-
+def _screen_implementation_hash() -> str:
     paths = sorted((ROOT / "apps/api/src/strategy/pine_v2").rglob("*.py"))
-    paths += [
-        Path(__file__),
-        ROOT / "apps/api/scripts/pine_validation/strategy_adapter.py",
-    ]
-    implementation_hash = identity(
-        {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in paths}
+    paths += [ROOT / "apps/api/scripts/pine_validation/strategy_adapter.py"]
+    return identity(
+        {
+            "dependencies": {
+                str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in paths
+            },
+            # 스케줄러 수정은 기존 판정을 무효화하지 않는다.
+            "binding": ast.dump(ast.parse(inspect.getsource(screen_one))),
+            "file_validation": ast.dump(ast.parse(inspect.getsource(checked_file))),
+        }
     )
-    for item in read(root / "catalogue.json")["items"]:
-        destination = root / "screening" / f"{item['id']}.json"
-        review = root / "reviews" / f"{item['id']}.json"
-        effective_timeout = timeout * 3 if review.exists() else timeout
-        request_hash = identity(
-            {
-                "source": item.get("source_sha256"),
-                "review": sha(review.read_bytes()) if review.exists() else None,
-                "implementation": implementation_hash,
-                "timeout": timeout,
-            }
-        )
-        if (
-            destination.exists()
-            and read(destination).get("screen_request_sha256") == request_hash
-        ):
-            rows.append(read(destination))
-            continue
-        try:
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "tools.research.editor_picks",
-                    "--run-dir",
-                    str(root),
-                    "screen-one",
-                    "--id",
-                    item["id"],
-                ],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-                timeout=effective_timeout,
-            )
-            if completed.returncode:
-                row = {
-                    "id": item["id"],
-                    "status": "screen_failed",
-                    "error": completed.stderr[-1500:],
-                }
+
+
+def _screen_request(root: Path, item: dict, timeout: int, implementation: str) -> str:
+    review = root / "reviews" / f"{item['id']}.json"
+    return identity(
+        {
+            "item": item,
+            "review": sha(review.read_bytes()) if review.exists() else None,
+            "implementation": implementation,
+            "timeout": timeout,
+        }
+    )
+
+
+def screen(root: Path, timeout: int = 15, workers: int = 4) -> list[dict]:
+    if not 1 <= workers <= 4:
+        raise ValueError("정적 검사 병렬 수는 1~4입니다")
+    with lock(root / "screening.lock"):
+        implementation = _screen_implementation_hash()
+        items = read(root / "catalogue.json")["items"]
+        if len({item["id"] for item in items}) != len(items):
+            raise ValueError("같은 게시물 ID를 동시에 검사할 수 없습니다")
+
+        def scan(item: dict) -> dict:
+            destination = root / "screening" / f"{item['id']}.json"
+            if item.get("source_sha256"):
+                checked_file(root, item["source_file"], item["source_sha256"])
+            request_hash = _screen_request(root, item, timeout, implementation)
+            if destination.exists():
+                previous = read(destination)
+                if previous.get("screen_request_sha256") == request_hash:
+                    if previous.get("status") == "static_eligible":
+                        checked_file(
+                            root, previous["adapted_file"], previous["adapted_sha256"]
+                        )
+                    return previous
+            review = root / "reviews" / f"{item['id']}.json"
+            try:
+                completed = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "tools.research.editor_picks",
+                        "--run-dir",
+                        str(root),
+                        "screen-one",
+                        "--id",
+                        item["id"],
+                    ],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout * 3 if review.exists() else timeout,
+                )
+                if completed.returncode:
+                    row = {
+                        "id": item["id"],
+                        "status": "screen_failed",
+                        "error": completed.stderr[-1500:],
+                    }
+                else:
+                    row = read(destination)
+            except subprocess.TimeoutExpired:
+                row = {"id": item["id"], "status": "parser_timeout"}
+            if request_hash != _screen_request(root, item, timeout, implementation):
+                row = {"id": item["id"], "status": "screen_input_changed"}
             else:
-                row = read(destination)
-        except subprocess.TimeoutExpired:
-            row = {"id": item["id"], "status": "parser_timeout"}
-        row["screen_request_sha256"] = request_hash
-        rows.append(row)
-        write(destination, row)
-    write(root / "screening.json", rows)
-    return rows
+                row["screen_request_sha256"] = request_hash
+            write(destination, row)
+            return row
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            rows = {
+                item["id"]: row
+                for item, row in zip(items, pool.map(scan, items), strict=True)
+            }
+        # 수집이 계속되는 동안 추가된 원문을 이전 스냅샷으로 숨기지 않는다.
+        with lock(root / "catalogue.lock"):
+            current = read(root / "catalogue.json")["items"]
+            result = []
+            for item in current:
+                row = rows.get(item["id"])
+                if row is None or row.get("screen_request_sha256") != _screen_request(
+                    root, item, timeout, implementation
+                ):
+                    row = {"id": item["id"], "status": "screen_pending"}
+                result.append(row)
+            write(root / "screening.json", result)
+            return result
 
 
 def seal(root: Path, count: int = 200, pilot: bool = False) -> dict:
