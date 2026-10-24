@@ -193,7 +193,7 @@ def generate(
                 ]
                 stdin = ""
             try:
-                with subprocess.Popen(
+                with subprocess.Popen(  # noqa: S603 — 구독 CLI 절대 경로·고정 인자이며 셸을 사용하지 않는다
                     command,
                     cwd=workspace,
                     env=env,

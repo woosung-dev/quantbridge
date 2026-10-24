@@ -115,3 +115,36 @@ def test_screen_records_timeout_and_gives_reviewed_sources_more_time(tmp_path, m
 
     monkeypatch.setattr(catalogue.subprocess, "run", run)
     assert catalogue.screen(tmp_path, timeout=7)[0]["status"] == "parser_timeout"
+
+
+def test_partial_seal_keeps_target_and_editor_order_but_requires_explicit_opt_in(tmp_path):
+    rows = [
+        {"id": "earlier", "source_sha256": "a", "status": "static_eligible"},
+        {"id": "failed", "status": "unsupported"},
+        {"id": "later", "source_sha256": "b", "status": "static_eligible"},
+    ]
+    write(tmp_path / "screening.json", rows)
+    with pytest.raises(ValueError, match="중복 없는"):
+        catalogue.seal(tmp_path, count=200)
+    with pytest.raises(ValueError, match="파일럿"):
+        catalogue.seal(tmp_path, count=200, pilot=True, allow_partial=True)
+    cohort = catalogue.seal(tmp_path, count=200, allow_partial=True)
+    assert cohort["target"] == 200
+    assert cohort["source_count"] == 2
+    assert cohort["complete"] is False
+    assert [row["id"] for row in cohort["items"]] == ["earlier", "later"]
+
+
+def test_partial_seal_rejects_empty_and_duplicate_sources(tmp_path):
+    write(tmp_path / "screening.json", [])
+    with pytest.raises(ValueError, match="중복 없는"):
+        catalogue.seal(tmp_path, allow_partial=True)
+    write(
+        tmp_path / "screening.json",
+        [
+            {"id": "one", "source_sha256": "a", "status": "static_eligible"},
+            {"id": "two", "source_sha256": "a", "status": "static_eligible"},
+        ],
+    )
+    with pytest.raises(ValueError, match="중복 없는"):
+        catalogue.seal(tmp_path, allow_partial=True)

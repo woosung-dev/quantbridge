@@ -8,7 +8,6 @@ from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
-
 from tools.research.data import public_api, validate_candles, validate_funding
 from tools.research.editor_picks.common import (
     TIMEFRAMES,

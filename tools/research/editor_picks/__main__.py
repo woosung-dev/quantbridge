@@ -9,7 +9,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from tools.research.editor_picks.common import ROOT, MODELS, read, run_dir, write
+from tools.research.editor_picks.common import MODELS, ROOT, read, run_dir, write
 
 sys.path.insert(0, str(ROOT / "apps/api"))
 
@@ -25,6 +25,7 @@ def main() -> int:
     one.add_argument("--id", required=True)
     seal = commands.add_parser("seal")
     seal.add_argument("--pilot", action="store_true")
+    seal.add_argument("--allow-partial", action="store_true")
     generation = commands.add_parser("generate")
     generation.add_argument("--pilot", action="store_true")
     generation.add_argument("--arm", choices=tuple(MODELS))
@@ -61,7 +62,7 @@ def main() -> int:
             result = catalogue.screen_one(root, args.id)
             write(root / "screening" / f"{args.id}.json", result)
         else:
-            result = catalogue.seal(root, 6 if args.pilot else 200, args.pilot)
+            result = catalogue.seal(root, 6 if args.pilot else 200, args.pilot, args.allow_partial)
             result = {
                 "source_count": result["source_count"],
                 "execution_verified": False,

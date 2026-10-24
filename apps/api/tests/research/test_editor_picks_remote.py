@@ -14,23 +14,23 @@ from tools.research.editor_picks.common import identity, read, write
 from tools.research.editor_picks.crypto import transform
 
 
-def bundle(tmp_path):
+def bundle(tmp_path, phase="pilot", run_id="123"):
     root = tmp_path / "worker"
-    plan = {"phase": "pilot", "jobs": [{"id": "a"}, {"id": "b"}]}
-    write(root / "pilot-plan.json", plan)
+    plan = {"phase": phase, "jobs": [{"id": "a"}, {"id": "b"}]}
+    write(root / f"{phase}-plan.json", plan)
     provenance = {
         "head": "a" * 40,
-        "run_id": "123",
+        "run_id": run_id,
         "attempt": "1",
         "input_sha256": "b" * 64,
-        "plan": "pilot-plan.json",
+        "plan": f"{phase}-plan.json",
         "plan_sha256": identity(plan),
         "shards": 1,
         "shard": 0,
     }
     write(root / "terminal-0.json", {"actual_returncode": 0, "plan_sha256": identity(plan)})
     write(
-        root / "worker-pilot-0.json",
+        root / f"worker-{phase}-0.json",
         {
             "status": "finished",
             "plan_sha256": identity(plan),
@@ -39,7 +39,8 @@ def bundle(tmp_path):
             "jobs_consumed": 2,
         },
     )
-    write(root / "results/cell/receipt.json", {"status": "failed"})
+    cell = "cell" if phase == "pilot" else "full-cell"
+    write(root / f"results/{cell}/receipt.json", {"status": "failed"})
     archive = tmp_path / "result.tar.gz"
     remote.pack_result(root, archive, 0, provenance)
     return root, archive, provenance
@@ -73,6 +74,25 @@ def test_extract_preflights_every_collision_before_writing(tmp_path):
     with pytest.raises(ValueError):
         remote.safe_extract(archive, destination)
     assert not (destination / "new").exists()
+
+
+def test_pilot_and_full_same_shard_keep_separate_remote_evidence(tmp_path, monkeypatch):
+    pilot = bundle(tmp_path / "pilot")
+    full = bundle(tmp_path / "full", phase="full", run_id="456")
+    destination = tmp_path / "received"
+    monkeypatch.setattr(report, "build", lambda *_: {"complete": True})
+    namespaces = []
+    for root, archive, provenance in (pilot, full):
+        remote.collect_result(archive, destination, provenance)
+        write(destination / provenance["plan"], read(root / provenance["plan"]))
+        expected = {key: value for key, value in provenance.items() if key != "shard"}
+        assert remote.finalize(destination, destination / provenance["plan"], expected)["complete"]
+        namespace = remote.remote_namespace(provenance)
+        assert (destination / namespace / "0/envelope.json").is_file()
+        namespaces.append(namespace)
+    assert namespaces[0] != namespaces[1]
+    assert all((destination / namespace / "finalization.json").is_file() for namespace in namespaces)
+    assert len(list((destination / "results").glob("*/receipt.json"))) == 2
 
 
 def test_cipher_rejects_wrong_attempt_and_removes_partial_plaintext(tmp_path):

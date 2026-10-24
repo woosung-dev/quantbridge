@@ -17,6 +17,11 @@ PRD §5와 ADR-046의 결과·가정 공개 및 격리 실행 계약을 따른�
 - 완료 2봉 극값까지 실제 진입가 거리×1.1을 최초 R로 고정하고 1R SL·1.5R 50% TP·2R부터
   본절/2R trailing을 공통 실행기가 소유한다. 원 지표의 자체 청산을 재현한 성과와 구분한다.
 
+연구의 `raw_signal_v1`은 기존 Pine 어댑터가 생성한 진입문의 포지션 guard만 제거한다. 같은 방향
+원문 신호도 Pine·Python 모두 제출하고 공통 원장이 중복 진입을 처리한다. 원문과 원래 포지션
+조건은 보존하며 변환 코드·metadata SHA를 함께 갱신한다. 동봉 양방향 신호는 Pine 실행 실패로
+분모에 남기며 방향 우선순위를 임의로 만들지 않는다. 해당 셀은 비교·등록 검증을 통과할 수 없다.
+
 기본·수수료2배·슬리피지2배·펀딩2배의 전체 분모는 **21,600셀**이다. 펀딩 부호는 유지한다.
 6개 파일럿은 3경로×3주기×최근6개월×기본비용 = **54셀**이며 전체 평가가 아니다.
 미지원·미확보·생성 실패·timeout·불일치를 성공 수에서만 빼고 계획 분모에는 남긴다.
@@ -45,6 +50,8 @@ apps/api/.venv/bin/python -m tools.research.editor_picks --run-dir runs/editor-p
    API 페이지를 재사용하되 원문·시세 명세가 달라지면 새 실험으로 분리한다.
    `plan --pilot` → Linux gVisor의 `execute --plan <pilot-plan.json>` → `report --plan ...` 순서다.
 5. 정적 검토 200개를 확보한 뒤 `seal`·`generate`·`plan`으로 전체 계획을 만든다.
+   대상 인디케이터 목록을 전부 수집·판정해도 200개 미달이면 scope 감사 근거를 남긴 후
+   `seal --allow-partial`로 실확보 수와 목표 200개를 함께 동결한다. 미확보 슬롯도 전체 분모에 남긴다.
    Pine 실제 실행에서 탈락하면 cohort와 결과를 보존한 새 epoch에서 후속 원문을 추가한다.
    `execute --shard N --shards M`은 고정 셀을 분배하며 실제 runner 동시성을 보장하지 않는다.
 
@@ -82,7 +89,8 @@ Terra Python·Gemini Python 최대 3개를 저장하며 기본 화면은 BTC·1h
 ## 일회용 ARM 실행과 암호문 수거
 
 `.github/workflows/editor-picks-research.yml`은 소유자 PR의 **정확한 head SHA**와 입력 암호문
-URL/SHA 변수가 일치할 때만 8개 ARM shard를 실행한다. 로컬·운영 Docker daemon은 수정하지 않는다.
+URL/SHA 변수가 일치할 때만 8개 ARM shard를 실행한다. `EDITOR_PICKS_PLAN_FILE`은
+`pilot-plan.json`(기본) 또는 `full-plan.json`만 허용해 단계별 실행을 구분한다. 로컬·운영 Docker daemon은 수정하지 않는다.
 일회용 GitHub Linux ARM의 `/home/runner/work/`에서만 고정 runsc 보조 파일·이미지 archive의 SHA를
 먼저 확인해 설치하고 이미지 ID·아키텍처를 다시 검사한다. 런타임 증거에 계산 코드 대조 증거도 보존한다.
 
@@ -108,6 +116,8 @@ apps/api/.venv/bin/python -m tools.research.editor_picks.remote finalize \
 
 `collect`는 전체 인증·파일 목록·해시·기존 파일 충돌을 검사한 뒤 병합한다. 동일 파일 재수신은
 허용하되 기존 결과를 덮지 않는다. `finalize`는 모든 shard의 실제 종료 코드 0·고정 plan·배정 셀
-소비 수와 전체 receipt 분모를 함께 요구한다. 누락/실패 종료는 `remote/finalization.json`에 남기고
-종료 코드 1을 반환한다. 셀 자체의 미지원·전략 실패도 보고서의 실패 분모로 보존하므로 실행 완주와
+소비 수와 전체 receipt 분모를 함께 요구한다. 누락/실패 종료는 `remote/<실행 identity>/finalization.json`에 남기고
+종료 코드 1을 반환한다. 원격 증거와 finalization은 plan SHA·head·run ID·attempt의 identity를
+경로에 포함하므로 같은 연구 디렉터리의 파일럿·전체 실행을 덮지 않는다.
+셀 자체의 미지원·전략 실패도 보고서의 실패 분모로 보존하므로 실행 완주와
 성과 통과는 별개다. full-plan의 native 검증·등록 export는 별도 단계이며 파일럿 finalization으로 대체하지 않는다.

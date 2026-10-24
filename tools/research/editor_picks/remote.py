@@ -113,14 +113,12 @@ def install_runtime(root: Path) -> dict:
         name: checked_file(root / "runtime", name, digest)
         for name, digest in manifest["files"].items()
     }
-    archive = checked_file(
-        root / "runtime", "images.tar", manifest["images_tar_sha256"]
-    )
+    archive = checked_file(root / "runtime", "images.tar", manifest["images_tar_sha256"])
     for name, source in sources.items():
-        subprocess.run(
+        subprocess.run(  # noqa: S603 — 고정 설치 명령과 SHA·허용 목록을 검증한 파일만 전달
             [
-                "sudo",
-                "install",
+                "/usr/bin/sudo",
+                "/usr/bin/install",
                 "-D",
                 "-m",
                 "0755",
@@ -137,20 +135,20 @@ def install_runtime(root: Path) -> dict:
             "features": {"containerd-snapshotter": True},
         },
     )
-    subprocess.run(
-        ["sudo", "install", "-m", "0644", str(daemon), "/etc/docker/daemon.json"],
+    subprocess.run(  # noqa: S603 — 고정 daemon 설정 파일을 일회용 호스트에 설치
+        ["/usr/bin/sudo", "/usr/bin/install", "-m", "0644", str(daemon), "/etc/docker/daemon.json"],
         check=True,
     )
-    subprocess.run(["sudo", "systemctl", "restart", "docker"], check=True)
-    subprocess.run(
-        ["docker", "image", "load", "--input", str(archive)],
+    subprocess.run(["/usr/bin/sudo", "/usr/bin/systemctl", "restart", "docker"], check=True)
+    subprocess.run(  # noqa: S603 — SHA 검증한 이미지 archive만 고정 Docker 명령에 전달
+        ["/usr/bin/docker", "image", "load", "--input", str(archive)],
         check=True,
         capture_output=True,
     )
     images = {}
     for tag, expected in manifest["image_ids"].items():
-        image = subprocess.run(
-            ["docker", "image", "inspect", tag],
+        image = subprocess.run(  # noqa: S603 — 인증된 runtime manifest의 이미지 이름을 조회
+            ["/usr/bin/docker", "image", "inspect", tag],
             capture_output=True,
             check=True,
             text=True,
@@ -172,11 +170,7 @@ def install_runtime(root: Path) -> dict:
 def worker(root: Path, plan: Path, shard: int, shards: int) -> int:
     if not 0 <= shard < shards:
         raise ValueError("잘못된 shard 배정")
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key in {"PATH", "HOME", "LANG"}
-    }
+    env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "LANG"}}
     env["TRADING_ENCRYPTION_KEYS"] = base64.urlsafe_b64encode(os.urandom(32)).decode()
     env["PINE_AST_CACHE_DIR"] = ""
     command = [
@@ -194,7 +188,7 @@ def worker(root: Path, plan: Path, shard: int, shards: int) -> int:
         str(shards),
     ]
     with (root / f"worker-{shard}.log").open("w") as output:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 — 현재 Python의 고정 연구 모듈·검증된 shard만 실행
             command, env=env, cwd=ROOT, stdout=output, stderr=subprocess.STDOUT
         )
     write(
@@ -210,7 +204,14 @@ def worker(root: Path, plan: Path, shard: int, shards: int) -> int:
     return result.returncode
 
 
+def remote_namespace(provenance: dict) -> Path:
+    return Path("remote") / identity(
+        {key: provenance[key] for key in ("plan_sha256", "head", "run_id", "attempt")}
+    )
+
+
 def pack_result(root: Path, archive: Path, shard: int, provenance: dict) -> None:
+    prefix = remote_namespace(provenance) / str(shard)
     paths = {}
     for path in sorted((root / "results").rglob("*")):
         if path.is_file() and not path.is_symlink() and path.name != ".lock":
@@ -225,7 +226,7 @@ def pack_result(root: Path, archive: Path, shard: int, provenance: dict) -> None
     ]:
         path = root / name
         if path.is_file() and not path.is_symlink():
-            paths[f"remote/{shard}/{name}"] = path
+            paths[str(prefix / name)] = path
     envelope = {
         **provenance,
         "files": {name: sha(path.read_bytes()) for name, path in paths.items()},
@@ -235,7 +236,7 @@ def pack_result(root: Path, archive: Path, shard: int, provenance: dict) -> None
     with tarfile.open(archive, "w:gz", compresslevel=1) as output:
         for name, path in paths.items():
             output.add(path, arcname=name, recursive=False)
-        output.add(envelope_path, arcname=f"remote/{shard}/envelope.json")
+        output.add(envelope_path, arcname=str(prefix / "envelope.json"))
 
 
 def collect_result(archive: Path, root: Path, expected: dict) -> None:
@@ -243,16 +244,15 @@ def collect_result(archive: Path, root: Path, expected: dict) -> None:
     with tempfile.TemporaryDirectory() as directory:
         incoming = Path(directory)
         safe_extract(archive, incoming)
-        envelope_name = f"remote/{expected['shard']}/envelope.json"
+        prefix = remote_namespace(expected) / str(expected["shard"])
+        envelope_name = str(prefix / "envelope.json")
+        if not (incoming / envelope_name).is_file():
+            raise ValueError("결과 provenance namespace 불일치")
         envelope = read(incoming / envelope_name)
         if {key: envelope.get(key) for key in expected} != expected:
             raise ValueError("결과 provenance 불일치")
         files = envelope["files"]
-        actual = {
-            str(path.relative_to(incoming))
-            for path in incoming.rglob("*")
-            if path.is_file()
-        }
+        actual = {str(path.relative_to(incoming)) for path in incoming.rglob("*") if path.is_file()}
         if actual != set(files) | {envelope_name}:
             raise ValueError("결과 파일 목록 불일치")
         paths = {}
@@ -261,16 +261,10 @@ def collect_result(archive: Path, root: Path, expected: dict) -> None:
             envelope_name: sha((incoming / envelope_name).read_bytes()),
         }.items():
             path = checked_file(incoming, name, digest)
-            if not (
-                name.startswith("results/")
-                or name.startswith(f"remote/{expected['shard']}/")
-            ):
+            if not (name.startswith("results/") or name.startswith(f"{prefix}/")):
                 raise ValueError("결과 경로 밖의 파일")
             target = root / name
-            if (
-                not target.resolve().is_relative_to(root.resolve())
-                or target.is_symlink()
-            ):
+            if not target.resolve().is_relative_to(root.resolve()) or target.is_symlink():
                 raise ValueError("결과 목적지 경로 불일치")
             if target.exists() and sha(target.read_bytes()) != digest:
                 raise ValueError("기존 연구 결과 충돌")
@@ -289,7 +283,7 @@ def finalize(root: Path, plan: Path, expected: dict) -> dict:
     frozen = read(plan)
     failures = []
     for shard in range(expected["shards"]):
-        folder = root / "remote" / str(shard)
+        folder = root / remote_namespace(expected) / str(shard)
         try:
             envelope = read(folder / "envelope.json")
             provenance = {**expected, "shard": shard}
@@ -309,8 +303,7 @@ def finalize(root: Path, plan: Path, expected: dict) -> dict:
                 or allocation["plan_sha256"] != expected["plan_sha256"]
                 or allocation["shard"] != shard
                 or allocation["shards"] != expected["shards"]
-                or allocation["jobs_consumed"]
-                != len(frozen["jobs"][shard :: expected["shards"]])
+                or allocation["jobs_consumed"] != len(frozen["jobs"][shard :: expected["shards"]])
             ):
                 raise ValueError("셀 배정 소비 증거 불일치")
         except (OSError, ValueError, KeyError) as error:
@@ -321,7 +314,7 @@ def finalize(root: Path, plan: Path, expected: dict) -> dict:
         "failures": failures,
         "complete": not failures and report["complete"],
     }
-    write(root / "remote/finalization.json", result)
+    write(root / remote_namespace(expected) / "finalization.json", result)
     return result
 
 
@@ -381,9 +374,7 @@ def main() -> int:
         key = (
             args.key_file.read_bytes()
             if args.key_file
-            else base64.b64decode(
-                os.environ[args.key_env], altchars=b"-_", validate=True
-            )
+            else base64.b64decode(os.environ[args.key_env], altchars=b"-_", validate=True)
         )
         if args.action == "pack":
             pack(root, args.archive)
@@ -402,9 +393,7 @@ def main() -> int:
             transform("decrypt", args.cipher, args.archive, key, CONTEXT)
             safe_extract(args.archive, root)
         elif args.action == "finish":
-            pack_result(
-                root, args.archive, args.shard, {**provenance, "shard": args.shard}
-            )
+            pack_result(root, args.archive, args.shard, {**provenance, "shard": args.shard})
             transform(
                 "encrypt",
                 args.archive,

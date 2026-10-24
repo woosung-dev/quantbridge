@@ -36,6 +36,7 @@ jobs:
     env:
       INPUT_URL: ${{ vars.EDITOR_PICKS_INPUT_URL }}
       INPUT_SHA: ${{ vars.EDITOR_PICKS_INPUT_SHA256 }}
+      PLAN_FILE: ${{ vars.EDITOR_PICKS_PLAN_FILE || 'pilot-plan.json' }}
       RESEARCH_RELEASE: editor-picks-research-20261024
       SHARD: ${{ matrix.shard }}
     steps:
@@ -50,7 +51,7 @@ jobs:
       - run: uv sync --project apps/api --frozen --no-dev
       - name: Download exact owner research ciphertext
         run: |
-          python3 -c 'import os,re; u=os.environ["INPUT_URL"]; s=os.environ["INPUT_SHA"]; assert u.startswith("https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/") and re.fullmatch("[a-f0-9]{64}",s)'
+          python3 -c 'import os,re; u=os.environ["INPUT_URL"]; s=os.environ["INPUT_SHA"]; assert u.startswith("https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/") and re.fullmatch("[a-f0-9]{64}",s) and os.environ["PLAN_FILE"] in ("pilot-plan.json","full-plan.json")'
           curl --fail --location --retry 2 "$INPUT_URL" --output "$RUNNER_TEMP/input.enc"
       - name: Authenticate and unpack input
         env:
@@ -67,7 +68,7 @@ jobs:
       - name: Execute assigned pilot cells without credentials
         run: >-
           apps/api/.venv/bin/python -m tools.research.editor_picks.remote worker
-          --run-dir runs/editor-picks-20261024 --shard "$SHARD" --shards 8
+          --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" --shards 8
       - name: Preserve authenticated result and actual exit evidence
         if: always()
         env:
@@ -75,7 +76,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           apps/api/.venv/bin/python -m tools.research.editor_picks.remote finish \
-            --run-dir runs/editor-picks-20261024 --shard "$SHARD" \
+            --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" \
             --head "${{ github.event.pull_request.head.sha }}" \
             --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --input-sha "$INPUT_SHA" \
             --archive "$RUNNER_TEMP/result.tar.gz" \

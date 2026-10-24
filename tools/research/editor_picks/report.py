@@ -103,6 +103,10 @@ def build(root: Path, plan_path: Path) -> dict:
                 )
                 row.update(signal_quality(expected, observed))
         rows.append(row)
+    cohort = read(root / frozen["cohort_file"])
+    available = len(cohort["items"])
+    scope = read(root / "scope-audit.json") if (root / "scope-audit.json").exists() else {}
+    generation_policy = read(root / "generation-policy.json") if (root / "generation-policy.json").exists() else {}
     summary = {
         "generated_at": now(),
         "phase": frozen["phase"],
@@ -116,6 +120,10 @@ def build(root: Path, plan_path: Path) -> dict:
         "complete": len(completed) == frozen["expected_cells"]
         and all(row["status"] != "not_run" for row in rows),
         "target_originals": 200,
+        "available_originals": available,
+        "source_target_met": available == 200,
+        "source_acquisition": {key: scope.get(key) for key in ("inventory_count", "captured_indicator_count", "missing_ids", "indicator_screening_counts")},
+        "generation_policy": generation_policy,
         "target_full_cells": 21600,
         "holdout_status": "retrospective_not_untouched",
         "promotable": False,
@@ -152,6 +160,7 @@ def build(root: Path, plan_path: Path) -> dict:
 table{{border-collapse:collapse;background:white}}td,th{{padding:9px;border:1px solid #ccd4d4;white-space:nowrap}}
 th{{position:sticky;top:0;background:#dfe9e9}}.scroll{{overflow:auto;max-height:70vh}}input{{padding:10px;width:280px}}</style>
 <h1>에디터 픽 · BTC 원문 재현 비교</h1><p>{escape(summary["phase"])} · 관측 {len(completed)} / 계획 {len(rows)}셀</p>
+<p>정적 확보 원문: {available} / 목표 200개 · 실행 종결과 원문 확보 목표 달성은 별개입니다.</p>
 <p>전체 목표: Pine 원문 200개 · 3경로 · 1h/4h/1d · 6/12/24개월 · 21,600셀</p>
 <ul>{limits}</ul><label>전략·모델·실패 검색 <input id="filter" type="search"></label>
 <p><a href="cells.csv">전체 CSV</a> · <a href="report.json">근거 JSON</a></p>

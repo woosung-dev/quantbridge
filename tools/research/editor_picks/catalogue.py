@@ -5,9 +5,10 @@ from __future__ import annotations
 import ast
 import inspect
 import re
-from concurrent.futures import ThreadPoolExecutor
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -86,11 +87,13 @@ def _ingest(root: Path) -> dict:
                     ],
                 )
             previous = items.get(row["id"])
-            if previous and previous.get("source_sha256") and item.get("source_sha256"):
-                if previous["source_sha256"] != item["source_sha256"]:
-                    raise ValueError(
-                        "같은 게시물의 원문 버전 변경: 새 실험이 필요합니다"
-                    )
+            if (
+                previous
+                and previous.get("source_sha256")
+                and item.get("source_sha256")
+                and previous["source_sha256"] != item["source_sha256"]
+            ):
+                raise ValueError("같은 게시물의 원문 버전 변경: 새 실험이 필요합니다")
             if not previous or not previous.get("source_sha256"):
                 items[row["id"]] = item
     seen = {}
@@ -112,6 +115,33 @@ def _ingest(root: Path) -> dict:
     }
     write(root / "catalogue.json", catalogue)
     return catalogue
+
+
+def raw_signal_strategy(adapted):
+    """연구용 생성 진입문의 포지션 guard만 제거하고 원문 계산은 보존한다."""
+    code = adapted.strategy_source
+    for binding in adapted.bindings:
+        direction = binding["direction"]
+        if direction not in {"long", "short"}:
+            raise ValueError("원시 신호 연구는 진입 방향만 지원합니다")
+        temporary = re.escape(binding["condition_variable"])
+        operator = "<=" if direction == "long" else ">="
+        # unique()가 원문 이름과 분리한 조건 변수와 생성 flag의 최상위 if만 수정한다.
+        pattern = rf"^(if {temporary}) and strategy\.position_size {operator} 0 (and not qb_adapt_{direction}_submitted_*)(\r?)$"
+        code, count = re.subn(pattern, r"\1 \2\3", code, flags=re.MULTILINE)
+        if count != 1:
+            raise ValueError("생성 진입문의 고유 position guard를 확인할 수 없습니다")
+    if code.count("\n") != adapted.strategy_source.count("\n"):
+        raise ValueError("연구 신호 어댑터가 원문 줄 지도를 변경했습니다")
+    return replace(
+        adapted,
+        strategy_source=code,
+        converted_sha256=sha(code.encode()),
+        warnings=[
+            *adapted.warnings,
+            "raw_signal_v1: 같은 방향 신호도 제출하며 중복 진입은 공통 원장이 처리합니다",
+        ],
+    )
 
 
 def screen_one(root: Path, identifier: str) -> dict:
@@ -155,6 +185,8 @@ def screen_one(root: Path, identifier: str) -> dict:
     ):
         raise ValueError("원문 해시·양방향 신호·준비봉·검토 근거가 필요합니다")
     adapted = adapt_strategy(source, review["signal_bindings"], fixed_quantity=None)
+    base_adapted_sha256 = adapted.converted_sha256
+    adapted = raw_signal_strategy(adapted)
     code = adapted.strategy_source
     if not analyze_coverage(code).is_runnable:
         return {**base, "status": "adaptation_unsupported"}
@@ -168,6 +200,7 @@ def screen_one(root: Path, identifier: str) -> dict:
         "adapted_file": str(path.relative_to(root)),
         "adapted_sha256": sha(code.encode()),
         "adaptation": adapted.to_dict(),
+        "research_adapter": {"policy": "raw_signal_v1", "base_adapted_sha256": base_adapted_sha256},
         "execution_verified": False,
     }
 
@@ -182,6 +215,7 @@ def _screen_implementation_hash() -> str:
             },
             # 스케줄러 수정은 기존 판정을 무효화하지 않는다.
             "binding": ast.dump(ast.parse(inspect.getsource(screen_one))),
+            "research_adapter": ast.dump(ast.parse(inspect.getsource(raw_signal_strategy))),
             "file_validation": ast.dump(ast.parse(inspect.getsource(checked_file))),
         }
     )
@@ -223,7 +257,7 @@ def screen(root: Path, timeout: int = 15, workers: int = 4) -> list[dict]:
                     return previous
             review = root / "reviews" / f"{item['id']}.json"
             try:
-                completed = subprocess.run(
+                completed = subprocess.run(  # noqa: S603 — 현재 Python의 고정 정적 검사 모듈만 실행
                     [
                         sys.executable,
                         "-m",
@@ -276,15 +310,19 @@ def screen(root: Path, timeout: int = 15, workers: int = 4) -> list[dict]:
             return result
 
 
-def seal(root: Path, count: int = 200, pilot: bool = False) -> dict:
+def seal(root: Path, count: int = 200, pilot: bool = False, allow_partial: bool = False) -> dict:
+    if count < 1 or (pilot and allow_partial):
+        raise ValueError("양수 목표가 필요하며 파일럿 부분 동결은 허용하지 않습니다")
     selected = [
         row
         for row in read(root / "screening.json")
         if row["status"] == "static_eligible"
     ][:count]
-    if len(selected) != count or len(
-        {item["source_sha256"] for item in selected}
-    ) != len(selected):
+    if (
+        not selected
+        or (len(selected) != count and not allow_partial)
+        or len({item["source_sha256"] for item in selected}) != len(selected)
+    ):
         raise ValueError("중복 없는 검토 원문이 필요합니다")
     cohort = {
         "schema_version": 1,
