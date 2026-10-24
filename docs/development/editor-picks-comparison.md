@@ -44,7 +44,10 @@ apps/api/.venv/bin/python -m tools.research.editor_picks --run-dir runs/editor-p
 2. `ingest`는 관측된 에디터 픽 목록과 원문 응답을 확인한다. `screen`은 별도 프로세스 제한 시간으로
    정적 coverage와 방향 검토를 검사한다. 실행 검증과 다르다. `reviews/<id>.json`에는 원문 SHA,
    `reviewed_by`, `basis`, `family`, `warmup_bars`, `inputs`, 줄·열·방향 `signal_bindings`를 명시한다.
-3. 검토 원문 6개로 `seal --pilot` 후 `generate --pilot`을 실행한다. 같은 원문의 동일 경로는 한 번만 호출하며 독립 원문은 제한된 동시성으로 처리한다. Gemini JSON Schema CLI 옵션은 사용하지 않고 stream-json의 단일 SUCCESS turn과
+3. 검토 원문 6개로 `seal --pilot` 후 아래 원문별 병렬 생성 CLI를 사용한다. 기존 `generate`는
+   모델별 worker 안에서 원문을 순차 처리한다. 병렬 CLI는 완료 생성물을 먼저 재사용하고,
+   독립 원문을 최대 3개씩 같은 배치에서 처리한다. 순서대로 집계한 timeout·중단·차단이
+   두 번 연속이면 진행 중 배치를 마친 후 다음 배치를 시작하지 않는다. Gemini JSON Schema CLI 옵션은 사용하지 않고 stream-json의 단일 SUCCESS turn과
    JSON payload를 함께 확인한다. 도구 사용·다중 turn·비정상 종료·부분 출력은 실패다.
 4. `freeze --end YYYY-MM-DD`로 24개월 부모봉과 1분봉을 수집하고 `validate-data`로 확인한다.
    API 페이지를 재사용하되 원문·시세 명세가 달라지면 새 실험으로 분리한다.
@@ -57,6 +60,14 @@ apps/api/.venv/bin/python -m tools.research.editor_picks --run-dir runs/editor-p
 
 사용자가 승인한 Gemini 장기 재시도도 실패하면 이후 생성은 Terra만 진행한다. Gemini 실패와
 원래 3경로 계획의 분모는 유지하며 모델을 임의 대체하지 않는다.
+
+```bash
+apps/api/.venv/bin/python tools/scripts/editor-picks-generate-parallel.py \
+  --run-dir runs/editor-picks-20261024 --arm terra --pilot --workers 3 --limit 6 --timeout 900
+```
+
+전체 코호트는 `--pilot`을 빼고 실제 확보 수에 맞는 `--limit`을 지정한다. 실행 설정·코호트와
+원문 SHA·dispatcher SHA·순서별 재사용/실패는 `generation-dispatch/<요청 identity>/`에 남긴다.
 
 생성 최초 시도와 공개 구문/프로토콜 오류에 대한 최대 2회 수정은 별도 디렉터리다. 중단된 생성은
 자동 재호출하지 않는다. 완료 캐시의 요청·파일 해시를 확인하며 실패 결과도 보존한다.
@@ -92,6 +103,8 @@ margin_mode는 isolated다. 공통 R 정책·비용·펀딩 한계·요청 모�
 나눈 값이며, 완료 episode 승률은 미종료 포지션을 제외한다. 분봉 노출은 부분 청산 분봉을
 포함하고 시가 전량 청산 분봉은 제외한 보유 구간의 합집합이다. 저장 직전 native 세 주기 캡처 SHA와
 동일 실행 이미지의 경제 36셀을 다시 검사한다. PF/Sharpe 등의 정의상 NULL을 0으로 보정하지 않는다.
+엔진의 `sharpe_convention=unavailable*`와 원시 Sharpe 0은 후처리 보고서에서 NULL과 기준 열로
+표시하며, 실제 측정된 Sharpe 0은 유지한다. 원시 receipt의 값은 바꾸지 않는다.
 중첩 과거 구간·에디터 선정 편향·유사 계열을 독립 표본이나 미사용 holdout으로 부르지 않는다.
 관측 펀딩 grid는 과거 일정의 독립 완전성 증거가 아니며 `funding_data_incomplete=None`을 통과로
 바꾸지 않는다. 기존 경제 기준 통과 0을 모든 전략의 적자로 해석하지 않는다.
@@ -128,7 +141,7 @@ apps/api/.venv/bin/python -m tools.research.editor_picks.remote collect \
   --cipher "$RESULT_CIPHER" --archive "$UNIQUE_RESULT_ARCHIVE" --key-file "$KEY_FILE" \
   --head "$HEAD" --run-id "$RUN_ID" --attempt "$ATTEMPT" --input-sha "$INPUT_SHA" \
   --shard "$SHARD" --shards 20
-apps/api/.venv/bin/python -m tools.research.editor_picks.remote finalize \
+apps/api/.venv/bin/python tools/scripts/editor-picks-postprocess.py remote finalize \
   --run-dir runs/editor-picks-20261024 --plan pilot-plan.json \
   --head "$HEAD" --run-id "$RUN_ID" --attempt "$ATTEMPT" --input-sha "$INPUT_SHA" --shards 20
 ```
@@ -142,3 +155,17 @@ apps/api/.venv/bin/python -m tools.research.editor_picks.remote finalize \
 성과 통과는 별개다. full finalization은 모든 shard 증거 확인 후 원시 native proof와 수거한 전체
 경제 결과를 reconcile하고 보고서를 만든다. 파생 `verification/`은 불변 `native-checks/`와
 분리한다. 등록 export는 별도 단계이며 파일럿 finalization으로 전체 검증을 대체하지 않는다.
+
+대용량 `finalize`·`report`·`export`는 `tools/scripts/editor-picks-postprocess.py`를 진입점으로
+사용한다. 원시 receipt에는 분봉 drawdown·buy-and-hold 곡선이 있으므로 전체를 메모리에 누적하면
+24개월 셀 수에 따라 로컬 RAM을 초과한다. 후처리 reader는 이 두 곡선만 반환 메모리에서 제외하고
+원래 파일·파일 SHA 검사·경제 판정·신호·원장 비교를 유지한다. 수치 재계산과 전략 실행은 없다.
+`sharpe_convention` 기준 열과 미측정 NULL 표시는 보고 단계의 표현 계약이다. 금융 계산 Python과
+동결 계획을 보존하며, 별도 후처리 구현 SHA와 원시 근거를 실행 산출물에 기록한다.
+
+```bash
+apps/api/.venv/bin/python tools/scripts/editor-picks-postprocess.py \
+  --run-dir runs/editor-picks-20261024 report --plan runs/editor-picks-20261024/full-plan.json
+apps/api/.venv/bin/python tools/scripts/editor-picks-postprocess.py \
+  --run-dir runs/editor-picks-20261024 export --plan runs/editor-picks-20261024/full-plan.json
+```
