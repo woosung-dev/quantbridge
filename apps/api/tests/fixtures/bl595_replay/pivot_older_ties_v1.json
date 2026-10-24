@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "replay_version": "pivot_older_ties_v1",
+  "reason": "실제 TradingView builtin 관측에 맞춰 older 동률을 허용한 현재 엔진의 replay 기대값. 역사적 사망 시점의 원장·포지션 기록은 원본 fixture에 보존한다.",
+  "source_sha256": "53f6e37406698e80b5f171258e62238e3d7e3cfa1b1ebc34c7bff20f78afa791",
+  "native_fixture_source_sha256": "093366bb64df1f3b7788d65607b4e600113b2ac0d7e04b0c9221daab2f65f89e",
+  "cases": {
+    "04097fdc": {
+      "current_position_size": "0.030391744952955824",
+      "legacy_replay_position_size": "0.030392388292696512",
+      "historical_position_size": "0.030392388292696512",
+      "historical_fixture_sha256": "e4a87c9741b6ef8f75ef52d3644bb8637950c1d89c9c577159f32cb37a1ba300"
+    },
+    "39731d57": {
+      "current_position_size": "-0.029722343673419874",
+      "legacy_replay_position_size": "-0.029722343673419874",
+      "historical_position_size": "-0.029722343673419874",
+      "historical_fixture_sha256": "60a74e9cba52a86abbf3dd082322a3a9112c2bcf27b9598747987e8967b34633"
+    },
+    "a16aa640": {
+      "current_position_size": "0.029677443768222657",
+      "legacy_replay_position_size": "0.02967764913781569",
+      "historical_position_size": "0.02967764913781569",
+      "historical_fixture_sha256": "19340b28aedaf43342798ae562721993681ba578b511995ed9a4b5efca9d70df"
+    },
+    "a201a47b": {
+      "current_position_size": "-0.02986312395457111",
+      "legacy_replay_position_size": "-0.02986312395457111",
+      "historical_position_size": "-0.02986312395457111",
+      "historical_fixture_sha256": "a83d1f535f2eba0751ab0764b75a212bfcdee567d6a66022b1719cd5db9bee02"
+    },
+    "cc19abd2": {
+      "current_position_size": "0.029610536134840836",
+      "legacy_replay_position_size": "0.02960965286676973",
+      "historical_position_size": "0.02960965286676973",
+      "historical_fixture_sha256": "7db2164e5cedeb656345a2a5147f8c7afa32e6fefe497b8fd85b1384a662e9ad"
+    }
+  }
+}

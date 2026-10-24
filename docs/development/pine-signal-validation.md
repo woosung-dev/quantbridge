@@ -119,6 +119,8 @@ TradingView Strategy Tester의 손익을 수집하지 않았다면 그 손익까
 `apps/api/tests/fixtures/pine_native/pivot_ties_v4.json`에 source SHA와 관측값으로 보존한다.
 부분 시장 구간의 신호 일치만으로 이 경계값 계약까지 확인됐다고 보지 않는다.
 계산 소스를 고친 재측정에는 해당 소스와 실제 격리 이미지의 파일 SHA가 일치하는 새 런타임을 쓴다.
+이 교정으로 기존 회귀 기대값이 달라지면 같은 입력에서 이전 동률 규칙만 복원해 원인을 대조한다.
+역사적 사고 원본은 보존하고 현재 replay 기대값과 관련 corpus golden만 버전 근거로 분리한다.
 
 ## 비용 포함 성과는 별도 판정
 
