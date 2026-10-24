@@ -6,8 +6,6 @@
 // 데이터 흐름은 도메인 훅 재사용. 실시간 스트림은 WebSocket+Zustand로 별도 배선한다.
 // 프로토타입의 "총 세션" 카드는 사용자 확정 WS Tier 2 요구로 미실현 추정 KPI로 교체한다.
 
-import { useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -15,21 +13,10 @@ import { LiveSessionDetail } from "@/features/live-sessions/components/live-sess
 import { LiveSessionForm } from "@/features/live-sessions/components/live-session-form";
 import { LiveSessionList } from "@/features/live-sessions/components/live-session-list";
 import { LiveSessionTable } from "@/features/live-sessions/components/live-session-table";
-import { liveSessionKeys } from "@/features/live-sessions/query-keys";
-import { useLiveSessions } from "@/features/live-sessions/hooks";
 import type { LiveSession } from "@/features/live-sessions/schemas";
-import { strategyKeys, useStrategies } from "@/features/strategy/hooks";
-import { useCodeStrategies } from "@/features/strategy/use-code-strategies";
-import { codeStrategyKeys } from "@/features/strategy/code-schemas";
-import type { StrategyListItem } from "@/features/strategy/schemas";
 import { ExchangeAccountsPanel } from "./exchange-accounts-panel";
 import { KillSwitchPanel } from "./kill-switch-panel";
 import { OrdersPanel } from "./orders-panel";
-import { tradingKeys } from "../query-keys";
-import { useExchangeAccounts, useKillSwitchEvents } from "../hooks";
-import { alertRuleKeys } from "@/features/alert-rules/query-keys";
-import { useAuthCtx } from "@/hooks/use-auth-ctx";
-import type { ExchangeAccount, KillSwitchEvent } from "@/features/trading/schemas";
 import { InfoIcon } from "@/components/info-icon";
 import { StateBox } from "@/components/state-box";
 import { StatValue } from "@/components/stat-value";
@@ -40,177 +27,21 @@ import { AccountPositionsTable } from "./account-positions-table";
 import { OpenPositionsTable } from "./open-positions-table";
 import { SessionDiagnostics } from "./session-diagnostics";
 import { UnrealizedPnlKpi } from "./unrealized-pnl-kpi";
-import { isBybitDemoAccount } from "../account-policy";
-
-const STRATEGY_FETCH_LIMIT = 100;
+import { useTradingCockpitData } from "../use-trading-cockpit-data";
 
 export function TradingCockpit() {
-  const queryClient = useQueryClient();
-  const { uid } = useAuthCtx();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-
-  // BL-423 — `true`(비활성 포함). 아래 LiveSessionList 도 `useLiveSessions(true)` 를 쓰므로
-  // 여기서 `false` 를 쓰면 queryKey 가 갈려(`list` vs `listWithInactive`) **같은 화면이 목록을
-  // 두 번 fetch** 한다. 키를 일치시켜 RQ 캐시가 한 요청으로 dedupe 하게 한다.
-  // 부수 효과가 아니라 목적: `sessionItems` 에 종료 세션이 들어오면서 LiveSessionTable 의
-  // PAUSED 칩과 active-first 정렬이 처음으로 도달 가능해진다. 활성만 필요한 소비자는
-  // 아래 `activeSessions` 를 계속 쓴다.
-  const sessionsQ = useLiveSessions(true);
-  const accountsQ = useExchangeAccounts();
-  const ksQ = useKillSwitchEvents();
-  const strategyListQ = useStrategies({
-    limit: STRATEGY_FETCH_LIMIT,
-    offset: 0,
-    is_archived: false,
-  });
-
-  const codeStrategiesQ = useCodeStrategies();
-
   const selectedId = searchParams.get("session");
+  const { overview, positions, sessionTable, registration, selection, refresh } =
+    useTradingCockpitData(selectedId);
 
-  // H-1 준수 — RQ data 객체를 dep 로 직접 쓰지 않고 .items/array 참조를 memoize.
-  const sessionItems = useMemo<readonly LiveSession[]>(
-    () => sessionsQ.data?.items ?? [],
-    [sessionsQ.data?.items],
-  );
-  // BL-533 — 종료 세션용 미러 state 를 두지 않는다. `useLiveSessions(true)` 가 비활성까지
-  // 실어 오므로 `sessionItems` 하나로 찾힌다. 미러는 코크핏이 `useLiveSessions()`(활성만)를
-  // 쓰던 시절 목록에 없는 세션을 붙들기 위한 우회였고, 키를 통일한 지금은 같은 사실을
-  // 두 곳에 두어 어긋날 수 있게 만들 뿐이다.
-  const selected = useMemo(
-    () => sessionItems.find((session) => session.id === selectedId) ?? null,
-    [sessionItems, selectedId],
-  );
-  const accountItems = useMemo<readonly ExchangeAccount[]>(
-    () => accountsQ.data ?? [],
-    [accountsQ.data],
-  );
-  const operatingAccountItems = useMemo(
-    () => accountItems.filter(isBybitDemoAccount),
-    [accountItems],
-  );
-  const ksItems = useMemo<readonly KillSwitchEvent[]>(
-    () => ksQ.data?.items ?? [],
-    [ksQ.data?.items],
-  );
-  const strategyItems = useMemo<readonly StrategyListItem[]>(
-    () => strategyListQ.data?.items ?? [],
-    [strategyListQ.data?.items],
-  );
-
-  const activeSessions = useMemo(() => sessionItems.filter((s) => s.is_active), [sessionItems]);
-  // ★vercel-react-best-practices 대조 (2026-08-10) — `useCallback` 을 씌우지 않는다.
-  //   `rerender-memo` 의 이득은 **자식이 memo 일 때**만 생기는데 `LiveSessionList` 도
-  //   `LiveSessionForm` 도 memo 가 아닌 평범한 함수 컴포넌트다. 씌우면 이득 없는 배선만 는다.
-  //   종전 판도 렌더마다 새 함수였으므로 이 축에서 나빠진 것도 없다.
   const handleSessionSelect = (session: Pick<LiveSession, "id">) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("session", session.id);
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  };
-  const operatingSessionIds = useMemo(() => {
-    const operatingAccountIds = new Set(operatingAccountItems.map((account) => account.id));
-    return new Set(
-      activeSessions
-        .filter((session) => operatingAccountIds.has(session.exchange_account_id))
-        .map((session) => session.id),
-    );
-  }, [operatingAccountItems, activeSessions]);
-  const operatingActiveSessions = useMemo(
-    () => activeSessions.filter((session) => operatingSessionIds.has(session.id)),
-    [activeSessions, operatingSessionIds],
-  );
-  // BL-663 — 미실현 손익 추정은 `<UnrealizedPnlKpi>` 안으로 내렸다. 그 훅이 WS ticker 를
-  // 구독하므로 여기서 부르면 활성 세션 심볼이 틱할 때마다 §01~§08 전체가 재조정된다.
-  const accountsCount = accountItems.length;
-  const unresolvedKs = ksItems.filter((e) => e.resolved_at == null).length;
-
-  const strategyNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const s of strategyItems) map.set(s.id, s.name);
-    for (const s of codeStrategiesQ.data?.items ?? []) map.set(s.id, s.name);
-    return map;
-  }, [strategyItems, codeStrategiesQ.data?.items]);
-  const accountLabelById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const a of accountItems) map.set(a.id, a.label ?? `${a.exchange} ${a.mode}`);
-    return map;
-  }, [accountItems]);
-  const activeAccountTargets = useMemo(() => {
-    const ids = new Set(
-      operatingActiveSessions
-        .map((session) => session.exchange_account_id)
-        .filter((id): id is string => typeof id === "string" && id.length > 0),
-    );
-    return [...ids].map((id) => ({
-      id,
-      label: accountLabelById.get(id) ?? id.slice(0, 8),
-    }));
-  }, [accountLabelById, operatingActiveSessions]);
-  // 계정 스코프 포지션은 활성 세션과 무관하게 모든 **운영 가능한 Bybit Demo** 계정을 순회한다.
-  // legacy 계정은 보존·삭제 표면만 남기며 잔고/포지션 egress 대상이 아니다.
-  const allAccountTargets = useMemo(
-    () =>
-      operatingAccountItems.map((account) => ({
-        id: account.id,
-        label: accountLabelById.get(account.id) ?? account.id.slice(0, 8),
-        exchangeUid: account.exchange_uid,
-        readOnly: account.read_only,
-      })),
-    [operatingAccountItems, accountLabelById],
-  );
-  const strategyNameBySessionId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const session of activeSessions) {
-      const strategyId = session.strategy_id;
-      map.set(
-        session.id,
-        typeof strategyId === "string"
-          ? (strategyNameById.get(strategyId) ?? strategyId.slice(0, 8))
-          : session.id.slice(0, 8),
-      );
-    }
-    return map;
-  }, [activeSessions, strategyNameById]);
-
-  const formStrategies = useMemo(
-    () => strategyItems.map((s) => ({ id: s.id, name: s.name })),
-    [strategyItems],
-  );
-  const formAccounts = useMemo(
-    () =>
-      operatingAccountItems.map((a) => ({
-        id: a.id,
-        exchange: a.exchange,
-        mode: a.mode,
-        label: a.label,
-        read_only: a.read_only,
-      })),
-    [operatingAccountItems],
-  );
-
-  // BL-664 — 인자 없는 `invalidateQueries()` 는 **앱 캐시 전체**를 stale 로 만들어 마운트된 활성
-  // 쿼리를 모두 동시에 재요청시킨다(백테스트 목록·옵티마이저 실행 등 이 화면과 무관한 것 포함).
-  // 이 코크핏이 실제로 소비하는 도메인은 **넷**이다:
-  //   trading(계정·킬스위치·주문·잔고) · live-sessions(목록·상세·상태·포지션) ·
-  //   strategies(§07 폼/표의 전략명 매핑) · alert-rules(§08 진단의 세션 알림 규칙).
-  // ★alert-rules 는 codex 적대 리뷰가 잡았다 — 첫 판에서 빠뜨렸고, 종전의 무필터 호출은
-  //   그것까지 갱신하고 있었으므로 빠뜨린 채로 두면 **무효화 범위를 좁힌 것이 아니라 기능을 깬다.**
-  //   ⇒ 도메인을 하나 추가할 때는 §01~§08 자식이 부르는 훅을 전수로 다시 세라.
-  // ★키는 하드코딩하지 않고 도메인 팩토리 루트를 쓴다(apps/web/AGENTS.md §3).
-  const handleRefresh = () => {
-    for (const queryKey of [
-      tradingKeys.all(uid),
-      liveSessionKeys.all(uid),
-      strategyKeys.all(uid),
-      codeStrategyKeys.list(uid),
-      alertRuleKeys.all(uid),
-    ]) {
-      void queryClient.invalidateQueries({ queryKey });
-    }
   };
 
   return (
@@ -224,21 +55,21 @@ export function TradingCockpit() {
           <div>
             <h1 className="report-title">트레이딩 코크핏</h1>
             <div className="report-meta">
-              <span className={accountsQ.isError ? "chip warn" : "chip"}>
-                {accountsQ.isError
+              <span className={overview.accounts.isError ? "chip warn" : "chip"}>
+                {overview.accounts.isError
                   ? "거래소 확인 불가"
-                  : accountsCount > 0
-                    ? `거래소 ${accountsCount}개 연결`
+                  : overview.accounts.count > 0
+                    ? `거래소 ${overview.accounts.count}개 연결`
                     : "거래소 미등록"}
               </span>
               <span className="chip">
-                활성 세션 {sessionsQ.isError ? "확인 불가" : activeSessions.length}
+                활성 세션 {overview.sessions.isError ? "확인 불가" : overview.sessions.count}
               </span>
               <span className="chip accent">바 단위 이벤트 루프</span>
             </div>
           </div>
           <div className="report-actions">
-            <button className="btn" type="button" onClick={handleRefresh}>
+            <button className="btn" type="button" onClick={refresh}>
               <RefreshCwIcon aria-hidden="true" />
               새로고침
             </button>
@@ -263,8 +94,11 @@ export function TradingCockpit() {
           <article className="card kpi">
             <p className="kpi-label">활성 세션</p>
             <p className="kpi-value mono" data-testid="kpi-active-sessions">
-              <StatValue isError={sessionsQ.isError} isPending={sessionsQ.isPending}>
-                {activeSessions.length}
+              <StatValue
+                isError={overview.sessions.isError}
+                isPending={overview.sessions.isPending}
+              >
+                {overview.sessions.count}
               </StatValue>
             </p>
             <p className="kpi-foot">지금 거래를 돌리고 있는 라이브 세션 수입니다.</p>
@@ -273,14 +107,17 @@ export function TradingCockpit() {
           <article className="card kpi">
             <p className="kpi-label">연결된 거래소</p>
             <p className="kpi-value mono" data-testid="kpi-accounts">
-              <StatValue isError={accountsQ.isError} isPending={accountsQ.isPending}>
-                {accountsCount}
+              <StatValue
+                isError={overview.accounts.isError}
+                isPending={overview.accounts.isPending}
+              >
+                {overview.accounts.count}
               </StatValue>
             </p>
             <p className="kpi-foot">
-              {accountsQ.isError
+              {overview.accounts.isError
                 ? "계정 목록을 확인하지 못했습니다."
-                : accountsCount > 0
+                : overview.accounts.count > 0
                   ? "API 키가 등록된 계정입니다."
                   : "API 키가 아직 없습니다."}
             </p>
@@ -289,30 +126,32 @@ export function TradingCockpit() {
           <article className="card kpi">
             <p className="kpi-label">킬 스위치</p>
             <p
-              className={`kpi-value mono ${!ksQ.isError && unresolvedKs > 0 ? "neg" : ""}`}
+              className={`kpi-value mono ${!overview.killSwitch.isError && overview.killSwitch.unresolvedCount > 0 ? "neg" : ""}`}
               data-testid="kpi-kill-switch"
             >
-              {ksQ.isError ? (
+              {overview.killSwitch.isError ? (
                 <span className="kpi-na">확인 불가</span>
-              ) : ksQ.isPending ? (
+              ) : overview.killSwitch.isPending ? (
                 <span className="kpi-na">불러오는 중</span>
               ) : (
                 <>
-                  {unresolvedKs}
-                  <span className="kpi-value-tag">{unresolvedKs > 0 ? "활성" : "대기"}</span>
+                  {overview.killSwitch.unresolvedCount}
+                  <span className="kpi-value-tag">
+                    {overview.killSwitch.unresolvedCount > 0 ? "활성" : "대기"}
+                  </span>
                 </>
               )}
             </p>
             <p className="kpi-foot">
-              {ksQ.isError
+              {overview.killSwitch.isError
                 ? "킬 스위치 상태를 확인하지 못했습니다."
-                : unresolvedKs > 0
+                : overview.killSwitch.unresolvedCount > 0
                   ? "미해결 이벤트가 있어 자동 주문이 차단됩니다."
                   : "미해결 이벤트가 없습니다."}
             </p>
           </article>
 
-          <UnrealizedPnlKpi sessions={operatingActiveSessions} />
+          <UnrealizedPnlKpi sessions={positions.sessions} />
         </div>
       </section>
 
@@ -325,7 +164,7 @@ export function TradingCockpit() {
           <h2 className="section-title">활성 세션 계정의 잔고</h2>
           <p className="section-desc">활성 Bybit 데모 세션이 참조하는 거래소 계정만 표시합니다.</p>
         </header>
-        <AccountBalanceSection accounts={activeAccountTargets} />
+        <AccountBalanceSection accounts={positions.balanceAccounts} />
       </section>
 
       {/* ===== 03 열린 포지션 ===== */}
@@ -340,15 +179,11 @@ export function TradingCockpit() {
             같은 계정과 심볼을 쓰는 다른 전략도 합치지 않고 세션별로 대조합니다.
           </p>
         </header>
-        <AccountPositionsTable accounts={allAccountTargets} />
+        <AccountPositionsTable accounts={positions.accounts} />
         <OpenPositionsTable
-          // 세션별 대조도 거래소 private API를 부른다. legacy 행은 목록·삭제용으로만
-          // 남기므로, 청산 버튼만 막는 대신 fetch 대상 자체를 운영 계정으로 좁힌다.
-          sessions={operatingActiveSessions}
-          demoSessionIds={operatingSessionIds}
-          resolveStrategyName={(sessionId, fallback) =>
-            strategyNameBySessionId.get(sessionId) ?? fallback
-          }
+          sessions={positions.sessions}
+          demoSessionIds={positions.demoSessionIds}
+          resolveStrategyName={positions.resolveStrategyName}
         />
       </section>
 
@@ -410,23 +245,14 @@ export function TradingCockpit() {
           </p>
         </header>
 
-        <LiveSessionTable
-          sessions={sessionItems}
-          resolveStrategyName={(id) => strategyNameById.get(id) ?? id.slice(0, 8)}
-          resolveExchangeLabel={(id) => accountLabelById.get(id) ?? id.slice(0, 8)}
-        />
+        <LiveSessionTable {...sessionTable} />
 
         <div className="session-manage">
           <div className="session-manage-col">
             <div className="card card-pad">
               <h3 className="card-title">새 라이브 세션</h3>
               <p className="card-sub session-card-sub">Bybit 데모 계정에 전략을 붙여 시작합니다.</p>
-              <LiveSessionForm
-                strategies={formStrategies}
-                exchangeAccounts={formAccounts}
-                activeSessionsCount={operatingActiveSessions.length}
-                onSuccess={handleSessionSelect}
-              />
+              <LiveSessionForm {...registration} onSuccess={handleSessionSelect} />
             </div>
             <div className="card card-pad">
               {/* BL-423 — 이 카드는 활성 세션과 최근 종료된 세션을 함께 담는다. */}
@@ -440,25 +266,25 @@ export function TradingCockpit() {
             </div>
           </div>
           <div className="session-manage-col">
-            {selected ? (
+            {selection.status === "selected" ? (
               <div className="card card-pad">
-                <LiveSessionDetail session={selected} />
+                <LiveSessionDetail session={selection.session} />
               </div>
-            ) : selectedId && (sessionsQ.isPending || sessionsQ.isFetching) ? (
+            ) : selection.status === "loading" ? (
               <div className="card card-pad">
                 <StateBox
                   title="세션 목록을 불러오는 중입니다."
                   body="선택한 세션의 상세를 확인하고 있습니다."
                 />
               </div>
-            ) : selectedId && sessionsQ.isError ? (
+            ) : selection.status === "error" ? (
               <div className="card card-pad">
                 <StateBox
                   title="세션 목록을 불러오지 못했습니다."
                   body="목록을 다시 불러오면 선택한 세션의 상세를 확인할 수 있습니다."
                 />
               </div>
-            ) : selectedId ? (
+            ) : selection.status === "missing" ? (
               <div className="card card-pad">
                 <StateBox
                   title="이 세션은 목록에서 밀려났습니다."
@@ -489,7 +315,7 @@ export function TradingCockpit() {
             아직 연결되지 않았거나 실패했거나 비어 있는 항목도 감추지 않고 그대로 보여줍니다.
           </p>
         </header>
-        <SessionDiagnostics session={selected} />
+        <SessionDiagnostics session={selection.status === "selected" ? selection.session : null} />
       </section>
 
       <p className="disclaimer">
