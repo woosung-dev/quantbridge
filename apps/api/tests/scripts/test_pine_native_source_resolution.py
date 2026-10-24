@@ -92,7 +92,8 @@ def test_resolution_metadata_changes_are_rejected(field, value):
 
 
 @pytest.mark.parametrize(
-    "header", ('study("demo")', 'study("demo", resolution="60")', 'indicator("demo", timeframe="")')
+    "header",
+    ('study("demo")', 'study("demo", resolution="60")', 'indicator("demo", timeframe="60")'),
 )
 def test_automatic_resolution_requires_the_observed_source_declaration(header):
     source, payload, _, _ = resolution_payload(header)

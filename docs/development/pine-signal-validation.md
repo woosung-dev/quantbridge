@@ -114,6 +114,12 @@ TradingView Strategy Tester의 손익을 수집하지 않았다면 그 손익까
 기본 입력에서 한 방향만 나와 입력을 바꿔 검증한다면 기본 결과를 보존하고 변경한 입력을 TV·Pine·Python
 세 경로에 동일하게 명시한다. 변경한 입력의 결과로 기본 입력 검증을 대체하지 않는다.
 
+`pivothigh`·`pivotlow`의 동률은 후보보다 **이전 봉의 같은 극값을 허용**하고,
+이후 봉의 같은 극값은 거부한다. 원문 v4 builtin의 left/right 1·2 통제 실측은
+`apps/api/tests/fixtures/pine_native/pivot_ties_v4.json`에 source SHA와 관측값으로 보존한다.
+부분 시장 구간의 신호 일치만으로 이 경계값 계약까지 확인됐다고 보지 않는다.
+계산 소스를 고친 재측정에는 해당 소스와 실제 격리 이미지의 파일 SHA가 일치하는 새 런타임을 쓴다.
+
 ## 비용 포함 성과는 별도 판정
 
 `evaluation.py`는 manifest의 `evaluation` 계획으로 비용 포함 앱 엔진 결과를 측정한다. 계획에는

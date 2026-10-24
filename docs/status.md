@@ -1040,7 +1040,7 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 ~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 운영 DB `20261021_0002`와 main `20261022_0005`의 차이를 해소할 백업·격리 복원 리허설·운영 DDL 승인 범위를 확정한다. 실제 gVisor 검증과 legacy 손익 [BL-871](./backlog.md#bl-871)은 별도 검증으로 구분한다.**~~
 → **2026-10-24 사용자 선택으로 에디터 픽 원문 비교를 먼저 진행한다. 운영 스키마 해소와 [BL-871]은 미완이며 앱 저장 전 별도 확인한다.**
 
-**다음 행동 = PRD §5의 결과·가정 공개 기준으로 에디터 픽 인디케이터 690개 전수 판정에서 확보한 정적 적격 11개(목표 200개 미달)의 Pine·Terra 재현을 BTC 1h·4h·1d / 6·12·24개월·비용 4종으로 측정한다. 54셀 파일럿의 실패와 Gemini 미생성을 보존하고, 준비봉 1,000개 이후 TradingView native·prefix·반복 실행 및 경제 36셀을 통과한 경로만 앱에 저장한다. 계약 = [에디터 픽 비교](./development/editor-picks-comparison.md).**
+**다음 행동 = PRD §5의 결과·가정 공개 기준으로 에디터 픽 정적 적격 11개(690개 전수 판정·목표 200개 미달)를 별도 교정 회차 `runs/editor-picks-20261024-correction-v4`에서 다시 측정한다. 초기 21,600셀·원격 원장을 보존하고, 실제 TradingView 반례로 확인한 Pine pivot의 앞쪽 동률 규칙과 RSS_WMA Terra의 900초 실행 시간 초과를 교정한다. 같은 BTC 데이터·비용·R 정책으로 native·prefix·반복 실행 및 경제 36셀을 통과한 경로만 앱에 저장한다. 현재 앱 저장은 보류다. 계약 = [에디터 픽 비교](./development/editor-picks-comparison.md).**
 운영 DB `20261021_0002 → 20261022_0005`의 DDL 5개와 이미지 `sha-e2173c1`의 배포는 [배포 런북 §3](./operations/backend-deploy.md#3-사람이-하는-것)에 따른 명시 승인 대기다. 외부 백업 왕복·격리 복원·기존 데이터 보존은 확인했다. 실제 gVisor 검증과 legacy 손익 [BL-871](./backlog.md#bl-871)은 별도 검증이다.
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.

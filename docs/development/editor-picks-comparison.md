@@ -89,6 +89,15 @@ apps/api/.venv/bin/python tools/scripts/editor-picks-generate-parallel.py \
 이름만 검증한다. 빈 `study(resolution="")`의 compiler 자동 주기 slot은 정확한 metadata와 빈
 wire 값을 함께 요구하며 추가 입력·주기 override는 거부한다. 색상 열은 바로 앞 line/shapes만
 가리킬 수 있고 제목 없는 plot은 관측한 기본 제목 `Plot`만 허용한다.
+`indicator(timeframe="")`의 자동 Timeframe도 원문·compiler metadata·빈 wire가 함께 맞아야 한다.
+단일 숫자 input이 100 나눗셈 안에 있어도 raw 입력값을 보존하며 bool·숫자 문자열을 숫자로 바꾸지 않는다.
+원문 `barcolor`는 실제 `bar_colorer`·기본 제목·열 순서와 일치할 때만 비신호 열로 대응한다.
+
+실제 TV 통제 반례가 Pine builtin 의미 오류를 드러내면 기존 Pine 출력을 정답으로 고정하지 않는다.
+원래 결과·실패·모델 생성물을 보존한 새 epoch에서 계산 소스·이미지·계획 SHA를 다시 동결한다.
+RSS_WMA의 전체 이력 재계산처럼 공개 실행 계약의 자원 오류를 수정할 때도 매매 조건·기본 입력은
+바꾸지 않고 별도 생성 시도와 선택 근거를 남긴다. 완료 부모 시도는 새 epoch의 이력으로 옮겨
+첫 완료 생성물 선택기가 수정 시도를 가리는 일을 막는다. 수익률·승률로 조건을 조정하지 않는다.
 
 `export --plan ...`는 통과한 경로만 기존 `SaveCodeStrategyRequest`로 내보낸다. 각 원문에 Pine·
 Terra Python·Gemini Python 최대 3개를 저장하며 기본 화면은 BTC·1h다. 적자 전략도 기술 검증을
@@ -123,6 +132,7 @@ URL/SHA 변수가 일치할 때만 20개 ARM shard를 실행한다. `EDITOR_PICK
 전체 실행은 기존 8개 shard의 고정 run/head/input SHA에 인증된 완료 셀을 20개 shard에 재배정한다.
 입력 계획과 금융 계산 Python은 바꾸지 않는다. 이력 암호문은 한 번에 하나만 내려받아 검증하고
 현재 shard의 완료 셀만 보존한 뒤 해당 임시 암호문을 삭제한다. 누락 asset·인증 오류는 실행 실패다.
+이 재사용은 원래 v3 입력 암호문 SHA에만 적용하며 계산 소스·이미지가 바뀐 교정 epoch는 재사용하지 않는다.
 재개 처리는 worker 이전의 별도 secret 환경에서 수행하며 전략 코드를 호스트에서 실행하지 않는다.
 full worker는 경제 셀 실행 후 코호트 순서의 `index % shards`로 배정된 원문을 같은 무자격
 환경에서 native 검증 CLI로 실행한다. 전략 실행은 기존 gVisor를 사용한다. 경제·native의 실제
@@ -155,6 +165,18 @@ apps/api/.venv/bin/python tools/scripts/editor-picks-postprocess.py remote final
 성과 통과는 별개다. full finalization은 모든 shard 증거 확인 후 원시 native proof와 수거한 전체
 경제 결과를 reconcile하고 보고서를 만든다. 파생 `verification/`은 불변 `native-checks/`와
 분리한다. 등록 export는 별도 단계이며 파일럿 finalization으로 전체 검증을 대체하지 않는다.
+
+Pine stdlib 교정용 `.github/workflows/editor-picks-runtime-refresh.yml`은 소유자의 정확한 PR head와
+GitHub 변수 `EDITOR_PICKS_RUNTIME_REFRESH_HEAD`가 일치할 때만 별도 ARM 준비 작업을 실행한다.
+기존 `EDITOR_PICKS_INPUT_URL/SHA256`의 인증된 부모 이미지를 적재하고 stdlib만 COPY한 자식의
+단일 layer·실행 설정·25개 Pine 파일·worker·계산 class·Python loader/SDK를 검증한다.
+로컬 Docker·운영 배포·생성 전략 실행 없이 새 runtime 전용 `.enc`만 보존한다. 새 epoch 입력을
+만들기 전 부모/자식 이미지 ID·소스 SHA를 확인하고 갱신 변수를 해제한다.
+
+새 receipt는 분봉 drawdown·buy-and-hold 곡선을 지표 요약에 중복하지 않는다. 전체 곡선은
+같은 원시 `result.json.gz`에 유지하고 나머지 지표·신호·거래 원장·경제 판정은 그대로 보존한다.
+완료한 이전 회차의 로컬 결과 캐시는 동일 SHA의 원격 암호문과 복구 manifest를 검증한 뒤 비울 수
+있으며 원본 소스·시세·native 관측·최종 보고서와 원격 원장은 지우지 않는다.
 
 대용량 `finalize`·`report`·`export`는 `tools/scripts/editor-picks-postprocess.py`를 진입점으로
 사용한다. 원시 receipt에는 분봉 drawdown·buy-and-hold 곡선이 있으므로 전체를 메모리에 누적하면

@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "pine_version": 4,
+  "source_code": "//@version=4\nstudy(\"QB diagnostic pivot ties v4\", overlay=false)\nphase = bar_index % 8\nv = phase == 1 or phase == 2 ? 2.0 : phase == 4 or phase == 5 ? -2.0 : 0.0\nplot(v, title=\"controlled_value\")\nplot(phase, title=\"phase\")\nplot(pivothigh(v, 1, 1), title=\"pivot_high_1_1\")\nplot(pivotlow(v, 1, 1), title=\"pivot_low_1_1\")\nplot(pivothigh(v, 2, 2), title=\"pivot_high_2_2\")\nplot(pivotlow(v, 2, 2), title=\"pivot_low_2_2\")\n",
+  "source_sha256": "093366bb64df1f3b7788d65607b4e600113b2ac0d7e04b0c9221daab2f65f89e",
+  "controlled_series": {
+    "period": 8,
+    "values_by_phase": [
+      0,
+      2,
+      2,
+      0,
+      -2,
+      -2,
+      0,
+      0
+    ]
+  },
+  "observed_plot_values_by_phase": {
+    "0": {
+      "pivot_high_1_1": null,
+      "pivot_low_1_1": null,
+      "pivot_high_2_2": null,
+      "pivot_low_2_2": null
+    },
+    "1": {
+      "pivot_high_1_1": null,
+      "pivot_low_1_1": 0.0,
+      "pivot_high_2_2": null,
+      "pivot_low_2_2": null
+    },
+    "2": {
+      "pivot_high_1_1": null,
+      "pivot_low_1_1": null,
+      "pivot_high_2_2": null,
+      "pivot_low_2_2": 0.0
+    },
+    "3": {
+      "pivot_high_1_1": 2.0,
+      "pivot_low_1_1": null,
+      "pivot_high_2_2": null,
+      "pivot_low_2_2": null
+    },
+    "4": {
+      "pivot_high_1_1": null,
+      "pivot_low_1_1": null,
+      "pivot_high_2_2": 2.0,
+      "pivot_low_2_2": null
+    },
+    "5": {
+      "pivot_high_1_1": null,
+      "pivot_low_1_1": null,
+      "pivot_high_2_2": null,
+      "pivot_low_2_2": null
+    },
+    "6": {
+      "pivot_high_1_1": null,
+      "pivot_low_1_1": -2.0,
+      "pivot_high_2_2": null,
+      "pivot_low_2_2": null
+    },
+    "7": {
+      "pivot_high_1_1": null,
+      "pivot_low_1_1": null,
+      "pivot_high_2_2": null,
+      "pivot_low_2_2": -2.0
+    }
+  },
+  "native_observation": {
+    "observed_at": "2026-10-24T12:27:51.947Z",
+    "compile_success": true,
+    "common_closed_rows": 299,
+    "source_copyback_verified": true,
+    "cases": [
+      {
+        "case": "older_high_1_1",
+        "phase": 3,
+        "column": "pivot_high_1_1",
+        "expected": 2,
+        "observed_count": 37,
+        "matching_count": 37
+      },
+      {
+        "case": "newer_high_1_1",
+        "phase": 2,
+        "column": "pivot_high_1_1",
+        "expected": null,
+        "observed_count": 37,
+        "matching_count": 37
+      },
+      {
+        "case": "older_low_1_1",
+        "phase": 6,
+        "column": "pivot_low_1_1",
+        "expected": -2,
+        "observed_count": 36,
+        "matching_count": 36
+      },
+      {
+        "case": "newer_low_1_1",
+        "phase": 5,
+        "column": "pivot_low_1_1",
+        "expected": null,
+        "observed_count": 36,
+        "matching_count": 36
+      },
+      {
+        "case": "older_high_2_2",
+        "phase": 4,
+        "column": "pivot_high_2_2",
+        "expected": 2,
+        "observed_count": 36,
+        "matching_count": 36
+      },
+      {
+        "case": "newer_high_2_2",
+        "phase": 3,
+        "column": "pivot_high_2_2",
+        "expected": null,
+        "observed_count": 37,
+        "matching_count": 37
+      },
+      {
+        "case": "older_low_2_2",
+        "phase": 7,
+        "column": "pivot_low_2_2",
+        "expected": -2,
+        "observed_count": 36,
+        "matching_count": 36
+      },
+      {
+        "case": "newer_low_2_2",
+        "phase": 6,
+        "column": "pivot_low_2_2",
+        "expected": null,
+        "observed_count": 36,
+        "matching_count": 36
+      }
+    ]
+  },
+  "scope": "통제된 v4 builtin의 left/right 1 및 2 동률 비교. 사용자·인증·시장 원시 데이터는 포함하지 않는다."
+}

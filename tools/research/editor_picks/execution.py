@@ -341,7 +341,11 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             )
             closed = sum(trade.status == "closed" for trade in result.trades)
             details = {
-                "metrics": payload["metrics"],
+                # 원시 full payload는 gzip에 보존하고 receipt의 대형 중복 배열만 제외한다.
+                "metrics": {
+                    key: value for key, value in payload["metrics"].items()
+                    if key not in {"drawdown_curve", "buy_and_hold_curve"}
+                },
                 "action_sha256": action_hash,
                 "closed_episodes": closed,
                 "intent_count": len(actions),

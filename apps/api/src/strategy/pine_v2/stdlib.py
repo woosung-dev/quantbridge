@@ -332,7 +332,7 @@ def ta_pivothigh(
     """Pine `ta.pivothigh(left, right)` — pivot high 감지.
 
     현재 bar N에서 "바 N-right가 pivot high인가?" 검사:
-    - high[right] > high[right+1..right+left]  (왼쪽 left 바들보다 높음)
+    - high[right] >= high[right+1..right+left] (과거 left 바들과 동률 허용)
     - high[right] > high[0..right-1]           (오른쪽 right 바들보다 높음)
 
     반환: pivot 감지되면 high[right] (= pivot 가격), 아니면 nan.
@@ -351,7 +351,7 @@ def ta_pivothigh(
     pivot_val = highs[pivot_idx]
 
     for i in range(max(0, pivot_idx - left), pivot_idx):
-        if highs[i] >= pivot_val:
+        if highs[i] > pivot_val:
             return float("nan")
     for i in range(pivot_idx + 1, len(highs)):
         if highs[i] >= pivot_val:
@@ -381,7 +381,7 @@ def ta_pivotlow(
     pivot_val = lows[pivot_idx]
 
     for i in range(max(0, pivot_idx - left), pivot_idx):
-        if lows[i] <= pivot_val:
+        if lows[i] < pivot_val:
             return float("nan")
     for i in range(pivot_idx + 1, len(lows)):
         if lows[i] <= pivot_val:

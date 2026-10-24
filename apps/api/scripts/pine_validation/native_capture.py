@@ -23,13 +23,14 @@ from src.strategy.pine_v2.parser_adapter import parse_to_ast
 
 _STEPS = {"1h": timedelta(hours=1), "4h": timedelta(hours=4), "1d": timedelta(days=1)}
 _SIGNAL_CALLS = {"plotshape", "plotchar", "alertcondition"}
-_PLOT_CALLS = _SIGNAL_CALLS | {"plot"}
+_PLOT_CALLS = _SIGNAL_CALLS | {"plot", "barcolor"}
 _SOURCE_NAMES = {"open", "high", "low", "close", "hl2", "hlc3", "ohlc4"}
 _PLOT_TYPES = {
     "alertcondition": "alertcondition",
     "plot": "line",
     "plotshape": "shapes",
     "plotchar": "chars",
+    "barcolor": "bar_colorer",
 }
 _FRAME = re.compile(r"~m~(\d+)~m~")
 _SENTINEL = 1e100
@@ -125,6 +126,19 @@ def _source_calls(
         if not isinstance(statement, A.Assign) or not isinstance(statement.target, A.Name):
             continue
         call = statement.value
+        # 관측한 퍼센트 입력은 slot의 원시 기본값을 비교하며 /100 결과를 평가하지 않는다.
+        if (
+            isinstance(call, A.BinOp)
+            and isinstance(call.op, A.Div)
+            and isinstance(call.right, A.Constant)
+            and type(call.right.value) is int
+            and call.right.value == 100
+            and isinstance(call.left, A.Call)
+            and _name(call.left.func) in {"input", "input.float"}
+            and isinstance(_arg(call.left, "defval", 0), A.Constant)
+            and type(_arg(call.left, "defval", 0).value) in (int, float)
+        ):
+            call = call.left
         if not isinstance(call, A.Call) or _name(call.func) not in {
             "input",
             "input.int",
@@ -152,7 +166,7 @@ def _source_calls(
     return calls, inputs, fills
 
 
-def _empty_study_resolution(source: str) -> bool:
+def _empty_chart_resolution(source: str) -> str | None:
     declarations = [
         statement.value
         for statement in parse_to_ast(source).body
@@ -160,10 +174,17 @@ def _empty_study_resolution(source: str) -> bool:
         and isinstance(statement.value, A.Call)
         and _name(statement.value.func) in {"study", "indicator", "strategy"}
     ]
-    if len(declarations) != 1 or _name(declarations[0].func) != "study":
-        return False
-    value = _arg(declarations[0], "resolution")
-    return isinstance(value, A.Constant) and type(value.value) is str and value.value == ""
+    if len(declarations) != 1:
+        return None
+    kind = _name(declarations[0].func)
+    if kind not in {"study", "indicator"}:
+        return None
+    value = _arg(declarations[0], "resolution" if kind == "study" else "timeframe")
+    return (
+        kind
+        if isinstance(value, A.Constant) and type(value.value) is str and value.value == ""
+        else None
+    )
 
 
 def _frames(data: str) -> list[dict[str, Any]]:
@@ -256,7 +277,9 @@ def _plot_bindings(
         style = styles.get(f"plot_{index}")
         if not isinstance(style, dict):
             raise ValueError("컴파일 plot 스타일이 없습니다")
-        title_node = _arg(call, "title", 1)
+        title_node = _arg(call, "title", None if kind == "barcolor" else 1)
+        if kind == "barcolor" and title_node is not None:
+            raise ValueError("barcolor는 관측한 기본 제목 Bar Color만 허용합니다")
         title = (
             _literal(title_node, "plot title")
             if title_node is not None
@@ -264,6 +287,8 @@ def _plot_bindings(
             if kind == "plotshape"
             else "Plot"
             if kind == "plot"
+            else "Bar Color"
+            if kind == "barcolor"
             else None
         )
         if title is None or style.get("title") != title:
@@ -372,7 +397,11 @@ def parse_native_capture(
     meta = responses[0]["data"].get("result", {}).get("metaInfo")
     if not isinstance(meta, dict) or not isinstance(meta.get("inputs"), list):
         raise ValueError("컴파일 metaInfo가 없습니다")
-    counts = {kind: sum(call_kind == kind for call_kind, _ in calls) for kind in _PLOT_CALLS}
+    # 관측한 compiler stats는 barcolor를 세지 않으므로 실제 plot 열 대응에서 별도로 검사한다.
+    counts = {
+        kind: sum(call_kind == kind for call_kind, _ in calls)
+        for kind in _PLOT_CALLS - {"barcolor"}
+    }
     stats = meta.get("stats")
     if not isinstance(stats, dict) or any(
         stats.get(kind, 0) != count for kind, count in counts.items()
@@ -388,21 +417,25 @@ def parse_native_capture(
         ):
             raise ValueError("컴파일 입력 기본값·제목이 원문과 다릅니다")
     expected_slots = {f"in_{i}" for i in range(len(source_inputs))}
-    resolution_slot = f"in_{len(source_inputs)}" if _empty_study_resolution(source_text) else None
+    resolution_kind = _empty_chart_resolution(source_text)
+    resolution_slot = f"in_{len(source_inputs)}" if resolution_kind is not None else None
     if resolution_slot is not None:
         expected_slots.add(resolution_slot)
         slot = compiled_inputs.get(resolution_slot)
+        expected_resolution = {
+            "id": resolution_slot,
+            "name": "Indicator Timeframe" if resolution_kind == "study" else "Timeframe",
+            "type": "resolution",
+            "isMTFResolution": True,
+            "isFake": True,
+            "defval": "",
+        }
+        if resolution_kind == "study":
+            expected_resolution["inline"] = "study_mtf"
+        else:
+            expected_resolution.update(group="Calculation", solutionId=43000591555)
         if (
-            slot
-            != {
-                "id": resolution_slot,
-                "name": "Indicator Timeframe",
-                "type": "resolution",
-                "inline": "study_mtf",
-                "isMTFResolution": True,
-                "isFake": True,
-                "defval": "",
-            }
+            slot != expected_resolution
             or slot["isMTFResolution"] is not True
             or slot["isFake"] is not True
             or sum(
@@ -411,7 +444,7 @@ def parse_native_capture(
             )
             != 1
         ):
-            raise ValueError("빈 study resolution의 compiler 자동 입력 근거가 다릅니다")
+            raise ValueError("빈 차트 resolution의 compiler 자동 입력 근거가 다릅니다")
     if {key for key in compiled_inputs if re.fullmatch(r"in_\d+", str(key))} != expected_slots:
         raise ValueError("컴파일 입력 개수가 원문과 다릅니다")
     bound = _plot_bindings(calls, meta.get("plots"), meta.get("styles"), signal_bindings, fills)

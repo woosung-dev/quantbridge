@@ -67,7 +67,7 @@ jobs:
           apps/api/.venv/bin/python -m tools.research.editor_picks.remote runtime
           --run-dir runs/editor-picks-20261024
       - name: Authenticate completed cells from the previous eight shards
-        if: ${{ env.PLAN_FILE == 'full-plan.json' }}
+        if: ${{ env.PLAN_FILE == 'full-plan.json' && env.INPUT_SHA == 'd6bb30be7ce131da4556a005ce8db1063fd22387fd3b3fb90a591d9e327cdb85' }}
         env:
           EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
         run: |
