@@ -19,11 +19,17 @@ spec = importlib.util.spec_from_file_location(
 )
 postprocess = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(postprocess)
+CORE_RECEIPTS = getattr(
+    verification.receipts, "editor_picks_receipts_original", verification.receipts
+)
 
 
 @pytest.fixture(autouse=True)
 def restore_reader(monkeypatch):
     monkeypatch.setattr(verification, "read", read)
+    monkeypatch.setattr(verification, "identity", identity)
+    monkeypatch.setattr(verification, "receipts", CORE_RECEIPTS)
+    monkeypatch.setattr(report, "receipts", CORE_RECEIPTS)
     monkeypatch.setattr(report, "METRICS", report.METRICS)
 
 
@@ -99,6 +105,92 @@ def test_core_receipt_file_hash_validation_is_not_bypassed(tmp_path):
         stream.write(" ")
     with pytest.raises(ValueError, match="SHA256"):
         verification.receipts(tmp_path, frozen)
+    assert verification.identity is identity
+
+
+def test_two_real_receipts_hash_the_plan_only_twice_and_share_report_binding(tmp_path, monkeypatch):
+    jobs = [{"id": str(index), "arm": "pine"} for index in range(2)]
+    frozen = {"jobs": jobs}
+    for job in jobs:
+        request = {"plan": identity(frozen), "job": job, "images": {"pine": "image"}}
+        folder = tmp_path / "results" / job["id"]
+        write(folder / "request.json", request)
+        write(
+            folder / "receipt.json",
+            {
+                "job_hash": identity(request),
+                "job": job,
+                "status": "failed",
+                "files": {"request.json": sha((folder / "request.json").read_bytes())},
+            },
+        )
+    calls = []
+
+    def counted_identity(value):
+        calls.append(value)
+        return identity(value)
+
+    monkeypatch.setattr(verification, "identity", counted_identity)
+    postprocess.install()
+    installed = verification.receipts
+    postprocess.install()
+    assert verification.receipts is installed and report.receipts is installed
+    result = report.receipts(tmp_path, frozen)
+    assert set(result) == {identity(job) for job in jobs}
+    assert sum(value is frozen for value in calls) == 2
+    assert verification.identity is counted_identity
+    calls.clear()
+    assert verification.receipts(tmp_path, frozen) == result
+    assert sum(value is frozen for value in calls) == 2
+
+
+def test_equal_but_distinct_objects_still_use_original_identity(tmp_path, monkeypatch):
+    frozen = {"jobs": []}
+    other = copy.deepcopy(frozen)
+    calls = []
+
+    def counted_identity(value):
+        calls.append(value)
+        return identity(value)
+
+    def original_receipts(root, plan):
+        assert verification.identity(other) == identity(other)
+        return {}
+
+    monkeypatch.setattr(verification, "identity", counted_identity)
+    monkeypatch.setattr(verification, "receipts", original_receipts)
+    postprocess.install()
+    verification.receipts(tmp_path, frozen)
+    assert sum(value is other for value in calls) == 1
+    assert sum(value is frozen for value in calls) == 2
+    assert verification.identity is counted_identity
+
+
+def test_receipts_reject_plan_mutation_and_restore_identity(tmp_path, monkeypatch):
+    frozen = {"jobs": []}
+
+    def mutate(root, plan):
+        assert verification.identity(plan) == identity(frozen)
+        plan["jobs"].append({"id": "changed", "arm": "pine"})
+        return {}
+
+    monkeypatch.setattr(verification, "receipts", mutate)
+    postprocess.install()
+    with pytest.raises(ValueError, match="동결 계획이 변경"):
+        verification.receipts(tmp_path, frozen)
+    assert verification.identity is identity
+
+
+def test_receipts_restore_identity_after_original_error(tmp_path, monkeypatch):
+    def fail(root, frozen):
+        assert verification.identity(frozen) == identity(frozen)
+        raise RuntimeError("original receipt failure")
+
+    monkeypatch.setattr(verification, "receipts", fail)
+    postprocess.install()
+    with pytest.raises(RuntimeError, match="original receipt failure"):
+        report.receipts(tmp_path, {"jobs": []})
+    assert verification.identity is identity
 
 
 @pytest.mark.parametrize("command", ("report", "export"))

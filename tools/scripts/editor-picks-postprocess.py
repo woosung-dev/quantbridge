@@ -3,6 +3,8 @@
 기존 report/export 인자를 그대로 전달하며 원격 종결은 앞에 remote를 붙인다.
 install()은 watcher에서도 호출할 수 있다. 원시 파일·판정은 보존하고 두 대형
 곡선의 메모리 누적을 막으며 계산 불가능한 Sharpe만 표시용 NULL로 바꾼다.
+계획 해시는 receipts 호출 한 번 안에서만 재사용하고 종료 시 원본으로 재검사한다.
+verification 전역 identity의 임시 교체는 스레드 없는 순차 후처리 호출자 전용이다.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ POSTPROCESSING = {
     "raw_files_modified": False,
     "omitted_in_memory_metrics": list(CURVES),
     "sharpe_display": "unavailable_convention_as_null_valid_zero_preserved",
+    "plan_identity_scope": "one_receipts_call_sequential_only",
 }
 
 
@@ -33,6 +36,29 @@ def install():
 
     if "sharpe_convention" not in report.METRICS:
         report.METRICS = (*report.METRICS, "sharpe_convention")
+    original_receipts = verification.receipts
+    if not getattr(original_receipts, "editor_picks_receipts_postprocess", False):
+
+        @wraps(original_receipts)
+        def scoped_receipts(root, frozen):
+            original_identity = verification.identity
+            plan_hash = original_identity(frozen)
+
+            def scoped_identity(value):
+                return plan_hash if value is frozen else original_identity(value)
+
+            verification.identity = scoped_identity
+            try:
+                return original_receipts(root, frozen)
+            finally:
+                verification.identity = original_identity
+                if original_identity(frozen) != plan_hash:
+                    raise ValueError("receipt 검증 중 동결 계획이 변경됐습니다")
+
+        scoped_receipts.editor_picks_receipts_postprocess = True
+        scoped_receipts.editor_picks_receipts_original = original_receipts
+        verification.receipts = scoped_receipts
+    report.receipts = verification.receipts
     original = verification.read
     if getattr(original, "editor_picks_postprocess", False):
         return original.editor_picks_postprocess_original

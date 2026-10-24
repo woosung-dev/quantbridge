@@ -192,6 +192,9 @@ GitHub 변수 `EDITOR_PICKS_RUNTIME_REFRESH_HEAD`가 일치할 때만 별도 ARM
 원래 파일·파일 SHA 검사·경제 판정·신호·원장 비교를 유지한다. 수치 재계산과 전략 실행은 없다.
 `sharpe_convention` 기준 열과 미측정 NULL 표시는 보고 단계의 표현 계약이다. 금융 계산 Python과
 동결 계획을 보존하며, 별도 후처리 구현 SHA와 원시 근거를 실행 산출물에 기록한다.
+같은 계획 SHA를 셀마다 다시 계산하는 비용은 `receipts` 한 호출 안에서만 재사용한다.
+다른 객체의 해시·모든 원시 파일 검사는 유지하고, 종료 시 원래 함수를 복원한 뒤 계획을 다시
+해시해 변경을 거부한다. 전역 함수의 임시 교체를 쓰므로 단일 스레드의 순차 후처리 전용이다.
 
 ```bash
 apps/api/.venv/bin/python tools/scripts/editor-picks-postprocess.py \
