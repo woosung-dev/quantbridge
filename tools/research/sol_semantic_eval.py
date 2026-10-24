@@ -10,19 +10,25 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-
-from src.backtest.engine.types import BacktestConfig
-from src.strategy.code_runtime.backtest import run_code_backtest
-from src.strategy.code_runtime.models import validate_code_intent
-from src.strategy.python_runtime.serialization import (
-    bars_payload,
-    digest,
-    result_payload,
-)
 from tools.research.strategy_oracle import (
     expected_action,
     expected_risk_plan,
     unsupported_reason,
+)
+
+from src.backtest.engine.types import BacktestConfig
+from src.strategy.code_runtime.backtest import run_code_backtest
+from src.strategy.code_runtime.session import (
+    CodeExecutionSession,
+    CodeSessionProtocolError,
+)
+from src.strategy.code_runtime.session import (
+    create_code_transport as probe_transport,
+)
+from src.strategy.python_runtime.serialization import (
+    bars_payload,
+    digest,
+    result_payload,
 )
 
 
@@ -137,59 +143,47 @@ def quality_counts(counts, correct, mismatches) -> dict[str, Any]:
     }
 
 
-def probe_transport(language: str, frame: pd.DataFrame):
-    if language == "pine":
-        from src.strategy.code_runtime.pine import PineSignalTransport
-
-        return PineSignalTransport(frame)
-    from src.strategy.code_runtime.sandbox import create_transport
-
-    return create_transport(language)
-
-
 def decision_probe(
     source: str, language: str, case_id: str, frame: pd.DataFrame
 ) -> dict[str, Any]:
     """확정 외부 포지션을 통제해 진입과 무효화의 관찰 기회를 만든다. 가상 체결은 없다."""
-    transport = probe_transport(language, frame)
     history, state, trace = [], {}, []
     try:
-        if transport.exchange(
-            {"type": "init", "protocol": 1, "source": source, "params": {}}
-        ) != {"ready": 1}:
-            raise ValueError("의사결정 probe 초기화 실패")
-        for index, bar in enumerate(bars_payload(frame)):
-            bar["index"] = index
-            history.append(bar)
-            flat = {"direction": "flat", "size": "0", "average_price": None}
-            wanted_flat = expected_action(case_id, history, flat, state)
-            position = (
-                flat
-                if wanted_flat in ("long", "short")
-                else {
-                    "direction": "long" if index % 2 else "short",
-                    "size": "10",
-                    "average_price": bar["close"],
-                }
-            )
-            response = transport.exchange(
-                {"type": "bar", "bar": bar, "position": position}
-            )
-            if set(response) != {"intent"}:
-                raise ValueError("의사결정 probe 응답은 intent만 허용")
-            action = validate_code_intent(response["intent"])["action"]
-            trace.append(
-                {
-                    "type": "intent",
-                    "input_bar": bar,
-                    "position": position,
-                    "action": action,
-                    "bar_index": index,
-                    "disposition": "warmup" if index < 200 else "probe",
-                }
-            )
-    finally:
-        transport.close()
+        with CodeExecutionSession(
+            source, language, {}, frame, transport_factory=lambda: probe_transport(language, frame)
+        ) as session:
+            for index, bar in enumerate(bars_payload(frame)):
+                bar["index"] = index
+                history.append(bar)
+                flat = {"direction": "flat", "size": "0", "average_price": None}
+                wanted_flat = expected_action(case_id, history, flat, state)
+                position = (
+                    flat
+                    if wanted_flat in ("long", "short")
+                    else {
+                        "direction": "long" if index % 2 else "short",
+                        "size": "10",
+                        "average_price": bar["close"],
+                    }
+                )
+                action = session.action(bar, position)
+                trace.append(
+                    {
+                        "type": "intent",
+                        "input_bar": bar,
+                        "position": position,
+                        "action": action,
+                        "bar_index": index,
+                        "disposition": "warmup" if index < 200 else "probe",
+                    }
+                )
+    except CodeSessionProtocolError as error:
+        message = (
+            "의사결정 probe 초기화 실패"
+            if error.phase == "init"
+            else "의사결정 probe 응답은 intent만 허용"
+        )
+        raise ValueError(message) from error
     return action_quality(case_id, trace)
 
 

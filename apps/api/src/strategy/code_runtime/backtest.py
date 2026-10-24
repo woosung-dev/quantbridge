@@ -14,12 +14,11 @@ from src.backtest.engine.swing_risk_adapter import Direction, _execution_data, _
 from src.backtest.engine.types import BacktestConfig, BacktestResult
 from src.backtest.engine.v2_adapter import _compute_metrics
 from src.strategy.code_runtime.models import (
-    PROTOCOL_VERSION,
     CodeLanguage,
     CodeRuntimeError,
     CodeTransport,
-    validate_code_intent,
 )
+from src.strategy.code_runtime.session import CodeExecutionSession, CodeSessionProtocolError
 from src.strategy.python_runtime.protocol import validate_source_and_params
 from src.strategy.python_runtime.serialization import json_value
 from src.strategy.python_runtime.swing_risk import RiskEvent, apply_event, replay_candle
@@ -162,96 +161,83 @@ def run_code_backtest(
     values: list[Decimal] = []
     pending: tuple[str, list[dict[str, Decimal]]] | None = None
     history: list[dict[str, Decimal]] = []
-    transport: CodeTransport
-    if transport_factory is not None:
-        transport = transport_factory()
-    elif selected == CodeLanguage.pine:
-        from src.strategy.code_runtime.pine import PineSignalTransport
-
-        transport = PineSignalTransport(ohlcv)
-    else:
-        from src.strategy.code_runtime.sandbox import create_transport
-
-        transport = create_transport(selected.value)
     try:
-        if transport.exchange(
-            {"type": "init", "protocol": PROTOCOL_VERSION, "source": source, "params": parameters}
-        ) != {"ready": PROTOCOL_VERSION}:
-            raise CodeRuntimeError("코드 실행기 프로토콜 버전이 다릅니다")
-        for index, (timestamp, row) in enumerate(ohlcv.iterrows()):
-            bar_index = index - warmup_bars
-            timestamp_str = pd.Timestamp(str(timestamp)).tz_convert("UTC").isoformat()
-            prices = {name: Decimal(str(row[name])) for name in ("open", "high", "low", "close")}
-            ambiguous = False
-            if bar_index >= 0:
-                if child_prices is None or child_index is None:
-                    ambiguous = _execute_bar(
-                        ledger,
-                        prices,
-                        bar_index,
-                        timestamp_str,
-                        rates.get(pd.Timestamp(str(timestamp)).value),
-                        pending,
-                        trace,
-                    )
-                    values.append(ledger.mark(prices["close"]))
-                else:
-                    left = bar_index * minutes
-                    for child in range(left, left + minutes):
-                        current = {
-                            name: child_prices[name][child]
-                            for name in ("open", "high", "low", "close")
-                        }
-                        ambiguous |= _execute_bar(
+        with CodeExecutionSession(
+            source, selected, parameters, ohlcv, transport_factory=transport_factory
+        ) as session:
+            for index, (timestamp, row) in enumerate(ohlcv.iterrows()):
+                bar_index = index - warmup_bars
+                timestamp_str = pd.Timestamp(str(timestamp)).tz_convert("UTC").isoformat()
+                prices = {
+                    name: Decimal(str(row[name])) for name in ("open", "high", "low", "close")
+                }
+                ambiguous = False
+                if bar_index >= 0:
+                    if child_prices is None or child_index is None:
+                        ambiguous = _execute_bar(
                             ledger,
-                            current,
-                            child,
-                            child_index[child].isoformat(),
-                            rates.get(child_index[child].value),
-                            pending if child == left else None,
+                            prices,
+                            bar_index,
+                            timestamp_str,
+                            rates.get(pd.Timestamp(str(timestamp)).value),
+                            pending,
                             trace,
                         )
-                        values.append(ledger.mark(current["close"]))
-                pending = None
-            bar = {
-                "index": index,
-                "timestamp": timestamp_str,
-                **{name: str(row[name]) for name in ("open", "high", "low", "close", "volume")},
-            }
-            reply = transport.exchange({"type": "bar", "bar": bar, "position": ledger.position()})
-            if set(reply) != {"intent"}:
-                raise CodeRuntimeError("코드 실행기 응답에는 intent만 있어야 합니다")
-            action = validate_code_intent(reply["intent"])["action"]
-            history.append(prices)
-            disposition = "hold"
-            if bar_index < 0:
-                disposition = "warmup"
-            elif action == "close":
-                pending = action, []
-                disposition = "queued"
-            elif action in ("long", "short"):
-                if ledger.current is not None and ledger.current.direction == action:
-                    disposition = "same_direction_ignored"
-                elif len(history) < 2:
-                    disposition = "insufficient_history"
-                else:
-                    pending = action, history[-2:]
+                        values.append(ledger.mark(prices["close"]))
+                    else:
+                        left = bar_index * minutes
+                        for child in range(left, left + minutes):
+                            current = {
+                                name: child_prices[name][child]
+                                for name in ("open", "high", "low", "close")
+                            }
+                            ambiguous |= _execute_bar(
+                                ledger,
+                                current,
+                                child,
+                                child_index[child].isoformat(),
+                                rates.get(child_index[child].value),
+                                pending if child == left else None,
+                                trace,
+                            )
+                            values.append(ledger.mark(current["close"]))
+                    pending = None
+                bar = {
+                    "index": index,
+                    "timestamp": timestamp_str,
+                    **{name: str(row[name]) for name in ("open", "high", "low", "close", "volume")},
+                }
+                action = session.action(bar, ledger.position())
+                history.append(prices)
+                disposition = "hold"
+                if bar_index < 0:
+                    disposition = "warmup"
+                elif action == "close":
+                    pending = action, []
                     disposition = "queued"
-            if trace is not None:
-                trace.append(
-                    {
-                        "type": "intent",
-                        "bar_index": index,
-                        "timestamp": timestamp_str,
-                        "action": action,
-                        "disposition": disposition,
-                        "position": ledger.position(),
-                        "risk_state": json_value(ledger.state),
-                        "ambiguous": ambiguous,
-                    }
-                )
-    finally:
-        transport.close()
+                elif action in ("long", "short"):
+                    if ledger.current is not None and ledger.current.direction == action:
+                        disposition = "same_direction_ignored"
+                    elif len(history) < 2:
+                        disposition = "insufficient_history"
+                    else:
+                        pending = action, history[-2:]
+                        disposition = "queued"
+                if trace is not None:
+                    trace.append(
+                        {
+                            "type": "intent",
+                            "bar_index": index,
+                            "timestamp": timestamp_str,
+                            "action": action,
+                            "disposition": disposition,
+                            "position": ledger.position(),
+                            "risk_state": json_value(ledger.state),
+                            "ambiguous": ambiguous,
+                        }
+                    )
+    except CodeSessionProtocolError as error:
+        raise CodeRuntimeError(str(error)) from error
     evaluated = ohlcv.iloc[warmup_bars:]
     equity = pd.Series(
         values, index=child_index if child_index is not None else evaluated.index, dtype=object

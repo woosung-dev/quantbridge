@@ -441,7 +441,7 @@ def test_runtime_binding_rejects_core_changes_without_running_docker(tmp_path):
 def test_actual_transport_image_must_match_expected_id(monkeypatch):
     runtime = Mock()
     runtime.image_id = "sha256:" + "2" * 64
-    monkeypatch.setattr("src.strategy.code_runtime.sandbox.create_transport", lambda *_: runtime)
+    monkeypatch.setattr(economics, "create_code_transport", lambda *_: runtime)
     with pytest.raises(ValueError, match="이미지"):
         economics.native_transport("python", data()[0], "sha256:" + "1" * 64)
     runtime.close.assert_called_once()

@@ -124,6 +124,26 @@ def test_full_timing_and_test_double_are_explicit(code):
     assert result["native_executed"] is False
 
 
+@pytest.mark.parametrize("phase", ["init", "bar"])
+def test_protocol_failure_keeps_existing_error_type_evidence(code, phase):
+    clock = Clock()
+    adapter = Transport(clock)
+    exchange = adapter.exchange
+    adapter.exchange = lambda message: (
+        {"invalid": True} if message["type"] == phase else exchange(message)
+    )
+    result = gate.measure_profile(
+        code,
+        gate.records_from_payload(code, payload(code)),
+        expected_image_id=adapter.image_id,
+        clock=clock,
+        transport_factory=lambda: adapter,
+        removed_probe=lambda _: True,
+    )
+    assert result["status"] == "FAIL" and result["error_type"] == "CodeRuntimeError"
+    assert adapter.closed and result["cleanup_confirmed"]
+
+
 def test_successful_transport_but_total_including_cleanup_exceeds_30_fails(code):
     result, transport = measure(code, init=25, bar=0, close=4)
     assert result["status"] == "FAIL" and result["elapsed_seconds"] == 31

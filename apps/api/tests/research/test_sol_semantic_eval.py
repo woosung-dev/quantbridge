@@ -11,6 +11,40 @@ sys.path.insert(0, str(ROOT))
 
 from tools.research import sol_semantic_eval as subject  # noqa: E402
 
+from src.strategy.code_runtime.models import CodeRuntimeError  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("reply", "expected_type"),
+    [
+        ({"wrong": True}, ValueError),
+        ({"intent": {"action": "hold"}, "extra": True}, ValueError),
+        ({"intent": {"action": "buy"}}, CodeRuntimeError),
+    ],
+)
+def test_probe_keeps_existing_error_types_and_closes(monkeypatch, reply, expected_type):
+    from unittest.mock import Mock
+
+    adapter = Mock()
+    adapter.exchange.side_effect = [{"ready": 1}, reply]
+    monkeypatch.setattr(subject, "probe_transport", lambda *_: adapter)
+    with pytest.raises(expected_type) as raised:
+        subject.decision_probe("source", "python", "D01", subject.hidden_frame().head(1))
+    assert type(raised.value) is expected_type
+    adapter.close.assert_called_once_with()
+
+
+def test_probe_keeps_init_error_type_and_closes(monkeypatch):
+    from unittest.mock import Mock
+
+    adapter = Mock()
+    adapter.exchange.return_value = {"ready": 2}
+    monkeypatch.setattr(subject, "probe_transport", lambda *_: adapter)
+    with pytest.raises(ValueError, match="초기화 실패") as raised:
+        subject.decision_probe("source", "python", "D01", subject.hidden_frame().head(1))
+    assert type(raised.value) is ValueError
+    adapter.close.assert_called_once_with()
+
 
 def test_same_direction_intent_is_economically_hold():
     assert subject.normalized_action("long", {"direction": "long"}) == "hold"
