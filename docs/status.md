@@ -1031,7 +1031,10 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 ~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 Gemini Python 초안 검토·적용·저장·불변 버전 백테스트의 로컬 검증 PR을 검토한다. 실제 외부 추론과 오프라인 응답 검증, 합성 시세 실행과 시장 성과를 구분한다. main 반영과 운영 배포는 별도다.**~~
 → **2026-10-24 사용자 지시로 FE 전수 성능·구조 감사를 우선한다. 기존 생성·평가 검증 계약은 유지한다.**
 
-**다음 행동 = PRD §5의 결과·가정 공개 기준으로 FE 전수 감사 PR의 규칙별 Before/After와 고정 합성 데이터 측정 근거를 검토한다. 코드 준수 점수·브라우저 실측·운영 성능을 구분한다. 평가 계약 = [FE 성능 평가](./development/frontend-performance.md).**
+~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 FE 전수 감사 PR의 규칙별 Before/After와 고정 합성 데이터 측정 근거를 검토한다. 코드 준수 점수·브라우저 실측·운영 성능을 구분한다. 평가 계약 = [FE 성능 평가](./development/frontend-performance.md).**~~
+→ **2026-10-24 PR #929 머지 뒤 사용자 선택에 따라 아키텍처 개선 4개 PR을 진행한다.**
+
+**다음 행동 = PRD §5의 결과·가정 공개 기준으로 아키텍처 개선 4개 PR의 손익 증거·실행 session·전략 검토·체결 관측 계약과 CI를 검토한다. 재현된 손익 재시도·Pine 중단 정리 결함의 수정 근거와 실제 gVisor 미검증 범위를 구분한다.**
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.
 현재 [ADR-046](./adr/046-generated-strategy-language-evaluation.md)의 다중 언어 `code_v1`은 별도 경로다.

@@ -72,6 +72,13 @@ outbox 복구는 이 신규 진입 admission 검사로 차단하지 않는다.
 보여준다. 주문 목록·상세·CSV는 서버가 실제 체결 증거를 확인한 코드 부분 체결 취소·거부의
 손익도 표시한다. 기존 실패 주문에 남은 추정값은 계속 제외한다.
 정산된 청산 주문 수는 손익이 기록된 주문 건수다. 분할 익절과 잔량 청산은 별도 주문으로 센다.
+Code Order의 REST·WebSocket 체결 증거는 `CodeOrderObservationService.apply`가 같은
+session의 Order·리스크 원장에 반영하고 한 번 commit한다. 전송 adapter는 관측을 정규화하며,
+알림·후속 작업은 commit 성공 뒤 상태 전이 winner만 실행한다. REST 수량 복구 뒤 늦은
+WS가 native SL의 정확한 손익을 보충하는 흐름은 유지한다. historical native 증거는 수량을
+다시 차감하지 않는다. REST의 부분 TP 보호 상실·0체결 청산 복구와 WS의 외부 ID가 없는
+terminal 증거는 기존 경로별 의미를 보존한다. 누적대금이 없는 REST 진입은 VWAP 실패로
+승격하지 않고 증거 대기로 처리한다.
 목록 배지와 대시보드 합산에도 미정산 상태를 전달한다. 대시보드는 해당 소계를 중립색으로
 표시하고 전체 자산 곡선을 보류한다. 실제 인증·개발 서버의 MCP Playwright 검증은
 모든 거래 API를 대체한 범위이며, 실제 거래소나 worker 실행의 증거가 아니다.

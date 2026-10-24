@@ -10,8 +10,8 @@ import contextlib
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
-from typing import Any, Literal, cast
+from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from src.common.alert import send_critical_alert
@@ -25,9 +25,12 @@ from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.core.config import Settings
 from src.trading.models import Order, OrderState
 from src.trading.order_fill_evidence import has_recorded_order_fill
-from src.trading.providers import bybit_cumulative_execution_value
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.order_repository import OrderRepository
+from src.trading.services.code_order_observation_service import (
+    CodeOrderObservation,
+    CodeOrderObservationService,
+)
 from src.trading.services.code_risk_service import (
     CodeRiskError,
     CodeRiskReconciliationPending,
@@ -62,12 +65,16 @@ class WebSocketOrderEventService:
         alert_sender: AlertSender | None = None,
         user_id: UUID | None = None,
         risk_service: CodeRiskService | None = None,
+        observer: CodeOrderObservationService | None = None,
     ) -> None:
         self._repo = repo
         self._settings = settings
         self._alert_sender = alert_sender or send_critical_alert
         self._user_id = user_id
         self._risk_service = risk_service
+        self._observer = observer or (
+            CodeOrderObservationService(repo, risk_service) if risk_service is not None else None
+        )
 
     async def handle_order_event(
         self, account_id: UUID, payload: dict[str, Any]
@@ -125,113 +132,14 @@ class WebSocketOrderEventService:
     async def _handle_code_order(
         self, order: Order, payload: dict[str, Any], account_id: UUID
     ) -> list[RiskCommand]:
-        """새 원장 주문만 부분 체결을 반영한다. 두 원장은 같은 commit으로 확정한다."""
-        if self._risk_service is None or order.exchange_account_id != account_id:
+        if self._observer is None or order.exchange_account_id != account_id:
             raise CodeRiskError("코드 리스크 처리기 또는 주문 계정 귀속이 올바르지 않습니다")
-        status = str(payload.get("orderStatus", ""))
-        new_state = _BYBIT_TERMINAL_MAP.get(status)
-        if status == "PartiallyFilledCanceled":
-            new_state = OrderState.cancelled
-        if new_state is None and status != "PartiallyFilled":
-            if is_native_sl(order):
-                await self._repo.commit()
-            return []
-        context = order.risk_context or {}
-        try:
-            session_id = UUID(str(context["session_id"]))
-            generation = int(str(context["generation"]))
-            role = str(context["role"])
-            raw_quantity = payload.get("cumExecQty", payload.get("filled"))
-            quantity = Decimal(str(raw_quantity))
-            if not quantity.is_finite() or quantity < 0 or generation < 1:
-                raise ValueError("invalid fill")
-        except (KeyError, ValueError, InvalidOperation) as exc:
-            raise CodeRiskError(
-                "코드 주문의 누적 체결 또는 리스크 귀속이 올바르지 않습니다"
-            ) from exc
-        if is_native_sl(order) and payload.get("_native_historical") is True:
-            await self._native_pnl(order, payload, quantity, new_state)
-            await self._repo.commit()
-            return []
-        price = None
-        if new_state in {OrderState.cancelled, OrderState.rejected} and quantity > 0:
-            average = payload.get("avgPrice") or payload.get("average")
-            try:
-                price = Decimal(str(average)) if average not in (None, "") else None
-            except InvalidOperation as exc:
-                raise CodeRiskReconciliationPending("부분 체결 평균가 증거를 기다립니다") from exc
-            if price is None or not price.is_finite() or price <= 0:
-                raise CodeRiskReconciliationPending("부분 체결 평균가 증거를 기다립니다")
-        if role == "entry":
-            value = Decimal(0) if quantity == 0 else bybit_cumulative_execution_value(payload)
-            if value is None:
-                raise CodeRiskReconciliationPending("진입 누적 체결대금 증거를 기다립니다")
-            if not value.is_finite() or value < 0:
-                raise CodeRiskError("코드 진입 누적 체결대금이 올바르지 않습니다")
-            commands = await self._risk_service.record_entry_fill(
-                session_id,
-                generation,
-                order.id,
-                cumulative_quantity=quantity,
-                cumulative_value=value,
-                terminal=new_state is not None,
-                commit=False,
-            )
-        elif role in ("partial_tp", "stop_loss", "trailing_stop", "close"):
-            commands = await self._risk_service.record_exit_fill(
-                session_id,
-                generation,
-                order.id,
-                role=cast(Literal["partial_tp", "stop_loss", "trailing_stop", "close"], role),
-                cumulative_quantity=quantity,
-                terminal=new_state is not None and bool(payload.get("orderId")),
-                commit=False,
-            )
-        else:
-            raise CodeRiskError("알 수 없는 코드 주문 역할입니다")
-        rowcount = 0
-        if new_state in {OrderState.cancelled, OrderState.rejected}:
-            exchange_id = payload.get("orderId")
-            if isinstance(exchange_id, str) and exchange_id:
-                await self._repo.attach_exchange_order_id(order.id, exchange_id)
-            if new_state == OrderState.cancelled:
-                rowcount = await self._repo.transition_to_cancelled(
-                    order.id,
-                    cancelled_at=datetime.now(UTC),
-                    filled_quantity=quantity,
-                    filled_price=price,
-                )
-            else:
-                rowcount = await self._repo.transition_to_rejected(
-                    order.id,
-                    error_message=f"ws_rejected: {payload.get('rejectReason', 'ws_rejected')}",
-                    failed_at=datetime.now(UTC),
-                    filled_quantity=quantity,
-                    filled_price=price,
-                )
-        elif new_state is not None:
-            rowcount = await self._apply_transition(order.id, new_state, payload)
-        if is_native_sl(order):
-            await self._native_pnl(order, payload, quantity, new_state)
-        await self._repo.commit()
-        if rowcount == 1 and new_state is not None:
-            await self._after_committed_winner(order, new_state, payload, account_id)
-        return commands
-
-    async def _native_pnl(
-        self, order: Order, payload: dict[str, Any], quantity: Decimal, terminal: OrderState | None
-    ) -> None:
-        if terminal is None or quantity <= 0 or payload.get("closedPnl") in (None, ""):
-            return
-        try:
-            pnl = Decimal(str(payload["closedPnl"]))
-        except InvalidOperation as exc:
-            raise CodeRiskReconciliationPending("native SL 손익 증거를 기다립니다") from exc
-        if not pnl.is_finite():
-            raise CodeRiskReconciliationPending("native SL 손익이 유한하지 않습니다")
-        if order.realized_pnl_synced_at is not None and order.realized_pnl != pnl:
-            raise CodeRiskReconciliationPending("native SL의 확정 손익 증거가 다릅니다")
-        await self._repo.record_native_sl_pnl(order, quantity=quantity, pnl=pnl)
+        result = await self._observer.apply(
+            order, CodeOrderObservation.from_websocket(account_id, payload)
+        )
+        if result.transition_won and result.state is not None:
+            await self._after_committed_winner(order, result.state, payload, account_id)
+        return result.commands
 
     def _discard_orphan(self, key: str, payload: dict[str, Any], account_id: UUID) -> None:
         """로컬 행 없는 이벤트는 집계·로그만 남기고 폐기한다."""

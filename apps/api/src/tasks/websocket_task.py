@@ -311,12 +311,20 @@ async def _stream_main(
 
         # 2. Transport callback 조립. session은 각 callback의 composition 경계에서만 연다.
         async def handle_order_event(event_account_id: UUID, payload: dict[str, Any]) -> None:
+            from src.trading.services.code_order_observation_service import (
+                CodeOrderObservationService,
+            )
+
             async with sm() as session:
+                orders = OrderRepository(session)
+                risk_repo = CodeRiskRepository(session)
+                risk = CodeRiskService(risk_repo)
                 service = WebSocketOrderEventService(
-                    repo=OrderRepository(session),
+                    repo=orders,
                     settings=settings,
                     user_id=account.user_id,
-                    risk_service=CodeRiskService(CodeRiskRepository(session)),
+                    risk_service=risk,
+                    observer=CodeOrderObservationService(orders, risk, risk_repo=risk_repo),
                 )
                 await service.handle_order_event(event_account_id, payload)
             await recover_code_commands(event_account_id)
