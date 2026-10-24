@@ -25,11 +25,14 @@ from src.trading.providers import (
     Credentials,
     OrderStatusFetch,
     OrderSubmit,
-    bybit_cumulative_execution_value,
 )
 from src.trading.repositories.code_risk_repository import CodeRiskRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.code_order_observation_service import (
+    CodeOrderObservation,
+    CodeOrderObservationService,
+)
 from src.trading.services.code_risk_service import (
     CodeRiskError,
     CodeRiskReconciliationPending,
@@ -52,6 +55,7 @@ class BybitCodeRiskVenue:
         risk: CodeRiskService,
         accounts: ExchangeAccountService,
         provider: BybitFuturesProvider,
+        observer: CodeOrderObservationService | None = None,
     ) -> None:
         self._repo, self._orders, self._risk, self._accounts, self._provider = (
             repo,
@@ -60,6 +64,7 @@ class BybitCodeRiskVenue:
             accounts,
             provider,
         )
+        self._observer = observer or CodeOrderObservationService(orders, risk, risk_repo=repo)
 
     async def _creds(self, session: LiveSignalSession) -> Credentials:
         return await self._accounts.get_credentials_for_order(session.exchange_account_id)
@@ -396,93 +401,16 @@ class BybitCodeRiskVenue:
                 if Decimal(str(raw["cumExecQty"])) > 0
                 else None,
             )
-        # legacy mapper는 부분 체결 취소를 filled로 합친다. 새 원장은 취소 잔량을 보존한다.
-        info = status.raw.get("info")
-        native_status = status.raw.get("orderStatus") or (
-            info.get("orderStatus") if isinstance(info, dict) else None
+        observation = CodeOrderObservation.from_rest(order.exchange_account_id, status)
+        await self._observer.apply(order, observation)
+        return (
+            replace(
+                status,
+                status=cast(Literal["filled", "cancelled", "rejected"], observation.state.value),
+            )
+            if observation.state
+            else status
         )
-        if native_status in {"PartiallyFilledCanceled", "Cancelled", "Canceled", "Deactivated"}:
-            status = replace(status, status="cancelled")
-        elif native_status == "Rejected":
-            status = replace(status, status="rejected")
-        context = order.risk_context
-        if context is None:
-            raise CodeRiskError("주문 귀속이 없습니다")
-        await self._orders.attach_exchange_order_id(order.id, status.exchange_order_id)
-        terminal = status.status in {"filled", "cancelled", "rejected"}
-        if status.status == "filled" and status.filled_quantity is None:
-            raise CodeRiskError("최종 체결 수량이 없습니다")
-        quantity = status.filled_quantity or Decimal(0)
-        if not quantity.is_finite() or quantity < 0:
-            raise CodeRiskError("체결 수량이 잘못되었습니다")
-        cumulative_value = Decimal(0)
-        if context["role"] == "entry" and quantity > 0:
-            observed_value = status.cumulative_value
-            if observed_value is None:
-                observed_value = bybit_cumulative_execution_value(status.raw)
-            if observed_value is None:
-                raise CodeRiskReconciliationPending("진입 누적 체결대금 증거를 기다립니다")
-            cumulative_value = observed_value
-        if quantity > 0 and (status.filled_price is None or status.filled_price <= 0):
-            raise CodeRiskError("체결 VWAP가 없습니다")
-        session_id, generation = UUID(str(context["session_id"])), int(str(context["generation"]))
-        if context["role"] == "entry":
-            await self._risk.record_entry_fill(
-                session_id,
-                generation,
-                order.id,
-                cumulative_quantity=quantity,
-                cumulative_value=cumulative_value,
-                terminal=terminal,
-                commit=False,
-            )
-        elif quantity > 0:
-            await self._risk.record_exit_fill(
-                session_id,
-                generation,
-                order_id=order.id,
-                role=cast(Any, context["role"]),
-                cumulative_quantity=quantity,
-                terminal=terminal,
-                commit=False,
-            )
-        if (
-            context["role"] == "partial_tp"
-            and status.status in {"cancelled", "rejected"}
-            and quantity < order.quantity
-        ):
-            latest = await self._repo.get(session_id)
-            if latest is not None and latest.position_quantity > 0 and not latest.close_requested:
-                await self._risk.halt(
-                    session_id, generation, "partial_tp_protection_lost", commit=False
-                )
-        if context["role"] == "close" and terminal and quantity == 0:
-            await self._risk.record_zero_exit(session_id, generation, order.id, commit=False)
-        if status.status == "filled":
-            await self._orders.transition_to_filled(
-                order.id,
-                exchange_order_id=status.exchange_order_id,
-                filled_price=status.filled_price,
-                filled_quantity=quantity,
-                filled_at=datetime.now(UTC),
-            )
-        elif status.status == "cancelled":
-            await self._orders.transition_to_cancelled(
-                order.id,
-                cancelled_at=datetime.now(UTC),
-                filled_price=status.filled_price,
-                filled_quantity=quantity,
-            )
-        elif status.status == "rejected":
-            await self._orders.transition_to_rejected(
-                order.id,
-                error_message="code_policy_rejected",
-                failed_at=datetime.now(UTC),
-                filled_price=status.filled_price,
-                filled_quantity=quantity,
-            )
-        await self._repo.commit()
-        return status
 
     async def _fetch_status(self, creds: Credentials, order: Order) -> OrderStatusFetch | None:
         if is_native_sl(order):

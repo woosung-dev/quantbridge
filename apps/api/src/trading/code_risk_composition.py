@@ -6,6 +6,7 @@ from src.trading.providers import BybitFuturesProvider
 from src.trading.repositories.code_risk_repository import CodeRiskRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.code_order_observation_service import CodeOrderObservationService
 from src.trading.services.code_risk_executor import CodeRiskExecutor
 from src.trading.services.code_risk_service import CodeRiskService
 from src.trading.services.code_risk_venue import BybitCodeRiskVenue
@@ -16,5 +17,7 @@ def build_code_risk_executor(
 ) -> tuple[CodeRiskService, CodeRiskExecutor]:
     repo = CodeRiskRepository(session)
     risk = CodeRiskService(repo)
-    venue = BybitCodeRiskVenue(repo, OrderRepository(session), risk, accounts, provider)
+    orders = OrderRepository(session)
+    observer = CodeOrderObservationService(orders, risk, risk_repo=repo)
+    venue = BybitCodeRiskVenue(repo, orders, risk, accounts, provider, observer=observer)
     return risk, CodeRiskExecutor(repo, risk, venue)
