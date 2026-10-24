@@ -1,5 +1,6 @@
 # closedPnl 즉시 갱신 작업의 재시도와 포기 알림을 검증한다.
 """refresh_closed_pnl Celery 재시도 회귀 테스트."""
+
 from __future__ import annotations
 
 import contextlib
@@ -51,9 +52,22 @@ def test_transient_closed_pnl_retries(monkeypatch) -> None:
     assert retry.call_args.kwargs["countdown"] == 10
 
 
+def test_code_pnl_evidence_pending_retries(monkeypatch) -> None:
+    """코드 청산의 증거 지연도 작업 성공으로 종료하지 않고 재시도한다."""
+    _result, retry, raised = _drive_task(
+        monkeypatch,
+        retries=1,
+        behaviors=[{"transient": "code_closed_pnl_evidence_pending"}],
+    )
+    assert raised is not None
+    assert retry.call_args.kwargs["countdown"] == 10
+
+
 def test_closed_pnl_provider_failure_retries(monkeypatch) -> None:
     """provider 예외도 같은 지수 백오프 사다리를 사용한다."""
-    _result, retry, raised = _drive_task(monkeypatch, retries=0, behaviors=[RuntimeError("offline")])
+    _result, retry, raised = _drive_task(
+        monkeypatch, retries=0, behaviors=[RuntimeError("offline")]
+    )
     assert raised is not None
     assert retry.call_args.kwargs["countdown"] == 5
 
@@ -73,6 +87,24 @@ def test_closed_pnl_transient_exhaustion_alerts(monkeypatch) -> None:
     assert result["failed"] == "closed_pnl_not_yet_available"
     retry.assert_not_called()
     alert.assert_called_once()
+
+
+def test_code_pnl_evidence_exhaustion_preserves_reason(monkeypatch) -> None:
+    """증거 지연 재시도를 소진하면 코드 전용 원인으로 알리고 종료한다."""
+    from src.tasks import trading as trading_mod
+
+    reason = "code_closed_pnl_evidence_pending"
+    alert = Mock(return_value=None)
+    monkeypatch.setattr(trading_mod, "_alert_closed_pnl_unbackfilled", alert)
+    result, retry, raised = _drive_task(
+        monkeypatch,
+        retries=trading_mod._CLOSED_PNL_MAX_RETRIES,
+        behaviors=[{"transient": reason}, None],
+    )
+    assert raised is None
+    assert result["failed"] == reason
+    retry.assert_not_called()
+    assert alert.call_args.args[1] == reason
 
 
 def test_closed_pnl_provider_exhaustion_alerts_and_counts(monkeypatch) -> None:
@@ -129,6 +161,24 @@ async def test_unbackfilled_alert_goes_to_both_channels(monkeypatch) -> None:
     assert len(sent) == 1
     assert sent[0]["channel"] is AlertChannel.both
     assert sent[0]["context"]["reason"] == "provider_error"
+
+
+async def test_code_evidence_alert_does_not_claim_pine_estimated_pnl(monkeypatch) -> None:
+    """코드 손익 증거 미확정을 Pine 추정값 사용으로 잘못 설명하지 않는다."""
+    from src.tasks import trading as trading_mod
+
+    sent = []
+
+    async def send(_settings, **kwargs):
+        sent.append(kwargs)
+        return {"slack": True, "telegram": True}
+
+    monkeypatch.setattr(trading_mod, "send_rule_alert", send)
+    await trading_mod._alert_closed_pnl_unbackfilled(uuid4(), "code_closed_pnl_evidence_pending")
+
+    assert "pine_v2" not in sent[0]["message"]
+    assert "미확정" in sent[0]["message"]
+    assert sent[0]["context"]["reason"] == "code_closed_pnl_evidence_pending"
 
 
 # ── BL-580 (2026-08-03 metric-guard-residual-close) — B8 · B9 고장 주입 ──────
