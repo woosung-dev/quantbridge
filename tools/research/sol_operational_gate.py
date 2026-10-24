@@ -29,12 +29,10 @@ from tools.research.sol_economics import (  # noqa: E402
 
 from src.strategy.code_contract import CodeSnapshot  # noqa: E402
 from src.strategy.code_live_replay import input_hash, replay_code_intents  # noqa: E402
-from src.strategy.code_runtime.pine import PineSignalTransport  # noqa: E402
-from src.strategy.code_runtime.sandbox import create_transport  # noqa: E402
+from src.strategy.code_runtime.session import create_code_transport  # noqa: E402
 from src.strategy.python_runtime.sandbox import _DOCKER  # noqa: E402
 from src.strategy.python_runtime.serialization import (  # noqa: E402
     bars_payload,
-    frame_from_payload,
 )
 from src.strategy.python_runtime.serialization import (  # noqa: E402
     digest as json_digest,
@@ -274,11 +272,9 @@ def measure_profile(
     if transport_factory is None:
 
         def transport_factory():
-            if code.language.value == "pine":
-                return PineSignalTransport(
-                    frame_from_payload([row.bar for row in records]), timeout=BUDGET_SECONDS
-                )
-            return create_transport(code.language, timeout=BUDGET_SECONDS)
+            return create_code_transport(
+                code.language, [row.bar for row in records], timeout=BUDGET_SECONDS
+            )
 
     class Timed:
         def __init__(self):

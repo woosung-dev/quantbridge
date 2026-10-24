@@ -51,6 +51,18 @@ def test_invalid_deadline_and_unavailable_image_never_use_host_interpreter() -> 
         run_code_backtest('//@version=5\nstrategy("no fallback")', "pine", data, cfg())
 
 
+def test_interruption_during_pine_load_closes_transport() -> None:
+    data = frame([(100, 101, 99, 100)] * 3)
+    with (
+        patch.object(DockerPythonTransport, "__init__", return_value=None),
+        patch.object(DockerPythonTransport, "exchange", side_effect=KeyboardInterrupt),
+        patch.object(DockerPythonTransport, "close") as close,
+        pytest.raises(KeyboardInterrupt),
+    ):
+        PineSignalTransport(data)
+    close.assert_called_once()
+
+
 @pytest.mark.integration
 @pytest.mark.parametrize(
     ("body", "timeout"),

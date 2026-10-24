@@ -45,6 +45,13 @@ Node에서 실행한다. Python은 CPython, Pine은 기존 `pine_v2`의 해석�
 출력은 `hold | long | short | close` 중 하나인 `action`이다. SL/TP·수량 지정은 거부한다.
 Pine은 같은 확정 포지션을 읽고 미체결 entry/close 의도를 내므로 체결을 두 번 계산하지 않는다.
 
+제품 Backtest·Live replay와 연구 probe는 `CodeExecutionSession`의 context 안에서
+초기화·action-only 응답 검증·회수를 공유한다. 공개 factory `create_code_transport`가
+Pine 전체 봉 선적재와 언어별 격리 adapter 선택을 소유한다. session 생성자에는 실행 부작용이
+없고, init·봉 실행 실패나 사용자 중단에도 회수를 시도한 뒤 원래 오류를 전달한다.
+Backtest·연구의 기본 900초와 Live replay의 30초는 호출자가 정한다. 경제 평가의 동결
+이미지 검사와 운영 gate의 단계별 시간·회수 확인, 독립 oracle은 각자의 소유권을 유지한다.
+
 ## 고정 청산 정책
 
 - 완료 신호 봉과 그 이전 완료 봉의 극값을 참조하고 다음 봉 시가에 진입한다.

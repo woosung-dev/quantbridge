@@ -5,12 +5,11 @@ from typing import Any
 
 from src.strategy.code_contract import CodeSnapshot
 from src.strategy.code_runtime.models import (
-    PROTOCOL_VERSION,
     CodeRuntimeError,
     CodeTransport,
-    validate_code_intent,
 )
-from src.strategy.python_runtime.serialization import digest, frame_from_payload
+from src.strategy.code_runtime.session import CodeExecutionSession, CodeSessionProtocolError
+from src.strategy.python_runtime.serialization import digest
 from src.trading.code_checkpoints import LiveCodeBar
 
 
@@ -53,37 +52,26 @@ def replay_code_intents(
             delivery_args=row.delivery_args,
         ):
             raise CodeRuntimeError("저장된 코드 실행 입력 해시가 다릅니다")
-    if transport_factory is not None:
-        transport = transport_factory()
-    elif code.language.value == "pine":
-        from src.strategy.code_runtime.pine import PineSignalTransport
-
-        transport = PineSignalTransport(
-            frame_from_payload([row.bar for row in records]), timeout=30
-        )
-    else:
-        from src.strategy.code_runtime.sandbox import create_transport
-
-        transport = create_transport(code.language, timeout=30)
     try:
-        if transport.exchange(
-            {
-                "type": "init",
-                "protocol": PROTOCOL_VERSION,
-                "source": code.source_code,
-                "params": code.params,
-            }
-        ) != {"ready": PROTOCOL_VERSION}:
-            raise CodeRuntimeError("코드 실행기 프로토콜이 다릅니다")
-        actions = []
-        for row in records:
-            reply = transport.exchange({"type": "bar", "bar": row.bar, "position": row.position})
-            if set(reply) != {"intent"}:
-                raise CodeRuntimeError("코드 실행기 응답 필드가 다릅니다")
-            action = validate_code_intent(reply["intent"])["action"]
-            if row.intent and row.intent != action:
-                raise CodeRuntimeError("동일 입력 재실행 의도가 변경되었습니다")
-            actions.append(action)
-        return actions
-    finally:
-        transport.close()
+        with CodeExecutionSession(
+            code.source_code,
+            code.language,
+            code.params,
+            [row.bar for row in records],
+            timeout=30,
+            transport_factory=transport_factory,
+        ) as session:
+            actions = []
+            for row in records:
+                action = session.action(row.bar, row.position)
+                if row.intent and row.intent != action:
+                    raise CodeRuntimeError("동일 입력 재실행 의도가 변경되었습니다")
+                actions.append(action)
+            return actions
+    except CodeSessionProtocolError as error:
+        message = (
+            "코드 실행기 프로토콜이 다릅니다"
+            if error.phase == "init"
+            else "코드 실행기 응답 필드가 다릅니다"
+        )
+        raise CodeRuntimeError(message) from error

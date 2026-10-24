@@ -53,6 +53,7 @@ from tools.research.sol_economic_data import (  # noqa: E402
 from src.backtest.engine.types import BacktestConfig  # noqa: E402
 from src.strategy.code_runtime.backtest import run_code_backtest  # noqa: E402
 from src.strategy.code_runtime.models import CodeLanguage  # noqa: E402
+from src.strategy.code_runtime.session import create_code_transport  # noqa: E402
 from src.strategy.python_runtime.protocol import validate_source_and_params  # noqa: E402
 from src.strategy.python_runtime.serialization import json_value  # noqa: E402
 
@@ -365,14 +366,7 @@ def scenario_config(timeframe: str, scenario: dict) -> BacktestConfig:
 
 
 def native_transport(language: str, parent: pd.DataFrame, expected_image: str):
-    if language == "pine":
-        from src.strategy.code_runtime.pine import PineSignalTransport
-
-        transport = PineSignalTransport(parent)
-    else:
-        from src.strategy.code_runtime.sandbox import create_transport
-
-        transport = create_transport(language)
+    transport = create_code_transport(language, parent)
     if transport.image_id != expected_image:
         transport.close()
         raise ValueError("실행 이미지가 동결 ID와 다릅니다")

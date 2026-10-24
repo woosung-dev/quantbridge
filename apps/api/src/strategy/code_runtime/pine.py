@@ -34,7 +34,7 @@ class PineSignalTransport(DockerPythonTransport):
         try:
             if self.exchange({"type": "load", "bars": bars_payload(ohlcv)}) != {"loaded": True}:
                 raise CodeRuntimeError("Pine worker 데이터 초기화 실패")
-        except Exception:
+        except BaseException:
             self.close()
             raise
 
