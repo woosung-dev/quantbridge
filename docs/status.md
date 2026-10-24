@@ -1037,7 +1037,8 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 ~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 아키텍처 개선 4개 PR의 손익 증거·실행 session·전략 검토·체결 관측 계약과 CI를 검토한다. 재현된 손익 재시도·Pine 중단 정리 결함의 수정 근거와 실제 gVisor 미검증 범위를 구분한다.**~~
 → **2026-10-24 #931 → #933 → #932 → #934 순차 머지. 통합 코드 검토의 차단급 발견은 없으며, 기존 운영 스키마 차이가 자동 배포를 막고 있다.**
 
-**다음 행동 = PRD §5의 결과·가정 공개 기준으로 [배포 런북 §3](./operations/backend-deploy.md#3-사람이-하는-것)에 따라 운영 DB `20261021_0002 → 20261022_0005`의 DDL 5개와 검증한 이미지 `sha-e2173c1`의 배포 승인을 받는다. 외부 백업 왕복·격리 복원·기존 데이터 보존은 확인했으며 운영 DDL·배포는 미승인이다. 실제 gVisor 검증과 legacy 손익 [BL-871](./backlog.md#bl-871)은 별도 검증으로 구분한다.**
+**다음 행동 = PRD §5의 결과·가정 공개 기준으로 Code Backtest의 준비된 실행 객체를 구현한 단일 PR에서 결과·오류 단계·취소·commit 보존과 CI·Standards/Spec 검토 근거를 확인한다. 구현 계약은 [code_v1 저장·백테스트](./development/code-strategy-storage.md)를 따른다.**
+운영 DB `20261021_0002 → 20261022_0005`의 DDL 5개와 이미지 `sha-e2173c1`의 배포는 [배포 런북 §3](./operations/backend-deploy.md#3-사람이-하는-것)에 따른 명시 승인 대기다. 외부 백업 왕복·격리 복원·기존 데이터 보존은 확인했다. 실제 gVisor 검증과 legacy 손익 [BL-871](./backlog.md#bl-871)은 별도 검증이다.
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.
 현재 [ADR-046](./adr/046-generated-strategy-language-evaluation.md)의 다중 언어 `code_v1`은 별도 경로다.

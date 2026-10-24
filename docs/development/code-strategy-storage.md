@@ -20,6 +20,16 @@
 `data_coverage`도 워밍업을 제외한 같은 구간의 부모 봉을 센다. 기존 Pine 경로의
 양 끝 포함 커버리지 계산은 유지한다.
 
+제품 실행 입력은 `CodeBacktestExecution`이 준비·실행 두 단계로 소유한다.
+`prepare(backtest, version, provider=...)`는 QUEUED 단계에서 warmup을 포함한 부모 봉을
+조회하고 정확한 연속 구간을 확인한 뒤 객체를 반환한다. `signal_ohlcv`는 이 부모 봉을
+그대로 제공한다. caller가 RUNNING 전환·commit·취소 확인과 config·funding 준비를 마친 뒤
+`run(config, funding_rates=...)`을 호출하면 버전·저장 execution hash를 다시 확인하고
+평가 구간의 1분 봉을 조회해 격리 실행한다. 준비 시 검증한 snapshot을 캐시해 후기 검증을
+생략하지 않는다. 객체는 기존 provider와 로드된 모델의 읽기 전용 참조를 사용하며 DB 조회·
+상태 전이·commit·결과 저장은 caller가 소유한다. 입력·실행 오류는 기존 단계의 오류 처리로
+전달하고, 격리 자원의 수명은 기존 `CodeExecutionSession`이 맡는다.
+
 코드 백테스트는 row를 먼저 commit한 뒤 작업을 publish하고, task ID를 두 번째 commit으로 저장한다. 즉시 시작한 worker도 row를 읽을 수 있다. publish 실패는 이미 저장된 QUEUED row를 조건부 FAILED로 기록·commit하고 `TaskDispatchError`를 반환한다. 이미 RUNNING 등으로 전이한 row를 실패로 덮어쓰지 않는다. legacy Pine dispatch 순서는 이 변경 범위에 포함하지 않는다.
 
 전략은 격리 실행기로만 전달한다. 이미지·gVisor·프로토콜·해시·데이터 오류는 FAILED이며 호스트 실행이나 Pine fallback이 없다. 스트레스·최적화는 코드 백테스트를 아직 지원하지 않아 422로 거부한다. 실행 확장은 기존 Pine 인터프리터·연구 compiler를 변경하지 않는 제품 helper에 둔다.

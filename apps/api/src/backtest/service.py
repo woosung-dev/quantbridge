@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import logging
@@ -11,12 +10,12 @@ from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from math import ceil
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 import pandas as pd
 
-from src.backtest.config_mapper import build_engine_config_from_db, timeframe_to_freq
+from src.backtest.config_mapper import build_engine_config_from_db
 from src.backtest.data_coverage import DataCoverage, measure_data_coverage
 from src.backtest.dispatcher import TaskDispatcher
 from src.backtest.engine import PINE_V2_ENGINE_VERSION, run_backtest
@@ -79,6 +78,9 @@ from src.strategy.pine_v2.sizing import extract_pine_default_qty
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings
 from src.trading.repositories.funding_rate_repository import FundingRateRepository
+
+if TYPE_CHECKING:
+    from src.strategy.product_execution import CodeBacktestExecution
 
 logger = logging.getLogger(__name__)
 
@@ -453,31 +455,19 @@ class BacktestService:
             if bt.engine_version != "code_v1":
                 pine_source = legacy_pine_source(strategy_version)
 
+        execution: CodeBacktestExecution | None = None
         try:
-            ohlcv = await self.provider.get_ohlcv(
-                bt.symbol,
-                bt.timeframe,
-                bt.period_start
-                - timedelta(
-                    seconds=(
-                        read_code_version(strategy_version).warmup_bars
-                        * pd.Timedelta(timeframe_to_freq(bt.timeframe)).total_seconds()
-                    )
-                )
-                if bt.engine_version == "code_v1" and strategy_version is not None
-                else bt.period_start,
-                bt.period_end,
-            )
             if bt.engine_version == "code_v1" and strategy_version is not None:
-                warmup = read_code_version(strategy_version).warmup_bars
-                width = pd.Timedelta(timeframe_to_freq(bt.timeframe))
-                expected = pd.date_range(
-                    bt.period_start - warmup * width, bt.period_end, freq=width, inclusive="left"
+                from src.strategy.product_execution import CodeBacktestExecution
+
+                execution = await CodeBacktestExecution.prepare(
+                    bt, strategy_version, provider=self.provider
                 )
-                if not ohlcv.index.equals(expected):
-                    raise CodeStrategyPolicyError(
-                        "워밍업과 평가 봉의 연속된 전체 범위가 필요합니다"
-                    )
+                ohlcv = execution.signal_ohlcv
+            else:
+                ohlcv = await self.provider.get_ohlcv(
+                    bt.symbol, bt.timeframe, bt.period_start, bt.period_end
+                )
         except Exception as exc:
             logger.exception("ohlcv_fetch_failed")
             fail_rows = await self.repo.fail(
@@ -528,24 +518,9 @@ class BacktestService:
             )
         if bt.engine_version == "code_v1":
             try:
-                if strategy_version is None:
+                if execution is None:
                     raise CodeStrategyPolicyError()
-                code = read_code_version(strategy_version, strategy_id=bt.strategy_id)
-                if (bt.config or {}).get("execution_hash") != code.execution_hash:
-                    raise CodeStrategyPolicyError()
-                execution = await self.provider.get_ohlcv(
-                    bt.symbol, "1m", bt.period_start, bt.period_end
-                )
-                from src.strategy.product_execution import run_product_backtest
-
-                outcome_result = await asyncio.to_thread(
-                    run_product_backtest,
-                    code,
-                    ohlcv,
-                    config,
-                    funding_rates=funding_rates,
-                    execution_ohlcv=execution,
-                )
+                outcome_result = await execution.run(config, funding_rates=funding_rates)
                 outcome_status = "ok"
                 outcome_error = None
                 outcome_warnings = [
