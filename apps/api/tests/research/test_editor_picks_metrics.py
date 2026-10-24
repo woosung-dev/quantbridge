@@ -111,7 +111,7 @@ def test_receipt_job_hash_cannot_be_reused_for_another_request(tmp_path):
 
 def test_native_export_requires_all_timeframes_and_unchanged_capture(tmp_path):
     with pytest.raises(ValueError, match="세 시간봉"):
-        verification.native_export_gate(tmp_path, "one", {"native_windows": {}}, "pine", "code")
+        verification.native_export_gate(tmp_path, "one", {"native_windows": {}}, "pine", "code", 1000)
     windows = {}
     for tf in ("1h", "4h", "1d"):
         path = tmp_path / "native" / "one" / f"{tf}.json"
@@ -119,13 +119,14 @@ def test_native_export_requires_all_timeframes_and_unchanged_capture(tmp_path):
         windows[tf] = {
             "status": "checked_partial_window",
             "capture_sha256": sha(path.read_bytes()),
-            "checks": {"pine": {"passed": True, "source_sha256": "code"}},
+            "warmup_bars": 1000, "checked_bars": 500, "bars": 1500,
+            "checks": {"pine": {"passed": True, "source_sha256": "code", "prefix_bars": 1333}},
         }
     proof = {"native_windows": windows}
-    verification.native_export_gate(tmp_path, "one", proof, "pine", "code")
+    verification.native_export_gate(tmp_path, "one", proof, "pine", "code", 1000)
     write(tmp_path / "native/one/1h.json", {"raw": "changed"})
     with pytest.raises(ValueError, match="SHA256"):
-        verification.native_export_gate(tmp_path, "one", proof, "pine", "code")
+        verification.native_export_gate(tmp_path, "one", proof, "pine", "code", 1000)
 
 
 def test_economic_exact_requires_matching_execution_images():

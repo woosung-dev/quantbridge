@@ -47,6 +47,7 @@ def implementation() -> dict:
             "tools/research/sol_economic_data.py",
             "apps/api/src/core/config.py",
             "apps/api/src/strategy/pine/types.py",
+            "apps/api/scripts/pine_validation/native_capture.py",
             "infra/python-runner/main.py",
         )
     ]

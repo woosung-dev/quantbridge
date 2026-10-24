@@ -134,7 +134,11 @@ def _source_calls(
         }:
             continue
         default_node = _arg(call, "defval", 0)
-        if _name(call.func) == "input.source" and isinstance(default_node, A.Name):
+        source_input = _name(call.func) == "input.source" or (
+            _name(call.func) == "input"
+            and (_arg(call, "type", 2) is None or _name(_arg(call, "type", 2)) == "input.source")
+        )
+        if source_input and isinstance(default_node, A.Name):
             if default_node.id not in _SOURCE_NAMES:
                 raise ValueError("input.source 기본값은 확인한 OHLCV source만 허용합니다")
             default = default_node.id
@@ -146,6 +150,20 @@ def _source_calls(
         )
         inputs.append((statement.target.id, title, default))
     return calls, inputs, fills
+
+
+def _empty_study_resolution(source: str) -> bool:
+    declarations = [
+        statement.value
+        for statement in parse_to_ast(source).body
+        if isinstance(statement, A.Expr)
+        and isinstance(statement.value, A.Call)
+        and _name(statement.value.func) in {"study", "indicator", "strategy"}
+    ]
+    if len(declarations) != 1 or _name(declarations[0].func) != "study":
+        return False
+    value = _arg(declarations[0], "resolution")
+    return isinstance(value, A.Constant) and type(value.value) is str and value.value == ""
 
 
 def _frames(data: str) -> list[dict[str, Any]]:
@@ -224,8 +242,12 @@ def _plot_bindings(
         target = plot.get("target")
         if isinstance(target, str) and target.startswith("fill_"):
             fill_colorer_targets.append(target)
-        elif index == 0 or target != f"plot_{index - 1}" or plots[index - 1].get("type") != "line":
-            raise ValueError("컴파일 colorer가 앞선 line plot에 결합되지 않았습니다")
+        elif (
+            index == 0
+            or target != f"plot_{index - 1}"
+            or plots[index - 1].get("type") not in {"line", "shapes"}
+        ):
+            raise ValueError("컴파일 colorer가 앞선 line/shapes plot에 결합되지 않았습니다")
     if fill_colorer_targets != [f"fill_{index}" for index in range(len(fills))]:
         raise ValueError("컴파일 fill colorer와 원문 전역 fill 호출이 다릅니다")
     for (kind, call), (index, plot) in zip(calls, visible, strict=True):
@@ -240,6 +262,8 @@ def _plot_bindings(
             if title_node is not None
             else "Shapes"
             if kind == "plotshape"
+            else "Plot"
+            if kind == "plot"
             else None
         )
         if title is None or style.get("title") != title:
@@ -363,9 +387,32 @@ def parse_native_capture(
             or not _input_equal(item.get("defval"), resolved[name], item.get("type", ""))
         ):
             raise ValueError("컴파일 입력 기본값·제목이 원문과 다릅니다")
-    if {key for key in compiled_inputs if re.fullmatch(r"in_\d+", str(key))} != {
-        f"in_{i}" for i in range(len(source_inputs))
-    }:
+    expected_slots = {f"in_{i}" for i in range(len(source_inputs))}
+    resolution_slot = f"in_{len(source_inputs)}" if _empty_study_resolution(source_text) else None
+    if resolution_slot is not None:
+        expected_slots.add(resolution_slot)
+        slot = compiled_inputs.get(resolution_slot)
+        if (
+            slot
+            != {
+                "id": resolution_slot,
+                "name": "Indicator Timeframe",
+                "type": "resolution",
+                "inline": "study_mtf",
+                "isMTFResolution": True,
+                "isFake": True,
+                "defval": "",
+            }
+            or slot["isMTFResolution"] is not True
+            or slot["isFake"] is not True
+            or sum(
+                isinstance(item, dict) and item.get("id") == resolution_slot
+                for item in meta["inputs"]
+            )
+            != 1
+        ):
+            raise ValueError("빈 study resolution의 compiler 자동 입력 근거가 다릅니다")
+    if {key for key in compiled_inputs if re.fullmatch(r"in_\d+", str(key))} != expected_slots:
         raise ValueError("컴파일 입력 개수가 원문과 다릅니다")
     bound = _plot_bindings(calls, meta.get("plots"), meta.get("styles"), signal_bindings, fills)
     wire = payload.get("wire")
@@ -401,6 +448,12 @@ def parse_native_capture(
             wire_input.get("v"), resolved[name], compiled_inputs[f"in_{index}"].get("type", "")
         ):
             raise ValueError("create_study 실제 입력이 원본 기본값과 다릅니다")
+    if {key for key in study_inputs if re.fullmatch(r"in_\d+", str(key))} != expected_slots:
+        raise ValueError("create_study 입력 개수가 컴파일 결과와 다릅니다")
+    if resolution_slot is not None:
+        slot = study_inputs.get(resolution_slot)
+        if slot != {"v": "", "f": True, "t": "resolution"} or slot["f"] is not True:
+            raise ValueError("create_study resolution은 원문의 빈 차트 주기를 유지해야 합니다")
     completed = [
         m
         for m in received

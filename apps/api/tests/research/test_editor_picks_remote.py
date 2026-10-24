@@ -9,14 +9,19 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from tools.research.editor_picks import remote, report
-from tools.research.editor_picks.common import identity, read, write
+from tools.research.editor_picks import remote, report, verification
+from tools.research.editor_picks.common import identity, read, sha, write
 from tools.research.editor_picks.crypto import transform
 
 
 def bundle(tmp_path, phase="pilot", run_id="123"):
     root = tmp_path / "worker"
     plan = {"phase": phase, "jobs": [{"id": "a"}, {"id": "b"}]}
+    if phase == "full":
+        write(root / "cohort.json", {"items": []})
+        plan.update(
+            cohort_file="cohort.json", cohort_sha256=sha((root / "cohort.json").read_bytes())
+        )
     write(root / f"{phase}-plan.json", plan)
     provenance = {
         "head": "a" * 40,
@@ -28,7 +33,10 @@ def bundle(tmp_path, phase="pilot", run_id="123"):
         "shards": 1,
         "shard": 0,
     }
-    write(root / "terminal-0.json", {"actual_returncode": 0, "plan_sha256": identity(plan)})
+    terminal = {"actual_returncode": 0, "plan_sha256": identity(plan)}
+    if phase == "full":
+        terminal.update(economic_returncode=0, native_returncodes={})
+    write(root / "terminal-0.json", terminal)
     write(
         root / f"worker-{phase}-0.json",
         {
@@ -81,17 +89,22 @@ def test_pilot_and_full_same_shard_keep_separate_remote_evidence(tmp_path, monke
     full = bundle(tmp_path / "full", phase="full", run_id="456")
     destination = tmp_path / "received"
     monkeypatch.setattr(report, "build", lambda *_: {"complete": True})
+    monkeypatch.setattr(verification, "reconcile", lambda *_: None, raising=False)
     namespaces = []
     for root, archive, provenance in (pilot, full):
         remote.collect_result(archive, destination, provenance)
         write(destination / provenance["plan"], read(root / provenance["plan"]))
+        if (root / "cohort.json").exists():
+            write(destination / "cohort.json", read(root / "cohort.json"))
         expected = {key: value for key, value in provenance.items() if key != "shard"}
         assert remote.finalize(destination, destination / provenance["plan"], expected)["complete"]
         namespace = remote.remote_namespace(provenance)
         assert (destination / namespace / "0/envelope.json").is_file()
         namespaces.append(namespace)
     assert namespaces[0] != namespaces[1]
-    assert all((destination / namespace / "finalization.json").is_file() for namespace in namespaces)
+    assert all(
+        (destination / namespace / "finalization.json").is_file() for namespace in namespaces
+    )
     assert len(list((destination / "results").glob("*/receipt.json"))) == 2
 
 

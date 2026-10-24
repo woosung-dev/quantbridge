@@ -170,6 +170,7 @@ def install_runtime(root: Path) -> dict:
 def worker(root: Path, plan: Path, shard: int, shards: int) -> int:
     if not 0 <= shard < shards:
         raise ValueError("잘못된 shard 배정")
+    frozen = read(plan)
     env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "LANG"}}
     env["TRADING_ENCRYPTION_KEYS"] = base64.urlsafe_b64encode(os.urandom(32)).decode()
     env["PINE_AST_CACHE_DIR"] = ""
@@ -191,17 +192,38 @@ def worker(root: Path, plan: Path, shard: int, shards: int) -> int:
         result = subprocess.run(  # noqa: S603 — 현재 Python의 고정 연구 모듈·검증된 shard만 실행
             command, env=env, cwd=ROOT, stdout=output, stderr=subprocess.STDOUT
         )
+        native_returncodes = {}
+        if frozen["phase"] == "full":
+            cohort = read(checked_file(root, frozen["cohort_file"], frozen["cohort_sha256"]))
+            for item in cohort["items"][shard::shards]:
+                native = subprocess.run(  # noqa: S603 — 동일 고정 CLI·동결 원문의 격리 native 검증
+                    [*command[:5], "verify", "--plan", str(plan), "--id", item["id"]],
+                    env=env,
+                    cwd=ROOT,
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                )
+                native_returncodes[item["id"]] = native.returncode
+    actual_returncode = result.returncode or next(
+        (code for code in native_returncodes.values() if code), 0
+    )
+    native_evidence = (
+        {"economic_returncode": result.returncode, "native_returncodes": native_returncodes}
+        if frozen["phase"] == "full"
+        else {}
+    )
     write(
         root / f"terminal-{shard}.json",
         {
-            "actual_returncode": result.returncode,
+            "actual_returncode": actual_returncode,
             "shard": shard,
             "shards": shards,
             "observed_at": now(),
-            "plan_sha256": identity(read(plan)),
+            "plan_sha256": identity(frozen),
+            **native_evidence,
         },
     )
-    return result.returncode
+    return actual_returncode
 
 
 def remote_namespace(provenance: dict) -> Path:
@@ -216,7 +238,14 @@ def pack_result(root: Path, archive: Path, shard: int, provenance: dict) -> None
     for path in sorted((root / "results").rglob("*")):
         if path.is_file() and not path.is_symlink() and path.name != ".lock":
             paths[str(path.relative_to(root))] = path
-    phase = read(root / provenance["plan"])["phase"]
+    frozen = read(root / provenance["plan"])
+    phase = frozen["phase"]
+    if phase == "full":
+        cohort = read(checked_file(root, frozen["cohort_file"], frozen["cohort_sha256"]))
+        for item in cohort["items"][shard :: provenance["shards"]]:
+            path = root / "verification" / f"{item['id']}.json"
+            if path.is_file() and not path.is_symlink():
+                paths[f"native-checks/{item['id']}.json"] = path
     for name in [
         f"terminal-{shard}.json",
         f"worker-{shard}.log",
@@ -261,8 +290,19 @@ def collect_result(archive: Path, root: Path, expected: dict) -> None:
             envelope_name: sha((incoming / envelope_name).read_bytes()),
         }.items():
             path = checked_file(incoming, name, digest)
-            if not (name.startswith("results/") or name.startswith(f"{prefix}/")):
+            if not (
+                name.startswith("results/")
+                or name.startswith("native-checks/")
+                or name.startswith(f"{prefix}/")
+            ):
                 raise ValueError("결과 경로 밖의 파일")
+            if name.startswith("native-checks/"):
+                proof = read(path)
+                if (
+                    proof.get("plan_sha256") != expected["plan_sha256"]
+                    or name != f"native-checks/{proof.get('id')}.json"
+                ):
+                    raise ValueError("원시 native 검증의 plan SHA 또는 원문 ID가 다릅니다")
             target = root / name
             if not target.resolve().is_relative_to(root.resolve()) or target.is_symlink():
                 raise ValueError("결과 목적지 경로 불일치")
@@ -298,6 +338,18 @@ def finalize(root: Path, plan: Path, expected: dict) -> dict:
                 or terminal["plan_sha256"] != expected["plan_sha256"]
             ):
                 raise ValueError("실제 실행 종료 실패")
+            if frozen["phase"] == "full":
+                cohort = read(checked_file(root, frozen["cohort_file"], frozen["cohort_sha256"]))
+                assigned = {item["id"] for item in cohort["items"][shard :: expected["shards"]]}
+                if terminal.get("economic_returncode") != 0 or terminal.get(
+                    "native_returncodes"
+                ) != dict.fromkeys(assigned, 0):
+                    raise ValueError("배정한 native 검증의 실제 종료 증거가 다릅니다")
+                for identifier in assigned:
+                    name = f"native-checks/{identifier}.json"
+                    proof = read(checked_file(root, name, envelope["files"][name]))
+                    if proof.get("plan_sha256") != expected["plan_sha256"]:
+                        raise ValueError("원시 native 검증의 plan SHA가 다릅니다")
             if (
                 allocation["status"] != "finished"
                 or allocation["plan_sha256"] != expected["plan_sha256"]
@@ -308,6 +360,10 @@ def finalize(root: Path, plan: Path, expected: dict) -> dict:
                 raise ValueError("셀 배정 소비 증거 불일치")
         except (OSError, ValueError, KeyError) as error:
             failures.append({"shard": shard, "error": str(error)})
+    if not failures and frozen["phase"] == "full":
+        from tools.research.editor_picks.verification import reconcile
+
+        reconcile(root, plan)
     report = build(root, plan)
     result = {
         "provenance": expected,

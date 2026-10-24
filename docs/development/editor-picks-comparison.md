@@ -66,15 +66,25 @@ apps/api/.venv/bin/python -m tools.research.editor_picks --run-dir runs/editor-p
 ## 판정과 저장
 
 `verify --id ID --plan <full-plan.json>`은 원본 UI compile/study/OHLCV 캡처를 기존
-`native_capture` 파서로 확인한다. 확보한 세 주기 native 구간의 양방향 사건, 동일 재실행,
-미래 봉을 제거한 prefix를 실제 격리 세션으로 대조한다. 이 구간 밖의 TV 일치를 주장하지 않는다.
+`native_capture` 파서로 확인한다. 검토 바인딩의 함수·줄·방향·조건 의미를 변환 근거와 대조하고
+고유하게 확인한 원문 열 좌표만 파서 입력에 보강한다. 모호하거나 기존 좌표와 다르면 거부한다.
+파서 구현 SHA도 계획에 동결한다. 확보한 세 주기 native 구간에서 같은 준비봉(현재 1,000봉)을 먼저 계산하고 이후 모든
+봉의 양방향 사건을 대조한다. 준비봉 이후 검증·prefix 구간이 없으면 거부한다. 동일 재실행과
+미래 봉을 제거한 prefix는 준비봉을 포함한 전체 행동 이력에서 실제 격리 세션으로 대조한다. 이 구간 밖의 TV 일치를 주장하지 않는다.
 전체 36개 경제 셀의 Pine↔Python 신호·곡선·거래 원장 일치도 별도 요구한다. Python은 독립 정답
 오라클이 아니다. 기존 연간 strict 검증기의 최대 100개·독립 oracle 계약은 바꾸지 않는다.
+
+실제 compile metadata로 확인한 generic `input(close)`·`type=input.source`는 고정 OHLC source
+이름만 검증한다. 빈 `study(resolution="")`의 compiler 자동 주기 slot은 정확한 metadata와 빈
+wire 값을 함께 요구하며 추가 입력·주기 override는 거부한다. 색상 열은 바로 앞 line/shapes만
+가리킬 수 있고 제목 없는 plot은 관측한 기본 제목 `Plot`만 허용한다.
 
 `export --plan ...`는 통과한 경로만 기존 `SaveCodeStrategyRequest`로 내보낸다. 각 원문에 Pine·
 Terra Python·Gemini Python 최대 3개를 저장하며 기본 화면은 BTC·1h다. 적자 전략도 기술 검증을
 통과하면 연구로 저장한다. 출처·원문/변환 SHA·모델·검증 범위는 기존 provenance에 담는다.
-실제 앱 저장은 인증된 소유자 API로 요청 후 버전 해시를 다시 읽어 확인한다. 자동 주문은 없다.
+저장 설정은 1배·자본 100%·다음 봉 시가를 명시한다. [가정] 계정 활성화가 없는 연구 저장의
+margin_mode는 isolated다. 공통 R 정책·비용·펀딩 한계·요청 모델과 실제 모델 미보고도 provenance에
+보존한다. 실제 앱 저장은 인증된 소유자 API로 요청 후 버전 해시를 다시 읽어 확인한다. 자동 주문은 없다.
 운영 API/DDL 차이·인증이 막히면 저장 요청 묶음까지 완성하고 해당 단계의 blocked 근거를 남긴다.
 
 보고서는 검색 가능한 HTML과 전체 CSV/JSON이다. 신호 일치와 승률, 비용 포함 수익과 열린 손익을
@@ -97,6 +107,11 @@ URL/SHA 변수가 일치할 때만 8개 ARM shard를 실행한다. `EDITOR_PICKS
 입력과 결과는 별도 키 파일 또는 `EDITOR_PICKS_RESEARCH_KEY`로 AES-GCM 청크 인증한다. 이 키는
 연구 입력 디렉터리 밖에 두며 실제 셀 worker에는 전달하지 않는다. 공개 release에는 `.enc`만 올린다.
 실제 subprocess 종료 코드, shard별 셀 소비 요약, runtime 증거, 원시 결과를 함께 암호화한다.
+full worker는 경제 셀 실행 후 코호트 순서의 `index % shards`로 배정된 원문을 같은 무자격
+환경에서 native 검증 CLI로 실행한다. 전략 실행은 기존 gVisor를 사용한다. 경제·native의 실제
+종료 코드를 terminal에 따로 남기고 하나라도 실패 종료하면 worker도 실패한다.
+worker의 `verification/<ID>.json`은 수거할 때 불변 `native-checks/<ID>.json`으로 매핑하며
+봉투 파일 해시와 plan SHA를 함께 검사한다. 파생 `verification/` 결과는 원시 봉투에 넣지 않는다.
 `finish`·`collect`는 head/run ID/attempt/입력 암호문 SHA/plan SHA/shard를 암호 인증에 결합하므로
 이전 실행 결과를 다른 실행의 결과로 수거할 수 없다.
 
@@ -120,4 +135,6 @@ apps/api/.venv/bin/python -m tools.research.editor_picks.remote finalize \
 종료 코드 1을 반환한다. 원격 증거와 finalization은 plan SHA·head·run ID·attempt의 identity를
 경로에 포함하므로 같은 연구 디렉터리의 파일럿·전체 실행을 덮지 않는다.
 셀 자체의 미지원·전략 실패도 보고서의 실패 분모로 보존하므로 실행 완주와
-성과 통과는 별개다. full-plan의 native 검증·등록 export는 별도 단계이며 파일럿 finalization으로 대체하지 않는다.
+성과 통과는 별개다. full finalization은 모든 shard 증거 확인 후 원시 native proof와 수거한 전체
+경제 결과를 reconcile하고 보고서를 만든다. 파생 `verification/`은 불변 `native-checks/`와
+분리한다. 등록 export는 별도 단계이며 파일럿 finalization으로 전체 검증을 대체하지 않는다.
