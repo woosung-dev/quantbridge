@@ -115,6 +115,11 @@ UI의 사용자 지정 기간으로 추가 이력을 받으면 기존 행과 합
 ([TradingView 공식 한도](https://www.tradingview.com/support/solutions/43000480679-historical-intraday-data-bars-and-limits-explained/)).
 독립 Bybit 시세의 6·12·24개월 경제 측정은 유지하고, TV 원본 대조 구간 밖의 일치를 주장하지 않는다.
 차트 주기는 실제 UTC 봉 격자를 검증한 JSONL 문맥으로 전달하고 worker의 일치 ACK를 요구한다.
+v4의 `stoch/cum/linreg/vwma/roc/cci/hma` 별칭은 기존 `ta.*` 계산으로 연결하며 공식 인자명을
+검사한다. `cum(x)`와 v5 `source`의 이름 차이를 보존하고 중복·미등재 인자는 거부한다
+([공식 마이그레이션](https://www.tradingview.com/pine-script-docs/migration-guides/to-pine-version-5/)).
+`input.string` 타입 상수와 선언의 `format.volume` 표시 상수도 구분한다. 아직 구현하지 않은
+`tostring(..., format.volume)`은 형식을 무시해 시장 판단을 바꾸지 않도록 실행 오류로 남긴다.
 시간·달력과 v5/v6 색상 연산은 보존한 통제 관측으로 회귀 확인하되, 각 원본의 신호 일치 판정은
 별도다. native의 candle OHLC·색상 7열도 실제 metadata 순서·대상·제목과 함께 결박한다.
 전체 36개 경제 셀의 Pine↔Python 신호·곡선·거래 원장 일치도 별도 요구한다. Python은 독립 정답

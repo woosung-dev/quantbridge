@@ -74,6 +74,13 @@ _V4_ALIASES: dict[str, str] = {
     "sma": "ta.sma",
     "wma": "ta.wma",
     "rsi": "ta.rsi",
+    "stoch": "ta.stoch",
+    "cum": "ta.cum",
+    "linreg": "ta.linreg",
+    "vwma": "ta.vwma",
+    "roc": "ta.roc",
+    "cci": "ta.cci",
+    "hma": "ta.hma",
     "crossover": "ta.crossover",
     "crossunder": "ta.crossunder",
     "cross": "ta.cross",
@@ -116,8 +123,10 @@ _ATTR_CONSTANTS: dict[str, str] = {
     "input.float": "float",
     "input.bool": "bool",
     "input.source": "source",
+    "input.string": "string",
     # 수집 원본의 표시 전용 상수다. 미지의 format/plot 속성은 계속 오류로 둔다.
     "format.price": "price",
+    "format.volume": "volume",
     "plot.style_line": "line",
     "plot.style_linebr": "linebr",
     "plot.style_circles": "circles",
@@ -1369,6 +1378,8 @@ class Interpreter:
         # Pine v4 legacy alias — prefix 없는 stdlib을 ta.* / math.* 로 재라우팅
         # (i1_utbot / 일부 RTB 전략이 v4 문법 사용)
         # Sprint 29 Slice C: function-local → module-level export. parity invariant 검증 대상.
+        # 공식 v4 cum(x)는 v5 source와 같은 위치이며 키워드명만 다르다.
+        legacy_cum = name == "cum"
         if name in _V4_ALIASES:
             name = _V4_ALIASES[name]
 
@@ -1538,6 +1549,8 @@ class Interpreter:
             values = [
                 self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
             ]
+            if len(values) > 1 and values[1] == "volume":
+                raise PineRuntimeError("tostring: format.volume formatting is not supported")
             val = values[0]
             if isinstance(val, float) and math.isnan(val):
                 return "NaN"
@@ -1607,8 +1620,9 @@ class Interpreter:
                 "ta.vwma": ("source", "length"),
                 "ta.roc": ("source", "length"),
                 "ta.cci": ("source", "length"),
+                "ta.hma": ("source", "length"),
             }
-            signature = signatures.get(name)
+            signature = ("x",) if legacy_cum else signatures.get(name)
             if signature is not None:
                 positions = []
                 named_seen = False

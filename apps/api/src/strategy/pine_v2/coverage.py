@@ -146,12 +146,13 @@ _INPUT_FUNCTIONS: frozenset[str] = frozenset(
 
 # v4의 type= 인자는 함수 호출이 아닌 상수 참조다. input.* 전체를 허용하지 않는다.
 _INPUT_CONSTANTS: frozenset[str] = frozenset(
-    {"input.integer", "input.float", "input.bool", "input.source"}
+    {"input.integer", "input.float", "input.bool", "input.source", "input.string"}
 )
 
 _DISPLAY_CONSTANTS: frozenset[str] = frozenset(
     {
         "format.price",
+        "format.volume",
         "plot.style_line",
         "plot.style_linebr",
         "plot.style_circles",
@@ -328,6 +329,13 @@ _V4_ALIASES: frozenset[str] = frozenset(
         "wma",
         "ema",
         "rsi",
+        "stoch",
+        "cum",
+        "linreg",
+        "vwma",
+        "roc",
+        "cci",
+        "hma",
         "atr",
         "highest",
         "lowest",

@@ -1,331 +1,331 @@
 {
   "s3_rsid": {
-    "total_seconds": 56.9949987080181,
+    "total_seconds": 58.26369187491946,
     "hotspots": [
       {
         "function": "run_backtest_v2",
         "file": "src/backtest/engine/v2_adapter.py",
         "line": 53,
         "call_count": 1,
-        "cumulative_seconds": 56.899512958,
-        "tottime_seconds": 0.000162792
+        "cumulative_seconds": 58.171311708000005,
+        "tottime_seconds": 0.000185126
       },
       {
         "function": "parse_and_run_v2",
         "file": "src/strategy/pine_v2/compat.py",
         "line": 42,
         "call_count": 1,
-        "cumulative_seconds": 56.5542025,
-        "tottime_seconds": 1.7958e-05
+        "cumulative_seconds": 57.81211891700001,
+        "tottime_seconds": 2.0418e-05
       },
       {
         "function": "classify_script",
         "file": "src/strategy/pine_v2/ast_classifier.py",
         "line": 133,
         "call_count": 1,
-        "cumulative_seconds": 39.785794166,
-        "tottime_seconds": 0.000245672
+        "cumulative_seconds": 40.585080042,
+        "tottime_seconds": 0.00023900800000000003
       },
       {
         "function": "parse_to_ast",
         "file": "src/strategy/pine_v2/parser_adapter.py",
         "line": 114,
         "call_count": 1,
-        "cumulative_seconds": 39.782949416,
-        "tottime_seconds": 8.124e-06
+        "cumulative_seconds": 40.582276125,
+        "tottime_seconds": 4.958000000000001e-06
       },
       {
         "function": "parse",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 164,
         "call_count": 1,
-        "cumulative_seconds": 39.782938667,
-        "tottime_seconds": 3.5840000000000003e-06
+        "cumulative_seconds": 40.582268417,
+        "tottime_seconds": 4.167e-06
       },
       {
         "function": "_parse_inputstream",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 143,
         "call_count": 1,
-        "cumulative_seconds": 39.782935083000005,
-        "tottime_seconds": 1.3083000000000002e-05
+        "cumulative_seconds": 40.58226425,
+        "tottime_seconds": 1.1916e-05
       },
       {
         "function": "_parse",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 82,
         "call_count": 1,
-        "cumulative_seconds": 39.782387125,
-        "tottime_seconds": 6.2585e-05
+        "cumulative_seconds": 40.581717958000006,
+        "tottime_seconds": 6.6449e-05
       },
       {
         "function": "start_script",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 694,
         "call_count": 1,
-        "cumulative_seconds": 39.755025875,
-        "tottime_seconds": 1.8957e-05
+        "cumulative_seconds": 40.553860208,
+        "tottime_seconds": 2.4416e-05
       },
       {
         "function": "statements",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 932,
         "call_count": 1,
-        "cumulative_seconds": 39.737336625000005,
-        "tottime_seconds": 0.000111544
+        "cumulative_seconds": 40.535591458000006,
+        "tottime_seconds": 0.00011495400000000001
       },
       {
         "function": "statement",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 995,
         "call_count": 59,
-        "cumulative_seconds": 39.72076708,
-        "tottime_seconds": 0.00022996300000000002
+        "cumulative_seconds": 40.518679412000004,
+        "tottime_seconds": 0.000251688
       },
       {
         "function": "adaptivePredict",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 294,
         "call_count": 3672,
-        "cumulative_seconds": 39.583444089000004,
-        "tottime_seconds": 0.135395401
+        "cumulative_seconds": 40.382333098000004,
+        "tottime_seconds": 0.137076576
       },
       {
         "function": "simple_statements",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 1163,
         "call_count": 60,
-        "cumulative_seconds": 38.775549373000004,
-        "tottime_seconds": 0.000258825
+        "cumulative_seconds": 39.581271418,
+        "tottime_seconds": 0.000266016
       },
       {
         "function": "simple_statement",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 1251,
         "call_count": 60,
-        "cumulative_seconds": 38.77183867,
-        "tottime_seconds": 0.000247868
+        "cumulative_seconds": 39.577395294000006,
+        "tottime_seconds": 0.000245655
       },
       {
         "function": "closure",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 1097,
         "call_count": 3949,
-        "cumulative_seconds": 38.532638481,
-        "tottime_seconds": 0.0016782390000000002
+        "cumulative_seconds": 39.310968206000005,
+        "tottime_seconds": 0.00157667
       },
       {
         "function": "closureCheckingStopState",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 1103,
         "call_count": 3949,
-        "cumulative_seconds": 38.530960242,
-        "tottime_seconds": 2.067868603
+        "cumulative_seconds": 39.309391536,
+        "tottime_seconds": 2.0872015360000002
       },
       {
         "function": "closure_",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 1145,
         "call_count": 3949,
-        "cumulative_seconds": 38.528966723,
-        "tottime_seconds": 4.96727396
+        "cumulative_seconds": 39.307382677,
+        "tottime_seconds": 5.114396093000001
       },
       {
         "function": "expression",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 4229,
         "call_count": 60,
-        "cumulative_seconds": 38.028912000000005,
-        "tottime_seconds": 0.0005672230000000001
+        "cumulative_seconds": 38.840541915,
+        "tottime_seconds": 0.000622492
       },
       {
         "function": "conditional_expression",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 4329,
         "call_count": 60,
-        "cumulative_seconds": 38.028538127000004,
-        "tottime_seconds": 0.000907578
+        "cumulative_seconds": 38.840173961000005,
+        "tottime_seconds": 0.0009359110000000001
       },
       {
         "function": "execATN",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 386,
         "call_count": 3672,
-        "cumulative_seconds": 37.852923443,
-        "tottime_seconds": 0.01052346
+        "cumulative_seconds": 38.620465550000006,
+        "tottime_seconds": 0.010787303
       },
       {
         "function": "computeReachSet",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 661,
         "call_count": 1867,
-        "cumulative_seconds": 36.998889676000005,
-        "tottime_seconds": 0.029773239000000003
+        "cumulative_seconds": 37.750442608,
+        "tottime_seconds": 0.030536555000000003
       }
     ]
   },
   "s5_ema_trend": {
-    "total_seconds": 4.9373434169683605,
+    "total_seconds": 5.155314332921989,
     "hotspots": [
       {
         "function": "run_backtest_v2",
         "file": "src/backtest/engine/v2_adapter.py",
         "line": 53,
         "call_count": 1,
-        "cumulative_seconds": 4.9343642910000005,
-        "tottime_seconds": 0.00013620600000000002
+        "cumulative_seconds": 5.1521131250000005,
+        "tottime_seconds": 0.00010104100000000001
       },
       {
         "function": "parse_and_run_v2",
         "file": "src/strategy/pine_v2/compat.py",
         "line": 42,
         "call_count": 1,
-        "cumulative_seconds": 4.611370792000001,
-        "tottime_seconds": 1.2291000000000001e-05
+        "cumulative_seconds": 4.809196583,
+        "tottime_seconds": 1.0041000000000001e-05
       },
       {
         "function": "invoke",
         "file": "src/strategy/pine_v2/track_runner.py",
         "line": 55,
         "call_count": 1,
-        "cumulative_seconds": 3.6395086250000004,
-        "tottime_seconds": 3.1958e-05
+        "cumulative_seconds": 3.7544033750000003,
+        "tottime_seconds": 3.35e-05
       },
       {
         "function": "run_historical",
         "file": "src/strategy/pine_v2/event_loop.py",
         "line": 78,
         "call_count": 1,
-        "cumulative_seconds": 3.6394736250000004,
-        "tottime_seconds": 0.034336658
+        "cumulative_seconds": 3.754366875,
+        "tottime_seconds": 0.034660949
       },
       {
         "function": "current",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 256,
+        "line": 265,
         "call_count": 104879,
-        "cumulative_seconds": 2.4830469230000003,
-        "tottime_seconds": 0.096708137
+        "cumulative_seconds": 2.555217251,
+        "tottime_seconds": 0.098627881
       },
       {
         "function": "execute",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 558,
+        "line": 567,
         "call_count": 4368,
-        "cumulative_seconds": 2.373248933,
-        "tottime_seconds": 0.009652066
+        "cumulative_seconds": 2.4513692820000004,
+        "tottime_seconds": 0.009832039
       },
       {
         "function": "_exec_stmt",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 565,
+        "line": 574,
         "call_count": 48048,
-        "cumulative_seconds": 2.3629471310000003,
-        "tottime_seconds": 0.029495721000000003
+        "cumulative_seconds": 2.4408717930000003,
+        "tottime_seconds": 0.031688613000000004
       },
       {
         "function": "__getitem__",
         "file": ".venv/lib/python3.12/site-packages/pandas/core/indexing.py",
         "line": 1177,
         "call_count": 131091,
-        "cumulative_seconds": 2.2431229370000003,
-        "tottime_seconds": 0.113640298
+        "cumulative_seconds": 2.3223143850000003,
+        "tottime_seconds": 0.11829275900000001
       },
       {
         "function": "_eval_expr",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 1001,
+        "line": 1010,
         "call_count": 48095,
-        "cumulative_seconds": 2.1086515550000002,
-        "tottime_seconds": 0.112094198
+        "cumulative_seconds": 2.1721633760000003,
+        "tottime_seconds": 0.11740317700000001
       },
       {
         "function": "_exec_assign",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 603,
+        "line": 612,
         "call_count": 26208,
-        "cumulative_seconds": 2.0237209380000003,
-        "tottime_seconds": 0.055929017000000004
+        "cumulative_seconds": 2.08948474,
+        "tottime_seconds": 0.058346596
       },
       {
         "function": "_eval_call",
         "file": "src/strategy/pine_v2/interpreter.py",
-        "line": 1317,
+        "line": 1326,
         "call_count": 39359,
-        "cumulative_seconds": 2.009674344,
-        "tottime_seconds": 0.11456735200000001
+        "cumulative_seconds": 2.069896102,
+        "tottime_seconds": 0.11804726200000001
       },
       {
         "function": "_getitem_axis",
         "file": ".venv/lib/python3.12/site-packages/pandas/core/indexing.py",
         "line": 1720,
         "call_count": 131091,
-        "cumulative_seconds": 1.985068269,
-        "tottime_seconds": 0.17203731900000002
+        "cumulative_seconds": 2.0506174180000003,
+        "tottime_seconds": 0.181365576
       },
       {
         "function": "_ixs",
         "file": ".venv/lib/python3.12/site-packages/pandas/core/frame.py",
         "line": 3994,
         "call_count": 109250,
-        "cumulative_seconds": 1.225673056,
-        "tottime_seconds": 0.184886398
+        "cumulative_seconds": 1.2731801310000002,
+        "tottime_seconds": 0.193073493
       },
       {
         "function": "classify_script",
         "file": "src/strategy/pine_v2/ast_classifier.py",
         "line": 133,
         "call_count": 1,
-        "cumulative_seconds": 0.9694540420000001,
-        "tottime_seconds": 4.9968e-05
+        "cumulative_seconds": 1.052260667,
+        "tottime_seconds": 7.058800000000001e-05
       },
       {
         "function": "parse_to_ast",
         "file": "src/strategy/pine_v2/parser_adapter.py",
         "line": 114,
         "call_count": 1,
-        "cumulative_seconds": 0.9690062920000001,
-        "tottime_seconds": 2.583e-06
+        "cumulative_seconds": 1.051692292,
+        "tottime_seconds": 2.793e-06
       },
       {
         "function": "parse",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 164,
         "call_count": 1,
-        "cumulative_seconds": 0.9690000000000001,
-        "tottime_seconds": 1.125e-06
+        "cumulative_seconds": 1.0516857080000002,
+        "tottime_seconds": 1.25e-06
       },
       {
         "function": "_parse_inputstream",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 143,
         "call_count": 1,
-        "cumulative_seconds": 0.968998875,
-        "tottime_seconds": 3.542e-06
+        "cumulative_seconds": 1.051684458,
+        "tottime_seconds": 4.25e-06
       },
       {
         "function": "_parse",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 82,
         "call_count": 1,
-        "cumulative_seconds": 0.9688835830000001,
-        "tottime_seconds": 2.2250000000000002e-05
+        "cumulative_seconds": 1.0515697080000002,
+        "tottime_seconds": 2.6043e-05
       },
       {
         "function": "start_script",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 694,
         "call_count": 1,
-        "cumulative_seconds": 0.9647947080000001,
-        "tottime_seconds": 1.1331e-05
+        "cumulative_seconds": 1.046701708,
+        "tottime_seconds": 1.0206e-05
       },
       {
         "function": "statements",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 932,
         "call_count": 1,
-        "cumulative_seconds": 0.9576055000000001,
-        "tottime_seconds": 2.6959e-05
+        "cumulative_seconds": 1.0394130000000001,
+        "tottime_seconds": 2.7908e-05
       }
     ]
   },
@@ -1006,9 +1006,9 @@
       "ratio": 42.66411275066213
     },
     ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:66:__eq__": {
-      "s3_rsid": 21950,
+      "s3_rsid": 21948,
       "s5_ema_trend": 976,
-      "ratio": 22.489754098360656
+      "ratio": 22.487704918032787
     },
     ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfig.py:78:__hash__": {
       "s3_rsid": 150776,
@@ -1041,9 +1041,9 @@
       "ratio": 45.03703703703704
     },
     ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:138:__eq__": {
-      "s3_rsid": 7324,
+      "s3_rsid": 7322,
       "s5_ema_trend": 1322,
-      "ratio": 5.540090771558245
+      "ratio": 5.53857791225416
     },
     ".venv/lib/python3.12/site-packages/antlr4/atn/ATNConfigSet.py:154:__hash__": {
       "s3_rsid": 3352,
@@ -1426,9 +1426,9 @@
       "ratio": 7.852564102564102
     },
     ".venv/lib/python3.12/site-packages/antlr4/dfa/DFAState.py:106:__eq__": {
-      "s3_rsid": 9107,
+      "s3_rsid": 9105,
       "s5_ema_trend": 1543,
-      "ratio": 5.902138690861957
+      "ratio": 5.900842514581983
     },
     ".venv/lib/python3.12/site-packages/antlr4/dfa/DFAState.py:53:__init__": {
       "s3_rsid": 2057,
@@ -6070,132 +6070,132 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:1001:_eval_expr": {
+    "src/strategy/pine_v2/interpreter.py:1010:_eval_expr": {
       "s3_rsid": 253344,
       "s5_ema_trend": 48095,
       "ratio": 5.267574591953426
     },
-    "src/strategy/pine_v2/interpreter.py:1278:_collect_args": {
+    "src/strategy/pine_v2/interpreter.py:1287:_collect_args": {
       "s3_rsid": 126672,
       "s5_ema_trend": 21840,
       "ratio": 5.8
     },
-    "src/strategy/pine_v2/interpreter.py:1317:_eval_call": {
+    "src/strategy/pine_v2/interpreter.py:1326:_eval_call": {
       "s3_rsid": 225672,
       "s5_ema_trend": 39359,
       "ratio": 5.733682258187454
     },
-    "src/strategy/pine_v2/interpreter.py:196:pine_version_from_ast": {
+    "src/strategy/pine_v2/interpreter.py:205:pine_version_from_ast": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:2135:_resolve_name": {
+    "src/strategy/pine_v2/interpreter.py:2149:_resolve_name": {
       "s3_rsid": 583848,
       "s5_ema_trend": 52416,
       "ratio": 11.138736263736265
     },
-    "src/strategy/pine_v2/interpreter.py:2203:_eval_attribute": {
+    "src/strategy/pine_v2/interpreter.py:2217:_eval_attribute": {
       "s3_rsid": 104832,
       "s5_ema_trend": 17496,
       "ratio": 5.991769547325103
     },
-    "src/strategy/pine_v2/interpreter.py:226:__post_init__": {
-      "s3_rsid": 1,
-      "s5_ema_trend": 1,
-      "ratio": 1.0
-    },
-    "src/strategy/pine_v2/interpreter.py:2332:_exec_strategy_call": {
+    "src/strategy/pine_v2/interpreter.py:2346:_exec_strategy_call": {
       "s3_rsid": 13104,
       "s5_ema_trend": 47,
       "ratio": 278.8085106382979
     },
-    "src/strategy/pine_v2/interpreter.py:2420:_price_arg": {
-      "s3_rsid": 154,
-      "s5_ema_trend": 48,
-      "ratio": 3.2083333333333335
-    },
-    "src/strategy/pine_v2/interpreter.py:251:advance": {
-      "s3_rsid": 4369,
-      "s5_ema_trend": 4369,
-      "ratio": 1.0
-    },
-    "src/strategy/pine_v2/interpreter.py:256:current": {
-      "s3_rsid": 334848,
-      "s5_ema_trend": 104879,
-      "ratio": 3.192707787068908
-    },
-    "src/strategy/pine_v2/interpreter.py:2625:_detect_var_kind": {
-      "s3_rsid": 200929,
-      "s5_ema_trend": 26208,
-      "ratio": 7.666704822954823
-    },
-    "src/strategy/pine_v2/interpreter.py:2635:_truthy": {
-      "s3_rsid": 408455,
-      "s5_ema_trend": 8736,
-      "ratio": 46.75538003663004
-    },
-    "src/strategy/pine_v2/interpreter.py:2648:_is_na": {
-      "s3_rsid": 743211,
-      "s5_ema_trend": 8736,
-      "ratio": 85.07451923076923
-    },
-    "src/strategy/pine_v2/interpreter.py:2664:_attr_chain": {
-      "s3_rsid": 131040,
-      "s5_ema_trend": 43751,
-      "ratio": 2.995131539850518
-    },
-    "src/strategy/pine_v2/interpreter.py:2676:_call_chain_name": {
-      "s3_rsid": 276624,
-      "s5_ema_trend": 39359,
-      "ratio": 7.028227343174369
-    },
-    "src/strategy/pine_v2/interpreter.py:275:current_timestamp": {
-      "s3_rsid": 4368,
-      "s5_ema_trend": 4368,
-      "ratio": 1.0
-    },
-    "src/strategy/pine_v2/interpreter.py:463:__init__": {
+    "src/strategy/pine_v2/interpreter.py:235:__post_init__": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:511:reset_transient": {
-      "s3_rsid": 4368,
-      "s5_ema_trend": 4368,
-      "ratio": 1.0
+    "src/strategy/pine_v2/interpreter.py:2434:_price_arg": {
+      "s3_rsid": 154,
+      "s5_ema_trend": 48,
+      "ratio": 3.2083333333333335
     },
-    "src/strategy/pine_v2/interpreter.py:515:begin_bar_snapshot": {
-      "s3_rsid": 4368,
-      "s5_ema_trend": 4368,
-      "ratio": 1.0
-    },
-    "src/strategy/pine_v2/interpreter.py:524:append_var_series": {
-      "s3_rsid": 4368,
-      "s5_ema_trend": 4368,
-      "ratio": 1.0
-    },
-    "src/strategy/pine_v2/interpreter.py:548:global_state_snapshot": {
+    "src/strategy/pine_v2/interpreter.py:260:advance": {
       "s3_rsid": 4369,
       "s5_ema_trend": 4369,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:558:execute": {
+    "src/strategy/pine_v2/interpreter.py:2639:_detect_var_kind": {
+      "s3_rsid": 200929,
+      "s5_ema_trend": 26208,
+      "ratio": 7.666704822954823
+    },
+    "src/strategy/pine_v2/interpreter.py:2649:_truthy": {
+      "s3_rsid": 408455,
+      "s5_ema_trend": 8736,
+      "ratio": 46.75538003663004
+    },
+    "src/strategy/pine_v2/interpreter.py:265:current": {
+      "s3_rsid": 334848,
+      "s5_ema_trend": 104879,
+      "ratio": 3.192707787068908
+    },
+    "src/strategy/pine_v2/interpreter.py:2662:_is_na": {
+      "s3_rsid": 743211,
+      "s5_ema_trend": 8736,
+      "ratio": 85.07451923076923
+    },
+    "src/strategy/pine_v2/interpreter.py:2678:_attr_chain": {
+      "s3_rsid": 131040,
+      "s5_ema_trend": 43751,
+      "ratio": 2.995131539850518
+    },
+    "src/strategy/pine_v2/interpreter.py:2690:_call_chain_name": {
+      "s3_rsid": 276624,
+      "s5_ema_trend": 39359,
+      "ratio": 7.028227343174369
+    },
+    "src/strategy/pine_v2/interpreter.py:284:current_timestamp": {
       "s3_rsid": 4368,
       "s5_ema_trend": 4368,
       "ratio": 1.0
     },
-    "src/strategy/pine_v2/interpreter.py:565:_exec_stmt": {
+    "src/strategy/pine_v2/interpreter.py:472:__init__": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "src/strategy/pine_v2/interpreter.py:520:reset_transient": {
+      "s3_rsid": 4368,
+      "s5_ema_trend": 4368,
+      "ratio": 1.0
+    },
+    "src/strategy/pine_v2/interpreter.py:524:begin_bar_snapshot": {
+      "s3_rsid": 4368,
+      "s5_ema_trend": 4368,
+      "ratio": 1.0
+    },
+    "src/strategy/pine_v2/interpreter.py:533:append_var_series": {
+      "s3_rsid": 4368,
+      "s5_ema_trend": 4368,
+      "ratio": 1.0
+    },
+    "src/strategy/pine_v2/interpreter.py:557:global_state_snapshot": {
+      "s3_rsid": 4369,
+      "s5_ema_trend": 4369,
+      "ratio": 1.0
+    },
+    "src/strategy/pine_v2/interpreter.py:567:execute": {
+      "s3_rsid": 4368,
+      "s5_ema_trend": 4368,
+      "ratio": 1.0
+    },
+    "src/strategy/pine_v2/interpreter.py:574:_exec_stmt": {
       "s3_rsid": 257712,
       "s5_ema_trend": 48048,
       "ratio": 5.363636363636363
     },
-    "src/strategy/pine_v2/interpreter.py:603:_exec_assign": {
+    "src/strategy/pine_v2/interpreter.py:612:_exec_assign": {
       "s3_rsid": 183456,
       "s5_ema_trend": 26208,
       "ratio": 7.0
     },
-    "src/strategy/pine_v2/interpreter.py:637:<genexpr>": {
+    "src/strategy/pine_v2/interpreter.py:646:<genexpr>": {
       "s3_rsid": 401856,
       "s5_ema_trend": 52416,
       "ratio": 7.666666666666667
@@ -6390,7 +6390,7 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "~:0:<built-in method __new__ of type object at 0x104872058>": {
+    "~:0:<built-in method __new__ of type object at 0x102c52058>": {
       "s3_rsid": 374196,
       "s5_ema_trend": 109323,
       "ratio": 3.42284789111166
@@ -6501,9 +6501,9 @@
       "ratio": 4.916208791208791
     },
     "~:0:<built-in method builtins.isinstance>": {
-      "s3_rsid": 61421141,
+      "s3_rsid": 61421135,
       "s5_ema_trend": 5011931,
-      "ratio": 12.254985353948408
+      "ratio": 12.254984156805032
     },
     "~:0:<built-in method builtins.issubclass>": {
       "s3_rsid": 100,
@@ -6516,9 +6516,9 @@
       "ratio": 14857.0
     },
     "~:0:<built-in method builtins.len>": {
-      "s3_rsid": 6389189,
+      "s3_rsid": 6397925,
       "s5_ema_trend": 539607,
-      "ratio": 11.840448696922019
+      "ratio": 11.856638257101928
     },
     "~:0:<built-in method builtins.max>": {
       "s3_rsid": 938507,
