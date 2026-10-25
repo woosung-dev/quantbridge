@@ -8,8 +8,11 @@ import json
 import shutil
 import subprocess
 import time
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import ExitStack
 from decimal import Decimal
 from functools import lru_cache
+from multiprocessing import get_context
 from pathlib import Path
 
 import pandas as pd
@@ -448,7 +451,20 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
         )
 
 
-def execute(root: Path, plan_path: Path, shard: int = 0, shards: int = 1) -> dict:
+def _execute_jobs(root: Path, frozen: dict, jobs: list[dict], images: dict) -> int:
+    """독립 프로세스는 고정 이미지의 셀만 실행하고 완료 기록은 부모에 맡긴다."""
+    if require_runtime() != images:
+        raise ValueError("자식 프로세스의 실행 이미지가 부모와 다릅니다")
+    for job in jobs:
+        execute_job(root, frozen, job, images)
+    return len(jobs)
+
+
+def execute(
+    root: Path, plan_path: Path, shard: int = 0, shards: int = 1, *, workers: int = 1
+) -> dict:
+    if type(workers) is not int or workers not in (1, 2):
+        raise ValueError("셀 실행 프로세스는 1개 또는 2개만 허용합니다")
     frozen = read(plan_path)
     if not 0 <= shard < shards:
         raise ValueError("shard 범위가 잘못됐습니다")
@@ -463,18 +479,40 @@ def execute(root: Path, plan_path: Path, shard: int = 0, shards: int = 1) -> dic
         }
         write(root / f"runtime-blocked-{shard}.json", blocked)
         return blocked
-    rows = [
-        execute_job(root, frozen, job, images)
+    jobs = [
+        job
         for index, job in enumerate(frozen["jobs"])
         if index % shards == shard
     ]
+    parallel = {}
+    if workers == 1:
+        consumed = len([execute_job(root, frozen, job, images) for job in jobs])
+    else:
+        if len({identity(job) for job in jobs}) != len(jobs):
+            raise ValueError("병렬 배정 셀은 중복 없이 고유해야 합니다")
+        batches = [jobs[offset::2] for offset in range(2) if jobs[offset::2]]
+        with ExitStack() as stack:
+            # 각 lane을 별도 1-worker pool에 고정해 짧은 작업도 같은 PID에 몰리지 않는다.
+            futures = [
+                stack.enter_context(
+                    ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn"))
+                ).submit(_execute_jobs, root, frozen, batch, images)
+                for batch in batches
+            ]
+            consumed = sum(future.result() for future in futures)
+        parallel = {
+            "workers": workers,
+            "worker_processes": len(batches),
+            "process_start_method": "spawn",
+        }
     value = {
         "status": "finished",
         "plan_sha256": identity(frozen),
         "shard": shard,
         "shards": shards,
-        "jobs_consumed": len(rows),
+        "jobs_consumed": consumed,
         "observed_at": now(),
+        **parallel,
     }
     write(root / f"worker-{frozen['phase']}-{shard}.json", value)
     return value

@@ -41,6 +41,7 @@ def main() -> int:
     execution.add_argument("--plan", required=True)
     execution.add_argument("--shard", type=int, default=0)
     execution.add_argument("--shards", type=int, default=1)
+    execution.add_argument("--workers", type=int, choices=(1, 2), default=1)
     for name in ("report", "verify", "export"):
         cmd = commands.add_parser(name)
         cmd.add_argument("--plan", required=True)
@@ -111,7 +112,7 @@ def main() -> int:
     elif args.command == "execute":
         from tools.research.editor_picks.execution import execute
 
-        result = execute(root, Path(args.plan), args.shard, args.shards)
+        result = execute(root, Path(args.plan), args.shard, args.shards, workers=args.workers)
     elif args.command == "report":
         from tools.research.editor_picks.report import build
 
