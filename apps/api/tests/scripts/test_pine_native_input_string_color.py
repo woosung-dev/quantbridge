@@ -116,7 +116,6 @@ def test_override_changes_wire_but_compiler_keeps_source_default():
         "color.new(#1a1a1a,50)",
         "color.rgb(26,26,26)",
         "color.custom",
-        "#ffffff80",
         '"#ffffff"',
         "make_color()",
     ],

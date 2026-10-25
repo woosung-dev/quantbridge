@@ -2,7 +2,9 @@
 
 import importlib.util
 import json
+import os
 import shutil
+import subprocess
 import sys
 import tarfile
 from pathlib import Path
@@ -495,3 +497,18 @@ def test_cli_preserves_nonzero_actual_verify_exit(case, monkeypatch):
     with pytest.raises(SystemExit) as error:
         followup.main()
     assert error.value.code == 1
+
+
+def test_cli_bootstraps_isolated_config_without_production_credentials():
+    env = {name: value for name, value in os.environ.items() if name in {"PATH", "HOME", "LANG"}}
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools/scripts/editor-picks-native-followup.py"), "--help"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--run-dir" in result.stdout
+    assert "Field required" not in result.stderr

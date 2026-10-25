@@ -12,6 +12,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from itertools import pairwise
 from typing import Any
 
@@ -23,7 +24,7 @@ from src.strategy.pine_v2.parser_adapter import parse_to_ast
 
 _STEPS = {"1h": timedelta(hours=1), "4h": timedelta(hours=4), "1d": timedelta(days=1)}
 _SIGNAL_CALLS = {"plotshape", "plotchar", "alertcondition"}
-_PLOT_CALLS = _SIGNAL_CALLS | {"plot", "barcolor", "plotcandle"}
+_PLOT_CALLS = _SIGNAL_CALLS | {"plot", "barcolor", "bgcolor", "plotcandle"}
 _SOURCE_NAMES = {"open", "high", "low", "close", "hl2", "hlc3", "ohlc4"}
 _PLOT_TYPES = {
     "alertcondition": "alertcondition",
@@ -31,6 +32,7 @@ _PLOT_TYPES = {
     "plotshape": "shapes",
     "plotchar": "chars",
     "barcolor": "bar_colorer",
+    "bgcolor": "bg_colorer",
     "plotcandle": "ohlc_open",
 }
 _FRAME = re.compile(r"~m~(\d+)~m~")
@@ -260,6 +262,55 @@ def _source_calls(
     return calls, inputs, fills
 
 
+def _source_plot_variables(source: str) -> dict[str, tuple[int, int]]:
+    """AST를 바꾸지 않고 단일 전역 대입의 plot handle 위치만 읽는다."""
+    positions, writes = {}, {}
+    for statement in parse_to_ast(source).body:
+        if not isinstance(statement, (A.Assign, A.ReAssign, A.AugAssign)) or not isinstance(
+            statement.target, A.Name
+        ):
+            continue
+        name = statement.target.id
+        writes[name] = writes.get(name, 0) + 1
+        call = statement.value
+        if (
+            isinstance(statement, A.Assign)
+            and isinstance(call, A.Call)
+            and _name(call.func) == "plot"
+        ):
+            positions[name] = (call.lineno, call.col_offset)
+    return {name: position for name, position in positions.items() if writes[name] == 1}
+
+
+def _static_fill_color(call: A.Call) -> str | None:
+    """관측한 color.new(hex6, 리터럴 투명도)만 compiler RGBA 기본값으로 읽는다."""
+    color = _arg(call, "color", 2)
+    if not isinstance(color, A.Call) or _name(color.func) != "color.new":
+        return None
+    literal = _arg(color, "color", 0)
+    if not isinstance(literal, A.Constant) or literal.kind != "#":
+        return None
+    transparency = _arg(color, "transp", 1)
+    if not (
+        len(color.args) == 2
+        and all(arg.name is None for arg in color.args)
+        and isinstance(literal.value, str)
+        and re.fullmatch(r"#[0-9a-fA-F]{6}", literal.value)
+        and isinstance(transparency, A.Constant)
+        and _numeric(transparency.value)
+        and 0 <= transparency.value <= 100
+        and len([arg for arg in call.args if arg.name is None]) <= 3
+        and all(arg.name is None or arg.name in {"color", "title", "display"} for arg in call.args)
+    ):
+        raise ValueError("관측하지 않은 정적 fill 색 형식입니다")
+    red, green, blue = [int(literal.value[index : index + 2], 16) for index in (1, 3, 5)]
+    alpha = (
+        format((Decimal(100) - Decimal(str(transparency.value))) / 100, "f").rstrip("0").rstrip(".")
+        or "0"
+    )
+    return f"rgba({red},{green},{blue},{alpha})"
+
+
 def _empty_chart_resolution(source: str) -> tuple[str | None, bool | None]:
     declarations = [
         statement.value
@@ -349,6 +400,9 @@ def _plot_bindings(
     fills: Sequence[A.Call],
     *,
     ohlc_plots: Any = None,
+    source_plot_variables: Mapping[str, tuple[int, int]] | None = None,
+    filled_areas: Any = None,
+    filled_area_defaults: Any = None,
 ) -> list[tuple[int, str, int]]:
     if (
         not isinstance(plots, list)
@@ -359,6 +413,7 @@ def _plot_bindings(
     if [plot.get("id") for plot in plots] != [f"plot_{i}" for i in range(len(plots))]:
         raise ValueError("컴파일 plot id 순서가 연속적이지 않습니다")
     expected_fill_columns = []
+    static_fills = []
     for index, call in enumerate(fills):
         target = f"fill_{index}"
         top_value, bottom_value = _arg(call, "top_value", 2), _arg(call, "bottom_value", 3)
@@ -366,6 +421,10 @@ def _plot_bindings(
             arg.name in {"top_value", "bottom_value", "top_color", "bottom_color"}
             for arg in call.args
         ):
+            static_color = _static_fill_color(call)
+            if static_color is not None:
+                static_fills.append((target, call, static_color))
+                continue
             expected_fill_columns.append({"type": "colorer", "target": target})
             continue
         # rbeErVR5의 관측한 gradient 형식: series topValue / const bottomValue /
@@ -477,10 +536,13 @@ def _plot_bindings(
         if kind == "plotcandle" and style.get("plottype") != "ohlc_candles":
             raise ValueError("plotcandle 스타일 유형이 다릅니다")
         title_node = _arg(
-            call, "title", 4 if kind == "plotcandle" else None if kind == "barcolor" else 1
+            call,
+            "title",
+            4 if kind == "plotcandle" else None if kind in {"barcolor", "bgcolor"} else 1,
         )
-        if kind == "barcolor" and title_node is not None:
-            raise ValueError("barcolor는 관측한 기본 제목 Bar Color만 허용합니다")
+        if kind in {"barcolor", "bgcolor"} and title_node is not None:
+            default_title = "Bar Color" if kind == "barcolor" else "Background Color"
+            raise ValueError(f"{kind}는 관측한 기본 제목 {default_title}만 허용합니다")
         title = (
             _literal(title_node, "plot title")
             if title_node is not None
@@ -490,10 +552,17 @@ def _plot_bindings(
             if kind == "plot"
             else "Bar Color"
             if kind == "barcolor"
+            else "Background Color"
+            if kind == "bgcolor"
             else None
         )
         if title is None or style.get("title") != title:
             raise ValueError("원문 plot title과 컴파일 스타일 제목이 다릅니다")
+        if kind == "bgcolor" and (
+            style != {"title": "Background Color", "isHidden": False}
+            or style.get("isHidden") is not False
+        ):
+            raise ValueError("관측한 bgcolor 기본 스타일과 다릅니다")
         text_node = _arg(call, "message" if kind == "alertcondition" else "text")
         if (
             kind in _SIGNAL_CALLS
@@ -501,6 +570,52 @@ def _plot_bindings(
             and style.get("text") != _literal(text_node, "signal text")
         ):
             raise ValueError("원문 신호 text와 컴파일 스타일이 다릅니다")
+    if static_fills:
+        if (
+            not isinstance(filled_areas, list)
+            or len(filled_areas) != len(fills)
+            or [area.get("id") if isinstance(area, dict) else None for area in filled_areas]
+            != [f"fill_{i}" for i in range(len(fills))]
+        ):
+            raise ValueError("정적 fill의 전체 filledAreas 대상이 다릅니다")
+        plot_ids = {
+            (call.lineno, call.col_offset): plot["id"]
+            for (kind, call), (_, plot) in zip(calls, visible, strict=True)
+            if kind == "plot"
+        }
+        for target, call, color in static_fills:
+            endpoints = [_arg(call, name, index) for index, name in enumerate(("plot1", "plot2"))]
+            if not source_plot_variables or any(
+                not isinstance(node, A.Name) or source_plot_variables.get(node.id) not in plot_ids
+                for node in endpoints
+            ):
+                raise ValueError("정적 fill 끝점은 단일 전역 plot 변수여야 합니다")
+            expected_area = {
+                "id": target,
+                "objAId": plot_ids[source_plot_variables[endpoints[0].id]],
+                "objBId": plot_ids[source_plot_variables[endpoints[1].id]],
+                "title": _literal(_arg(call, "title", 3), "fill title"),
+                "type": "plot_plot",
+                "fillgaps": False,
+                "isHidden": False,
+            }
+            area = filled_areas[int(target.split("_")[1])]
+            if (
+                area != expected_area
+                or area.get("fillgaps") is not False
+                or area.get("isHidden") is not False
+            ):
+                raise ValueError("정적 fill의 제목·유형·plot 끝점이 원문과 다릅니다")
+            style = (
+                filled_area_defaults.get(target) if isinstance(filled_area_defaults, dict) else None
+            )
+            if (
+                not isinstance(style, dict)
+                or set(style) != {"color", "visible"}
+                or style["color"] != color
+                or type(style["visible"]) is not bool
+            ):
+                raise ValueError("정적 fill의 기본 색·투명도 스타일이 원문과 다릅니다")
     bound: list[tuple[int, str, int]] = []
     used: set[int] = set()
     directions: set[str] = set()
@@ -605,10 +720,10 @@ def parse_native_capture(
     meta = responses[0]["data"].get("result", {}).get("metaInfo")
     if not isinstance(meta, dict) or not isinstance(meta.get("inputs"), list):
         raise ValueError("컴파일 metaInfo가 없습니다")
-    # 관측한 compiler stats는 barcolor를 세지 않으므로 실제 plot 열 대응에서 별도로 검사한다.
+    # 관측한 stats는 barcolor/bgcolor를 세지 않으므로 실제 plot 열 대응에서 별도로 검사한다.
     counts = {
         kind: sum(call_kind == kind for call_kind, _ in calls)
-        for kind in _PLOT_CALLS - {"barcolor"}
+        for kind in _PLOT_CALLS - {"barcolor", "bgcolor"}
     }
     stats = meta.get("stats")
     if not isinstance(stats, dict) or any(
@@ -690,6 +805,11 @@ def parse_native_capture(
         signal_bindings,
         fills,
         ohlc_plots=meta.get("ohlcPlots"),
+        source_plot_variables=_source_plot_variables(source_text),
+        filled_areas=meta.get("filledAreas"),
+        filled_area_defaults=meta.get("defaults", {}).get("filledAreasStyle")
+        if isinstance(meta.get("defaults"), dict)
+        else None,
     )
     wire = payload.get("wire")
     if not isinstance(wire, list) or not wire:

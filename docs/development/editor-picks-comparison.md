@@ -130,6 +130,9 @@ v4의 `stoch/cum/linreg/vwma/roc/cci/hma` 별칭은 기존 `ta.*` 계산으로 �
 `tostring(..., format.volume)`은 형식을 무시해 시장 판단을 바꾸지 않도록 실행 오류로 남긴다.
 시간·달력과 v5/v6 색상 연산은 보존한 통제 관측으로 회귀 확인하되, 각 원본의 신호 일치 판정은
 별도다. native의 candle OHLC·색상 7열도 실제 metadata 순서·대상·제목과 함께 결박한다.
+정적 `color.new(hex6, transp)` fill은 색상 열이 없을 수 있다. 원문 plot 변수의 위치와 compiler의
+끝점·제목·색·투명도까지 맞는 경우만 수용하며 동적·gradient 열 요구는 유지한다. `bgcolor`의
+별도 `bg_colorer`도 비신호 열로 고정한다. 신규 형식은 실제 원시로 대조하며 기존 epoch는 갱신하지 않는다.
 전체 36개 경제 셀의 Pine↔Python 신호·곡선·거래 원장 일치도 별도 요구한다. Python은 독립 정답
 오라클이 아니다. 기존 연간 strict 검증기의 최대 100개·독립 oracle 계약은 바꾸지 않는다.
 

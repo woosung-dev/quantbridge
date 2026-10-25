@@ -20,6 +20,12 @@ ROOT = Path.cwd().resolve()
 if not (ROOT / "tools/research/editor_picks").is_dir():
     ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / "apps/api")]
+# 기존 remote worker처럼 거래 설정의 형식만 충족하는 일회용 키다.
+# 실제 거래 자격증명이나 연구 번들 인증 키를 코어 설정에 주입하지 않는다.
+os.environ.setdefault(
+    "TRADING_ENCRYPTION_KEYS", base64.urlsafe_b64encode(os.urandom(32)).decode()
+)
+os.environ.setdefault("PINE_AST_CACHE_DIR", "")
 
 import pandas as pd  # noqa: E402
 from tools.research.editor_picks import verification  # noqa: E402
@@ -52,7 +58,11 @@ def digest(path: Path) -> str:
 
 def checkout_head() -> str:
     return subprocess.run(
-        ["/usr/bin/git", "rev-parse", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True
+        ["/usr/bin/git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
 
 
@@ -67,7 +77,10 @@ def base(root: Path) -> tuple[dict, dict, dict]:
         or digest(root / "runtime/source-proof.json") != SOURCE_PROOF_SHA
     ):
         raise ValueError("원래 runtime manifest·빌드 출처가 다릅니다")
-    images = {k: runtime["image_ids"][f"quantbridge-{k}-runner:local"] for k in ("pine", "python")}
+    images = {
+        k: runtime["image_ids"][f"quantbridge-{k}-runner:local"]
+        for k in ("pine", "python")
+    }
     for item in cohort["items"]:
         for arm, selection in frozen["artifacts"][item["id"]].items():
             if "source_sha256" in selection:
@@ -121,7 +134,9 @@ def prior_evidence(candidate: dict) -> None:
             or any(c not in "0123456789abcdef" for c in sha)
             or str(path) in seen
         ):
-            raise ValueError("외부 원시는 정해진 회차의 상대 식별명·SHA 참조만 허용합니다")
+            raise ValueError(
+                "외부 원시는 정해진 회차의 상대 식별명·SHA 참조만 허용합니다"
+            )
         seen.add(str(path))
 
 
@@ -149,14 +164,18 @@ def collection(root: Path, item: dict, captures: dict, frozen: dict) -> None:
             require_full_prefix=True,
         )
         if native.ohlcv.index[0] != pd.Timestamp(native.metadata["price_first_bar"]):
-            raise ValueError("원래 고정 코어가 초기 가격을 제외하는 관측은 새 회차가 필요합니다")
+            raise ValueError(
+                "원래 고정 코어가 초기 가격을 제외하는 관측은 새 회차가 필요합니다"
+            )
         cutoff = pd.Timestamp(frozen["dataset"]["end"])
         frame = native.ohlcv.loc[native.ohlcv.index < cutoff]
         warmup = item["warmup_bars"]
         if len(frame) <= warmup + 1:
             raise ValueError("동결 종료 전 준비봉 이후 이력이 부족합니다")
         end = min(cutoff, frame.index[-1] + pd.Timedelta(tf))
-        events = native.window_events(frame.index[0].to_pydatetime(), end.to_pydatetime())
+        events = native.window_events(
+            frame.index[0].to_pydatetime(), end.to_pydatetime()
+        )
         seen, directions = set(), set()
         for event in events:
             if (
@@ -182,7 +201,9 @@ def freeze(root: Path, ledger_path: Path, destination: Path) -> dict:
     for candidate in ledger["candidates"]:
         identifier, captures = candidate["id"], candidate["captures"]
         if (
-            not {"id", "captures"} <= set(candidate) <= {"id", "captures", "prior_evidence"}
+            not {"id", "captures"}
+            <= set(candidate)
+            <= {"id", "captures", "prior_evidence"}
             or identifier not in items
             or set(captures) - set(TIMEFRAMES)
         ):
@@ -201,7 +222,9 @@ def freeze(root: Path, ledger_path: Path, destination: Path) -> dict:
             try:
                 collection(root, items[identifier], captures, frozen)
             except (ValueError, KeyError, TypeError) as error:
-                record.update(status="collection_failed", error_type=type(error).__name__)
+                record.update(
+                    status="collection_failed", error_type=type(error).__name__
+                )
             else:
                 record["status"] = "selected"
                 selected[identifier] = len(attempts)
@@ -237,7 +260,9 @@ def validate(root: Path, selection: dict) -> None:
     for index, attempt in enumerate(selection["attempts"]):
         identifier = attempt["id"]
         candidate = {
-            key: attempt[key] for key in ("id", "captures", "prior_evidence") if key in attempt
+            key: attempt[key]
+            for key in ("id", "captures", "prior_evidence")
+            if key in attempt
         }
         prior_evidence(candidate)
         if (
@@ -253,7 +278,10 @@ def validate(root: Path, selection: dict) -> None:
         if identifier not in selected:
             try:
                 collection(
-                    root, items[identifier], attempt["captures"], read(root / "full-plan.json")
+                    root,
+                    items[identifier],
+                    attempt["captures"],
+                    read(root / "full-plan.json"),
                 )
             except (ValueError, KeyError, TypeError) as error:
                 status = "collection_failed"
@@ -261,7 +289,9 @@ def validate(root: Path, selection: dict) -> None:
             else:
                 status = "selected"
                 selected[identifier] = index
-        expected_keys = set(candidate) | {"status"} | ({"error_type"} if error_type else set())
+        expected_keys = (
+            set(candidate) | {"status"} | ({"error_type"} if error_type else set())
+        )
         if (
             attempt["status"] != status
             or set(attempt) != expected_keys
@@ -291,7 +321,9 @@ def pack(root: Path, selection_path: Path, archive: Path) -> dict:
     }
 
 
-def unpack(cipher: Path, expected_sha: str, key_env: str, context: str, target: Path) -> None:
+def unpack(
+    cipher: Path, expected_sha: str, key_env: str, context: str, target: Path
+) -> None:
     if digest(cipher) != expected_sha:
         raise ValueError("후속 암호문 SHA가 다릅니다")
     key = base64.b64decode(os.environ[key_env], altchars=b"-_", validate=True)
@@ -317,7 +349,9 @@ def prepare(root: Path, overlay: Path, expected_selection: str) -> dict:
             ):
                 raise ValueError("후속 overlay의 쓰기 경로가 다릅니다")
             allowed.add(f"captures/{capture['sha256']}.json")
-    if {str(path.relative_to(overlay)) for path in overlay.rglob("*") if path.is_file()} != allowed:
+    if {
+        str(path.relative_to(overlay)) for path in overlay.rglob("*") if path.is_file()
+    } != allowed:
         raise ValueError("미등재 overlay 파일입니다")
     for attempt in selection["attempts"]:
         for capture in attempt["captures"].values():
@@ -325,7 +359,9 @@ def prepare(root: Path, overlay: Path, expected_selection: str) -> dict:
             source = checked_file(overlay, name, capture["sha256"])
             allowed.add(name)
             destination = root / capture["file"]
-            if destination.is_symlink() or not destination.resolve().is_relative_to(root.resolve()):
+            if destination.is_symlink() or not destination.resolve().is_relative_to(
+                root.resolve()
+            ):
                 raise ValueError("후속 관측 경로가 root 밖입니다")
             if destination.exists():
                 checked_file(root, capture["file"], capture["sha256"])
@@ -333,7 +369,9 @@ def prepare(root: Path, overlay: Path, expected_selection: str) -> dict:
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 with destination.open("xb") as output, source.open("rb") as incoming:
                     shutil.copyfileobj(incoming, output)
-    if {str(path.relative_to(overlay)) for path in overlay.rglob("*") if path.is_file()} != allowed:
+    if {
+        str(path.relative_to(overlay)) for path in overlay.rglob("*") if path.is_file()
+    } != allowed:
         raise ValueError("미등재 overlay 파일입니다")
     validate(root, selection)
     immutable(root / "native-followup-selection.json", selection)
@@ -360,7 +398,11 @@ def worker(root: Path, run: str, attempt: str, control_head: str) -> dict:
     if prefix.exists():
         raise ValueError("같은 원격 실행의 후속 증거를 덮어쓸 수 없습니다")
     prefix.mkdir(parents=True)
-    env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "LANG"}}
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key in {"PATH", "HOME", "LANG"}
+    }
     env.update(
         TRADING_ENCRYPTION_KEYS=base64.urlsafe_b64encode(os.urandom(32)).decode(),
         PINE_AST_CACHE_DIR="",
@@ -373,7 +415,9 @@ def worker(root: Path, run: str, attempt: str, control_head: str) -> dict:
                 raise ValueError("원래 입력의 native 관측을 교체하지 않습니다")
             destination.parent.mkdir(parents=True, exist_ok=True)
             if not destination.exists():
-                shutil.copyfile(checked_file(root, capture["file"], capture["sha256"]), destination)
+                shutil.copyfile(
+                    checked_file(root, capture["file"], capture["sha256"]), destination
+                )
         with (prefix / f"{identifier}.log").open("x") as log:
             result = subprocess.run(  # noqa: S603 — 고정 CLI의 verify만 호출하며 코드는 gVisor 안에서 실행한다
                 [
@@ -415,7 +459,9 @@ def worker(root: Path, run: str, attempt: str, control_head: str) -> dict:
 def bundle(root: Path, run: str, attempt: str, archive: Path) -> dict:
     prefix = root / namespace(run, attempt)
     paths = {
-        path.name: path for path in prefix.iterdir() if path.is_file() and not path.is_symlink()
+        path.name: path
+        for path in prefix.iterdir()
+        if path.is_file() and not path.is_symlink()
     }
     if "terminal.json" not in paths:
         raise ValueError("실제 실행 종료 근거가 없습니다")
@@ -439,7 +485,9 @@ def validate_result(
     envelope = read(incoming / "envelope.json")
     if envelope.get("run_id") != run or envelope.get("attempt") != attempt:
         raise ValueError("후속 결과 실행 출처가 다릅니다")
-    if set(envelope["files"]) | {"envelope.json"} != {path.name for path in incoming.iterdir()}:
+    if set(envelope["files"]) | {"envelope.json"} != {
+        path.name for path in incoming.iterdir()
+    }:
         raise ValueError("후속 결과의 파일 목록이 다릅니다")
     for name, sha in envelope["files"].items():
         if Path(name).name != name:
@@ -502,7 +550,9 @@ def validate_result(
     return terminal
 
 
-def collect(root: Path, incoming: Path, run: str, attempt: str, selection_path: Path) -> Path:
+def collect(
+    root: Path, incoming: Path, run: str, attempt: str, selection_path: Path
+) -> Path:
     validate_result(root, incoming, run, attempt, selection_path)
     destination = root / namespace(run, attempt)
     shutil.copytree(incoming, destination)
@@ -518,7 +568,9 @@ def install_projection() -> None:
     module.install()
 
 
-def derive(root: Path, destination: Path, selections: list[dict], economic_final: Path) -> dict:
+def derive(
+    root: Path, destination: Path, selections: list[dict], economic_final: Path
+) -> dict:
     """별도 clone에만 선택한 판정을 배치하고 기존 결합·수출을 호출한다."""
     final = read(economic_final)
     if (
@@ -547,7 +599,10 @@ def derive(root: Path, destination: Path, selections: list[dict], economic_final
     for shard in range(20):
         path = root / remote_namespace(provenance) / str(shard) / "envelope.json"
         envelope = read(path)
-        if any(envelope.get(key) != value for key, value in {**provenance, "shard": shard}.items()):
+        if any(
+            envelope.get(key) != value
+            for key, value in {**provenance, "shard": shard}.items()
+        ):
             raise ValueError("원래 경제 분할 봉투의 출처가 다릅니다")
         for name, sha in envelope["files"].items():
             checked_file(root, name, sha)
@@ -591,9 +646,12 @@ def derive(root: Path, destination: Path, selections: list[dict], economic_final
             for tf, capture in selection["attempts"][index]["captures"].items():
                 target = destination / "native" / identifier / f"{tf}.json"
                 target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(checked_file(root, capture["file"], capture["sha256"]), target)
+                shutil.copyfile(
+                    checked_file(root, capture["file"], capture["sha256"]), target
+                )
             shutil.copyfile(
-                prefix / f"{identifier}.json", destination / "native-checks" / f"{identifier}.json"
+                prefix / f"{identifier}.json",
+                destination / "native-checks" / f"{identifier}.json",
             )
     value = {
         "base": base(root)[2],
@@ -604,13 +662,17 @@ def derive(root: Path, destination: Path, selections: list[dict], economic_final
     immutable(destination / "native-followup-derived.json", value)
     install_projection()
     verification.reconcile(destination, destination / "full-plan.json")
-    return {**value, "export": verification.export(destination, destination / "full-plan.json")}
+    return {
+        **value,
+        "export": verification.export(destination, destination / "full-plan.json"),
+    }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "action", choices=("freeze", "pack", "prepare", "worker", "bundle", "collect", "derive")
+        "action",
+        choices=("freeze", "pack", "prepare", "worker", "bundle", "collect", "derive"),
     )
     parser.add_argument("--run-dir", required=True, type=Path)
     for name in (
@@ -624,7 +686,14 @@ def main() -> None:
         "followups",
     ):
         parser.add_argument(f"--{name}", type=Path)
-    for name in ("sha256", "selection-sha", "key-env", "run-id", "attempt", "control-head"):
+    for name in (
+        "sha256",
+        "selection-sha",
+        "key-env",
+        "run-id",
+        "attempt",
+        "control-head",
+    ):
         parser.add_argument(f"--{name}")
     args = parser.parse_args()
     root = args.run_dir.resolve()
@@ -657,12 +726,17 @@ def main() -> None:
                 incoming,
             )
             result = {
-                "folder": str(collect(root, incoming, args.run_id, args.attempt, args.selection))
+                "folder": str(
+                    collect(root, incoming, args.run_id, args.attempt, args.selection)
+                )
             }
     else:
         result = derive(root, args.output, read(args.followups), args.economic_final)
     failed = args.action == "worker" and any(result["returncodes"].values())
-    summary = {"status": "failed" if failed else "completed", "result_sha256": identity(result)}
+    summary = {
+        "status": "failed" if failed else "completed",
+        "result_sha256": identity(result),
+    }
     if args.action in {"freeze", "prepare"}:
         summary["selection_sha256"] = identity(result)
     elif "selection_sha256" in result:
