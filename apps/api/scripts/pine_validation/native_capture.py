@@ -20,12 +20,24 @@ import pandas as pd
 from pynescript import ast as A
 
 from scripts.pine_validation.models import SignalEvent, utc_time
+from src.strategy.pine_v2.interpreter import _ATTR_CONSTANTS, pine_version_from_ast
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
+from src.strategy.pine_v2.rendering import color_call, color_named
 
 _STEPS = {"1h": timedelta(hours=1), "4h": timedelta(hours=4), "1d": timedelta(days=1)}
 _SIGNAL_CALLS = {"plotshape", "plotchar", "alertcondition"}
 _PLOT_CALLS = _SIGNAL_CALLS | {"plot", "barcolor", "bgcolor", "plotcandle"}
-_SOURCE_NAMES = {"open", "high", "low", "close", "hl2", "hlc3", "ohlc4"}
+_SOURCE_NAMES = {"open", "high", "low", "close", "volume", "hl2", "hlc3", "ohlc4"}
+_INPUT_CALLS = {
+    "input",
+    "input.int",
+    "input.float",
+    "input.bool",
+    "input.source",
+    "input.string",
+    "input.color",
+}
+_INPUT_ENUMS = {name: value for name, value in _ATTR_CONSTANTS.items() if name.startswith("size.")}
 _PLOT_TYPES = {
     "alertcondition": "alertcondition",
     "plot": "line",
@@ -63,6 +75,11 @@ class NativeCapture:
             or not expected.difference(self.ohlcv.index).empty
         ):
             raise ValueError("비교창에 native study 또는 OHLCV 확정 봉이 누락됐습니다")
+        if any(
+            start <= utc_time(item["bar_time"]) < end
+            for item in self.metadata.get("missing_alertconditions", [])
+        ):
+            raise ValueError("비교창에 미관측 alertcondition 값이 있습니다")
         return [event for event in self.events if start <= event.bar_time < end]
 
 
@@ -91,8 +108,83 @@ def _literal(node: Any, label: str) -> Any:
     return node.value
 
 
-def _color_default(node: Any) -> str:
-    """관측한 hex6/8·white·color.new(hex6, 0)의 입력 값을 해석한다."""
+def _input_default(node: Any, label: str) -> Any:
+    """입력 슬롯의 부호 리터럴·공식 size 상수만 읽으며 일반 식은 계산하지 않는다."""
+    if (
+        isinstance(node, A.UnaryOp)
+        and isinstance(node.op, (A.UAdd, A.USub))
+        and isinstance(node.operand, A.Constant)
+        and _numeric(node.operand.value)
+    ):
+        return -node.operand.value if isinstance(node.op, A.USub) else node.operand.value
+    if _name(node) in _INPUT_ENUMS:
+        return _INPUT_ENUMS[_name(node)]
+    return _literal(node, label)
+
+
+def _raw_input_call(node: Any) -> A.Call | None:
+    """관측한 wrapper의 input 슬롯만 찾고 wrapper의 계산 결과는 만들지 않는다."""
+    if isinstance(node, A.Call) and _name(node.func) in _INPUT_CALLS:
+        return node
+    if (
+        isinstance(node, A.Call)
+        and len(node.args) == 1
+        and node.args[0].name is None
+        and isinstance(node.args[0].value, A.Call)
+    ):
+        inner = node.args[0].value
+        if (_name(node.func), _name(inner.func)) in {
+            ("nz", "input.source"),
+            ("str.tonumber", "input.string"),
+        }:
+            return inner
+
+    def numeric_input(candidate: Any) -> bool:
+        if not isinstance(candidate, A.Call) or _name(candidate.func) not in {
+            "input",
+            "input.int",
+            "input.float",
+        }:
+            return False
+        if _name(_arg(candidate, "type", 2)) == "input.source":
+            return False
+        default = _arg(candidate, "defval", 0)
+        if isinstance(default, A.Constant):
+            return _numeric(default.value)
+        return (
+            isinstance(default, A.UnaryOp)
+            and isinstance(default.op, (A.UAdd, A.USub))
+            and isinstance(default.operand, A.Constant)
+            and _numeric(default.operand.value)
+        )
+
+    if isinstance(node, A.BinOp):
+        if (
+            isinstance(node.op, A.Div)
+            and numeric_input(node.left)
+            and isinstance(node.right, A.Constant)
+            and type(node.right.value) is int
+            and node.right.value in {10, 100}
+        ):
+            return node.left
+        if (
+            isinstance(node.op, A.Sub)
+            and numeric_input(node.right)
+            and isinstance(node.left, A.Constant)
+            and _numeric(node.left.value)
+        ):
+            return node.right
+    if any(
+        isinstance(child, A.Call)
+        and (_name(child.func) == "input" or _name(child.func).startswith("input."))
+        for child in A.walk(node)
+    ):
+        raise ValueError("관측하지 않은 input wrapper는 슬롯을 추측해 추출하지 않습니다")
+    return None
+
+
+def _color_default(node: Any, version: int = 6) -> str:
+    """관측한 compiler 색 표기만 만들며 채널·버전 의미는 PineColor SSOT를 쓴다."""
     if (
         isinstance(node, A.Constant)
         and node.kind == "#"
@@ -109,8 +201,9 @@ def _color_default(node: Any) -> str:
         and re.fullmatch(r"#[0-9a-fA-F]{6}", node.value)
     ):
         return node.value
-    if _name(node) == "color.white":
-        return "#FFFFFF"
+    if isinstance(node, A.Attribute) and _name(node) == f"color.{node.attr}":
+        color = color_named(node.attr, version)
+        return f"#{color.red:02X}{color.green:02X}{color.blue:02X}"
     if (
         isinstance(node, A.Call)
         and _name(node.func) == "color.new"
@@ -129,6 +222,20 @@ def _color_default(node: Any) -> str:
         ):
             red, green, blue = [int(base.value[i : i + 2], 16) for i in (1, 3, 5)]
             return f"rgba({red},{green},{blue},1)"
+        if (
+            isinstance(base, A.Attribute)
+            and _name(base) == f"color.{base.attr}"
+            and isinstance(transparency, A.Constant)
+            and type(transparency.value) is int
+            and 0 <= transparency.value <= 100
+        ):
+            color = color_call(
+                "color.new",
+                {"color": color_named(base.attr, version), "transp": transparency.value},
+                version,
+            )
+            opacity = str(color.alpha).removesuffix(".0")
+            return f"rgba({color.red},{color.green},{color.blue},{opacity})"
     raise ValueError("input.color: 관측하지 않은 색 또는 동적 기본값입니다")
 
 
@@ -186,52 +293,12 @@ def _source_calls(
         raise ValueError("로컬·동적 fill 호출은 native 열에 고정할 수 없습니다")
     calls = [(_name(call.func), call) for call in top]
     inputs: list[tuple[str, str, Any]] = []
+    version = pine_version_from_ast(tree)
     for statement in tree.body:
         if not isinstance(statement, A.Assign) or not isinstance(statement.target, A.Name):
             continue
-        call = statement.value
-        # ATR Rope의 nz(input.source(close))도 연산 전 source slot을 그대로 검증한다.
-        if (
-            isinstance(call, A.Call)
-            and _name(call.func) == "nz"
-            and len(call.args) == 1
-            and call.args[0].name is None
-            and isinstance(call.args[0].value, A.Call)
-            and _name(call.args[0].value.func) == "input.source"
-        ):
-            call = call.args[0].value
-        # 관측한 퍼센트 입력은 slot의 원시 기본값을 비교하며 /100 결과를 평가하지 않는다.
-        if (
-            isinstance(call, A.BinOp)
-            and isinstance(call.op, A.Div)
-            and isinstance(call.right, A.Constant)
-            and type(call.right.value) is int
-            and call.right.value == 100
-            and isinstance(call.left, A.Call)
-            and _name(call.left.func) in {"input", "input.float"}
-            and isinstance(_arg(call.left, "defval", 0), A.Constant)
-            and type(_arg(call.left, "defval", 0).value) in (int, float)
-        ):
-            call = call.left
-        # 관측한 Band Scale은 tonumber 결과가 아니라 내부 text 입력 slot을 검증한다.
-        if (
-            isinstance(call, A.Call)
-            and _name(call.func) == "str.tonumber"
-            and len(call.args) == 1
-            and call.args[0].name is None
-            and isinstance(call.args[0].value, A.Call)
-            and _name(call.args[0].value.func) == "input.string"
-        ):
-            call = call.args[0].value
-        if not isinstance(call, A.Call) or _name(call.func) not in {
-            "input",
-            "input.int",
-            "input.float",
-            "input.bool",
-            "input.source",
-            "input.string",
-            "input.color",
-        }:
+        call = _raw_input_call(statement.value)
+        if call is None:
             continue
         default_node = _arg(call, "defval", 0)
         source_input = _name(call.func) == "input.source" or (
@@ -239,9 +306,9 @@ def _source_calls(
             and (_arg(call, "type", 2) is None or _name(_arg(call, "type", 2)) == "input.source")
         )
         if _name(call.func) == "input.color":
-            default = _color_default(default_node)
+            default = _color_default(default_node, version)
         elif _name(call.func) == "input.string":
-            default = _literal(default_node, "input.string defval")
+            default = _input_default(default_node, "input.string defval")
             if type(default) is not str:
                 raise ValueError("input.string 기본값은 문자열이어야 합니다")
         elif source_input and isinstance(default_node, A.Name):
@@ -249,7 +316,7 @@ def _source_calls(
                 raise ValueError("input.source 기본값은 확인한 OHLCV source만 허용합니다")
             default = default_node.id
         else:
-            default = _literal(default_node, "input defval")
+            default = _input_default(default_node, "input defval")
         title_node = _arg(call, "title", 1)
         title = (
             _literal(title_node, "input title") if title_node is not None else statement.target.id
@@ -280,6 +347,39 @@ def _source_plot_variables(source: str) -> dict[str, tuple[int, int]]:
         ):
             positions[name] = (call.lineno, call.col_offset)
     return {name: position for name, position in positions.items() if writes[name] == 1}
+
+
+def _source_static_colors(source: str) -> dict[str, tuple[str, int]]:
+    """관측한 v4 단일 전역 color.new(named, int) 상수만 읽는다."""
+    tree = parse_to_ast(source)
+    if pine_version_from_ast(tree) != 4:
+        return {}
+    colors, writes = {}, {}
+    for statement in tree.body:
+        if not isinstance(statement, (A.Assign, A.ReAssign, A.AugAssign)) or not isinstance(
+            statement.target, A.Name
+        ):
+            continue
+        name, value = statement.target.id, statement.value
+        writes[name] = writes.get(name, 0) + 1
+        if (
+            not isinstance(statement, A.Assign)
+            or not isinstance(value, A.Call)
+            or _name(value.func) != "color.new"
+            or len(value.args) != 2
+            or any(arg.name is not None for arg in value.args)
+        ):
+            continue
+        base, transparency = [arg.value for arg in value.args]
+        if (
+            isinstance(base, A.Attribute)
+            and _name(base) == f"color.{base.attr}"
+            and isinstance(transparency, A.Constant)
+            and type(transparency.value) is int
+            and 0 <= transparency.value <= 100
+        ):
+            colors[name] = (_color_default(value, 4), transparency.value)
+    return {name: value for name, value in colors.items() if writes[name] == 1}
 
 
 def _static_fill_color(call: A.Call) -> str | None:
@@ -403,6 +503,9 @@ def _plot_bindings(
     source_plot_variables: Mapping[str, tuple[int, int]] | None = None,
     filled_areas: Any = None,
     filled_area_defaults: Any = None,
+    source_static_colors: Mapping[str, tuple[str, int]] | None = None,
+    source_version: int | None = None,
+    ohlc_defaults: Any = None,
 ) -> list[tuple[int, str, int]]:
     if (
         not isinstance(plots, list)
@@ -421,9 +524,24 @@ def _plot_bindings(
             arg.name in {"top_value", "bottom_value", "top_color", "bottom_color"}
             for arg in call.args
         ):
-            static_color = _static_fill_color(call)
+            reference = _arg(call, "color", 2)
+            constant = (
+                source_static_colors.get(reference.id)
+                if source_static_colors and isinstance(reference, A.Name)
+                else None
+            )
+            if constant and (
+                source_version != 4
+                or len([arg for arg in call.args if arg.name is None]) > 3
+                or any(
+                    arg.name is not None and arg.name not in {"color", "title", "display"}
+                    for arg in call.args
+                )
+            ):
+                raise ValueError("관측하지 않은 v4 정적 fill 호출 형식입니다")
+            static_color = constant[0] if constant else _static_fill_color(call)
             if static_color is not None:
-                static_fills.append((target, call, static_color))
+                static_fills.append((target, call, static_color, constant))
                 continue
             expected_fill_columns.append({"type": "colorer", "target": target})
             continue
@@ -485,11 +603,15 @@ def _plot_bindings(
     visible = []
     candle_columns: set[int] = set()
     candle_count = 0
+    candle_calls = [call for kind, call in calls if kind == "plotcandle"]
     for index, plot in enumerate(plots):
         if index in candle_columns:
             continue
         if plot.get("type") == "ohlc_open":
             target = f"plotcandle_{candle_count}"
+            if candle_count >= len(candle_calls):
+                raise ValueError("원문에 없는 plotcandle 그룹입니다")
+            call = candle_calls[candle_count]
             types = (
                 "ohlc_open",
                 "ohlc_high",
@@ -499,9 +621,35 @@ def _plot_bindings(
                 "wick_colorer",
                 "border_colorer",
             )
+            if (
+                source_version == 4
+                and _arg(call, "color", 5) is not None
+                and _arg(call, "wickcolor", 6) is None
+                and _arg(call, "bordercolor") is None
+            ):
+                types = types[:5]
+                defaults = ohlc_defaults.get(target) if isinstance(ohlc_defaults, dict) else None
+                expected = {
+                    "borderColor": "#000000",
+                    "color": "#2196F3",
+                    "display": 15,
+                    "drawBorder": True,
+                    "drawWick": True,
+                    "visible": True,
+                    "wickColor": "#737375",
+                }
+                if (
+                    defaults != expected
+                    or any(
+                        defaults.get(name) is not True
+                        for name in ("drawBorder", "drawWick", "visible")
+                    )
+                    or type(defaults.get("display")) is not int
+                ):
+                    raise ValueError("관측한 v4 plotcandle 기본 wick/border 스타일과 다릅니다")
             group = plots[index : index + len(types)]
             if len(group) != len(types):
-                raise ValueError("관측한 plotcandle 7열이 누락됐습니다")
+                raise ValueError("관측한 plotcandle OHLC·색상 열이 누락됐습니다")
             for column, kind in zip(group, types, strict=True):
                 if (
                     column.get("type") != kind
@@ -554,6 +702,8 @@ def _plot_bindings(
             if kind == "barcolor"
             else "Background Color"
             if kind == "bgcolor"
+            else "PlotCandle"
+            if kind == "plotcandle" and source_version == 4
             else None
         )
         if title is None or style.get("title") != title:
@@ -583,7 +733,7 @@ def _plot_bindings(
             for (kind, call), (_, plot) in zip(calls, visible, strict=True)
             if kind == "plot"
         }
-        for target, call, color in static_fills:
+        for target, call, color, constant in static_fills:
             endpoints = [_arg(call, name, index) for index, name in enumerate(("plot1", "plot2"))]
             if not source_plot_variables or any(
                 not isinstance(node, A.Name) or source_plot_variables.get(node.id) not in plot_ids
@@ -609,13 +759,21 @@ def _plot_bindings(
             style = (
                 filled_area_defaults.get(target) if isinstance(filled_area_defaults, dict) else None
             )
+            keys = {"color", "visible"} | ({"display", "transparency"} if constant else set())
             if (
                 not isinstance(style, dict)
-                or set(style) != {"color", "visible"}
+                or set(style) != keys
                 or style["color"] != color
                 or type(style["visible"]) is not bool
             ):
                 raise ValueError("정적 fill의 기본 색·투명도 스타일이 원문과 다릅니다")
+            if constant and (
+                type(style["display"]) is not int
+                or style["display"] != 15
+                or type(style["transparency"]) is not int
+                or style["transparency"] != constant[1]
+            ):
+                raise ValueError("관측한 v4 정적 fill의 display·투명도와 다릅니다")
     bound: list[tuple[int, str, int]] = []
     used: set[int] = set()
     directions: set[str] = set()
@@ -698,6 +856,7 @@ def parse_native_capture(
         raise ValueError("compile 소스가 무수정 원본과 다릅니다")
     source_input_types: dict[str, str] = {}
     calls, source_inputs, fills = _source_calls(source_text, input_types=source_input_types)
+    source_version = pine_version_from_ast(parse_to_ast(source_text))
     overrides = payload.get("inputs")
     resolved = payload.get("resolved_inputs")
     if (
@@ -810,6 +969,11 @@ def parse_native_capture(
         filled_area_defaults=meta.get("defaults", {}).get("filledAreasStyle")
         if isinstance(meta.get("defaults"), dict)
         else None,
+        source_static_colors=_source_static_colors(source_text),
+        source_version=source_version,
+        ohlc_defaults=meta.get("defaults", {}).get("ohlcPlots")
+        if isinstance(meta.get("defaults"), dict)
+        else None,
     )
     wire = payload.get("wire")
     if not isinstance(wire, list) or not wire:
@@ -845,8 +1009,18 @@ def parse_native_capture(
         if kind == "color":
             matches = (
                 isinstance(wire_input, dict)
-                and type(wire_input.get("v")) is int
-                and wire_input["v"] == _wire_color(resolved[name])
+                and wire_input.get("t") == "color"
+                and (
+                    (
+                        type(wire_input.get("v")) is int
+                        and wire_input["v"] == _wire_color(resolved[name])
+                    )
+                    or (
+                        source_version <= 5
+                        and type(wire_input.get("v")) is str
+                        and wire_input["v"] == resolved[name]
+                    )
+                )
             )
         else:
             matches = isinstance(wire_input, dict) and _input_equal(
@@ -986,7 +1160,7 @@ def parse_native_capture(
     common = sorted(set(closed_study) & set(closed_price))
     if not common or any(current - previous != step for previous, current in pairwise(common)):
         raise ValueError("공통 확정 study/OHLCV 봉이 없거나 시간 격자가 불연속입니다")
-    observations, prices, events = [], [], []
+    observations, prices, events, missing_alertconditions = [], [], [], []
     for at in common:
         row = closed_study[at]
         if any(value is not None and not _numeric(value) for value in row[1:]):
@@ -1006,6 +1180,22 @@ def parse_native_capture(
         for column, direction, line in bound:
             value = row[column]
             kind = plots[column - 1]["type"]
+            if (
+                kind == "alertcondition"
+                and source_version in {4, 5}
+                and type(value) is float
+                and value == _SENTINEL
+            ):
+                missing_alertconditions.append(
+                    {
+                        "bar_time": at.isoformat(),
+                        "column": column,
+                        "direction": direction,
+                        "line": line,
+                        "value": value,
+                    }
+                )
+                continue
             active = (
                 value in (1, 1.0)
                 if kind == "alertcondition"
@@ -1073,5 +1263,10 @@ def parse_native_capture(
             "price_first_bar": min(price_rows).isoformat(),
             "study_completed_epochs": len(completed),
             "full_price_history_used": input_times == sorted(closed_price),
+            **(
+                {"missing_alertconditions": missing_alertconditions}
+                if missing_alertconditions
+                else {}
+            ),
         },
     )

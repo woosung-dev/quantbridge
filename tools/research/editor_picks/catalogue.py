@@ -488,6 +488,11 @@ def screen(root: Path, timeout: int = 15, workers: int = 4) -> list[dict]:
             if destination.exists():
                 previous = read(destination)
                 if previous.get("screen_request_sha256") == request_hash:
+                    if item.get("source_sha256"):
+                        if previous.get("source_sha256", item["source_sha256"]) != item["source_sha256"]:
+                            raise ValueError("정적 검사 캐시의 원문 SHA가 다릅니다")
+                        previous["source_sha256"] = item["source_sha256"]
+                        write(destination, previous)
                     if previous.get("status") == "static_eligible":
                         checked_file(
                             root, previous["adapted_file"], previous["adapted_sha256"]
@@ -525,6 +530,10 @@ def screen(root: Path, timeout: int = 15, workers: int = 4) -> list[dict]:
                 row = {"id": item["id"], "status": "screen_input_changed"}
             else:
                 row["screen_request_sha256"] = request_hash
+                if item.get("source_sha256"):
+                    if row.get("source_sha256", item["source_sha256"]) != item["source_sha256"]:
+                        raise ValueError("정적 검사 결과의 원문 SHA가 다릅니다")
+                    row["source_sha256"] = item["source_sha256"]
             write(destination, row)
             return row
 

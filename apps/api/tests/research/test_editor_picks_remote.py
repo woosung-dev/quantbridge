@@ -16,14 +16,25 @@ from tools.research.editor_picks.crypto import transform
 
 def test_pack_preserves_expression_reference_without_private_credentials(tmp_path):
     root = tmp_path / "input"
-    for relative in ("sources/original.pine", "augmented/diagnostic.pine", "private/research.key"):
+    for relative in (
+        "sources/original.pine",
+        "augmented/diagnostic.pine",
+        "private/research.key",
+        "screening/original.json",
+        "cohort-review-evidence/original.json",
+    ):
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(relative)
     archive = tmp_path / "input.tar.gz"
     remote.pack(root, archive)
     with tarfile.open(archive) as bundle:
-        assert set(bundle.getnames()) == {"sources/original.pine", "augmented/diagnostic.pine"}
+        assert set(bundle.getnames()) == {
+            "sources/original.pine",
+            "augmented/diagnostic.pine",
+            "screening/original.json",
+            "cohort-review-evidence/original.json",
+        }
 
 
 def bundle(tmp_path, phase="pilot", run_id="123"):

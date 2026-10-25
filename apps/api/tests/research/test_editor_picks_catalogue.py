@@ -114,7 +114,33 @@ def test_screen_records_timeout_and_gives_reviewed_sources_more_time(tmp_path, m
         raise catalogue.subprocess.TimeoutExpired(args, kwargs["timeout"])
 
     monkeypatch.setattr(catalogue.subprocess, "run", run)
-    assert catalogue.screen(tmp_path, timeout=7)[0]["status"] == "parser_timeout"
+    row = catalogue.screen(tmp_path, timeout=7)[0]
+    assert row["status"] == "parser_timeout"
+    assert row["source_sha256"] == read(tmp_path / "catalogue.json")["items"][0]["source_sha256"]
+
+
+def test_same_request_cache_requires_matching_explicit_source_binding(tmp_path, monkeypatch):
+    item = prepare(tmp_path, 1)[0]
+    monkeypatch.setattr(catalogue, "_screen_implementation_hash", lambda: "semantic")
+    write(
+        tmp_path / "screening/0.json",
+        {
+            "id": "0",
+            "status": "parser_timeout",
+            "screen_request_sha256": catalogue._screen_request(tmp_path, item, 15, "semantic"),
+        },
+    )
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("정확히 같은 원문·검토·구현·예산 캐시는 다시 실행하지 않습니다")
+
+    monkeypatch.setattr(catalogue.subprocess, "run", forbidden)
+    assert catalogue.screen(tmp_path)[0]["source_sha256"] == item["source_sha256"]
+    row = read(tmp_path / "screening/0.json")
+    row["source_sha256"] = "f" * 64
+    write(tmp_path / "screening/0.json", row)
+    with pytest.raises(ValueError, match="캐시의 원문 SHA"):
+        catalogue.screen(tmp_path)
 
 
 def test_partial_seal_keeps_target_and_editor_order_but_requires_explicit_opt_in(tmp_path):

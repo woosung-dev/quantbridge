@@ -30,7 +30,10 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+                20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+                40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+                60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79]
     concurrency:
       group: editor-picks-${{ github.event.pull_request.head.sha }}-${{ matrix.shard }}
       cancel-in-progress: false
@@ -40,6 +43,7 @@ jobs:
       PLAN_FILE: ${{ vars.EDITOR_PICKS_PLAN_FILE || 'pilot-plan.json' }}
       RESEARCH_RELEASE: editor-picks-research-20261024
       SHARD: ${{ matrix.shard }}
+      SHARDS: 80
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,7 +82,7 @@ jobs:
               --output "$resume_cipher"
             apps/api/.venv/bin/python tools/scripts/editor-picks-resume-cache.py \
               --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" \
-              --shard "$SHARD" --shards 20 --cipher "$resume_cipher" \
+              --shard "$SHARD" --shards "$SHARDS" --cipher "$resume_cipher" \
               --source-head 18d60e3fc3b629ad07a66d04ee6e23160369104d \
               --source-run-id 40076727025 --source-attempt 1 \
               --source-input-sha d6bb30be7ce131da4556a005ce8db1063fd22387fd3b3fb90a591d9e327cdb85 \
@@ -89,7 +93,7 @@ jobs:
       - name: Execute assigned cells and native checks without credentials
         run: >-
           apps/api/.venv/bin/python -m tools.research.editor_picks.remote worker
-          --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" --shards 20
+          --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" --shards "$SHARDS"
       - name: Preserve authenticated result and actual exit evidence
         if: always()
         env:
@@ -97,7 +101,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           apps/api/.venv/bin/python -m tools.research.editor_picks.remote finish \
-            --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" --shards 20 \
+            --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" --shards "$SHARDS" \
             --head "${{ github.event.pull_request.head.sha }}" \
             --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --input-sha "$INPUT_SHA" \
             --archive "$RUNNER_TEMP/result.tar.gz" \

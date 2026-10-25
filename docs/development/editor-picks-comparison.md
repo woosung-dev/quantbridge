@@ -130,9 +130,16 @@ v4의 `stoch/cum/linreg/vwma/roc/cci/hma` 별칭은 기존 `ta.*` 계산으로 �
 `tostring(..., format.volume)`은 형식을 무시해 시장 판단을 바꾸지 않도록 실행 오류로 남긴다.
 시간·달력과 v5/v6 색상 연산은 보존한 통제 관측으로 회귀 확인하되, 각 원본의 신호 일치 판정은
 별도다. native의 candle OHLC·색상 7열도 실제 metadata 순서·대상·제목과 함께 결박한다.
+v4에서 wick·border 색을 생략한 경우는 실측 5열과 compiler의 기본 스타일이 모두 맞아야 한다.
 정적 `color.new(hex6, transp)` fill은 색상 열이 없을 수 있다. 원문 plot 변수의 위치와 compiler의
 끝점·제목·색·투명도까지 맞는 경우만 수용하며 동적·gradient 열 요구는 유지한다. `bgcolor`의
 별도 `bg_colorer`도 비신호 열로 고정한다. 신규 형식은 실제 원시로 대조하며 기존 epoch는 갱신하지 않는다.
+v4/5의 바인딩된 alertcondition에서 실측한 정확한 양수 `1e100`은 초기 결측으로 기록한다.
+원시 관측값과 시각·열·방향을 보존하고 이벤트를 만들지 않으며, 요청 비교창에 결측이 있으면
+`window_events`가 거부한다. 따라서 준비봉 이후의 결측은 native 통과가 될 수 없다. `None`과
+v6·다른 수치는 이 근거로 허용하지 않는다. bool `na`는 false와 같은 값이 아니고 조건이 true일
+때만 alert가 발생한다([공식 bool 규칙](https://www.tradingview.com/pine-script-docs/migration-guides/to-pine-version-6/#boolean-values-cannot-be-na),
+[v4 alerts](https://www.tradingview.com/pine-script-docs/v4/essential/alerts/)). wire의 `1e100` 표기는 공개 명세가 아닌 보존 원시의 실측 근거다.
 전체 36개 경제 셀의 Pine↔Python 신호·곡선·거래 원장 일치도 별도 요구한다. Python은 독립 정답
 오라클이 아니다. 기존 연간 strict 검증기의 최대 100개·독립 oracle 계약은 바꾸지 않는다.
 
@@ -149,7 +156,9 @@ v4의 `stoch/cum/linreg/vwma/roc/cci/hma` 별칭은 기존 `ta.*` 계산으로 �
 wire 값을 함께 요구하며 추가 입력·주기 override는 거부한다. 색상 열은 바로 앞 line/shapes만
 가리킬 수 있고 제목 없는 plot은 관측한 기본 제목 `Plot`만 허용한다.
 `indicator(timeframe="")`의 자동 Timeframe도 원문·compiler metadata·빈 wire가 함께 맞아야 한다.
-단일 숫자 input이 100 나눗셈 안에 있어도 raw 입력값을 보존하며 bool·숫자 문자열을 숫자로 바꾸지 않는다.
+숫자 input의 관측한 정수 10·100 나눗셈과 상수 뺄셈 wrapper는 바깥 계산 없이 raw slot을 보존한다.
+알 수 없는 wrapper를 누락시키거나 bool·숫자 문자열을 숫자로 바꾸지 않는다. source `volume`·
+부호 숫자·`size.*` 기본값과 버전별 named/new 색은 원문·compiler·typed wire를 함께 대조한다.
 원문 `barcolor`는 실제 `bar_colorer`·기본 제목·열 순서와 일치할 때만 비신호 열로 대응한다.
 
 실제 TV 통제 반례가 Pine builtin 의미 오류를 드러내면 기존 Pine 출력을 정답으로 고정하지 않는다.
@@ -165,6 +174,20 @@ Terra Python·Gemini Python 최대 3개를 저장하며 기본 화면은 BTC·1h
 margin_mode는 isolated다. 공통 R 정책·비용·펀딩 한계·요청 모델과 실제 모델 미보고도 provenance에
 보존한다. 실제 앱 저장은 인증된 소유자 API로 요청 후 버전 해시를 다시 읽어 확인한다. 자동 주문은 없다.
 운영 API/DDL 차이·인증이 막히면 저장 요청 묶음까지 완성하고 해당 단계의 blocked 근거를 남긴다.
+
+200개 생성 원문의 새 실험 코호트는 기존 `static_eligible` 전용 seal과 구별한다. 공개 원문·검토·
+완료 생성 요청의 해시를 대조한 모델은 독립 실행할 수 있다. Pine 정적 거절은 원문과 정적 검사
+파일의 SHA를 동결한 `preflight_failure` 선택으로 남기며, 각 셀은 `failed`·
+`failure_stage=static_preflight`·`runtime_attempted=false`다. 이를 실제 Pine 실행 수로 세지 않는다.
+시장 입력 준비 실패와 transport 생성 호출 이후의 실행 실패도 분리한다. `runtime_attempted`는
+격리 transport를 요청했음을 뜻하며 성공 실행은 별도다. 보고서는 경로별 실제 요청 원문 수·완료
+원문 수·정적 거절 셀 수를 제공한다. Pine 비교가 없는 모델 결과의 기술·native·앱 저장 게이트는 유지한다.
+200원문 회차는 80개 고정 shard에 분배하고 동시 runner는 20개로 유지한다. 이전 20개 shard
+회차의 배정·영수증은 바꾸지 않는다. 파일럿의 셀별 소요시간을 자원 계획 근거로만 사용하며,
+사전검사·실행 timeout을 성공으로 바꾸거나 수익에 따라 대상을 바꾸지 않는다.
+각 셀은 요청 기간 이전의 실제 준비봉부터 종료까지 빠짐없는 가격 격자를 요구한다. 최대
+24개월 시작점에 확보한 기본 준비봉 수보다 요구량이 크더라도, 6·12개월 셀의 실제 과거 이력이
+충분하면 원래 요구량을 그대로 사용한다. 이력이 부족한 기간·주기는 입력 준비 실패로 남긴다.
 
 보고서는 검색 가능한 HTML과 전체 CSV/JSON이다. 신호 일치와 승률, 비용 포함 수익과 열린 손익을
 구분한다. 부분 익절은 같은 episode로 센다. 평균 R은 비용 후 완료 episode 손익을 최초 R×최초 수량으로

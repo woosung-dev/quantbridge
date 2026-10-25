@@ -78,6 +78,9 @@ def build(root: Path, plan_path: Path) -> dict:
                 economic_passed=evidence.get("economic_verdict", {}).get("passed"),
                 funding_status=evidence.get("funding_status"),
                 duration_seconds=evidence.get("duration_seconds"),
+                failure_stage=evidence.get("failure_stage"),
+                source_present=evidence.get("source_present"),
+                runtime_attempted=evidence.get("runtime_attempted"),
             )
             pine = completed.get(identity({**job, "arm": "pine"}))
             row["signal_exact"] = (
@@ -107,6 +110,20 @@ def build(root: Path, plan_path: Path) -> dict:
     available = len(cohort["items"])
     scope = read(root / "scope-audit.json") if (root / "scope-audit.json").exists() else {}
     generation_policy = read(root / "generation-policy.json") if (root / "generation-policy.json").exists() else {}
+    runtime_evidence = {}
+    for arm in ARMS:
+        arm_rows = [row for row in rows if row["arm"] == arm]
+        statuses = {}
+        for row in arm_rows:
+            statuses.setdefault(row["id"], []).append(row["status"])
+        runtime_evidence[arm] = {
+            "requested_cells": sum(row.get("runtime_attempted") is True for row in arm_rows),
+            "requested_originals": len({row["id"] for row in arm_rows if row.get("runtime_attempted") is True}),
+            "originals_with_completed_cells": len({row["id"] for row in arm_rows if row["status"] == "completed"}),
+            "originals_with_all_cells_completed": sum(all(status == "completed" for status in values) for values in statuses.values()),
+            "static_preflight_rejected_cells": sum(row.get("failure_stage") == "static_preflight" for row in arm_rows),
+            "legacy_unknown_request_cells": sum(row.get("runtime_attempted") is None for row in arm_rows if row["status"] != "not_run"),
+        }
     summary = {
         "generated_at": now(),
         "phase": frozen["phase"],
@@ -117,6 +134,7 @@ def build(root: Path, plan_path: Path) -> dict:
         "arms": {
             arm: dict(Counter(row["status"] for row in rows if row["arm"] == arm)) for arm in ARMS
         },
+        "runtime_evidence": runtime_evidence,
         "complete": len(completed) == frozen["expected_cells"]
         and all(row["status"] != "not_run" for row in rows),
         "target_originals": 200,
@@ -135,6 +153,7 @@ def build(root: Path, plan_path: Path) -> dict:
             "성과는 실제 tick 체결·마크가격 펀딩을 보증하지 않습니다.",
             "펀딩 완전성 UNKNOWN과 경제 수치선 실패를 구분합니다.",
             "파일럿 종결은 200원문·21600셀 종결이 아닙니다.",
+            "정적 사전검사 거절은 실제 격리 실행 수에 포함하지 않습니다. 실행 요청은 transport 생성 호출이며 성공 실행과 구분합니다.",
         ],
     }
     output = root / "report" / frozen["phase"]
@@ -160,7 +179,7 @@ def build(root: Path, plan_path: Path) -> dict:
 table{{border-collapse:collapse;background:white}}td,th{{padding:9px;border:1px solid #ccd4d4;white-space:nowrap}}
 th{{position:sticky;top:0;background:#dfe9e9}}.scroll{{overflow:auto;max-height:70vh}}input{{padding:10px;width:280px}}</style>
 <h1>에디터 픽 · BTC 원문 재현 비교</h1><p>{escape(summary["phase"])} · 관측 {len(completed)} / 계획 {len(rows)}셀</p>
-<p>정적 확보 원문: {available} / 목표 200개 · 실행 종결과 원문 확보 목표 달성은 별개입니다.</p>
+<p>확보한 고유 원문: {available} / 목표 200개 · 실행 종결과 원문 확보 목표 달성은 별개입니다.</p>
 <p>전체 목표: Pine 원문 200개 · 3경로 · 1h/4h/1d · 6/12/24개월 · 21,600셀</p>
 <ul>{limits}</ul><label>전략·모델·실패 검색 <input id="filter" type="search"></label>
 <p><a href="cells.csv">전체 CSV</a> · <a href="report.json">근거 JSON</a></p>

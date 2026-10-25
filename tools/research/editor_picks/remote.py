@@ -68,6 +68,8 @@ def pack(root: Path, archive: Path) -> None:
         "generation",
         "native",
         "reviews",
+        "screening",
+        "cohort-review-evidence",
     }
     with tarfile.open(archive, "w:gz", compresslevel=1) as output:
         for path in sorted(root.rglob("*")):

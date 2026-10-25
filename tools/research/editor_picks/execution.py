@@ -55,6 +55,32 @@ def implementation() -> dict:
     return {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in paths}
 
 
+def pine_preflight_failure(root: Path, item: dict) -> dict | None:
+    """Pine 사전 거절은 원문과 실제 정적 검사 증거를 함께 결박한다."""
+    proof = item.get("pine_preflight")
+    if proof is None:
+        return None
+    if (
+        set(proof) != {"status", "source_sha256", "evidence_file", "evidence_sha256"}
+        or proof["status"] not in {
+            "unsupported", "parser_timeout", "screen_failed", "adaptation_unsupported",
+            "needs_binding_review",
+        }
+        or proof["source_sha256"] != item["source_sha256"]
+        or proof["evidence_file"] != f"screening/{item['id']}.json"
+    ):
+        raise ValueError("Pine 사전검사 거절의 원문·상태·경로가 다릅니다")
+    checked_file(root, item["source_file"], item["source_sha256"])
+    row = read(checked_file(root, proof["evidence_file"], proof["evidence_sha256"]))
+    if (
+        row.get("id") != item["id"]
+        or row.get("status") != proof["status"]
+        or row.get("source_sha256") != item["source_sha256"]
+    ):
+        raise ValueError("Pine 사전검사 거절의 실제 증거가 다릅니다")
+    return proof
+
+
 def plan(root: Path, pilot: bool = False) -> dict:
     cohort_file = "pilot-cohort.json" if pilot else "cohort.json"
     cohort = read(root / cohort_file)
@@ -64,6 +90,9 @@ def plan(root: Path, pilot: bool = False) -> dict:
     for item in selected:
         artifacts[item["id"]] = {}
         for arm in ARMS:
+            if arm == "pine" and (failure := pine_preflight_failure(root, item)):
+                artifacts[item["id"]][arm] = {"preflight_failure": failure}
+                continue
             try:
                 _, language, digest = artifact(root, item, arm)
                 artifacts[item["id"]][arm] = {
@@ -117,6 +146,8 @@ def plan(root: Path, pilot: bool = False) -> dict:
 
 def artifact(root: Path, item: dict, arm: str) -> tuple[str, str, str]:
     if arm == "pine":
+        if failure := pine_preflight_failure(root, item):
+            raise ValueError(f"pine_static_preflight_failed:{failure['status']}")
         path = checked_file(root, item["adapted_file"], item["adapted_sha256"])
         return path.read_bytes().decode(), "pine", item["adapted_sha256"]
     # 구문 오류 수정의 첫 성공만 선택한다. 수익·비공개 의미 점수는 읽지 않는다.
@@ -265,7 +296,12 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
         request["unavailable_reason"] = "source_not_acquired"
     else:
         selection = frozen["artifacts"][job["id"]][job["arm"]]
-        if "unavailable_reason" in selection:
+        if "preflight_failure" in selection:
+            failure = pine_preflight_failure(root, item) if job["arm"] == "pine" else None
+            if failure is None or selection != {"preflight_failure": failure}:
+                raise ValueError("동결 Pine 사전검사 거절의 근거가 다릅니다")
+            request["preflight_failure"] = selection["preflight_failure"]
+        elif "unavailable_reason" in selection:
             request["unavailable_reason"] = selection["unavailable_reason"]
         else:
             source, language, source_hash = artifact(root, item, job["arm"])
@@ -278,6 +314,13 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
         if previous is not None and previous["status"] != "interrupted":
             return previous
         immutable(folder / "request.json", request)
+        if "preflight_failure" in request:
+            return receipt(
+                folder, request, "failed", job=job,
+                error=f"pine_static_preflight_failed:{request['preflight_failure']['status']}",
+                failure_stage="static_preflight", source_present=True,
+                runtime_attempted=False,
+            )
         if source is None:
             return receipt(
                 folder,
@@ -285,15 +328,16 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
                 "not_available",
                 job=job,
                 reason=request["unavailable_reason"],
+                source_present=item is not None,
+                runtime_attempted=False,
             )
         started = time.monotonic()
+        runtime_attempted = False
         try:
             loaded = data(str(root), frozen["dataset_sha256"])
             end = pd.Timestamp(frozen["dataset"]["end"])
             start = end - pd.DateOffset(months=job["months"])
             warmup = item["warmup_bars"]
-            if warmup > frozen["dataset"]["warmup"]:
-                raise ValueError("동결 데이터보다 긴 준비봉이 필요합니다")
             tf = job["timeframe"]
             freq = {"1h": "1h", "4h": "4h", "1d": "1D"}[tf]
             frame = (
@@ -304,6 +348,11 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
                 ]
                 .copy()
             )
+            expected_index = pd.date_range(
+                start - warmup * pd.Timedelta(freq), end, freq=freq, inclusive="left"
+            )
+            if not frame.index.equals(expected_index):
+                raise ValueError("현재 테스트 기간에 필요한 실제 준비봉·가격 이력이 부족합니다")
             frame.attrs["timeframe"] = tf
             minute = loaded["1min"].loc[
                 (loaded["1min"].index >= start) & (loaded["1min"].index < end)
@@ -321,6 +370,8 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             trace = []
 
             def transport():
+                nonlocal runtime_attempted
+                runtime_attempted = True
                 instance = create_code_transport(language, frame)
                 if instance.image_id != images[language]:
                     instance.close()
@@ -380,13 +431,18 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             }
             status = "completed"
         except Exception as error:
-            details, status = {"error": f"{type(error).__name__}: {error}"}, "failed"
+            details, status = {
+                "error": f"{type(error).__name__}: {error}",
+                "failure_stage": "runtime" if runtime_attempted else "input_preparation",
+            }, "failed"
         return receipt(
             folder,
             request,
             status,
             job=job,
             duration_seconds=time.monotonic() - started,
+            source_present=True,
+            runtime_attempted=runtime_attempted,
             **details,
         )
 

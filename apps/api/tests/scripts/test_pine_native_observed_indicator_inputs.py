@@ -40,8 +40,9 @@ def test_percentage_input_keeps_raw_slot_default_instead_of_division_result(call
     "expression",
     ["input.float(2) / 99", "input.float(2) + 0", "100 / input.float(2)", "input.float(2) / 100.0"],
 )
-def test_unobserved_input_wrappers_are_not_extracted(expression):
-    assert _source_calls(f'//@version=5\nindicator("x")\np = {expression}\n')[1] == []
+def test_unobserved_input_wrappers_are_rejected_without_dropping_the_slot(expression):
+    with pytest.raises(ValueError, match="input wrapper"):
+        _source_calls(f'//@version=5\nindicator("x")\np = {expression}\n')
 
 
 @pytest.mark.parametrize("value", [True, "2", float("nan")])
@@ -210,4 +211,5 @@ def test_barcolor_does_not_accept_an_unobserved_custom_title():
 
 
 def test_percent_wrapper_does_not_expand_builtin_source_inputs():
-    assert _source_calls('//@version=5\nindicator("x")\nsrc = input(close) / 100\n')[1] == []
+    with pytest.raises(ValueError, match="input wrapper"):
+        _source_calls('//@version=5\nindicator("x")\nsrc = input(close) / 100\n')

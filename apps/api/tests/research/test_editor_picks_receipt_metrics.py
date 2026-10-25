@@ -34,10 +34,9 @@ def completed(tmp_path, monkeypatch):
         "artifacts": {"one": {"pine": {"language": "pine", "source_sha256": "code"}}},
         "jobs": [job],
     }
-    index = pd.date_range("2026-10-23", periods=1, freq="1h", tz="UTC")
-    frame = pd.DataFrame(
-        {name: [1] for name in ("open", "high", "low", "close", "volume")}, index=index
-    )
+    end = pd.Timestamp(frozen["dataset"]["end"])
+    index = pd.date_range(end - pd.DateOffset(months=6), end, freq="1h", inclusive="left")
+    frame = pd.DataFrame(dict.fromkeys(("open", "high", "low", "close", "volume"), 1), index=index)
     payload = {
         "metrics": {
             "total_return": "0.1",
@@ -56,7 +55,7 @@ def completed(tmp_path, monkeypatch):
     monkeypatch.setattr(
         execution,
         "data",
-        lambda *_: {"1h": frame, "1min": frame, "funding": pd.Series([0], index=index)},
+        lambda *_: {"1h": frame, "1min": frame, "funding": pd.Series(0, index=index)},
     )
     monkeypatch.setattr(backtest, "run_code_backtest", lambda *_, **__: SimpleNamespace(trades=[]))
     monkeypatch.setattr(serialization, "result_payload", lambda _: copy.deepcopy(payload))

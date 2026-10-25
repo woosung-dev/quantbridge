@@ -15,14 +15,15 @@ from tests.scripts.test_pine_validation_native_capture import (
 
 
 @pytest.mark.parametrize(
-    "call", ("input(close)", "input(close, type=input.source)", "input.source(close)")
+    "call", ("input({default})", "input({default}, type=input.source)", "input.source({default})")
 )
-def test_builtin_source_names_are_supported_for_generic_and_explicit_input(call):
-    source = f'//@version=4\nstudy("Source")\nsrc = {call}\n'
-    assert _source_calls(source)[1] == [("src", "src", "close")]
+@pytest.mark.parametrize("default", ("close", "volume"))
+def test_builtin_source_names_are_supported_for_generic_and_explicit_input(call, default):
+    source = f'//@version=4\nstudy("Source")\nsrc = {call.format(default=default)}\n'
+    assert _source_calls(source)[1] == [("src", "src", default)]
 
 
-@pytest.mark.parametrize("default", ("unknown", "volume", "close + open", "hl2[1]"))
+@pytest.mark.parametrize("default", ("unknown", "close + open", "hl2[1]"))
 def test_source_defaults_still_reject_unknown_names_or_expressions(default):
     for call in (f"input({default})", f"input({default}, type=input.source)"):
         with pytest.raises(ValueError):
