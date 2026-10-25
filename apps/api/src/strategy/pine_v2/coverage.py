@@ -368,6 +368,12 @@ _V4_ALIASES: frozenset[str] = frozenset(
         "ceil",
         "sign",
         "log10",
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
     }
 )
 
@@ -610,6 +616,11 @@ _DOTTED_RE = re.compile(
 )
 _COMMENT_RE = re.compile(r"//[^\n]*")
 _STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
+# 주석을 문자열보다 먼저 토큰화해 주석의 따옴표가 다음 버전 지시문을 삼키지 않게 한다.
+_VERSION_TOKEN_RE = re.compile(
+    r"^[\t ]*//@version\s*=\s*(\d+)|" + _COMMENT_RE.pattern + "|" + _STRING_RE.pattern,
+    re.MULTILINE,
+)
 
 
 # Sprint 29 Slice B: TypedDict for each unsupported call with line/category/workaround.
@@ -803,7 +814,7 @@ def analyze_coverage(source: str) -> CoverageReport:
     Pine Script 미지원 함수 1개라도 포함 시 backtest 실행 차단 (CLAUDE.md Golden Rule).
     """
     clean = _strip_noise(source)
-    version_match = re.search(r"(?m)^[\t ]*//@version\s*=\s*(\d+)", _STRING_RE.sub('""', source))
+    version_match = next((match for match in _VERSION_TOKEN_RE.finditer(source) if match[1]), None)
     pine_version = int(version_match.group(1)) if version_match else 1
 
     # 사용자 정의 함수: `myFunc(...) =>` 패턴
