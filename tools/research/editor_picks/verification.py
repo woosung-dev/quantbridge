@@ -20,6 +20,7 @@ from tools.research.editor_picks.compact import check_file as check_evidence_fil
 from tools.research.editor_picks.execution import (
     artifact,
     implementation,
+    pine_preflight_failure,
     require_runtime,
 )
 
@@ -396,7 +397,14 @@ def reconcile(root: Path, plan_path: Path) -> dict:
             selection = frozen["artifacts"][item["id"]][arm]
             native_passed = raw["arms"][arm]["native_prefix_repeat_passed"] is True
             reason = None
-            if "source_sha256" not in selection:
+            preflight = "preflight_failure" in selection
+            if preflight:
+                failure = pine_preflight_failure(root, item) if arm == "pine" else None
+                if failure is None or selection != {"preflight_failure": failure}:
+                    raise ValueError("동결 Pine 사전검사 거절의 근거가 다릅니다")
+                native_passed = False
+                reason = f"pine_static_preflight_failed:{failure['status']}"
+            elif "source_sha256" not in selection:
                 native_passed = False
                 reason = selection["unavailable_reason"]
             else:
@@ -407,7 +415,7 @@ def reconcile(root: Path, plan_path: Path) -> dict:
                     native_export_gate(root, item["id"], raw, arm, digest, item["warmup_bars"])
                 except ValueError as error:
                     native_passed, reason = False, str(error)
-            exact = exact_cells(completed, jobs, arm, raw["images"])
+            exact = 0 if preflight else exact_cells(completed, jobs, arm, raw["images"])
             status = "passed" if native_passed and exact == 36 else "incomplete"
             passed += status == "passed"
             proof["arms"][arm] = {

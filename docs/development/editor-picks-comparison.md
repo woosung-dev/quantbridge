@@ -219,6 +219,8 @@ margin_mode는 isolated다. 공통 R 정책·비용·펀딩 한계·요청 모�
 완료 생성 요청의 해시를 대조한 모델은 독립 실행할 수 있다. Pine 정적 거절은 원문과 정적 검사
 파일의 SHA를 동결한 `preflight_failure` 선택으로 남기며, 각 셀은 `failed`·
 `failure_stage=static_preflight`·`runtime_attempted=false`다. 이를 실제 Pine 실행 수로 세지 않는다.
+후처리에서도 이 선택의 원문·정적 근거 SHA와 Pine 경로를 다시 확인한다. 원래 거절 이유를
+보존하고 native 검증 실패·경제 일치 0으로 유지하며, 미확보 모델의 사유와 섞지 않는다.
 시장 입력 준비 실패와 transport 생성 호출 이후의 실행 실패도 분리한다. `runtime_attempted`는
 격리 transport를 요청했음을 뜻하며 성공 실행은 별도다. 보고서는 경로별 실제 요청 원문 수·완료
 원문 수·정적 거절 셀 수를 제공한다. Pine 비교가 없는 모델 결과의 기술·native·앱 저장 게이트는 유지한다.
