@@ -212,6 +212,9 @@ generic `input`의 읽기 전용 전역 `color.*` 이름 상수 별칭은 기존
 쉐도잉 거절 검사를 거쳐 원문 버전의 rendering SSOT로 기본값을 읽는다. 실제 compiler의 color
 슬롯과 wire를 함께 대조하며 재대입·동적 색·연쇄 별칭·`input.source` 또는 text 슬롯으로의 혼용은
 거절한다. 원문 입력값을 바꾸거나 관측 없는 색 생성식으로 지원을 넓히지 않는다.
+v4 `fill`의 직접 named color에서 `transp`가 생략된 관측 형식은 기본 90을 사용한다.
+정적 fill은 색 열을 요구하지 않으며 원래 plot 끝점·filledAreas 순서·기본 색·display 15·
+transparency 90·visible true를 대조한다. 뒤의 동적 fill 색 열은 기존 순서·대상 검사를 유지한다.
 
 원문 `barcolor`·`bgcolor`는 실제 열·제목·순서를 결박한다. 명시 keyword 제목은 literal 문자열만
 정확 일치시키고, 생략하면 각각의 기본 제목을 사용한다. 진입 binding 범위는 확장하지 않는다.

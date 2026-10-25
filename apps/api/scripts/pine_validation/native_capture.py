@@ -736,15 +736,19 @@ def _plot_bindings(
                 source_version == 4
                 and isinstance(reference, A.Attribute)
                 and _name(reference) == f"color.{reference.attr}"
-                and _arg(call, "transp") is not None
             ):
                 if len([arg for arg in call.args if arg.name is None]) > 3 or any(
                     arg.name is not None and arg.name not in {"color", "title", "transp"}
                     for arg in call.args
                 ):
                     raise ValueError("관측하지 않은 legacy fill 호출 형식입니다")
-                transparency = _literal(_arg(call, "transp"), "fill transp")
-                if type(transparency) is not int or transparency != 70:
+                transparency_node = _arg(call, "transp")
+                transparency = (
+                    90 if transparency_node is None else _literal(transparency_node, "fill transp")
+                )
+                if transparency_node is not None and (
+                    type(transparency) is not int or transparency != 70
+                ):
                     raise ValueError("관측하지 않은 legacy fill 투명도입니다")
                 static_color = _color_default(reference, 4)
                 extra_style = {"display": 15, "transparency": transparency}
@@ -1036,6 +1040,12 @@ def _plot_bindings(
                 or set(style) != keys
                 or style["color"] != color
                 or type(style["visible"]) is not bool
+                or (
+                    source_version == 4
+                    and _arg(call, "transp") is None
+                    and isinstance(_arg(call, "color", 2), A.Attribute)
+                    and style["visible"] is not True
+                )
             ):
                 raise ValueError("정적 fill의 기본 색·투명도 스타일이 원문과 다릅니다")
             if any(
