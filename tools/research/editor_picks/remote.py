@@ -173,10 +173,18 @@ def install_runtime(root: Path) -> dict:
     return proof
 
 
+def _execution_workers(frozen: dict) -> int:
+    workers = frozen.get("execution_workers", 1)
+    if type(workers) is not int or workers not in (1, 2):
+        raise ValueError("동결 실행 프로세스 수는 1개 또는 2개여야 합니다")
+    return workers
+
+
 def worker(root: Path, plan: Path, shard: int, shards: int) -> int:
     if not 0 <= shard < shards:
         raise ValueError("잘못된 shard 배정")
     frozen = read(plan)
+    workers = _execution_workers(frozen)
     env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "LANG"}}
     env["TRADING_ENCRYPTION_KEYS"] = base64.urlsafe_b64encode(os.urandom(32)).decode()
     env["PINE_AST_CACHE_DIR"] = ""
@@ -194,6 +202,8 @@ def worker(root: Path, plan: Path, shard: int, shards: int) -> int:
         "--shards",
         str(shards),
     ]
+    if workers == 2:
+        command += ["--workers", "2"]
     with (root / f"worker-{shard}.log").open("w") as output:
         result = subprocess.run(  # noqa: S603 — 현재 Python의 고정 연구 모듈·검증된 shard만 실행
             command, env=env, cwd=ROOT, stdout=output, stderr=subprocess.STDOUT
@@ -227,6 +237,7 @@ def worker(root: Path, plan: Path, shard: int, shards: int) -> int:
             "observed_at": now(),
             "plan_sha256": identity(frozen),
             **native_evidence,
+            **({"execution_workers": 2} if workers == 2 else {}),
         },
     )
     return actual_returncode
@@ -327,6 +338,7 @@ def finalize(root: Path, plan: Path, expected: dict) -> dict:
     from tools.research.editor_picks.report import build
 
     frozen = read(plan)
+    workers = _execution_workers(frozen)
     failures = []
     for shard in range(expected["shards"]):
         folder = root / remote_namespace(expected) / str(shard)
@@ -364,6 +376,17 @@ def finalize(root: Path, plan: Path, expected: dict) -> dict:
                 or allocation["jobs_consumed"] != len(frozen["jobs"][shard :: expected["shards"]])
             ):
                 raise ValueError("셀 배정 소비 증거 불일치")
+            if workers == 2 and (
+                type(terminal.get("execution_workers")) is not int
+                or terminal["execution_workers"] != 2
+                or type(allocation.get("workers")) is not int
+                or allocation["workers"] != 2
+                or allocation.get("process_start_method") != "spawn"
+                or type(allocation.get("worker_processes")) is not int
+                or allocation["worker_processes"]
+                != min(2, len(frozen["jobs"][shard :: expected["shards"]]))
+            ):
+                raise ValueError("동결한 2프로세스 실행 증거가 다릅니다")
         except (OSError, ValueError, KeyError) as error:
             failures.append({"shard": shard, "error": str(error)})
     if not failures and frozen["phase"] == "full":

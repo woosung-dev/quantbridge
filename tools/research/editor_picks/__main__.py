@@ -37,6 +37,7 @@ def main() -> int:
     commands.add_parser("validate-data")
     planning = commands.add_parser("plan")
     planning.add_argument("--pilot", action="store_true")
+    planning.add_argument("--workers", type=int, choices=(1, 2), default=1)
     execution = commands.add_parser("execute")
     execution.add_argument("--plan", required=True)
     execution.add_argument("--shard", type=int, default=0)
@@ -107,7 +108,7 @@ def main() -> int:
     elif args.command == "plan":
         from tools.research.editor_picks.execution import plan
 
-        value = plan(root, args.pilot)
+        value = plan(root, args.pilot, workers=args.workers)
         result = {"expected_cells": value["expected_cells"], "phase": value["phase"]}
     elif args.command == "execute":
         from tools.research.editor_picks.execution import execute

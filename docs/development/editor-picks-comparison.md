@@ -282,6 +282,10 @@ URL/SHA 변수가 일치할 때만 20개 ARM shard를 실행한다. `EDITOR_PICK
 컨테이너별 1 CPU·1GiB·900초와 gVisor 정책은 유지한다. 호스트 시세 검증·분봉 배열·직렬화
 메모리는 프로세스마다 복제되므로 ARM A/B의 RSS·OOM·시간·출력 동등성 확인 전에는 전체
 배치에 채택하지 않는다. 실행 중인 동결 회차와 그 배정·계획·결과에는 소급하지 않는다.
+전체 배치의 선택은 `plan --workers 2`로 `execution_workers=2`를 동결해야 원격 worker까지
+전달된다. 기본 1은 기존 계획·terminal 형식을 유지한다. 계획이 2이면 최종 수거는 terminal의
+선언과 allocation의 `workers=2`·`spawn`·배정 셀 수에 맞는 실제 프로세스 수(최대 2)를 요구한다.
+같은 계획의 직렬·병렬 A/B는 직접 `execute --workers`로 비교할 수 있으나 전체 완료 판정과 구분한다.
 
 full worker는 경제 셀 실행 후 코호트 순서의 `index % shards`로 배정된 원문을 같은 무자격
 환경에서 native 검증 CLI로 실행한다. 전략 실행은 기존 gVisor를 사용한다. 경제·native의 실제

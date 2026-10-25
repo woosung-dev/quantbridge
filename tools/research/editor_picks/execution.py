@@ -90,7 +90,9 @@ def pine_preflight_failure(root: Path, item: dict) -> dict | None:
     return proof
 
 
-def plan(root: Path, pilot: bool = False) -> dict:
+def plan(root: Path, pilot: bool = False, *, workers: int = 1) -> dict:
+    if type(workers) is not int or workers not in (1, 2):
+        raise ValueError("셀 실행 프로세스는 1개 또는 2개만 허용합니다")
     cohort_file = "pilot-cohort.json" if pilot else "cohort.json"
     cohort = read(root / cohort_file)
     dataset = read(root / "data/dataset.json")
@@ -141,6 +143,7 @@ def plan(root: Path, pilot: bool = False) -> dict:
         "policy": "swing_two_bar_v1",
         "native_policy": NATIVE_POLICY,
         "created_at": now(),
+        **({"execution_workers": 2} if workers == 2 else {}),
     }
     path = root / f"{value['phase']}-plan.json"
     if path.exists():
