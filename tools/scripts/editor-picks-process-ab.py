@@ -18,6 +18,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import traceback
 from pathlib import Path
 from datetime import datetime
 
@@ -408,6 +409,26 @@ def compare(left, right, measurements, reg):
     }
 
 
+def runtime_images(images, registered):
+    required = {"pine", "python"}
+    require(
+        set(images) == required
+        and set(registered)
+        == {
+            f"quantbridge-{kind}-runner:local"
+            for kind in ("pine", "python", "typescript")
+        },
+        "실행 이미지 태그가 다릅니다",
+    )
+    require(
+        all(
+            images[kind] == registered[f"quantbridge-{kind}-runner:local"]
+            for kind in required
+        ),
+        "동결 실행 이미지가 다릅니다",
+    )
+
+
 def run(args):
     reg = registration(args.registration)
     runner(reg, args, clean=True)
@@ -426,11 +447,7 @@ def run(args):
     from tools.research.editor_picks.common import checked_file, write
 
     images = execution.require_runtime()
-    require(
-        {f"quantbridge-{kind}-runner:local": value for kind, value in images.items()}
-        == reg["image_ids"],
-        "동결 실행 이미지가 다릅니다",
-    )
+    runtime_images(images, reg["image_ids"])
     output.mkdir(parents=True)
     template = output / "template"
     template.mkdir()
@@ -634,11 +651,25 @@ def main():
             return 0
         return run(args) if args.action == "run" else finish(args)
     except Exception as error:
+        failure = traceback.extract_tb(error.__traceback__)
+        frame = (
+            failure[-2]
+            if len(failure) > 1
+            and failure[-1].name == "require"
+            and Path(failure[-1].filename).resolve() == Path(__file__).resolve()
+            else failure[-1]
+        )
+        error_line = (
+            frame.lineno
+            if Path(frame.filename).resolve() == Path(__file__).resolve()
+            else None
+        )
         print(
             json.dumps(
                 {
                     "status": "not_adopted",
                     "error_type": type(error).__name__,
+                    "error_line": error_line,
                     "automatic_adoption": False,
                 }
             )

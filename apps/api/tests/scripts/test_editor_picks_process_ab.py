@@ -3,6 +3,8 @@
 import base64
 import importlib.util
 import json
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -388,6 +390,83 @@ class ProcessABControls(unittest.TestCase):
                     [call.args[1] for call in kill.call_args_list],
                     [AB.signal.SIGTERM, AB.signal.SIGKILL],
                 )
+
+    def test_registered_three_images_accept_exact_two_execution_images(self):
+        registered = {
+            f"quantbridge-{kind}-runner:local": kind + "-sha"
+            for kind in ("pine", "python", "typescript")
+        }
+        AB.runtime_images({"pine": "pine-sha", "python": "python-sha"}, registered)
+        self.assertEqual(
+            set(registered),
+            {
+                "quantbridge-pine-runner:local",
+                "quantbridge-python-runner:local",
+                "quantbridge-typescript-runner:local",
+            },
+        )
+
+    def test_missing_wrong_or_extra_execution_image_is_rejected(self):
+        registered = {
+            f"quantbridge-{kind}-runner:local": kind + "-sha"
+            for kind in ("pine", "python", "typescript")
+        }
+        for change in ("wrong", "missing", "extra", "registration_missing", "registration_extra"):
+            images = {"pine": "pine-sha", "python": "python-sha"}
+            expected = dict(registered)
+            if change == "wrong":
+                images["pine"] = "other-sha"
+            elif change == "missing":
+                del images["python"]
+            elif change == "extra":
+                images["typescript"] = "typescript-sha"
+            elif change == "registration_missing":
+                del expected["quantbridge-pine-runner:local"]
+            else:
+                expected["foreign-runner:local"] = "unexpected-sha"
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                AB.runtime_images(images, expected)
+
+    def test_safe_cli_diagnostic_reports_own_line_or_null_without_exception_body(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "registration.json"
+            value = registration()
+            value["binding_before_dispatch"] = {"control_head": None}
+            path.write_text(json.dumps(value))
+            own = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools/scripts/editor-picks-process-ab.py"),
+                    "validate",
+                    "--registration",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(own.returncode, 2)
+            self.assertIsInstance(json.loads(own.stdout)["error_line"], int)
+            self.assertGreater(
+                json.loads(own.stdout)["error_line"], AB.require.__code__.co_firstlineno + 5
+            )
+            self.assertNotIn("실행 전 HEAD", own.stdout)
+            path.write_text("not-json-hidden-body")
+            external = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools/scripts/editor-picks-process-ab.py"),
+                    "validate",
+                    "--registration",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(external.returncode, 2)
+            self.assertIsNone(json.loads(external.stdout)["error_line"])
+            self.assertNotIn("not-json-hidden-body", external.stdout + external.stderr)
 
 
 if __name__ == "__main__":
