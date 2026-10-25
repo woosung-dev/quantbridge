@@ -3,13 +3,23 @@
 import json
 import multiprocessing
 import os
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from tools.research.editor_picks import __main__ as cli
 from tools.research.editor_picks import execution
-from tools.research.editor_picks.common import cached, identity, immutable, lock, receipt, write
+from tools.research.editor_picks.common import (
+    cached,
+    identity,
+    immutable,
+    lock,
+    receipt,
+    write,
+)
 
 _IMAGES = {"pine": "sha256:synthetic-pine", "python": "sha256:synthetic-python"}
 _EXECUTE_JOBS = execution._execute_jobs
@@ -79,7 +89,9 @@ def test_two_spawn_lanes_preserve_assignment_failed_receipts_and_payloads(tmp_pa
 
 def test_child_contract_error_joins_other_lane_without_success_allocation(tmp_path, monkeypatch):
     root = tmp_path / "error"
-    plan = _plan(root, [{"index": 0, "contract_error": True}, {"index": 1}, {"index": 2}, {"index": 3}])
+    plan = _plan(
+        root, [{"index": 0, "contract_error": True}, {"index": 1}, {"index": 2}, {"index": 3}]
+    )
     monkeypatch.setattr(execution, "require_runtime", lambda: _IMAGES)
     monkeypatch.setattr(execution, "_execute_jobs", _trusted_spawn_batch)
     with pytest.raises(ValueError, match="synthetic_contract_error"):
@@ -137,10 +149,15 @@ def test_empty_shard_starts_no_child(tmp_path, monkeypatch):
     assert result["jobs_consumed"] == result["worker_processes"] == 0
 
 
-@pytest.mark.parametrize("arguments,workers", [([], 1), (["--workers", "1"], 1), (["--workers", "2"], 2)])
+@pytest.mark.parametrize(
+    "arguments,workers", [([], 1), (["--workers", "1"], 1), (["--workers", "2"], 2)]
+)
 def test_cli_worker_selection_and_default(arguments, workers, tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "run_dir", lambda _: tmp_path)
-    monkeypatch.setattr("sys.argv", ["research", "--run-dir", "fixture", "execute", "--plan", "plan.json", *arguments])
+    monkeypatch.setattr(
+        "sys.argv",
+        ["research", "--run-dir", "fixture", "execute", "--plan", "plan.json", *arguments],
+    )
     with patch.object(execution, "execute", return_value={"status": "finished"}) as run:
         assert cli.main() == 0
         run.assert_called_once_with(tmp_path, Path("plan.json"), 0, 1, workers=workers)
@@ -148,7 +165,19 @@ def test_cli_worker_selection_and_default(arguments, workers, tmp_path, monkeypa
 
 @pytest.mark.parametrize("workers", ["0", "3"])
 def test_cli_rejects_worker_budget_before_creating_run_directory(workers, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["research", "--run-dir", "fixture", "execute", "--plan", "plan.json", "--workers", workers])
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "research",
+            "--run-dir",
+            "fixture",
+            "execute",
+            "--plan",
+            "plan.json",
+            "--workers",
+            workers,
+        ],
+    )
     with patch.object(cli, "run_dir") as directory:
         with pytest.raises(SystemExit) as error:
             cli.main()
