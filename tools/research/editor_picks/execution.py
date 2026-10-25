@@ -495,7 +495,11 @@ def execute(
         }
         write(root / f"runtime-blocked-{shard}.json", blocked)
         return blocked
-    jobs = [job for index, job in enumerate(frozen["jobs"]) if index % shards == shard]
+    jobs = [
+        job
+        for index, job in enumerate(frozen["jobs"])
+        if index % shards == shard
+    ]
     parallel = {}
     if workers == 1:
         consumed = len([execute_job(root, frozen, job, images) for job in jobs])

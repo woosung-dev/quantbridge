@@ -72,7 +72,9 @@ def sha(value: bytes) -> str:
 
 
 def identity(value: object) -> str:
-    return sha(json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False).encode())
+    return sha(
+        json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False).encode()
+    )
 
 
 def read(path: Path):
@@ -82,7 +84,9 @@ def read(path: Path):
 def write(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
+    temporary.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+    )
     temporary.replace(path)
 
 

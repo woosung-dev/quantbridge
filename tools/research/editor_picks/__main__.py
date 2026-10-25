@@ -109,7 +109,10 @@ def main() -> int:
     elif args.command == "plan":
         from tools.research.editor_picks.execution import plan
 
-        value = plan(root, args.pilot, workers=args.workers, months=args.months)
+        if args.months is None:
+            value = plan(root, args.pilot, workers=args.workers)
+        else:
+            value = plan(root, args.pilot, workers=args.workers, months=args.months)
         result = {"expected_cells": value["expected_cells"], "phase": value["phase"]}
     elif args.command == "execute":
         from tools.research.editor_picks.execution import execute

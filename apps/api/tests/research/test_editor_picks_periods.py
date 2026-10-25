@@ -92,6 +92,19 @@ class PeriodContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             common.economic_cells_per_arm(matrix(), {"target": 2, "items": [{"id": "one"}, {"id": "missing"}]})
 
+    def test_cli_preserves_default_kwargs_and_passes_selected_period(self):
+        from tools.research.editor_picks import __main__ as cli
+
+        for option in [[], ["--months", "6"]]:
+            with tempfile.TemporaryDirectory() as d, patch.object(
+                sys, "argv", ["editor-picks", "--run-dir", d, "plan", *option]
+            ), patch.object(
+                execution, "plan", return_value={"expected_cells": 36, "phase": "full"}
+            ) as planned, patch.object(cli, "run_dir", return_value=Path(d)), patch("builtins.print"):
+                self.assertEqual(cli.main(), 0)
+                kwargs = {"workers": 1, **({"months": 6} if option else {})}
+                planned.assert_called_once_with(Path(d), False, **kwargs)
+
     def test_invalid_option_rejects_before_inputs(self):
         for months, pilot in [(12, False), (True, False), (6.0, False), (6, True)]:
             with self.assertRaises(ValueError):
