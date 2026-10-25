@@ -15,6 +15,12 @@ TIMEFRAMES = ("1h", "4h", "1d")
 PERIODS = (6, 12, 24)
 SCENARIOS = ("baseline", "fees_x2", "slippage_x2", "funding_x2")
 MODELS = {"terra": "gpt-5.6-terra", "gemini": "gemini-3.8-flash-high"}
+NATIVE_POLICY = {
+    "account": "basic",
+    "max_total_bars": 5000,
+    "warmup_included": True,
+    "history_request_mode": "bounded_ui",
+}
 
 
 def now() -> str:

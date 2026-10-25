@@ -12,14 +12,14 @@ from tools.research.editor_picks.common import read, sha, write
 
 from scripts.pine_validation.strategy_adapter import adapt_strategy
 
-SOURCE = '''//@version=5
+SOURCE = """//@version=5
 indicator("검토한 추세", overlay=true)
 fast=ta.sma(close,2)
 slow=ta.sma(close,3)
 f(x) =>
     x > 0
 plot(fast)
-'''
+"""
 EXPRESSIONS = [
     {"direction": "long", "expression": "ta.crossover(fast, slow)"},
     {"direction": "short", "expression": "ta.crossunder(fast, slow)"},
@@ -30,7 +30,7 @@ EXPRESSIONS = [
 def test_append_only_diagnostics_keep_original_bytes_and_split_provenance(source):
     augmented, bindings, provenance = catalogue.augment_expression_signals(source, EXPRESSIONS)
     assert augmented.encode().startswith(source.encode())
-    assert augmented.splitlines()[:len(source.splitlines())] == source.splitlines()
+    assert augmented.splitlines()[: len(source.splitlines())] == source.splitlines()
     assert provenance["original_source_sha256"] == sha(source.encode())
     assert provenance["augmented_source_sha256"] == sha(augmented.encode())
     assert provenance["native_verified"] is False
@@ -40,7 +40,9 @@ def test_append_only_diagnostics_keep_original_bytes_and_split_provenance(source
         assert binding["expression"] == diagnostic["expression"]
         assert diagnostic["expression"] in augmented.splitlines()[binding["line"] - 1]
         assert diagnostic["title"] == diagnostic["message"]
-    adapted = catalogue.raw_signal_strategy(adapt_strategy(augmented, bindings, fixed_quantity=None))
+    adapted = catalogue.raw_signal_strategy(
+        adapt_strategy(augmented, bindings, fixed_quantity=None)
+    )
     assert adapted.source_sha256 == provenance["augmented_source_sha256"]
     assert "strategy.entry" in adapted.strategy_source
     assert "and strategy.position_size" not in adapted.strategy_source
@@ -49,11 +51,21 @@ def test_append_only_diagnostics_keep_original_bytes_and_split_provenance(source
 @pytest.mark.parametrize(
     "expression",
     [
-        "unknown > 0", "f(fast)", "input.bool(true)", "pa.push(fast)",
-        "strategy.position_size > 0", "array.push(fast,1)", "fast[slow] > 0",
-        "fast[-1] > 0", "fast[10001] > 0", "fast\nslow", "fast), plot(close), alertcondition(true",
-        "ta.sma(fast,2) > 0", "math.random(0,1) > 0",
-        "ta.crossover(source2=slow,source1=fast)", "math.pow(exponent=2,base=fast) > 0",
+        "unknown > 0",
+        "f(fast)",
+        "input.bool(true)",
+        "pa.push(fast)",
+        "strategy.position_size > 0",
+        "array.push(fast,1)",
+        "fast[slow] > 0",
+        "fast[-1] > 0",
+        "fast[10001] > 0",
+        "fast\nslow",
+        "fast), plot(close), alertcondition(true",
+        "ta.sma(fast,2) > 0",
+        "math.random(0,1) > 0",
+        "ta.crossover(source2=slow,source1=fast)",
+        "math.pow(exponent=2,base=fast) > 0",
     ],
 )
 def test_expression_rejects_unknown_calls_state_mutation_and_statement_injection(expression):
@@ -65,23 +77,36 @@ def test_expression_rejects_unknown_calls_state_mutation_and_statement_injection
 def test_source_local_variable_cannot_escape_udf_scope():
     source = SOURCE + "g() =>\n    secret=1\n    secret\n"
     with pytest.raises(ValueError, match="전역 이름"):
-        catalogue.augment_expression_signals(source, [
-            {"direction": "long", "expression": "secret > 0"}, EXPRESSIONS[1],
-        ])
+        catalogue.augment_expression_signals(
+            source,
+            [
+                {"direction": "long", "expression": "secret > 0"},
+                EXPRESSIONS[1],
+            ],
+        )
 
 
 def test_history_boolean_and_read_only_math_are_allowed():
-    augmented, _, _ = catalogue.augment_expression_signals(SOURCE, [
-        {"direction": "long", "expression": "fast > slow and not (fast[1] > slow[1])"},
-        {"direction": "short", "expression": "math.abs(fast - slow) > 0 and close < open"},
-    ])
+    augmented, _, _ = catalogue.augment_expression_signals(
+        SOURCE,
+        [
+            {"direction": "long", "expression": "fast > slow and not (fast[1] > slow[1])"},
+            {"direction": "short", "expression": "math.abs(fast - slow) > 0 and close < open"},
+        ],
+    )
     assert augmented.startswith(SOURCE)
 
 
 def test_ribbon_na_guard_is_read_only_and_cannot_call_shadowing_udf():
     bindings = [
-        {"direction": "long", "expression": "not na(slow[1]) and fast > slow and fast[1] <= slow[1]"},
-        {"direction": "short", "expression": "not na(slow[1]) and fast < slow and fast[1] >= slow[1]"},
+        {
+            "direction": "long",
+            "expression": "not na(slow[1]) and fast > slow and fast[1] <= slow[1]",
+        },
+        {
+            "direction": "short",
+            "expression": "not na(slow[1]) and fast < slow and fast[1] >= slow[1]",
+        },
     ]
     augmented, generated, _ = catalogue.augment_expression_signals(SOURCE, bindings)
     assert augmented.startswith(SOURCE) and generated[0]["expression"] == bindings[0]["expression"]
@@ -92,25 +117,63 @@ def test_ribbon_na_guard_is_read_only_and_cannot_call_shadowing_udf():
 def test_crlf_library_cannot_pass_screening_as_unknown_object_methods(tmp_path):
     source = b'//@version=5\r\nimport Owner/Library/1 as pa\r\nindicator("t")\r\n'
     (tmp_path / "source.pine").write_bytes(source)
-    write(tmp_path / "catalogue.json", {"items": [{
-        "id": "abcdefgh", "status": "captured", "source_file": "source.pine",
-        "source_sha256": sha(source),
-    }]})
+    write(
+        tmp_path / "catalogue.json",
+        {
+            "items": [
+                {
+                    "id": "abcdefgh",
+                    "status": "captured",
+                    "source_file": "source.pine",
+                    "source_sha256": sha(source),
+                }
+            ]
+        },
+    )
     result = catalogue.screen_one(tmp_path, "abcdefgh")
     assert result["status"] == "unsupported" and "import Owner/Library/1" in result["detail"]
     assert result["source_sha256"] == sha(source)
     assert (tmp_path / "source.pine").read_bytes() == source
 
 
+def test_legacy_diagnostics_only_translate_generated_builtin_names():
+    source = SOURCE.replace("version=5", "version=4").replace("ta.sma", "sma")
+    augmented, bindings, proof = catalogue.augment_expression_signals(source, EXPRESSIONS)
+    assert augmented.startswith(source)
+    assert "alertcondition((crossover(fast, slow))" in augmented
+    assert "alertcondition((crossunder(fast, slow))" in augmented
+    assert bindings[0]["expression"] == EXPRESSIONS[0]["expression"]
+    assert proof["diagnostics"][0]["compiled_expression"] == "crossover(fast, slow)"
+    repeated = catalogue.augment_expression_signals(source, EXPRESSIONS)
+    assert repeated == (augmented, bindings, proof)
+    modern, _, modern_proof = catalogue.augment_expression_signals(SOURCE, EXPRESSIONS)
+    assert "alertcondition((ta.crossover(fast, slow))" in modern
+    assert "compiled_expression" not in modern_proof["diagnostics"][0]
+    with pytest.raises(ValueError, match="UDF와 충돌"):
+        catalogue.augment_expression_signals(source + "crossover(a,b) =>\n    true\n", EXPRESSIONS)
+
+
 def setup_review(root, binding_type="expression"):
     (root / "source.pine").write_bytes(SOURCE.encode())
-    write(root / "catalogue.json", {"items": [{
-        "id": "abcdefgh", "status": "captured", "source_file": "source.pine",
-        "source_sha256": sha(SOURCE.encode()),
-    }]})
+    write(
+        root / "catalogue.json",
+        {
+            "items": [
+                {
+                    "id": "abcdefgh",
+                    "status": "captured",
+                    "source_file": "source.pine",
+                    "source_sha256": sha(SOURCE.encode()),
+                }
+            ]
+        },
+    )
     review = {
-        "source_sha256": sha(SOURCE.encode()), "reviewed_by": "test-reviewer",
-        "basis": "원문 fast/slow 교차", "family": "trend", "warmup_bars": 1000,
+        "source_sha256": sha(SOURCE.encode()),
+        "reviewed_by": "test-reviewer",
+        "basis": "원문 fast/slow 교차",
+        "family": "trend",
+        "warmup_bars": 1000,
     }
     if binding_type == "expression":
         review.update(binding_type="expression", expression_bindings=EXPRESSIONS)

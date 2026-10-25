@@ -7,6 +7,7 @@ import pytest
 
 from src.strategy.pine_v2.event_loop import run_historical
 from src.strategy.pine_v2.interpreter import PineRuntimeError
+from src.strategy.pine_v2.rendering import PineColor, color_named
 from src.strategy.pine_v2.stdlib import StdlibDispatcher
 
 
@@ -109,8 +110,11 @@ def test_official_legacy_display_colors_are_available_only_as_existing_nop(versi
     )
     out = run_historical(source, frame())
     assert not out.errors
-    for i in range(len(colors)):
-        assert all(math.isnan(value) for value in out.var_series[f"c{i}"])
+    for i, name in enumerate(colors):
+        assert all(
+            isinstance(value, PineColor) and value == color_named(name, version)
+            for value in out.var_series[f"c{i}"]
+        )
 
 
 @pytest.mark.parametrize("version", [4, 5, 6])

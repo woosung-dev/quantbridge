@@ -23,7 +23,7 @@ from src.strategy.pine_v2.parser_adapter import parse_to_ast
 
 _STEPS = {"1h": timedelta(hours=1), "4h": timedelta(hours=4), "1d": timedelta(days=1)}
 _SIGNAL_CALLS = {"plotshape", "plotchar", "alertcondition"}
-_PLOT_CALLS = _SIGNAL_CALLS | {"plot", "barcolor"}
+_PLOT_CALLS = _SIGNAL_CALLS | {"plot", "barcolor", "plotcandle"}
 _SOURCE_NAMES = {"open", "high", "low", "close", "hl2", "hlc3", "ohlc4"}
 _PLOT_TYPES = {
     "alertcondition": "alertcondition",
@@ -31,6 +31,7 @@ _PLOT_TYPES = {
     "plotshape": "shapes",
     "plotchar": "chars",
     "barcolor": "bar_colorer",
+    "plotcandle": "ohlc_open",
 }
 _FRAME = re.compile(r"~m~(\d+)~m~")
 _SENTINEL = 1e100
@@ -325,6 +326,8 @@ def _plot_bindings(
     styles: Any,
     reviewed: Sequence[Mapping[str, Any]],
     fills: Sequence[A.Call],
+    *,
+    ohlc_plots: Any = None,
 ) -> list[tuple[int, str, int]]:
     if (
         not isinstance(plots, list)
@@ -394,25 +397,67 @@ def _plot_bindings(
             plot["type"] == "data"
             or index == 0
             or target != f"plot_{index - 1}"
-            or plots[index - 1].get("type") not in {"line", "shapes"}
+            or plots[index - 1].get("type") not in {"line", "shapes", "chars"}
         ):
-            raise ValueError("컴파일 colorer가 앞선 line/shapes plot에 결합되지 않았습니다")
+            raise ValueError("컴파일 colorer가 앞선 line/shapes/chars plot에 결합되지 않았습니다")
     if fill_columns != expected_fill_columns:
         raise ValueError("컴파일 fill data/colorer와 원문 전역 fill 호출이 다릅니다")
-    visible = [
-        (index, plot)
-        for index, plot in enumerate(plots)
-        if plot.get("type") not in {"colorer", "data"}
-    ]
+    visible = []
+    candle_columns: set[int] = set()
+    candle_count = 0
+    for index, plot in enumerate(plots):
+        if index in candle_columns:
+            continue
+        if plot.get("type") == "ohlc_open":
+            target = f"plotcandle_{candle_count}"
+            types = (
+                "ohlc_open",
+                "ohlc_high",
+                "ohlc_low",
+                "ohlc_close",
+                "ohlc_colorer",
+                "wick_colorer",
+                "border_colorer",
+            )
+            group = plots[index : index + len(types)]
+            if len(group) != len(types):
+                raise ValueError("관측한 plotcandle 7열이 누락됐습니다")
+            for column, kind in zip(group, types, strict=True):
+                if (
+                    column.get("type") != kind
+                    or column.get("target") != target
+                    or set(column) - {"id", "type", "target", "palette"}
+                    or (
+                        kind.endswith("colorer")
+                        and not re.fullmatch(r"palette_\d+", str(column.get("palette", "")))
+                    )
+                    or (not kind.endswith("colorer") and "palette" in column)
+                ):
+                    raise ValueError("plotcandle OHLC·색상 열의 순서·대상이 다릅니다")
+            candle_columns.update(range(index, index + len(types)))
+            candle_count += 1
+        if plot.get("type") not in {"colorer", "data"}:
+            visible.append((index, plot))
+    if candle_count and (
+        not isinstance(ohlc_plots, dict)
+        or set(ohlc_plots) != {f"plotcandle_{i}" for i in range(candle_count)}
+    ):
+        raise ValueError("plotcandle 스타일의 고유 대상이 다릅니다")
     if len(visible) != len(calls):
         raise ValueError("원문 전역 plot/alert 호출 수와 컴파일 plot 수가 다릅니다")
     for (kind, call), (index, plot) in zip(calls, visible, strict=True):
         if plot.get("type") != _PLOT_TYPES[kind]:
             raise ValueError("원문 호출 유형과 컴파일 plot 유형이 다릅니다")
-        style = styles.get(f"plot_{index}")
+        style = (
+            ohlc_plots.get(plot["target"]) if kind == "plotcandle" else styles.get(f"plot_{index}")
+        )
         if not isinstance(style, dict):
             raise ValueError("컴파일 plot 스타일이 없습니다")
-        title_node = _arg(call, "title", None if kind == "barcolor" else 1)
+        if kind == "plotcandle" and style.get("plottype") != "ohlc_candles":
+            raise ValueError("plotcandle 스타일 유형이 다릅니다")
+        title_node = _arg(
+            call, "title", 4 if kind == "plotcandle" else None if kind == "barcolor" else 1
+        )
         if kind == "barcolor" and title_node is not None:
             raise ValueError("barcolor는 관측한 기본 제목 Bar Color만 허용합니다")
         title = (
@@ -476,6 +521,7 @@ def parse_native_capture(
     expected_symbol: str,
     expected_timeframe: str,
     expected_inputs: Mapping[str, Any],
+    max_total_bars: int | None = None,
 ) -> NativeCapture:
     """원본과 교차 확인한 확정 common cohort에서만 native 사건을 만든다."""
     if (
@@ -487,6 +533,8 @@ def parse_native_capture(
         raise ValueError("native 지표·심볼·타임프레임이 기대값과 다릅니다")
     if expected_timeframe not in _STEPS:
         raise ValueError("지원하지 않는 타임프레임입니다")
+    if max_total_bars is not None and (type(max_total_bars) is not int or max_total_bars <= 0):
+        raise ValueError("native 총 봉 한도는 양의 정수여야 합니다")
     step = _STEPS[expected_timeframe]
     observed_at = utc_time(payload.get("observed_at"))
     digest = hashlib.sha256(source).hexdigest()
@@ -612,7 +660,14 @@ def parse_native_capture(
             raise ValueError("명시 timeframe_gaps=false의 compiler 자동 입력 근거가 다릅니다")
     if {key for key in compiled_inputs if re.fullmatch(r"in_\d+", str(key))} != expected_slots:
         raise ValueError("컴파일 입력 개수가 원문과 다릅니다")
-    bound = _plot_bindings(calls, meta.get("plots"), meta.get("styles"), signal_bindings, fills)
+    bound = _plot_bindings(
+        calls,
+        meta.get("plots"),
+        meta.get("styles"),
+        signal_bindings,
+        fills,
+        ohlc_plots=meta.get("ohlcPlots"),
+    )
     wire = payload.get("wire")
     if not isinstance(wire, list) or not wire:
         raise ValueError("UI wire 관측이 없습니다")
@@ -725,6 +780,11 @@ def parse_native_capture(
                 if at in target and target[at] != values and at + step <= observed_at:
                     raise ValueError("확정 봉에 충돌하는 중복 응답이 있습니다")
                 target[at] = values
+    total_bars = len(set(study_rows) | set(price_rows))
+    if max_total_bars is not None and total_bars > max_total_bars:
+        raise ValueError(
+            "native 총 봉이 계정 한도를 초과합니다; 후미 절단으로 재사용할 수 없습니다"
+        )
     closed_study = {at: row for at, row in study_rows.items() if at + step <= observed_at}
     closed_price = {at: row for at, row in price_rows.items() if at + step <= observed_at}
     common = sorted(set(closed_study) & set(closed_price))
@@ -789,5 +849,6 @@ def parse_native_capture(
             "common_bars": len(common),
             "study_bars": len(closed_study),
             "ohlcv_bars": len(closed_price),
+            "total_received_bars": total_bars,
         },
     )

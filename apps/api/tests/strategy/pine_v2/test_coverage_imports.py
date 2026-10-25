@@ -13,8 +13,10 @@ from src.strategy.pine_v2.coverage import analyze_coverage
         ("import TradingView/ta/7 as custom", ""),
     ],
 )
-def test_import_is_unsupported_even_if_namespace_is_unknown_or_unused(declaration, body):
-    report = analyze_coverage(f"//@version=5\n{declaration}\nindicator('t')\n{body}\n")
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_import_is_unsupported_even_if_namespace_is_unknown_or_unused(declaration, body, newline):
+    source = newline.join(["//@version=5", declaration, "indicator('t')", body, ""])
+    report = analyze_coverage(source)
     assert not report.is_runnable
     expected = " ".join(declaration.split()[:2])
     assert expected in report.unsupported_functions
@@ -22,9 +24,9 @@ def test_import_is_unsupported_even_if_namespace_is_unknown_or_unused(declaratio
 
 
 def test_import_text_in_comments_or_strings_is_not_an_external_dependency():
-    source = '''//@version=5
+    source = """//@version=5
 indicator("import TradingView/ta/7 as custom")
 // import HeWhoMustNotBeNamed/arrayutils/10 as pa
 plot(close)
-'''
+"""
     assert analyze_coverage(source).is_runnable

@@ -22,6 +22,8 @@ from src.strategy.pine_v2._names import (
     ARRAY_FUNCTIONS as _ARRAY_FUNCTIONS,
 )
 from src.strategy.pine_v2._names import CAST_FUNCTIONS as _CAST_FUNCTIONS
+from src.strategy.pine_v2._names import COLOR_FUNCTIONS as _COLOR_FUNCTIONS
+from src.strategy.pine_v2._names import COLOR_NAMES as _COLOR_NAMES
 from src.strategy.pine_v2._names import (
     TA_FUNCTIONS as _TA_FUNCTIONS,
 )
@@ -303,6 +305,21 @@ _MATH_FUNCTIONS: frozenset[str] = frozenset(
     }
 )
 
+_TIME_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "time",
+        "year",
+        "month",
+        "dayofmonth",
+        "dayofweek",
+        "hour",
+        "minute",
+        "second",
+        "timeframe.in_seconds",
+        "timeframe.change",
+    }
+)
+
 # Pine v4→v5 호환 별칭 (interpreter alias map)
 _V4_ALIASES: frozenset[str] = frozenset(
     {
@@ -340,6 +357,9 @@ _V4_ALIASES: frozenset[str] = frozenset(
         "exp",
         "log",
         "sum",
+        "ceil",
+        "sign",
+        "log10",
     }
 )
 
@@ -358,6 +378,8 @@ SUPPORTED_FUNCTIONS: frozenset[str] = (
     | _SECURITY_FUNCTIONS  # Sprint 29 Slice A: graceful request.security + v4 security
     | _HEIKINASHI_FUNCTIONS  # Sprint 29 Slice A (a): dogfood-only flag
     | _ARRAY_FUNCTIONS  # G2 (2026-07-12 pine-batch QA): array.* 최소 서브셋 (_names SSOT)
+    | _COLOR_FUNCTIONS
+    | _TIME_FUNCTIONS
 )
 
 # Built-in series variables (close/high/low/open/volume + ta.tr 등)
@@ -381,6 +403,13 @@ _SERIES_ATTRS: frozenset[str] = frozenset(
         "ta.tr",  # Sprint X1+X3 follow-up
         "tr",  # v4 속성 별칭 — ta.tr와 동일 계산을 공유한다.
         "ta.obv",  # Sprint 58 BL-241: On Balance Volume series
+        "year",
+        "month",
+        "dayofmonth",
+        "dayofweek",
+        "hour",
+        "minute",
+        "second",
     }
 )
 
@@ -455,6 +484,7 @@ _TIMEFRAME_CONSTANTS: frozenset[str] = frozenset(
         "timeframe.isseconds",
         "timeframe.isweekly",
         "timeframe.multiplier",
+        "timeframe.isintraday",
     }
 )
 
@@ -467,7 +497,6 @@ _ENUM_PREFIXES: tuple[str, ...] = (
     "location.",
     "size.",
     "position.",
-    "color.",  # color.* → nan (NOP)
     "alert.freq_",
     "display.",
     "xloc.",
@@ -486,6 +515,12 @@ SUPPORTED_ATTRIBUTES: frozenset[str] = (
     | _TIMEFRAME_CONSTANTS
     | _INPUT_CONSTANTS
     | _DISPLAY_CONSTANTS
+    | frozenset(f"color.{name}" for name in _COLOR_NAMES)
+    | frozenset({"math.pi", "math.e"})
+    | frozenset(
+        f"dayofweek.{name}"
+        for name in ("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
+    )
 )
 
 
@@ -805,7 +840,7 @@ def analyze_coverage(source: str) -> CoverageReport:
     # 아니라는 이유로 외부 의존성을 조용히 지원한 것으로 판정하지 않는다.
     imports = re.finditer(
         r"(?m)^[\t ]*import\s+([A-Za-z0-9_]+/[A-Za-z0-9_]+/\d+)"
-        r"(?:\s+as\s+[A-Za-z_]\w*)?[\t ]*$",
+        r"(?:\s+as\s+[A-Za-z_]\w*)?[\t \r]*$",
         clean,
     )
     unsupp_funcs_set.update(f"import {match[1]}" for match in imports)

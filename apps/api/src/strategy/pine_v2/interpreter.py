@@ -35,17 +35,22 @@ from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
 from pynescript import ast as pyne_ast
 
-from src.strategy.pine_v2._names import CAST_FUNCTIONS, STDLIB_NAMES
+from src.strategy.pine_v2._names import CAST_FUNCTIONS, COLOR_FUNCTIONS, COLOR_NAMES, STDLIB_NAMES
 from src.strategy.pine_v2.rendering import (
     BoxObject,
     LabelObject,
     LineObject,
+    PineColor,
     RenderingRegistry,
     TableObject,
+    color_call,
+    color_literal,
+    color_named,
 )
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.signal_trace import SignalFunction, SignalObservation
@@ -97,6 +102,9 @@ _V4_ALIASES: dict[str, str] = {
     "asin": "math.asin",
     "acos": "math.acos",
     "atan": "math.atan",
+    "ceil": "math.ceil",
+    "sign": "math.sign",
+    "log10": "math.log10",
 }
 
 # Pine enum constants — value 매핑 (location.absolute, extend.right, shape.*, etc.)
@@ -233,6 +241,7 @@ class BarContext:
             "timeframe.period": f"{prefix}{suffix}",
             "timeframe.multiplier": multiplier,
             "timeframe.isseconds": unit == "s",
+            "timeframe.isintraday": unit in {"s", "m", "h"},
             "timeframe.isminutes": unit in {"m", "h"},
             "timeframe.isdaily": unit == "d",
             "timeframe.isweekly": unit == "w",
@@ -278,6 +287,53 @@ class BarContext:
 
     def timeframe_attribute(self, name: str) -> str | int | bool | None:
         return self._timeframe_attributes.get(name)
+
+
+_CALENDAR_FIELDS = frozenset(
+    {"year", "month", "dayofmonth", "dayofweek", "hour", "minute", "second"}
+)
+
+
+def _calendar_part(name: str, milliseconds: Any, zone: str = "UTC") -> int | float:
+    """Pine 봉 개시 UTC 밀리초를 지정한 IANA 달력으로 정확히 변환한다."""
+    if type(zone) is not str:
+        raise PineRuntimeError("calendar timezone must be a string")
+    try:
+        timezone = ZoneInfo("UTC" if zone in {"UTC0", "UTC+0", "UTC+00:00", "GMT0"} else zone)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise PineRuntimeError("calendar timezone is unsupported") from exc
+    if _is_na(milliseconds):
+        return float("nan")
+    if type(milliseconds) is not int:
+        raise PineRuntimeError("calendar time must be integer Unix milliseconds")
+    try:
+        stamp = (
+            datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=milliseconds)
+        ).astimezone(timezone)
+    except (OverflowError, ValueError) as exc:
+        raise PineRuntimeError("calendar time is out of range") from exc
+    if name == "dayofweek":
+        return (stamp.weekday() + 1) % 7 + 1
+    if name == "dayofmonth":
+        return stamp.day
+    return cast(int, getattr(stamp, name))
+
+
+def _pine_timeframe(value: Any) -> tuple[int, str]:
+    if type(value) is not str:
+        raise PineRuntimeError("timeframe must be a Pine timeframe string")
+    match = re.fullmatch(r"([1-9]\d*)?([SDWM]?)", value)
+    if match is None or not value:
+        raise PineRuntimeError("unsupported Pine timeframe string")
+    count, unit = int(match[1] or 1), match[2]
+    valid = (
+        count in {1, 5, 10, 15, 30, 45}
+        if unit == "S"
+        else 1 <= count <= {"": 1440, "D": 365, "W": 52, "M": 12}[unit]
+    )
+    if not valid:
+        raise PineRuntimeError("timeframe multiplier is out of range")
+    return count, unit
 
 
 # ------------------------------------------------------------
@@ -387,6 +443,7 @@ class _FunctionFrame:
     declarations: dict[str, str | None]
     staged: dict[tuple[tuple[str, ...], str], Any] = field(default_factory=dict)
     loop_names: set[str] = field(default_factory=set)
+    entry_loop_depth: int = 0
 
 
 class Interpreter:
@@ -449,6 +506,7 @@ class Interpreter:
         # 변수 history ring과 달리 전체 평가 구간의 관찰값을 보존한다.
         self.signal_trace: list[SignalObservation] = []
         self.degraded_calls_seen: list[str] = []
+        self._timeframe_change_targets: dict[Any, tuple[int, str]] = {}
 
     def reset_transient(self) -> None:
         self._transient = {}
@@ -944,6 +1002,8 @@ class Interpreter:
         if node is None:
             return None
         if isinstance(node, pyne_ast.Constant):
+            if getattr(node, "kind", None) == "#":
+                return color_literal(node.value, self.bar.pine_version)
             return node.value
         if isinstance(node, pyne_ast.Name):
             return self._resolve_name(node.id)
@@ -962,6 +1022,8 @@ class Interpreter:
                 if self._truthy(self._eval_expr(node.test))
                 else self._eval_expr(node.orelse)
             )
+        if isinstance(node, pyne_ast.If):
+            return self._eval_if_expression(node)
         if isinstance(node, pyne_ast.Subscript):
             return self._eval_subscript(node)
         if isinstance(node, pyne_ast.Attribute):
@@ -975,6 +1037,31 @@ class Interpreter:
             return tuple(self._eval_expr(e) for e in node.elts)
         # 기타: Day 1-2 범위 밖
         raise PineRuntimeError(f"Unsupported expression node: {type(node).__name__}")
+
+    def _eval_if_expression(self, node: Any) -> Any:
+        """명시 else의 선택 block만 평가하고 마지막 값을 반환한다."""
+        if not node.orelse:
+            # bool/다른 형식의 암시 반환값을 추측하지 않는다.
+            raise PineRuntimeError("if expression without explicit else is not supported")
+        if any(
+            isinstance(child, (pyne_ast.Assign, pyne_ast.ForTo, pyne_ast.ForIn, pyne_ast.While))
+            for child in pyne_ast.walk(node)
+        ):
+            raise PineRuntimeError("if expression lexical declarations or loops are not supported")
+        body = node.body if self._truthy(self._eval_expr(node.test)) else node.orelse
+        value: Any = None
+        for statement in body:
+            if isinstance(statement, pyne_ast.Expr):
+                value = self._eval_expr(statement.value)
+            elif isinstance(statement, (pyne_ast.ReAssign, pyne_ast.AugAssign)):
+                self._exec_stmt(statement)
+                target = statement.target
+                if not isinstance(target, pyne_ast.Name):
+                    raise PineRuntimeError("if expression assignment target is unsupported")
+                value = self._resolve_name(target.id)
+            else:
+                raise PineRuntimeError("if expression statement is unsupported")
+        return value
 
     def _eval_switch(self, node: Any) -> Any:
         """Pine switch expression: subject 값과 각 Case.pattern 비교.
@@ -1106,10 +1193,16 @@ class Interpreter:
             if name in frame.params or name in frame.declarations or name in frame.loop_names:
                 if offset == 0:
                     return self._resolve_name(name)
-                if self._loop_depth:
-                    raise PineRuntimeError("UDF local history in loops is not supported")
                 current = self._scope_stack[-1].get(name)
-                if current is not None and not isinstance(current, (bool, int, float, str)):
+                if self._loop_depth and (
+                    frame.entry_loop_depth != 0
+                    or name not in frame.params
+                    or type(current) not in (int, float)
+                ):
+                    raise PineRuntimeError("UDF local history in loops is not supported")
+                if current is not None and not isinstance(
+                    current, (bool, int, float, str, PineColor)
+                ):
                     raise PineRuntimeError("UDF reference-type history is not supported")
                 history = self._local_history.get((frame.path, name), ())
                 if offset > 1 and history:
@@ -1136,6 +1229,10 @@ class Interpreter:
 
         if isinstance(value_node, pyne_ast.Name) and value_node.id == "time":
             return self.bar.timestamp_ms(offset)
+        if isinstance(value_node, pyne_ast.Name) and value_node.id in _CALENDAR_FIELDS:
+            if self.bar.timestamps is None:
+                self._record_degraded_call(value_node.id)
+            return _calendar_part(value_node.id, self.bar.timestamp_ms(offset))
 
         # 사용자 변수 series
         if isinstance(value_node, pyne_ast.Name):
@@ -1229,6 +1326,9 @@ class Interpreter:
         # 우연히 alias 와 충돌하는 함수명을 사용 안 했기 때문).
         if name and "." not in name and name in self._user_functions:
             return self._call_user_function(self._user_functions[name], node)
+
+        if name in COLOR_FUNCTIONS:
+            return self._eval_color_call(name, node)
 
         # v4+ scalar 캐스트는 단항 순수 함수이며, 미지원 인자는 평가 전에 거부한다.
         if name in CAST_FUNCTIONS:
@@ -1383,6 +1483,43 @@ class Interpreter:
         # 필터를 비교할 때 윤년·월 길이만큼 경계가 어긋나므로 epoch ms를 정확히 계산한다.
         if name == "timestamp":
             return self._eval_timestamp(node)
+        if name in _CALENDAR_FIELDS:
+            return self._eval_calendar_call(name, node)
+        if name == "time":
+            if not node.args:
+                raise PineRuntimeError("time() requires a timeframe argument")
+            return self._timeframe_open(self._eval_timeframe_argument(node))
+        if name == "timeframe.change":
+            if not node.args:
+                raise PineRuntimeError("timeframe.change requires a timeframe argument")
+            if self.bar.pine_version < 5:
+                raise PineRuntimeError("timeframe.change requires Pine v5+")
+            value = self._eval_timeframe_argument(node)
+            current = self._timeframe_open(value)
+            change_target = _pine_timeframe(
+                self.bar.timeframe_attribute("timeframe.period") if value == "" else value
+            )
+            key = self.stdlib._scoped_node_id(id(node))
+            if self._timeframe_change_targets.setdefault(key, change_target) != change_target:
+                raise PineRuntimeError("timeframe.change dynamic timeframe is not verified")
+            previous = self._timeframe_open(value, 1)
+            return False if _is_na(previous) else current != previous
+        if name == "timeframe.in_seconds":
+            value = self._eval_timeframe_argument(node)
+            if value == "":
+                value = self.bar.timeframe_attribute("timeframe.period")
+                if value is None:
+                    raise PineRuntimeError(
+                        "timeframe.in_seconds requires explicit timeframe context"
+                    )
+            count, unit = _pine_timeframe(value)
+            if unit == "M":
+                # 실제 v5의 1~12M 및 v6의 1/3M 숫자 변환값이다. 달력 경계에 쓰지 않는다.
+                verified_counts = range(1, 13) if self.bar.pine_version == 5 else (1, 3)
+                if self.bar.pine_version not in (5, 6) or count not in verified_counts:
+                    raise PineRuntimeError("monthly timeframe.in_seconds is not yet verified")
+                return 2628003 * count
+            return count * {"S": 1, "": 60, "D": 86400, "W": 604800}[unit]
 
         # str.* / bare tostring·tonumber — display NOP-safe (tostring/format) 또는
         # 정확 변환 (tonumber=parse|na, length=len). backtest math 에 무관하거나 정확.
@@ -1498,7 +1635,8 @@ class Interpreter:
                     )
             else:
                 args = [
-                    self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
+                    self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
+                    for a in node.args
                 ]
             return self.stdlib.call(
                 name,
@@ -1607,6 +1745,20 @@ class Interpreter:
                         return float(override_value)
                     if name == "input.bool":
                         return bool(override_value)
+                    color_input = name == "input.color" or any(
+                        isinstance(arg, pyne_ast.Arg)
+                        and arg.name == "type"
+                        and _attr_chain(arg.value) == "input.color"
+                        for arg in node.args
+                    )
+                    if color_input:
+                        if isinstance(override_value, str):
+                            try:
+                                return color_literal(override_value, self.bar.pine_version)
+                            except ValueError as exc:
+                                raise PineRuntimeError(str(exc)) from exc
+                        if not isinstance(override_value, PineColor) and not _is_na(override_value):
+                            raise PineRuntimeError("input.color override must be a color value")
                     return override_value
                 # Pine input 시그니처: v4는 input(title=, type=, defval=, ...) keyword 사용 빈번.
                 # defval= kwarg 우선, 없으면 첫 positional arg를 defval로 간주.
@@ -1630,6 +1782,125 @@ class Interpreter:
         """검증 모드만 실제로 진입한 근사 실행을 기록한다. 정적 coverage는 바꾸지 않는다."""
         if self.capture_signals and name not in self.degraded_calls_seen:
             self.degraded_calls_seen.append(name)
+
+    def _eval_color_call(self, name: str, node: Any) -> Any:
+        signatures = {
+            "color": ("x",),
+            "color.new": ("color", "transp"),
+            "color.rgb": ("red", "green", "blue", "transp"),
+            "color.from_gradient": (
+                "value",
+                "bottom_value",
+                "top_value",
+                "bottom_color",
+                "top_color",
+            ),
+            "color.r": ("color",),
+            "color.g": ("color",),
+            "color.b": ("color",),
+            "color.t": ("color",),
+        }
+        signature = signatures[name]
+        names = []
+        saw_keyword = False
+        for index, argument in enumerate(node.args):
+            keyword = argument.name if isinstance(argument, pyne_ast.Arg) else None
+            if keyword is None:
+                if saw_keyword or index >= len(signature):
+                    raise PineRuntimeError(f"{name}: positional argument order or arity is invalid")
+                keyword = signature[index]
+            else:
+                saw_keyword = True
+            if keyword not in signature or keyword in names:
+                raise PineRuntimeError(f"{name}: unknown or duplicate argument")
+            names.append(keyword)
+        required = signature[:3] if name == "color.rgb" else signature
+        if not set(required) <= set(names):
+            raise PineRuntimeError(f"{name}: missing required argument")
+        values = {
+            field: self._eval_expr(
+                argument.value if isinstance(argument, pyne_ast.Arg) else argument
+            )
+            for field, argument in zip(names, node.args, strict=True)
+        }
+        try:
+            return color_call(name, values, self.bar.pine_version)
+        except ValueError as exc:
+            raise PineRuntimeError(str(exc)) from exc
+
+    def _timeframe_open(self, value: Any, offset: int = 0) -> int | float:
+        """Bybit UTC 24x7의 검증 가능한 상위 주기 개시 시각만 계산한다."""
+        context = self.bar.timeframe_attribute("timeframe.period")
+        if context is None or self.bar.timestamps is None:
+            raise PineRuntimeError("time() requires explicit timeframe and timestamp context")
+        count, unit = _pine_timeframe(context if value == "" else value)
+        current_count, current_unit = _pine_timeframe(context)
+        seconds = {"S": 1, "": 60, "D": 86400, "W": 604800}
+        if current_unit == "M" or (
+            unit != "M" and count * seconds[unit] < current_count * seconds[current_unit]
+        ):
+            raise PineRuntimeError("time() lower or monthly chart timeframe is unsupported")
+        if unit == "M" and current_count * seconds[current_unit] > 604800:
+            raise PineRuntimeError("time() monthly target requires daily or shorter weekly context")
+        stamp_ms = self.bar.timestamp_ms(offset)
+        if _is_na(stamp_ms):
+            return float("nan")
+        stamp = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=cast(int, stamp_ms))
+        midnight = stamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        if unit == "D" and count == 1:
+            opened = midnight
+        elif unit == "W" and count == 1:
+            opened = midnight - timedelta(days=stamp.weekday())
+        elif unit == "M" and count == 1:
+            opened = midnight.replace(day=1)
+        elif unit in {"S", ""}:
+            step = count * seconds[unit]
+            if 86400 % step:
+                raise PineRuntimeError("time() unverified intraday session anchor")
+            elapsed = stamp.hour * 3600 + stamp.minute * 60 + stamp.second
+            opened = midnight + timedelta(seconds=(elapsed // step) * step)
+        else:
+            raise PineRuntimeError("time() multi-calendar timeframe anchor is not verified")
+        delta = opened - datetime(1970, 1, 1, tzinfo=UTC)
+        return delta.days * 86400000 + delta.seconds * 1000
+
+    def _eval_timeframe_argument(self, node: Any) -> Any:
+        if len(node.args) > 1:
+            raise PineRuntimeError("expected at most one timeframe argument")
+        if not node.args:
+            return ""
+        argument = node.args[0]
+        if isinstance(argument, pyne_ast.Arg):
+            if argument.name not in {None, "timeframe"}:
+                raise PineRuntimeError("unknown timeframe argument")
+            argument = argument.value
+        return self._eval_expr(argument)
+
+    def _eval_calendar_call(self, name: str, node: Any) -> int | float:
+        positions = []
+        saw_keyword = False
+        for index, argument in enumerate(node.args):
+            keyword = argument.name if isinstance(argument, pyne_ast.Arg) else None
+            if keyword is None:
+                if saw_keyword:
+                    raise PineRuntimeError(f"{name}: positional argument after keyword")
+                position = index
+            else:
+                saw_keyword = True
+                if keyword not in {"time", "timezone"}:
+                    raise PineRuntimeError(f"{name}: unknown calendar argument")
+                position = ("time", "timezone").index(keyword)
+            if position > 1 or position in positions:
+                raise PineRuntimeError(f"{name}: duplicate or excess calendar argument")
+            positions.append(position)
+        if 0 not in positions:
+            raise PineRuntimeError(f"{name}: time argument is required")
+        values: list[Any] = [None, "UTC"]
+        for position, argument in zip(positions, node.args, strict=True):
+            values[position] = self._eval_expr(
+                argument.value if isinstance(argument, pyne_ast.Arg) else argument
+            )
+        return _calendar_part(name, values[0], values[1])
 
     def _eval_timestamp(self, node: Any) -> int | float:
         """숫자 calendar 인자와 UTC timezone만 지원하며 다른 overload는 명시 차단한다."""
@@ -1790,7 +2061,12 @@ class Interpreter:
             or id(call_node)
         )
         parent_path = self._function_frames[-1].path if self._function_frames else ()
-        local_frame = _FunctionFrame((*parent_path, call_prefix), frozenset(params), declarations)
+        local_frame = _FunctionFrame(
+            (*parent_path, call_prefix),
+            frozenset(params),
+            declarations,
+            entry_loop_depth=self._loop_depth,
+        )
         self._scope_stack.append(frame)
         self._function_frames.append(local_frame)
         self.stdlib.push_call_prefix(call_prefix)
@@ -1802,6 +2078,9 @@ class Interpreter:
                     # pynescript는 top-level if/for/while 을 Expr(value=...)로 래핑.
                     # 이건 statement 실행이지 return expr이 아니므로 _exec_stmt로 우회.
                     # (Pine 의 loop/if-as-expression 반환값은 미지원 — 기존 If 한계 유지.)
+                    if isinstance(inner, pyne_ast.If) and stmt is fn_def.body[-1]:
+                        last_expr_val = self._eval_if_expression(inner)
+                        continue
                     if isinstance(inner, _STATEMENT_EXPR_NODES):
                         self._exec_stmt(stmt)
                         continue
@@ -1819,13 +2098,14 @@ class Interpreter:
                             last_expr_val = self._resolve_name(target.id)
                         elif isinstance(target, pyne_ast.Tuple):
                             last_expr_val = tuple(
-                                self._resolve_name(cast(pyne_ast.Name, item).id) for item in target.elts
+                                self._resolve_name(cast(pyne_ast.Name, item).id)
+                                for item in target.elts
                             )
             local_frame.staged.update(
                 {
                     (local_frame.path, name): value
                     for name, value in frame.items()
-                    if value is None or isinstance(value, (bool, int, float, str))
+                    if value is None or isinstance(value, (bool, int, float, str, PineColor))
                 }
             )
             # 부모가 실패하면 자식의 성공 이력도 버린다. 최상위 성공만 봉 staging에 넣는다.
@@ -1870,6 +2150,10 @@ class Interpreter:
             return self.bar.bar_index
         if name == "time":
             return self.bar.timestamp_ms()
+        if name in _CALENDAR_FIELDS:
+            if self.bar.timestamps is None:
+                self._record_degraded_call(name)
+            return _calendar_part(name, self.bar.timestamp_ms())
         if name == "na":
             return float("nan")
         if name == "true":
@@ -1899,26 +2183,8 @@ class Interpreter:
         # 수집한 v2/v3 원본의 표시·입력 상수다. v4부터는 namespace를 사용한다.
         if self.bar.pine_version < 4:
             # Pine v3 공식 기본 색상 17종. 기존 color.*와 같은 표시 NOP만 제공한다.
-            if name in {
-                "black",
-                "silver",
-                "gray",
-                "white",
-                "maroon",
-                "red",
-                "purple",
-                "fuchsia",
-                "green",
-                "lime",
-                "olive",
-                "yellow",
-                "navy",
-                "blue",
-                "teal",
-                "aqua",
-                "orange",
-            }:
-                return float("nan")  # color.*와 같은 표시 전용 NOP다.
+            if name in COLOR_NAMES:
+                return color_named(name, self.bar.pine_version)
             legacy_constants = {
                 "line": "line",
                 "circles": "circles",
@@ -1943,6 +2209,23 @@ class Interpreter:
         chain = _attr_chain(node)
         if chain in _ATTR_CONSTANTS:
             return _ATTR_CONSTANTS[chain]
+        if chain == "math.pi":
+            return math.pi
+        if chain == "math.e":
+            return math.e
+        if chain.startswith("dayofweek."):
+            days = {
+                "sunday": 1,
+                "monday": 2,
+                "tuesday": 3,
+                "wednesday": 4,
+                "thursday": 5,
+                "friday": 6,
+                "saturday": 7,
+            }
+            day = days.get(chain.removeprefix("dayofweek."))
+            if day is not None:
+                return day
         # strategy.position_size / strategy.position_avg_price
         if chain == "strategy.position_size":
             return self.strategy.position_size
@@ -1986,13 +2269,16 @@ class Interpreter:
         # 명시 context가 없는 기존 호출은 종전 기본값을 유지한다.
         if chain in (
             "timeframe.isdaily",
+            "timeframe.isintraday",
             "timeframe.isminutes",
             "timeframe.ismonthly",
             "timeframe.isseconds",
             "timeframe.isweekly",
         ):
+            self._record_degraded_call(chain)
             return False
         if chain == "timeframe.multiplier":
+            self._record_degraded_call(chain)
             return 0
         # Sprint 58 BL-241: ta.obv — 누적 OBV series attribute
         if chain == "ta.obv":
@@ -2013,9 +2299,11 @@ class Interpreter:
         if chain == "timeframe.period":
             self._record_degraded_call(chain)
             return "1D"
-        # color.* 는 렌더링 맥락에서만 쓰이므로 na 반환
         if chain.startswith("color."):
-            return float("nan")
+            color_name = chain.removeprefix("color.")
+            if color_name in COLOR_NAMES:
+                return color_named(color_name, self.bar.pine_version)
+            raise PineRuntimeError(f"Attribute access not supported: {chain}")
         # alert.freq_* / display.* 등 추가 Pine enum은 문자열 stub 반환.
         # G5 (2026-07-12 QA): label.style_* / line.style_* prefix fallback 추가 —
         # coverage._ENUM_PREFIXES 는 prefix 로 허용하는데 runtime 은 dict 열거만

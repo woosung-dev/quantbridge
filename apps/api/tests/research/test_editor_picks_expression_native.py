@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from tools.research.editor_picks import catalogue, verification
-from tools.research.editor_picks.common import sha, write
+from tools.research.editor_picks.common import NATIVE_POLICY, sha, write
 
 from scripts.pine_validation.strategy_adapter import adapt_strategy
 
@@ -31,10 +31,15 @@ def expression_item(root):
     provenance["augmented_file"] = "augmented/abcdefgh.pine"
     adapted = adapt_strategy(augmented, bindings, fixed_quantity=None)
     return {
-        "id": "abcdefgh", "source_file": "original.pine", "source_sha256": sha(SOURCE.encode()),
-        "binding_type": "expression", "expression_bindings": copy.deepcopy(EXPRESSIONS),
-        "signal_bindings": bindings, "expression_provenance": provenance,
-        "adaptation": adapted.to_dict(), "warmup_bars": 2,
+        "id": "abcdefgh",
+        "source_file": "original.pine",
+        "source_sha256": sha(SOURCE.encode()),
+        "binding_type": "expression",
+        "expression_bindings": copy.deepcopy(EXPRESSIONS),
+        "signal_bindings": bindings,
+        "expression_provenance": provenance,
+        "adaptation": adapted.to_dict(),
+        "warmup_bars": 2,
     }, augmented.encode()
 
 
@@ -49,7 +54,20 @@ def test_expression_native_reference_recreates_bytes_metadata_and_bindings(tmp_p
     assert item["source_sha256"] != reference["reference_source_sha256"]
 
 
-@pytest.mark.parametrize("change", ["original", "augmented", "rehash", "expression", "binding", "metadata", "adaptation", "type", "missing"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "original",
+        "augmented",
+        "rehash",
+        "expression",
+        "binding",
+        "metadata",
+        "adaptation",
+        "type",
+        "missing",
+    ],
+)
 def test_expression_reference_rejects_tampering_at_every_contract(tmp_path, change):
     item, augmented = expression_item(tmp_path)
     if change == "original":
@@ -84,7 +102,9 @@ def test_original_is_checked_before_augmented_or_regeneration(tmp_path, monkeypa
         raise ValueError("original mismatch")
 
     monkeypatch.setattr(verification, "checked_file", reject_original)
-    monkeypatch.setattr(catalogue, "augment_expression_signals", lambda *_: pytest.fail("reached regeneration"))
+    monkeypatch.setattr(
+        catalogue, "augment_expression_signals", lambda *_: pytest.fail("reached regeneration")
+    )
     with pytest.raises(ValueError, match="original mismatch"):
         verification.native_reference(tmp_path, item)
     assert seen == [(item["source_file"], item["source_sha256"])]
@@ -105,22 +125,50 @@ def test_verify_forwards_exact_reference_to_existing_parser(tmp_path, monkeypatc
     else:
         source = SOURCE + "alertcondition(up)\nalertcondition(down)\n"
         (tmp_path / "original.pine").write_bytes(source.encode())
-        bindings = [{"function": "alertcondition", "line": 5 + i, "direction": direction} for i, direction in enumerate(("long", "short"))]
-        item = {"id": "abcdefgh", "source_file": "original.pine", "source_sha256": sha(source.encode()), "signal_bindings": bindings, "adaptation": adapt_strategy(source, bindings).to_dict(), "warmup_bars": 2}
+        bindings = [
+            {"function": "alertcondition", "line": 5 + i, "direction": direction}
+            for i, direction in enumerate(("long", "short"))
+        ]
+        item = {
+            "id": "abcdefgh",
+            "source_file": "original.pine",
+            "source_sha256": sha(source.encode()),
+            "signal_bindings": bindings,
+            "adaptation": adapt_strategy(source, bindings).to_dict(),
+            "warmup_bars": 2,
+        }
         expected = source.encode()
     plan = tmp_path / "plan.json"
     write(plan, {"phase": "full", "jobs": []})
     for timeframe in ("1h", "4h", "1d"):
-        write(tmp_path / f"native/abcdefgh/{timeframe}.json", {"raw": timeframe})
-    frame = pd.DataFrame(index=pd.date_range("2026-01-01", periods=7, freq="h", tz="UTC"))
+        write(
+            tmp_path / f"native/abcdefgh/{timeframe}.json",
+            {
+                "raw": timeframe,
+                "collection_policy": dict(NATIVE_POLICY),
+                "quota_popup_observed": False,
+            },
+        )
     calls = []
     actions = ["hold", "hold", "long", "hold", "short", "hold", "hold"]
 
     def parse(raw, **kwargs):
         calls.append((raw, kwargs))
+        frame = pd.DataFrame(
+            index=pd.date_range(
+                "2026-01-01",
+                periods=7,
+                freq={"1h": "h", "4h": "4h", "1d": "D"}[kwargs["expected_timeframe"]],
+                tz="UTC",
+            )
+        )
         return SimpleNamespace(
-            ohlcv=frame, metadata={"unaltered": True},
-            window_events=lambda *_: [SimpleNamespace(direction=direction, bar_time=frame.index[index]) for index, direction in ((2, "long"), (4, "short"))],
+            ohlcv=frame,
+            metadata={"unaltered": True, "total_received_bars": 7},
+            window_events=lambda *_: [
+                SimpleNamespace(direction=direction, bar_time=frame.index[index])
+                for index, direction in ((2, "long"), (4, "short"))
+            ],
         )
 
     monkeypatch.setattr(native_capture, "parse_native_capture", parse)
@@ -128,7 +176,12 @@ def test_verify_forwards_exact_reference_to_existing_parser(tmp_path, monkeypatc
     monkeypatch.setattr(verification, "require_runtime", lambda: {"pine": "image"})
     monkeypatch.setattr(verification, "receipts", lambda *_: {})
     monkeypatch.setattr(verification, "artifact", lambda *_: ("source", "pine", "digest"))
-    monkeypatch.setattr(verification, "session_actions", lambda _a, _b, frame, *_: actions[:len(frame)])
+
+    def session_actions(_a, _b, frame, *_):
+        assert frame.attrs["timeframe"] in {"1h", "4h", "1d"}
+        return actions[: len(frame)]
+
+    monkeypatch.setattr(verification, "session_actions", session_actions)
     monkeypatch.setattr(verification, "exact_cells", lambda *_: 36)
     result = verification.verify(tmp_path, "abcdefgh", plan)
     assert len(calls) == 3
@@ -138,9 +191,10 @@ def test_verify_forwards_exact_reference_to_existing_parser(tmp_path, monkeypatc
         assert kwargs["expected_indicator_id"] == "abcdefgh"
         assert kwargs["expected_symbol"] == "BYBIT:BTCUSDT.P"
         assert kwargs["expected_inputs"] == {}
+        assert kwargs["max_total_bars"] == 5000
     for window in result["native_windows"].values():
         assert window["status"] == "checked_partial_window"
-        assert window["metadata"] == {"unaltered": True}
+        assert window["metadata"] == {"unaltered": True, "total_received_bars": 7}
         if expression:
             assert window["reference_source_sha256"] == sha(expected)
             assert window["reference_scope"] == "appended_reviewed_expression_diagnostics"
@@ -149,7 +203,68 @@ def test_verify_forwards_exact_reference_to_existing_parser(tmp_path, monkeypatc
             assert "reference_scope" not in window
     assert result["source_sha256"] == item["source_sha256"]
     # parser 거부를 성공으로 완화하지 않는다.
-    monkeypatch.setattr(native_capture, "parse_native_capture", lambda *_a, **_k: (_ for _ in ()).throw(ValueError("raw proof mismatch")))
+    monkeypatch.setattr(
+        native_capture,
+        "parse_native_capture",
+        lambda *_a, **_k: (_ for _ in ()).throw(ValueError("raw proof mismatch")),
+    )
     rejected = verification.verify(tmp_path, "abcdefgh", plan)
     assert all(w["status"] == "invalid_native_capture" for w in rejected["native_windows"].values())
     assert all(a["status"] == "incomplete" for a in rejected["arms"].values())
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "missing_policy",
+        "popup",
+        "missing_popup",
+        "numeric_popup",
+        "unbounded",
+        "untyped_warmup",
+        "untyped_cap",
+    ],
+)
+def test_verify_rejects_unproven_basic_collection_before_reference_or_parser(
+    tmp_path, monkeypatch, change
+):
+    from scripts.pine_validation import native_capture
+
+    raw = {"collection_policy": dict(NATIVE_POLICY), "quota_popup_observed": False}
+    if change == "missing_policy":
+        del raw["collection_policy"]
+    elif change == "popup":
+        raw["quota_popup_observed"] = True
+    elif change == "missing_popup":
+        del raw["quota_popup_observed"]
+    elif change == "numeric_popup":
+        raw["quota_popup_observed"] = 0
+    elif change == "unbounded":
+        raw["collection_policy"]["history_request_mode"] = "unbounded"
+    elif change == "untyped_warmup":
+        raw["collection_policy"]["warmup_included"] = 1
+    else:
+        raw["collection_policy"]["max_total_bars"] = 5000.0
+    for tf in ("1h", "4h", "1d"):
+        write(tmp_path / f"native/one/{tf}.json", raw)
+    plan = tmp_path / "plan.json"
+    write(plan, {"phase": "full", "jobs": []})
+    monkeypatch.setattr(
+        verification,
+        "frozen_inputs",
+        lambda *_: {"items": [{"id": "one", "source_sha256": "original"}]},
+    )
+    monkeypatch.setattr(verification, "require_runtime", lambda: {})
+    monkeypatch.setattr(verification, "receipts", lambda *_: {})
+    monkeypatch.setattr(verification, "exact_cells", lambda *_: 0)
+    calls = []
+    monkeypatch.setattr(
+        native_capture, "parse_native_capture", lambda *_a, **_k: calls.append(True)
+    )
+    result = verification.verify(tmp_path, "one", plan)
+    assert not calls
+    assert all(
+        w["status"] == "invalid_native_capture" and "계정 한도" in w["error"]
+        for w in result["native_windows"].values()
+    )
+    assert all(a["status"] == "incomplete" for a in result["arms"].values())

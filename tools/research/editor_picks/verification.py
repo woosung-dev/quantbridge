@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 from tools.research.editor_picks.common import (
     ARMS,
+    NATIVE_POLICY,
     TIMEFRAMES,
     checked_file,
     identity,
@@ -15,7 +16,11 @@ from tools.research.editor_picks.common import (
     sha,
     write,
 )
-from tools.research.editor_picks.execution import artifact, implementation, require_runtime
+from tools.research.editor_picks.execution import (
+    artifact,
+    implementation,
+    require_runtime,
+)
 
 
 def receipts(root: Path, frozen: dict) -> dict:
@@ -28,7 +33,10 @@ def receipts(root: Path, frozen: dict) -> dict:
             continue
         if value["job_hash"] != identity(request):
             raise ValueError("작업 완료 기록이 다른 요청을 가리킵니다")
-        if value.get("job") != request.get("job") or identity(value["job"]) not in assigned:
+        if (
+            value.get("job") != request.get("job")
+            or identity(value["job"]) not in assigned
+        ):
             raise ValueError("완료 기록이 배정한 셀과 다릅니다")
         required = {"request.json"}
         if value["status"] == "completed":
@@ -87,6 +95,8 @@ def native_export_gate(
     windows = proof["native_windows"]
     if set(windows) != set(TIMEFRAMES):
         raise ValueError("native 검증의 세 시간봉 근거가 부족합니다")
+    if identity(proof.get("native_policy")) != identity(NATIVE_POLICY):
+        raise ValueError("native 검증의 Basic 계정 한도 근거가 없습니다")
     for tf, window in windows.items():
         check = window.get("checks", {}).get(arm, {})
         if (
@@ -97,6 +107,10 @@ def native_export_gate(
             or type(window.get("checked_bars")) is not int
             or window["checked_bars"] <= 0
             or window.get("bars") != warmup + window["checked_bars"]
+            or type(window.get("metadata", {}).get("total_received_bars")) is not int
+            or not window["bars"]
+            <= window["metadata"]["total_received_bars"]
+            <= NATIVE_POLICY["max_total_bars"]
             or type(check.get("prefix_bars")) is not int
             or not warmup < check["prefix_bars"] < window["bars"]
         ):
@@ -125,10 +139,15 @@ def session_actions(source, language, frame, params, images):
             bar = {
                 "index": index,
                 "timestamp": timestamp.isoformat(),
-                **{key: str(row[key]) for key in ("open", "high", "low", "close", "volume")},
+                **{
+                    key: str(row[key])
+                    for key in ("open", "high", "low", "close", "volume")
+                },
             }
             actions.append(
-                session.action(bar, {"direction": "flat", "size": "0", "average_price": None})
+                session.action(
+                    bar, {"direction": "flat", "size": "0", "average_price": None}
+                )
             )
     return actions
 
@@ -144,8 +163,10 @@ def native_bindings(item: dict) -> list[dict]:
     for binding in reviewed:
         key = tuple(binding[name] for name in ("function", "line", "direction"))
         matches = [
-            candidate for candidate in adapted
-            if tuple(candidate[name] for name in ("function", "line", "direction")) == key
+            candidate
+            for candidate in adapted
+            if tuple(candidate[name] for name in ("function", "line", "direction"))
+            == key
         ]
         if key in seen or len(matches) != 1:
             raise ValueError("native 바인딩의 원문 위치·방향이 모호하거나 다릅니다")
@@ -155,7 +176,10 @@ def native_bindings(item: dict) -> list[dict]:
             type(column) is not int
             or column < 0
             or candidate.get("when", "truthy") != binding.get("when", "truthy")
-            or ("column" in binding and (type(binding["column"]) is not int or binding["column"] != column))
+            or (
+                "column" in binding
+                and (type(binding["column"]) is not int or binding["column"] != column)
+            )
         ):
             raise ValueError("native 바인딩의 열 좌표 또는 조건 의미가 다릅니다")
         seen.add(key)
@@ -165,7 +189,9 @@ def native_bindings(item: dict) -> list[dict]:
 
 def native_reference(root: Path, item: dict) -> tuple[bytes, dict]:
     """원문을 먼저 검증하고 진단 원문은 검토 조건에서 재현한 경우만 참조한다."""
-    original = checked_file(root, item["source_file"], item["source_sha256"]).read_bytes()
+    original = checked_file(
+        root, item["source_file"], item["source_sha256"]
+    ).read_bytes()
     provenance = item.get("expression_provenance")
     if provenance is None:
         if item.get("binding_type") == "expression":
@@ -231,6 +257,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
         "observed_at": now(),
         "arms": {},
         "native_windows": {},
+        "native_policy": NATIVE_POLICY,
     }
     native_success = dict.fromkeys(ARMS, True)
     for tf in TIMEFRAMES:
@@ -241,6 +268,13 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
             continue
         try:
             raw = read(native_path)
+            if (
+                identity(raw.get("collection_policy")) != identity(NATIVE_POLICY)
+                or raw.get("quota_popup_observed") is not False
+            ):
+                raise ValueError(
+                    "계정 한도 내 자연 수신·팝업 미발생 수집 근거가 없습니다"
+                )
             source, reference = native_reference(root, item)
             native = parse_native_capture(
                 raw,
@@ -250,7 +284,9 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                 expected_symbol="BYBIT:BTCUSDT.P",
                 expected_timeframe=tf,
                 expected_inputs=item.get("inputs", {}),
+                max_total_bars=NATIVE_POLICY["max_total_bars"],
             )
+            native.ohlcv.attrs["timeframe"] = tf
             end = (
                 native.ohlcv.index[-1]
                 + {
@@ -265,7 +301,10 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
             expected = dict.fromkeys(native.ohlcv.index, "hold")
             for event in events:
                 action = event.direction
-                if action not in {"long", "short"} or expected[event.bar_time] != "hold":
+                if (
+                    action not in {"long", "short"}
+                    or expected[event.bar_time] != "hold"
+                ):
                     raise ValueError("native 사건의 방향 또는 동봉 충돌이 모호합니다")
                 expected[event.bar_time] = action
             warmup = item["warmup_bars"]
@@ -370,7 +409,9 @@ def reconcile(root: Path, plan_path: Path) -> dict:
                 if selection != {"language": language, "source_sha256": digest}:
                     raise ValueError("ARM 검증 후 동결 생성물이 바뀌었습니다")
                 try:
-                    native_export_gate(root, item["id"], raw, arm, digest, item["warmup_bars"])
+                    native_export_gate(
+                        root, item["id"], raw, arm, digest, item["warmup_bars"]
+                    )
                 except ValueError as error:
                     native_passed, reason = False, str(error)
             exact = exact_cells(completed, jobs, arm, raw["images"])
@@ -433,10 +474,14 @@ def export(root: Path, plan_path: Path) -> dict:
             selection = frozen["artifacts"][item["id"]][arm]
             if selection != {"language": language, "source_sha256": digest}:
                 raise ValueError("검증 후 동결 생성물이 바뀌었습니다")
-            native_export_gate(root, item["id"], proof, arm, digest, item["warmup_bars"])
+            native_export_gate(
+                root, item["id"], proof, arm, digest, item["warmup_bars"]
+            )
             jobs = [job for job in frozen["jobs"] if job["id"] == item["id"]]
             if exact_cells(completed, jobs, arm, proof["images"]) != 36:
-                raise ValueError("현재 원시 근거로 경제 36셀의 일치를 확인할 수 없습니다")
+                raise ValueError(
+                    "현재 원시 근거로 경제 36셀의 일치를 확인할 수 없습니다"
+                )
             provenance = {
                 "origin": "editor_picks_reproduction",
                 "experiment": root.name,
@@ -456,10 +501,20 @@ def export(root: Path, plan_path: Path) -> dict:
                 "promotable": False,
                 "license_notices": item["license_notices"],
                 "research_assumptions": {
-                    **{key: RESEARCH_POLICY[key] for key in (
-                        "init_cash", "fees", "maker_fee", "slippage", "fill_timing",
-                        "position_size_pct", "leverage", "cost_basis", "funding_policy",
-                    )},
+                    **{
+                        key: RESEARCH_POLICY[key]
+                        for key in (
+                            "init_cash",
+                            "fees",
+                            "maker_fee",
+                            "slippage",
+                            "fill_timing",
+                            "position_size_pct",
+                            "leverage",
+                            "cost_basis",
+                            "funding_policy",
+                        )
+                    },
                     "warmup_bars": item["warmup_bars"],
                     "risk_policy": frozen["policy"],
                     "execution_timeframe": "1min",
@@ -469,7 +524,9 @@ def export(root: Path, plan_path: Path) -> dict:
                 _, reference = native_reference(root, item)
                 provenance.update(
                     origin="editor_picks_reviewed_expression_research",
-                    entry_rule_origin=item.get("entry_rule_origin", "reviewed_indicator_state"),
+                    entry_rule_origin=item.get(
+                        "entry_rule_origin", "reviewed_indicator_state"
+                    ),
                     reference_scope=reference["reference_scope"],
                     reference_source_sha256=reference["reference_source_sha256"],
                     signal_conditions=item["expression_bindings"],
@@ -483,7 +540,9 @@ def export(root: Path, plan_path: Path) -> dict:
                     "settings": {
                         "leverage": int(RESEARCH_POLICY["leverage"]),
                         "margin_mode": "isolated",
-                        "position_size_pct": float(RESEARCH_POLICY["position_size_pct"]),
+                        "position_size_pct": float(
+                            RESEARCH_POLICY["position_size_pct"]
+                        ),
                         "fill_timing": RESEARCH_POLICY["fill_timing"],
                     },
                     "code": {

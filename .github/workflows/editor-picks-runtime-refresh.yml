@@ -7,6 +7,8 @@ on:
     paths:
       - tools/scripts/editor-picks-runtime-refresh.py
       - apps/api/src/strategy/pine_v2/**
+      - apps/api/src/strategy/code_runtime/pine.py
+      - apps/api/src/strategy/code_runtime/pine_worker.py
       - .github/workflows/editor-picks-runtime-refresh.yml
 
 permissions:

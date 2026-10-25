@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from tools.research.editor_picks import verification as v
 from tools.research.editor_picks.common import (
     ARMS,
+    NATIVE_POLICY,
     PERIODS,
     SCENARIOS,
     TIMEFRAMES,
@@ -23,9 +24,13 @@ from tools.research.editor_picks.common import (
 
 def evidence(tmp_path, monkeypatch):
     item = {
-        "id": "one", "source_sha256": "original", "warmup_bars": 1000,
-        "url": "https://www.tradingview.com/script/one/", "author": "author",
-        "title": "Original", "license_notices": [],
+        "id": "one",
+        "source_sha256": "original",
+        "warmup_bars": 1000,
+        "url": "https://www.tradingview.com/script/one/",
+        "author": "author",
+        "title": "Original",
+        "license_notices": [],
     }
     jobs = [
         {"id": "one", "arm": arm, "timeframe": tf, "months": months, "scenario": cost}
@@ -37,44 +42,72 @@ def evidence(tmp_path, monkeypatch):
         "gemini": {"unavailable_reason": "not_generated"},
     }
     frozen = {
-        "phase": "full", "jobs": jobs, "artifacts": {"one": selected},
+        "phase": "full",
+        "jobs": jobs,
+        "artifacts": {"one": selected},
         "policy": "swing_two_bar_v1",
+        "native_policy": dict(NATIVE_POLICY),
     }
     path = tmp_path / "full-plan.json"
     write(path, frozen)
     images = {"pine": "pine-image", "python": "python-image"}
     completed = {
         identity(job): {
-            "status": "completed", "action_sha256": "actions",
-            "ledger_sha256": "ledger", "execution_images": images,
+            "status": "completed",
+            "action_sha256": "actions",
+            "ledger_sha256": "ledger",
+            "execution_images": images,
         }
-        for job in jobs if job["arm"] != "gemini"
+        for job in jobs
+        if job["arm"] != "gemini"
     }
     windows = {}
     for tf in TIMEFRAMES:
         capture = tmp_path / "native/one" / f"{tf}.json"
-        write(capture, {"raw": tf})
+        write(
+            capture,
+            {"raw": tf, "collection_policy": dict(NATIVE_POLICY), "quota_popup_observed": False},
+        )
         windows[tf] = {
-            "status": "checked_partial_window", "capture_sha256": sha(capture.read_bytes()),
-            "warmup_bars": 1000, "bars": 1500, "checked_bars": 500,
-            "checks": {arm: {
-                "passed": True, "source_sha256": f"code-{arm}", "prefix_bars": 1333,
-            } for arm in ("pine", "terra")},
+            "status": "checked_partial_window",
+            "capture_sha256": sha(capture.read_bytes()),
+            "warmup_bars": 1000,
+            "bars": 1500,
+            "checked_bars": 500,
+            "metadata": {"total_received_bars": 1501},
+            "checks": {
+                arm: {
+                    "passed": True,
+                    "source_sha256": f"code-{arm}",
+                    "prefix_bars": 1333,
+                }
+                for arm in ("pine", "terra")
+            },
         }
     raw = {
-        "id": "one", "source_sha256": "original", "plan_sha256": identity(frozen),
-        "images": images, "native_windows": windows,
-        "arms": {arm: {
-            "status": "incomplete", "native_prefix_repeat_passed": arm != "gemini",
-            "exact_economic_cells": 0,
-        } for arm in ARMS},
+        "id": "one",
+        "source_sha256": "original",
+        "plan_sha256": identity(frozen),
+        "images": images,
+        "native_windows": windows,
+        "native_policy": dict(NATIVE_POLICY),
+        "arms": {
+            arm: {
+                "status": "incomplete",
+                "native_prefix_repeat_passed": arm != "gemini",
+                "exact_economic_cells": 0,
+            }
+            for arm in ARMS
+        },
     }
     write(tmp_path / "native-checks/one.json", raw)
     monkeypatch.setattr(v, "frozen_inputs", lambda *_: {"items": [item]})
     monkeypatch.setattr(v, "receipts", lambda *_: completed)
-    monkeypatch.setattr(v, "artifact", lambda _, __, arm: (
-        "source", selected[arm]["language"], selected[arm]["source_sha256"]
-    ))
+    monkeypatch.setattr(
+        v,
+        "artifact",
+        lambda _, __, arm: ("source", selected[arm]["language"], selected[arm]["source_sha256"]),
+    )
     return path, frozen, completed
 
 
@@ -116,12 +149,26 @@ def test_registration_keeps_futures_settings_and_model_reporting_honest(tmp_path
     requests = read(tmp_path / "registration/requests.json")["requests"]
     for request in requests:
         assert request["settings"] == {
-            "schema_version": 1, "leverage": 1, "margin_mode": "isolated",
-            "position_size_pct": 100.0, "fill_timing": "next_bar_open",
-            "max_trigger_breach_pct": None, "max_reversal_overshoot_ratio": None,
+            "schema_version": 1,
+            "leverage": 1,
+            "margin_mode": "isolated",
+            "position_size_pct": 100.0,
+            "fill_timing": "next_bar_open",
+            "max_trigger_breach_pct": None,
+            "max_reversal_overshoot_ratio": None,
         }
         metadata = request["code"]["provenance"]
         assert metadata["actual_model"] is None
         assert metadata["research_assumptions"]["risk_policy"] == "swing_two_bar_v1"
         assert metadata["research_assumptions"]["fees"] == "0.00055"
     assert requests[1]["code"]["provenance"]["requested_model"] == "gpt-5.6-terra"
+
+
+def test_over_cap_native_proof_cannot_be_reconciled_or_exported(tmp_path, monkeypatch):
+    path, _, _ = evidence(tmp_path, monkeypatch)
+    raw_path = tmp_path / "native-checks/one.json"
+    raw = read(raw_path)
+    raw["native_windows"]["1h"]["metadata"]["total_received_bars"] = 5001
+    write(raw_path, raw)
+    assert v.reconcile(tmp_path, path)["passed_arms"] == 0
+    assert v.export(tmp_path, path)["count"] == 0

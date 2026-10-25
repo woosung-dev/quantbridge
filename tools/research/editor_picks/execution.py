@@ -15,6 +15,7 @@ from pathlib import Path
 import pandas as pd
 from tools.research.editor_picks.common import (
     ARMS,
+    NATIVE_POLICY,
     PERIODS,
     ROOT,
     SCENARIOS,
@@ -92,7 +93,11 @@ def plan(root: Path, pilot: bool = False) -> dict:
         "schema_version": 1,
         "phase": "pilot" if pilot else "full",
         "jobs": jobs,
-        "expected_cells": target * len(ARMS) * len(TIMEFRAMES) * len(period_options) * len(costs),
+        "expected_cells": target
+        * len(ARMS)
+        * len(TIMEFRAMES)
+        * len(period_options)
+        * len(costs),
         "cohort_file": cohort_file,
         "cohort_sha256": sha((root / cohort_file).read_bytes()),
         "dataset_sha256": sha((root / "data/dataset.json").read_bytes()),
@@ -100,6 +105,7 @@ def plan(root: Path, pilot: bool = False) -> dict:
         "artifacts": artifacts,
         "dataset": dataset,
         "policy": "swing_two_bar_v1",
+        "native_policy": NATIVE_POLICY,
         "created_at": now(),
     }
     path = root / f"{value['phase']}-plan.json"
@@ -120,7 +126,9 @@ def artifact(root: Path, item: dict, arm: str) -> tuple[str, str, str]:
             continue
         value = read(folder / "receipt.json")
         if value["status"] == "completed":
-            request_path = checked_file(folder, "request.json", value["files"]["request.json"])
+            request_path = checked_file(
+                folder, "request.json", value["files"]["request.json"]
+            )
             request = read(request_path)
             if value["job_hash"] != identity(request):
                 raise ValueError("생성 완료 기록의 요청 해시가 다릅니다")
@@ -228,7 +236,9 @@ def episode_metrics(payload: dict, trace: list[dict]) -> dict:
         "avg_closed_episode_r": str(sum(multiples, Decimal(0)) / len(multiples))
         if multiples
         else None,
-        "closed_episode_win_rate_pct": str(Decimal(wins) * 100 / len(closed)) if closed else None,
+        "closed_episode_win_rate_pct": str(Decimal(wins) * 100 / len(closed))
+        if closed
+        else None,
         "exposure_minute_pct": str(Decimal(exposed) * 100 / bars) if bars else None,
         "closed_episodes": len(closed),
     }
@@ -286,9 +296,15 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
                 raise ValueError("동결 데이터보다 긴 준비봉이 필요합니다")
             tf = job["timeframe"]
             freq = {"1h": "1h", "4h": "4h", "1d": "1D"}[tf]
-            frame = loaded[tf].loc[
-                (loaded[tf].index >= start - warmup * pd.Timedelta(freq)) & (loaded[tf].index < end)
-            ]
+            frame = (
+                loaded[tf]
+                .loc[
+                    (loaded[tf].index >= start - warmup * pd.Timedelta(freq))
+                    & (loaded[tf].index < end)
+                ]
+                .copy()
+            )
+            frame.attrs["timeframe"] = tf
             minute = loaded["1min"].loc[
                 (loaded["1min"].index >= start) & (loaded["1min"].index < end)
             ]
@@ -297,7 +313,9 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             ]
             scenario = next(s for s in stress_scenarios() if s["id"] == job["scenario"])
             funding = funding.map(
-                lambda rate: Decimal(str(rate)) * Decimal(scenario["funding_multiplier"])
+                lambda rate: (
+                    Decimal(str(rate)) * Decimal(scenario["funding_multiplier"])
+                )
             )
             config = scenario_config(tf, scenario)
             trace = []
@@ -335,7 +353,9 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             action_hash = identity(
                 [{key: row[key] for key in ("timestamp", "action")} for row in actions]
             )
-            signal_rows = [{key: row[key] for key in ("timestamp", "action")} for row in actions]
+            signal_rows = [
+                {key: row[key] for key in ("timestamp", "action")} for row in actions
+            ]
             (folder / "signals.json.gz").write_bytes(
                 gzip.compress(json.dumps(signal_rows).encode(), mtime=0)
             )
@@ -343,7 +363,8 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             details = {
                 # 원시 full payload는 gzip에 보존하고 receipt의 대형 중복 배열만 제외한다.
                 "metrics": {
-                    key: value for key, value in payload["metrics"].items()
+                    key: value
+                    for key, value in payload["metrics"].items()
                     if key not in {"drawdown_curve", "buy_and_hold_curve"}
                 },
                 "action_sha256": action_hash,

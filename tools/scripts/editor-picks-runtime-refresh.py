@@ -30,7 +30,10 @@ from tools.research.editor_picks.remote import CONTEXT  # noqa: E402
 
 PINE_TAG = "quantbridge-pine-runner:local"
 STDLIB = "apps/api/src/strategy/pine_v2/stdlib.py"
-PINE_DIRECTORY = "apps/api/src/strategy/pine_v2"
+CORE_FILES = (
+    "apps/api/src/strategy/code_runtime/pine.py",
+    "apps/api/src/strategy/code_runtime/pine_worker.py",
+)
 
 
 def digest(path: Path) -> str:
@@ -49,14 +52,20 @@ def computation_hash(source: bytes) -> str:
     return sha(ast.dump(nodes[0]).encode())
 
 
-def archive_files(archive: Path, paths: list[str], sdk: bool = False) -> dict[str, bytes]:
+def archive_files(
+    archive: Path, paths: list[str], sdk: bool = False
+) -> dict[str, bytes]:
     with tarfile.open(archive) as bundle:
         members = {
-            member.name.lstrip("./"): member for member in bundle.getmembers() if member.isfile()
+            member.name.lstrip("./"): member
+            for member in bundle.getmembers()
+            if member.isfile()
         }
         if sdk:
             matches = [
-                name for name in members if name.endswith("/site-packages/quantbridge_sdk.py")
+                name
+                for name in members
+                if name.endswith("/site-packages/quantbridge_sdk.py")
             ]
             if len(matches) != 1:
                 raise ValueError("실제 Python image의 SDK 파일이 고유하지 않습니다")
@@ -80,17 +89,25 @@ def require_arm() -> None:
 def refresh(args) -> dict:
     require_arm()
     head = subprocess.run(
-        ["/usr/bin/git", "rev-parse", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True
+        ["/usr/bin/git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     if not re.fullmatch(r"[a-f0-9]{40}", args.head) or head != args.head:
         raise ValueError("요청한 checkout head와 다릅니다")
     root, output = args.run_dir.resolve(), args.output_dir.resolve()
-    if output == root or output.is_relative_to(root) or (output.exists() and any(output.iterdir())):
+    if (
+        output == root
+        or output.is_relative_to(root)
+        or (output.exists() and any(output.iterdir()))
+    ):
         raise ValueError("원본 입력과 분리된 빈 output 디렉터리가 필요합니다")
     runtime = output / "runtime"
-    if args.archive.resolve().is_relative_to(runtime) or args.cipher.resolve().is_relative_to(
+    if args.archive.resolve().is_relative_to(
         runtime
-    ):
+    ) or args.cipher.resolve().is_relative_to(runtime):
         raise ValueError("번들·암호문은 runtime 밖의 새 파일에 저장합니다")
     old = read(root / "runtime/manifest.json")
     old_proof = read(root / "runtime/source-proof.json")
@@ -104,15 +121,34 @@ def refresh(args) -> dict:
         for name, value in expected.items()
         if value != old_proof["pine_files"][name]
     }
-    if not changed:
+    core = {name: digest(ROOT / name) for name in CORE_FILES}
+    parent_core = {
+        name: old_proof.get("core_files", {}).get(name, old_proof.get(name))
+        for name in CORE_FILES
+    }
+    if not changed and all(core[name] == parent_core[name] for name in CORE_FILES):
         raise ValueError("부모와 달라진 Pine 계산 소스가 없습니다")
+    # 이전 proof가 class AST만 보존한 파일의 전체 부모 SHA는 UNKNOWN이다.
+    # 새 proof부터는 worker와 transport 파일 전체를 COPY·export해서 결박한다.
+    changed.update(
+        {
+            name: {"parent_sha256": parent_core[name], "sha256": core[name]}
+            for name in CORE_FILES
+        }
+    )
     commands = []
-    env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "LANG"}}
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key in {"PATH", "HOME", "LANG"}
+    }
 
     def docker(*arguments):
         command = ["/usr/bin/docker", *map(str, arguments)]
         commands.append(command)
-        return subprocess.run(command, env=env, check=True, capture_output=True, text=True)  # noqa: S603 — 고정 Docker 동작·검증된 파일 경로만 전달
+        return subprocess.run(
+            command, env=env, check=True, capture_output=True, text=True
+        )  # noqa: S603 — 고정 Docker 동작·검증된 파일 경로만 전달
 
     def inspect(tag):
         return json.loads(docker("image", "inspect", tag).stdout)[0]
@@ -120,22 +156,37 @@ def refresh(args) -> dict:
     for tag, image_id in old["image_ids"].items():
         image = inspect(tag)
         if image["Id"] != image_id or image["Architecture"] != "arm64":
-            raise ValueError("기존 remote runtime 설치의 image ID·ARM 아키텍처가 다릅니다")
+            raise ValueError(
+                "기존 remote runtime 설치의 image ID·ARM 아키텍처가 다릅니다"
+            )
     parent = inspect(PINE_TAG)
-    parent_tag = "quantbridge-pine-runner:runtime-parent-" + parent["Id"].removeprefix("sha256:")
+    parent_tag = "quantbridge-pine-runner:runtime-parent-" + parent["Id"].removeprefix(
+        "sha256:"
+    )
     docker("image", "tag", parent["Id"], parent_tag)
     with tempfile.TemporaryDirectory(prefix="editor-runtime-refresh-") as temporary:
         context = Path(temporary)
-        overlay = context / "pine_overlay"
+        overlay = context / "strategy_overlay"
         for name in changed:
-            destination = overlay / Path(name).relative_to(PINE_DIRECTORY)
+            destination = overlay / Path(name).relative_to("apps/api/src/strategy")
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, destination)
-        recipe = f"FROM {parent_tag}\nCOPY pine_overlay/ /runner/src/strategy/pine_v2/\n"
+        recipe = f"FROM {parent_tag}\nCOPY strategy_overlay/ /runner/src/strategy/\n"
         (context / "Dockerfile").write_text(recipe)
-        docker("build", "--pull=false", "--network=none", "--no-cache", "--tag", PINE_TAG, context)
+        docker(
+            "build",
+            "--pull=false",
+            "--network=none",
+            "--no-cache",
+            "--tag",
+            PINE_TAG,
+            context,
+        )
         child = inspect(PINE_TAG)
-        parent_layers, child_layers = parent["RootFS"]["Layers"], child["RootFS"]["Layers"]
+        parent_layers, child_layers = (
+            parent["RootFS"]["Layers"],
+            child["RootFS"]["Layers"],
+        )
         if (
             child["Id"] == parent["Id"]
             or child["Architecture"] != "arm64"
@@ -160,7 +211,9 @@ def refresh(args) -> dict:
             raise ValueError("Pine 계산 파일 외에 image 실행 설정이 바뀌었습니다")
 
         def exported(tag, paths, sdk=False):
-            container = docker("create", "--entrypoint", "/bin/false", tag).stdout.strip()
+            container = docker(
+                "create", "--entrypoint", "/bin/false", tag
+            ).stdout.strip()
             if not re.fullmatch(r"[a-f0-9]{64}", container):
                 raise ValueError("새 검증 container ID가 올바르지 않습니다")
             try:
@@ -177,17 +230,19 @@ def refresh(args) -> dict:
             for name in (*expected, worker, pine_class)
         }
         actual = exported(PINE_TAG, list(locations.values()))
-        for name in (*expected, worker):
+        for name in (*expected, *CORE_FILES):
             if sha(actual[locations[name]]) != digest(ROOT / name):
                 raise ValueError(f"실제 Pine image의 계산 파일 SHA가 다릅니다: {name}")
         computation = computation_hash(actual[locations[pine_class]])
         if computation != computation_hash((ROOT / pine_class).read_bytes()):
             raise ValueError("실제 Pine image의 계산 class가 다릅니다")
-        python = exported("quantbridge-python-runner:local", ["runner/main.py"], sdk=True)
+        python = exported(
+            "quantbridge-python-runner:local", ["runner/main.py"], sdk=True
+        )
         loader = "infra/python-runner/main.py"
-        if sha(python["runner/main.py"]) != digest(ROOT / loader) or sha(python["sdk"]) != digest(
-            ROOT / "apps/api/src/strategy/python_runtime/sdk.py"
-        ):
+        if sha(python["runner/main.py"]) != digest(ROOT / loader) or sha(
+            python["sdk"]
+        ) != digest(ROOT / "apps/api/src/strategy/python_runtime/sdk.py"):
             raise ValueError("실제 Python image의 loader·SDK가 다릅니다")
     runtime.mkdir(parents=True)
     for name, expected_hash in old["files"].items():
@@ -199,12 +254,14 @@ def refresh(args) -> dict:
     docker("image", "save", "--output", runtime / "images.tar", *images)
     archive_hash = digest(runtime / "images.tar")
     write(
-        runtime / "manifest.json", {**old, "image_ids": images, "images_tar_sha256": archive_hash}
+        runtime / "manifest.json",
+        {**old, "image_ids": images, "images_tar_sha256": archive_hash},
     )
     proof = {
         "observed_at": now(),
         "checkout_head": head,
         "pine_files": expected,
+        "core_files": core,
         "image_archive_sha256": archive_hash,
         worker: digest(ROOT / worker),
         loader: digest(ROOT / loader),

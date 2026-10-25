@@ -1040,7 +1040,7 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 ~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 운영 DB `20261021_0002`와 main `20261022_0005`의 차이를 해소할 백업·격리 복원 리허설·운영 DDL 승인 범위를 확정한다. 실제 gVisor 검증과 legacy 손익 [BL-871](./backlog.md#bl-871)은 별도 검증으로 구분한다.**~~
 → **2026-10-24 사용자 선택으로 에디터 픽 원문 비교를 먼저 진행한다. 운영 스키마 해소와 [BL-871]은 미완이며 앱 저장 전 별도 확인한다.**
 
-**다음 행동 = PRD §5의 결과·가정 공개 기준으로 [에디터 픽 비교 PR #939](https://github.com/woosung-dev/quantbridge/pull/939)에서 200개 고유 원본의 실제 실행·TradingView 원본 대조를 끝낸다. 현재 기술 통과 5개이며, 2026-10-25 사용자 재개 지시에 따라 미지원 계산과 실행 실패를 병렬로 수정하고 새 구현·이미지를 동결한 별도 회차에서 재측정한다. 이전 회차·원본·데이터·손익 가정과 펀딩 완전성 UNKNOWN을 보존한다. 계약 = [에디터 픽 비교](./development/editor-picks-comparison.md).**
+**다음 행동 = PRD §5의 결과·가정 공개 기준으로 [에디터 픽 비교 PR #939](https://github.com/woosung-dev/quantbridge/pull/939)에서 200개 고유 원본의 실제 실행·TradingView 원본 대조를 끝낸다. 이전 계약 기술 통과는 5개이며, 2026-10-25 재개·Basic 한도 지시에 따라 워밍업 포함 5,000봉 이내의 실제 UI 수신과 같은 로컬 구간으로 새 원본 대조를 진행한다. 초과·팝업 기록은 새 계약 통과로 재사용하지 않고, 미지원 계산과 실행 실패를 병렬 수정한 새 구현·이미지를 별도 회차에 동결한다. 이전 회차·원본·데이터·손익 가정과 펀딩 완전성 UNKNOWN을 보존한다. 계약 = [에디터 픽 비교](./development/editor-picks-comparison.md).**
 운영 DB `20261021_0002 → 20261022_0005`의 DDL 5개와 이미지 `sha-e2173c1`의 배포는 [배포 런북 §3](./operations/backend-deploy.md#3-사람이-하는-것)에 따른 명시 승인 대기다. 외부 백업 왕복·격리 복원·기존 데이터 보존은 확인했다. 실제 gVisor 검증과 legacy 손익 [BL-871](./backlog.md#bl-871)은 별도 검증이다.
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.
