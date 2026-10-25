@@ -42,6 +42,8 @@ documentation · backend_static · backend ×3샤드 · backend_coverage · e2e 
 브라우저 설치는 OS 의존성과 Chromium 다운로드를 별도 단계로 실행한다. Ubuntu 패키지는
 공식 archive 미러를 우선하고 Azure를 fallback으로 사용하며 기존 서명 검증을 유지한다.
 이는 패키지 전송 지연에 대한 설정이며 실제 소요 시간은 해당 CI 로그로 확인한다.
+브라우저 여정 runner는 Ubuntu 24.04로 고정한다. `ubuntu-latest`가 26.04로 배정된 실행에서
+Playwright가 Chromium 설치를 지원하지 않아 실제 여정 시작 전에 실패한 경계를 방지한다.
 
 CI의 공개 live smoke와 전략 여정은 Playwright `webServer`에서 `pnpm dev --webpack`을
 사용한다. 두 독립 CI 작업에서 관측한 Turbopack Google font import-map 오류로 준비 단계가
