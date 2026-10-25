@@ -90,7 +90,16 @@ def _literal(node: Any, label: str) -> Any:
 
 
 def _color_default(node: Any) -> str:
-    """관측한 불투명 hex6·white·color.new(hex6, 0)만 해석한다."""
+    """관측한 hex6/8·white·color.new(hex6, 0)의 입력 값을 해석한다."""
+    if (
+        isinstance(node, A.Constant)
+        and node.kind == "#"
+        and isinstance(node.value, str)
+        and re.fullmatch(r"#[0-9a-fA-F]{8}", node.value)
+    ):
+        red, green, blue, alpha = [int(node.value[i : i + 2], 16) for i in (1, 3, 5, 7)]
+        opacity = str(alpha / 255).removesuffix(".0")
+        return f"rgba({red},{green},{blue},{opacity})"
     if (
         isinstance(node, A.Constant)
         and node.kind == "#"
@@ -126,15 +135,17 @@ def _wire_color(value: Any) -> int:
         raise ValueError("color 입력은 검증한 색 문자열이어야 합니다")
     if re.fullmatch(r"#[0-9a-fA-F]{6}", value):
         red, green, blue = [int(value[i : i + 2], 16) for i in (1, 3, 5)]
+        alpha = 255
     else:
-        match = re.fullmatch(r"rgba\((\d+),(\d+),(\d+),1\)", value)
+        match = re.fullmatch(r"rgba\((\d+),(\d+),(\d+),(0(?:\.\d+)?|1(?:\.0+)?)\)", value)
         if match is None:
             raise ValueError("color 입력의 wire 변환 근거가 없습니다")
-        red, green, blue = map(int, match.groups())
+        red, green, blue = map(int, match.groups()[:3])
+        alpha = round(float(match[4]) * 255)
         if max(red, green, blue) > 255:
             raise ValueError("color 채널이 범위 밖입니다")
-    # 실제 create_study의 불투명 color는 unsigned ABGR이다.
-    return (255 << 24) | (blue << 16) | (green << 8) | red
+    # 실제 create_study의 color는 alpha byte를 포함한 unsigned ABGR이다.
+    return (alpha << 24) | (blue << 16) | (green << 8) | red
 
 
 def _source_calls(
@@ -177,6 +188,16 @@ def _source_calls(
         if not isinstance(statement, A.Assign) or not isinstance(statement.target, A.Name):
             continue
         call = statement.value
+        # ATR Rope의 nz(input.source(close))도 연산 전 source slot을 그대로 검증한다.
+        if (
+            isinstance(call, A.Call)
+            and _name(call.func) == "nz"
+            and len(call.args) == 1
+            and call.args[0].name is None
+            and isinstance(call.args[0].value, A.Call)
+            and _name(call.args[0].value.func) == "input.source"
+        ):
+            call = call.args[0].value
         # 관측한 퍼센트 입력은 slot의 원시 기본값을 비교하며 /100 결과를 평가하지 않는다.
         if (
             isinstance(call, A.BinOp)
@@ -522,6 +543,7 @@ def parse_native_capture(
     expected_timeframe: str,
     expected_inputs: Mapping[str, Any],
     max_total_bars: int | None = None,
+    require_full_prefix: bool = False,
 ) -> NativeCapture:
     """원본과 교차 확인한 확정 common cohort에서만 native 사건을 만든다."""
     if (
@@ -671,7 +693,7 @@ def parse_native_capture(
     wire = payload.get("wire")
     if not isinstance(wire, list) or not wire:
         raise ValueError("UI wire 관측이 없습니다")
-    sent, received = [], []
+    sent, received, ordered = [], [], []
     for entry in wire:
         if not isinstance(entry, dict) or entry.get("direction") not in {"sent", "received"}:
             raise ValueError("wire 방향이 잘못됐습니다")
@@ -682,6 +704,7 @@ def parse_native_capture(
         else:
             raise ValueError("wire 메시지 내용이 없습니다")
         for message in messages:
+            ordered.append((entry["direction"], message))
             (sent if entry["direction"] == "sent" else received).append(message)
     creates = [message for message in sent if message.get("m") == "create_study"]
     if len(creates) != 1 or len(creates[0].get("p", [])) < 6:
@@ -731,8 +754,57 @@ def parse_native_capture(
         for m in received
         if m.get("m") == "study_completed" and m.get("p", [])[:2] == [session, study_id]
     ]
-    if len(completed) != 1:
+    if not completed:
         raise ValueError("해당 study cohort 완료 관측이 없습니다")
+    loading_messages = [
+        message
+        for message in received
+        if message.get("m") == "study_loading" and message.get("p", [])[:2] == [session, study_id]
+    ]
+    if len(completed) > 1 or loading_messages:
+        # 같은 계산의 추가 이력은 처음과 같은 token의 행 집합을 확장한다.
+        # 각 추가 lifecycle은 이전 완료 이후의 실제 같은 주기 UI 범위 요청에 결박한다.
+        token = completed[-1]["p"][2] if len(completed[-1]["p"]) == 3 else None
+        if not isinstance(token, str) or not token:
+            raise ValueError("native 계산 token 근거가 없습니다")
+        resolutions = {"1h": {"60", "1H"}, "4h": {"240", "4H"}, "1d": {"1D", "D"}}
+        loading = False
+        pairs = 0
+        pending_range = None
+        for direction, message in ordered:
+            parameters = message.get("p", [])
+            if direction == "sent":
+                if message.get("m") == "modify_series" and parameters[:2] == [session, chart_id]:
+                    pending_range = parameters
+                continue
+            if parameters[:2] != [session, study_id]:
+                continue
+            kind = message.get("m")
+            if kind not in {"study_loading", "study_completed"}:
+                continue
+            if parameters != [session, study_id, token]:
+                raise ValueError("복수 완료의 계산 token이 다릅니다")
+            if kind == "study_loading":
+                if loading:
+                    raise ValueError("native 계산이 완료되기 전에 다시 시작됐습니다")
+                if pairs and (
+                    pending_range is None
+                    or len(pending_range) != 6
+                    or pending_range[4] not in resolutions[expected_timeframe]
+                    or not isinstance(pending_range[5], str)
+                    or re.fullmatch(r"r,\d+:\d+", pending_range[5]) is None
+                    or f"{pending_range[2]}_{creates[0]['p'][2]}" != token
+                ):
+                    raise ValueError("추가 계산의 같은 차트 주기 UI 범위 요청 근거가 없습니다")
+                loading = True
+            else:
+                if not loading:
+                    raise ValueError("native 추가 완료의 loading 근거가 없습니다")
+                loading = False
+                pairs += 1
+                pending_range = None
+        if loading or pairs != len(completed):
+            raise ValueError("native 추가 계산의 완료 관측이 부족합니다")
     plots = meta["plots"]
     study_rows: dict[datetime, list[Any]] = {}
     price_rows: dict[datetime, list[Any]] = {}
@@ -787,6 +859,9 @@ def parse_native_capture(
         )
     closed_study = {at: row for at, row in study_rows.items() if at + step <= observed_at}
     closed_price = {at: row for at, row in price_rows.items() if at + step <= observed_at}
+    full_prefix = bool(closed_study) and set(closed_study) <= set(closed_price)
+    if require_full_prefix and not full_prefix:
+        raise ValueError("native 지표 계산의 초기 가격 이력이 누락됐습니다")
     common = sorted(set(closed_study) & set(closed_price))
     if not common or any(current - previous != step for previous, current in pairwise(common)):
         raise ValueError("공통 확정 study/OHLCV 봉이 없거나 시간 격자가 불연속입니다")
@@ -850,5 +925,9 @@ def parse_native_capture(
             "study_bars": len(closed_study),
             "ohlcv_bars": len(closed_price),
             "total_received_bars": total_bars,
+            "full_study_prefix_covered": full_prefix,
+            "study_first_bar": min(study_rows).isoformat(),
+            "price_first_bar": min(price_rows).isoformat(),
+            "study_completed_epochs": len(completed),
         },
     )

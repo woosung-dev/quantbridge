@@ -139,7 +139,7 @@ def test_verify_forwards_exact_reference_to_existing_parser(tmp_path, monkeypatc
         }
         expected = source.encode()
     plan = tmp_path / "plan.json"
-    write(plan, {"phase": "full", "jobs": []})
+    write(plan, {"phase": "full", "jobs": [], "dataset": {"end": "2026-01-08T00:00:00+00:00"}})
     for timeframe in ("1h", "4h", "1d"):
         write(
             tmp_path / f"native/abcdefgh/{timeframe}.json",
@@ -155,12 +155,13 @@ def test_verify_forwards_exact_reference_to_existing_parser(tmp_path, monkeypatc
     def parse(raw, **kwargs):
         calls.append((raw, kwargs))
         frame = pd.DataFrame(
+            {key: [1] * 7 for key in ("open", "high", "low", "close", "volume")},
             index=pd.date_range(
-                "2026-01-01",
+                end="2026-01-08",
                 periods=7,
                 freq={"1h": "h", "4h": "4h", "1d": "D"}[kwargs["expected_timeframe"]],
                 tz="UTC",
-            )
+            ),
         )
         return SimpleNamespace(
             ohlcv=frame,
@@ -192,8 +193,11 @@ def test_verify_forwards_exact_reference_to_existing_parser(tmp_path, monkeypatc
         assert kwargs["expected_symbol"] == "BYBIT:BTCUSDT.P"
         assert kwargs["expected_inputs"] == {}
         assert kwargs["max_total_bars"] == 5000
+        assert kwargs["require_full_prefix"] is True
     for window in result["native_windows"].values():
         assert window["status"] == "checked_partial_window"
+        assert window["bars"] == 6
+        assert pd.Timestamp(window["end"]) == pd.Timestamp("2026-01-08T00:00:00Z")
         assert window["metadata"] == {"unaltered": True, "total_received_bars": 7}
         if expression:
             assert window["reference_source_sha256"] == sha(expected)
@@ -248,7 +252,7 @@ def test_verify_rejects_unproven_basic_collection_before_reference_or_parser(
     for tf in ("1h", "4h", "1d"):
         write(tmp_path / f"native/one/{tf}.json", raw)
     plan = tmp_path / "plan.json"
-    write(plan, {"phase": "full", "jobs": []})
+    write(plan, {"phase": "full", "jobs": [], "dataset": {"end": "2026-01-08T00:00:00+00:00"}})
     monkeypatch.setattr(
         verification,
         "frozen_inputs",

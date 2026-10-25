@@ -21,7 +21,7 @@ def capture(count, *, unclosed=False):
     return raw
 
 
-def parse(raw, limit=5000):
+def parse(raw, limit=5000, *, full_prefix=True):
     return parse_native_capture(
         raw,
         source=SOURCE.encode(),
@@ -31,6 +31,7 @@ def parse(raw, limit=5000):
         expected_timeframe="1h",
         expected_inputs={},
         max_total_bars=limit,
+        require_full_prefix=full_prefix,
     )
 
 
@@ -59,3 +60,15 @@ def test_invalid_limit_is_rejected(limit):
 
 def test_other_parser_users_can_explicitly_omit_account_cap():
     assert len(parse(capture(5001), None).ohlcv) == 5001
+
+
+def test_missing_initial_price_cannot_be_hidden_by_warmup_or_common_intersection():
+    raw = capture(3)
+    messages = _frames(raw["wire"][1]["data"])
+    messages[2]["p"][1]["chart"]["s"] = messages[2]["p"][1]["chart"]["s"][1:]
+    raw["wire"][1]["data"] = "".join(_frame(message) for message in messages)
+    with pytest.raises(ValueError, match="초기 가격 이력"):
+        parse(raw)
+    generic = parse(raw, full_prefix=False)
+    assert len(generic.ohlcv) == 2
+    assert generic.metadata["full_study_prefix_covered"] is False

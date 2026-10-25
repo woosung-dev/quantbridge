@@ -108,6 +108,7 @@ def native_export_gate(
             or window["checked_bars"] <= 0
             or window.get("bars") != warmup + window["checked_bars"]
             or type(window.get("metadata", {}).get("total_received_bars")) is not int
+            or window.get("metadata", {}).get("full_study_prefix_covered") is not True
             or not window["bars"]
             <= window["metadata"]["total_received_bars"]
             <= NATIVE_POLICY["max_total_bars"]
@@ -285,20 +286,26 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                 expected_timeframe=tf,
                 expected_inputs=item.get("inputs", {}),
                 max_total_bars=NATIVE_POLICY["max_total_bars"],
+                require_full_prefix=True,
             )
-            native.ohlcv.attrs["timeframe"] = tf
+            cutoff = pd.Timestamp(frozen["dataset"]["end"])
+            frame = native.ohlcv.loc[native.ohlcv.index < cutoff].copy()
+            if frame.empty:
+                raise ValueError("동결 종료 이전의 native 가격 이력이 없습니다")
+            frame.attrs["timeframe"] = tf
             end = (
-                native.ohlcv.index[-1]
+                frame.index[-1]
                 + {
                     "1h": pd.Timedelta(hours=1),
                     "4h": pd.Timedelta(hours=4),
                     "1d": pd.Timedelta(days=1),
                 }[tf]
             )
+            end = min(end, cutoff)
             events = native.window_events(
-                native.ohlcv.index[0].to_pydatetime(), end.to_pydatetime()
+                frame.index[0].to_pydatetime(), end.to_pydatetime()
             )
-            expected = dict.fromkeys(native.ohlcv.index, "hold")
+            expected = dict.fromkeys(frame.index, "hold")
             for event in events:
                 action = event.direction
                 if (
@@ -308,7 +315,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                     raise ValueError("native 사건의 방향 또는 동봉 충돌이 모호합니다")
                 expected[event.bar_time] = action
             warmup = item["warmup_bars"]
-            if len(native.ohlcv) <= warmup + 1:
+            if len(frame) <= warmup + 1:
                 raise ValueError("native 이력이 동결 준비봉보다 짧습니다")
             if {"long", "short"} - set(list(expected.values())[warmup:]):
                 raise ValueError("native 구간의 양방향 사건 근거가 부족합니다")
@@ -317,16 +324,16 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                 try:
                     code, language, digest = artifact(root, item, arm)
                     first = session_actions(
-                        code, language, native.ohlcv, item.get("inputs", {}), images
+                        code, language, frame, item.get("inputs", {}), images
                     )
                     repeated = session_actions(
-                        code, language, native.ohlcv, item.get("inputs", {}), images
+                        code, language, frame, item.get("inputs", {}), images
                     )
                     length = warmup + max(1, (len(first) - warmup) * 2 // 3)
                     prefix = session_actions(
                         code,
                         language,
-                        native.ohlcv.iloc[:length],
+                        frame.iloc[:length],
                         item.get("inputs", {}),
                         images,
                     )
@@ -348,12 +355,12 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                 **reference,
                 "checks": checks,
                 "capture_sha256": sha(native_path.read_bytes()),
-                "start": str(native.ohlcv.index[0]),
+                "start": str(frame.index[0]),
                 "end": str(end),
-                "bars": len(native.ohlcv),
+                "bars": len(frame),
                 "warmup_bars": warmup,
-                "checked_start": str(native.ohlcv.index[warmup]),
-                "checked_bars": len(native.ohlcv) - warmup,
+                "checked_start": str(frame.index[warmup]),
+                "checked_bars": len(frame) - warmup,
                 "metadata": native.metadata,
             }
         except Exception as error:

@@ -74,7 +74,7 @@ def evidence(tmp_path, monkeypatch):
             "warmup_bars": 1000,
             "bars": 1500,
             "checked_bars": 500,
-            "metadata": {"total_received_bars": 1501},
+            "metadata": {"total_received_bars": 1501, "full_study_prefix_covered": True},
             "checks": {
                 arm: {
                     "passed": True,
