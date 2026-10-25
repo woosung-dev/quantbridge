@@ -22,6 +22,8 @@ def test_pack_preserves_expression_reference_without_private_credentials(tmp_pat
         "private/research.key",
         "screening/original.json",
         "cohort-review-evidence/original.json",
+        "scope-audit.json",
+        "generation-policy.json",
     ):
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -34,6 +36,8 @@ def test_pack_preserves_expression_reference_without_private_credentials(tmp_pat
             "augmented/diagnostic.pine",
             "screening/original.json",
             "cohort-review-evidence/original.json",
+            "scope-audit.json",
+            "generation-policy.json",
         }
 
 

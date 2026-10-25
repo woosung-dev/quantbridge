@@ -82,6 +82,8 @@ def pack(root: Path, archive: Path) -> None:
                 "cohort.json",
                 "pilot-plan.json",
                 "full-plan.json",
+                "scope-audit.json",
+                "generation-policy.json",
             }:
                 continue
             if relative.parts[:2] == ("data", "pages") or path.name in {

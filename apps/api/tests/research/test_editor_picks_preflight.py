@@ -74,6 +74,14 @@ def test_preflight_receipt_never_reads_market_data_or_requests_runtime(
     assert evidence["source_present"] is True
     assert evidence["runtime_attempted"] is False
     assert execution.execute_job(tmp_path, frozen, job, {"pine": "p", "python": "y"}) == evidence
+    write(
+        tmp_path / "scope-audit.json",
+        {
+            "observed_at": "2026-10-24T07:13:14+00:00",
+            "indicator_screening_counts": {"static_eligible": 11},
+        },
+    )
+    write(tmp_path / "generation-policy.json", {"active_generation_arms": ["terra"]})
     summary = report.build(tmp_path, tmp_path / "full-plan.json")
     assert summary["status_counts"] == {"failed": 1, "not_run": 107}
     assert summary["runtime_evidence"]["pine"] == {
@@ -84,6 +92,13 @@ def test_preflight_receipt_never_reads_market_data_or_requests_runtime(
         "static_preflight_rejected_cells": 1,
         "legacy_unknown_request_cells": 0,
     }
+    assert summary["source_acquisition"]["indicator_screening_counts"] == {"static_eligible": 11}
+    assert summary["source_acquisition"]["observed_at"] == "2026-10-24T07:13:14+00:00"
+    assert (
+        summary["source_acquisition"]["screening_counts_scope"]
+        == "historical_acquisition_snapshot_not_current_cohort_or_execution"
+    )
+    assert summary["generation_policy"]["active_generation_arms"] == ["terra"]
     assert summary["complete"] is False
 
 

@@ -159,13 +159,18 @@ def build(root: Path, plan_path: Path) -> dict:
         "available_originals": available,
         "source_target_met": available == 200,
         "source_acquisition": {
-            key: scope.get(key)
-            for key in (
-                "inventory_count",
-                "captured_indicator_count",
-                "missing_ids",
-                "indicator_screening_counts",
-            )
+            **{
+                key: scope.get(key)
+                for key in (
+                    "observed_at",
+                    "scope",
+                    "inventory_count",
+                    "captured_indicator_count",
+                    "missing_ids",
+                    "indicator_screening_counts",
+                )
+            },
+            "screening_counts_scope": "historical_acquisition_snapshot_not_current_cohort_or_execution",
         },
         "generation_policy": generation_policy,
         "target_full_cells": 21600,
@@ -173,6 +178,7 @@ def build(root: Path, plan_path: Path) -> dict:
         "promotable": False,
         "limitations": [
             "중첩 6·12·24개월은 독립 holdout이 아닙니다.",
+            "현재 관측·선택한 스크립트의 회고 비교이며, 과거 해당 시점에 공개·선택 가능했음을 검증하지 않았습니다.",
             "평균 R·완료 승률은 부분 익절을 합친 episode의 비용 후 손익 기준입니다.",
             "노출은 보유한 1분봉 비율이며 봉 내부 청산 시 해당 분봉을 포함합니다.",
             "LLM Python은 독립 정답 오라클이 아닙니다.",
