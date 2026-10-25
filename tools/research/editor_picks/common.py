@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import itertools
 import json
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -23,6 +24,45 @@ NATIVE_POLICY = {
 }
 
 
+def economic_cells_per_arm(frozen: dict, cohort: dict | None = None) -> int:
+    """새6개월 계획만 선언한 전체 행렬을 검증하며 과거36셀 계약은 유지한다."""
+    if "periods" not in frozen:
+        return len(TIMEFRAMES) * len(PERIODS) * len(SCENARIOS)
+    if (
+        frozen.get("phase") != "full"
+        or type(frozen["periods"]) is not list
+        or frozen["periods"] != [6]
+        or any(type(p) is not int for p in frozen["periods"])
+    ):
+        raise ValueError("명시 기간 계약은 full periods=[6]만 지원합니다")
+    jobs = frozen.get("jobs", [])
+    identifiers = list(dict.fromkeys(job["id"] for job in jobs))
+    if cohort is not None:
+        required_ids = [item["id"] for item in cohort["items"]]
+        required_ids += [f"UNFILLED-{n:03}" for n in range(len(required_ids), cohort["target"])]
+        if identifiers != required_ids:
+            raise ValueError("명시6개월 계획의 원본 집합·순서가 동결 코호트와 다릅니다")
+    expected = [
+        {"id": identifier, "arm": arm, "timeframe": tf, "months": months, "scenario": scenario}
+        for identifier, arm, tf, months, scenario in itertools.product(
+            identifiers, ARMS, TIMEFRAMES, (6,), SCENARIOS
+        )
+    ]
+    if (
+        not identifiers
+        or identity(jobs) != identity(expected)
+        or type(frozen.get("expected_cells")) is not int
+        or frozen["expected_cells"] != len(expected)
+        or not set(frozen.get("artifacts", {})) <= set(identifiers)
+        or any(
+            identifier not in frozen.get("artifacts", {}) and not identifier.startswith("UNFILLED-")
+            for identifier in identifiers
+        )
+    ):
+        raise ValueError("명시6개월 계획은 누락·중복·사후필터 없는 전체 조건행렬이어야 합니다")
+    return len(TIMEFRAMES) * len(SCENARIOS)
+
+
 def now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -32,9 +72,7 @@ def sha(value: bytes) -> str:
 
 
 def identity(value: object) -> str:
-    return sha(
-        json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False).encode()
-    )
+    return sha(json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False).encode())
 
 
 def read(path: Path):
@@ -44,9 +82,7 @@ def read(path: Path):
 def write(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(
-        json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
-    )
+    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
     temporary.replace(path)
 
 

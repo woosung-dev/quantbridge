@@ -378,3 +378,9 @@ apps/api/.venv/bin/python tools/scripts/editor-picks-postprocess.py \
 apps/api/.venv/bin/python tools/scripts/editor-picks-postprocess.py \
   --run-dir runs/editor-picks-20261024 export --plan runs/editor-picks-20261024/full-plan.json
 ```
+
+`plan --months 6`은 기본 6·12·24개월 계획과 별개의 6개월 전용 계약이다. 새 full 계획에
+`periods: [6]`을 동결하고, 모든 원본×3 arm×3 주기×1 기간×4 비용을 빠짐없이 배정한다.
+200원본이면 7,200셀, 원본·arm별 경제 일치 요구는 12셀이다. 명시 기간의 전체 행렬·순서·코호트
+원본 집합을 실행 전에 검사하며 사후 필터·누락·중복을 거부한다. native·준비봉·리스크·체결·이미지
+게이트는 그대로다. `periods`가 없는 기존 계획의 36셀 요구와 기본 CLI 동작은 유지한다.

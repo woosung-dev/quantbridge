@@ -25,6 +25,7 @@ from tools.research.editor_picks.common import (
     TIMEFRAMES,
     cached,
     checked_file,
+    economic_cells_per_arm,
     identity,
     immutable,
     lock,
@@ -90,9 +91,11 @@ def pine_preflight_failure(root: Path, item: dict) -> dict | None:
     return proof
 
 
-def plan(root: Path, pilot: bool = False, *, workers: int = 1) -> dict:
+def plan(root: Path, pilot: bool = False, *, workers: int = 1, months: int | None = None) -> dict:
     if type(workers) is not int or workers not in (1, 2):
         raise ValueError("셀 실행 프로세스는 1개 또는 2개만 허용합니다")
+    if months is not None and (type(months) is not int or months != 6 or pilot):
+        raise ValueError("기간 선택은 full 계획의6개월만 지원합니다")
     cohort_file = "pilot-cohort.json" if pilot else "cohort.json"
     cohort = read(root / cohort_file)
     dataset = read(root / "data/dataset.json")
@@ -116,7 +119,9 @@ def plan(root: Path, pilot: bool = False, *, workers: int = 1) -> dict:
     identifiers = [item["id"] for item in selected]
     target = 6 if pilot else cohort["target"]
     identifiers += [f"UNFILLED-{n:03}" for n in range(len(identifiers), target)]
-    period_options, costs = ((6,), ("baseline",)) if pilot else (PERIODS, SCENARIOS)
+    period_options, costs = (
+        ((6,), ("baseline",)) if pilot else ((6,) if months == 6 else PERIODS, SCENARIOS)
+    )
     jobs = [
         {
             "id": identifier,
@@ -144,7 +149,10 @@ def plan(root: Path, pilot: bool = False, *, workers: int = 1) -> dict:
         "native_policy": NATIVE_POLICY,
         "created_at": now(),
         **({"execution_workers": 2} if workers == 2 else {}),
+        **({"periods": [6]} if months == 6 else {}),
     }
+    if months == 6:
+        economic_cells_per_arm(value, cohort)
     path = root / f"{value['phase']}-plan.json"
     if path.exists():
         value["created_at"] = read(path)["created_at"]
@@ -469,6 +477,11 @@ def execute(
     if type(workers) is not int or workers not in (1, 2):
         raise ValueError("셀 실행 프로세스는 1개 또는 2개만 허용합니다")
     frozen = read(plan_path)
+    economic_cells_per_arm(frozen)
+    if "periods" in frozen:
+        from tools.research.editor_picks.verification import frozen_inputs
+
+        frozen_inputs(root, frozen)
     if not 0 <= shard < shards:
         raise ValueError("shard 범위가 잘못됐습니다")
     try:
@@ -482,11 +495,7 @@ def execute(
         }
         write(root / f"runtime-blocked-{shard}.json", blocked)
         return blocked
-    jobs = [
-        job
-        for index, job in enumerate(frozen["jobs"])
-        if index % shards == shard
-    ]
+    jobs = [job for index, job in enumerate(frozen["jobs"]) if index % shards == shard]
     parallel = {}
     if workers == 1:
         consumed = len([execute_job(root, frozen, job, images) for job in jobs])

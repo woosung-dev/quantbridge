@@ -10,7 +10,14 @@ from collections import Counter
 from decimal import Decimal
 from pathlib import Path
 
-from tools.research.editor_picks.common import ARMS, identity, now, read, write
+from tools.research.editor_picks.common import (
+    ARMS,
+    economic_cells_per_arm,
+    identity,
+    now,
+    read,
+    write,
+)
 from tools.research.editor_picks.verification import receipts
 
 METRICS = (
@@ -66,6 +73,7 @@ def signal_quality(expected: list[dict], observed: list[dict]) -> dict:
 
 def build(root: Path, plan_path: Path) -> dict:
     frozen = read(plan_path)
+    expected_economic_cells = economic_cells_per_arm(frozen)
     completed = receipts(root, frozen)
     rows = []
     for job in frozen["jobs"]:
@@ -144,6 +152,14 @@ def build(root: Path, plan_path: Path) -> dict:
         "phase": frozen["phase"],
         "plan_sha256": identity(frozen),
         "expected_cells": frozen["expected_cells"],
+        **(
+            {
+                "periods": frozen["periods"],
+                "expected_economic_cells_per_arm": expected_economic_cells,
+            }
+            if "periods" in frozen
+            else {}
+        ),
         "observed_cells": len(completed),
         "status_counts": dict(Counter(row["status"] for row in rows)),
         "arms": {

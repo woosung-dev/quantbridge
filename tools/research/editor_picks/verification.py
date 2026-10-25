@@ -10,6 +10,7 @@ from tools.research.editor_picks.common import (
     NATIVE_POLICY,
     TIMEFRAMES,
     checked_file,
+    economic_cells_per_arm,
     identity,
     now,
     read,
@@ -73,7 +74,9 @@ def frozen_inputs(root: Path, frozen: dict) -> dict:
     checked_file(root, "data/dataset.json", frozen["dataset_sha256"])
     if frozen["implementation"] != implementation():
         raise ValueError("동결 검증 구현이 바뀌었습니다")
-    return read(root / frozen["cohort_file"])
+    cohort = read(root / frozen["cohort_file"])
+    economic_cells_per_arm(frozen, cohort)
+    return cohort
 
 
 def exact_cells(completed: dict, jobs: list[dict], arm: str, images: dict) -> int:
@@ -241,6 +244,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
     from scripts.pine_validation.native_capture import parse_native_capture
 
     frozen = read(plan_path)
+    expected_economic_cells = economic_cells_per_arm(frozen)
     if frozen["phase"] != "full":
         raise ValueError("파일럿을 전체 기술 검증으로 승격할 수 없습니다")
     cohort = frozen_inputs(root, frozen)
@@ -362,9 +366,11 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
     for arm in ARMS:
         exact = exact_cells(completed, jobs, arm, images)
         result["arms"][arm] = {
-            "status": "passed" if native_success[arm] and exact == 36 else "incomplete",
+            "status": "passed"
+            if native_success[arm] and exact == expected_economic_cells
+            else "incomplete",
             "exact_economic_cells": exact,
-            "expected_economic_cells": 36,
+            "expected_economic_cells": expected_economic_cells,
             "native_prefix_repeat_passed": native_success[arm],
         }
     write(root / "verification" / f"{identifier}.json", result)
@@ -374,6 +380,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
 def reconcile(root: Path, plan_path: Path) -> dict:
     """불변 ARM native 증거와 수거한 전체 경제 셀을 결합한다. 전략은 실행하지 않는다."""
     frozen = read(plan_path)
+    expected_economic_cells = economic_cells_per_arm(frozen)
     if frozen["phase"] != "full":
         raise ValueError("전체 계획만 native·경제 증거를 결합합니다")
     cohort = frozen_inputs(root, frozen)
@@ -416,12 +423,14 @@ def reconcile(root: Path, plan_path: Path) -> dict:
                 except ValueError as error:
                     native_passed, reason = False, str(error)
             exact = 0 if preflight else exact_cells(completed, jobs, arm, raw["images"])
-            status = "passed" if native_passed and exact == 36 else "incomplete"
+            status = (
+                "passed" if native_passed and exact == expected_economic_cells else "incomplete"
+            )
             passed += status == "passed"
             proof["arms"][arm] = {
                 "status": status,
                 "exact_economic_cells": exact,
-                "expected_economic_cells": 36,
+                "expected_economic_cells": expected_economic_cells,
                 "native_prefix_repeat_passed": native_passed,
                 "native_gate_error": reason,
             }
@@ -441,6 +450,7 @@ def export(root: Path, plan_path: Path) -> dict:
     from src.strategy.code_schemas import SaveCodeStrategyRequest
 
     frozen = read(plan_path)
+    expected_economic_cells = economic_cells_per_arm(frozen)
     if frozen["phase"] != "full":
         raise ValueError("전체 계획만 앱 저장 묶음을 만들 수 있습니다")
     cohort = frozen_inputs(root, frozen)
@@ -477,8 +487,10 @@ def export(root: Path, plan_path: Path) -> dict:
                 raise ValueError("검증 후 동결 생성물이 바뀌었습니다")
             native_export_gate(root, item["id"], proof, arm, digest, item["warmup_bars"])
             jobs = [job for job in frozen["jobs"] if job["id"] == item["id"]]
-            if exact_cells(completed, jobs, arm, proof["images"]) != 36:
-                raise ValueError("현재 원시 근거로 경제 36셀의 일치를 확인할 수 없습니다")
+            if exact_cells(completed, jobs, arm, proof["images"]) != expected_economic_cells:
+                raise ValueError(
+                    f"현재 원시 근거로 경제 {expected_economic_cells}셀의 일치를 확인할 수 없습니다"
+                )
             provenance = {
                 "origin": "editor_picks_reproduction",
                 "experiment": root.name,
