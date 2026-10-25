@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "reason": "표시용 absent 색 상태에서 불변 PineColor 공개필드 상태로 바뀐 두 fingerprint만 분리한다. 경제 골든은 변경하지 않는다.",
+  "baseline_file": "pine_corpus_v2/baseline_metrics.json",
+  "baseline_sha256": "122863c8296f8b1fa6bd42b3aa99cf59301520faf4e9814bdef32414379aa2bf",
+  "state_encoding": "pine_color_public_fields_v1",
+  "legacy_projection": "PineColor -> legacy absent; source SHA가 고정된 두 코퍼스만 적용",
+  "corpora": {
+    "s2_utbot": {
+      "source_sha256": "270e433960f9526ee3e1ad36b4c6373eb3e76858c1eb70a6c3d4a3cbe0297052",
+      "previous_var_series_digest": "sha256:092002513c6d641ed29c22e3b8f5d7aa8f5c904e7aba006469ecf89b3c098ec3",
+      "typed_var_series_digest": "sha256:1d765140fbbf272a28b8df47ed868eb5ff9a3cbaf0fe1705da9e3e4e17c78529",
+      "legacy_projection_digest": "sha256:092002513c6d641ed29c22e3b8f5d7aa8f5c904e7aba006469ecf89b3c098ec3",
+      "raw_pnl_unchanged": true,
+      "raw_metrics_unchanged": true,
+      "raw_trades_unchanged": true,
+      "raw_pnl_sha256": "c2884ebbbaede1455813ff6de63f9dd5f46fddba62df8c36db2151c9f7da54ff",
+      "raw_metrics_sha256": "fe4cc929f4ccf905439e7c9ed80ecd49b9d95cfa95f12d1080991e0e9431c102",
+      "trades_digest": "sha256:e6cba82861b291b424c471965790c1f72af32240eee0b69cc8bf0dd8fa9a2dee",
+      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "unchanged_baseline_economics_sha256": "2a0af5465e34b1fe8b7f0c1601442ea8b44d1e002e5afbb9f6dd75949df33bdd",
+      "colour_variables": [
+        "xcolor"
+      ]
+    },
+    "s3_rsid": {
+      "source_sha256": "44245df4e8f289ba78ce429c4ec234e7eb6f293d98dc3fdba839446c5d7bfec1",
+      "previous_var_series_digest": "sha256:bcd47328db3c68cc0eb18a89014c75a11926361e57a6dfdb799c170cccb6af56",
+      "typed_var_series_digest": "sha256:c7cb2e4bafadf36a8080c74baf80694832b8bce4399b55d775eeeaf8d01d3e96",
+      "legacy_projection_digest": "sha256:bcd47328db3c68cc0eb18a89014c75a11926361e57a6dfdb799c170cccb6af56",
+      "raw_pnl_unchanged": true,
+      "raw_metrics_unchanged": true,
+      "raw_trades_unchanged": true,
+      "raw_pnl_sha256": "a68f259e6f7fb6c1b6081abad2ed09a21b9f20b02d656558e453f2b2cd95fe44",
+      "raw_metrics_sha256": "482cc98d67760d5784e5aa623ef69622ea4732b58e628d407dc322256d7cefc0",
+      "trades_digest": "sha256:7c38a501472dc161eee26e10a1ac5f40c55c7e4035f9d9e7fb4c2c62dde8e292",
+      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "unchanged_baseline_economics_sha256": "f854c8c56142e2564d87df1b85ea43483baad52eab90ca4cdce3bba5133f20a3",
+      "colour_variables": [
+        "bearColor",
+        "bullColor",
+        "hiddenBearColor",
+        "hiddenBullColor",
+        "noneColor",
+        "textColor"
+      ]
+    }
+  }
+}

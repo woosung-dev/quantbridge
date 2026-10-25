@@ -152,7 +152,7 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     expect(screen.getByTestId("onboarding-step-panel").getAttribute("data-step")).toBe("strategy");
 
     // 뒤로 버튼 → welcome
-    fireEvent.click(screen.getByRole("button", { name: /← 이전/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /← 이전/ }));
     expect(screen.getByTestId("onboarding-step-panel").getAttribute("data-step")).toBe("welcome");
   });
 

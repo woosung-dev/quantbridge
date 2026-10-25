@@ -105,8 +105,7 @@ strategy("StrategyConstants", overlay=true, default_qty_type={constant})
 """
     r = analyze_coverage(src)
     assert constant not in r.unsupported_attributes, (
-        f"{constant} should be supported. "
-        f"unsupported_attributes={r.unsupported_attributes}"
+        f"{constant} should be supported. unsupported_attributes={r.unsupported_attributes}"
     )
 
 
@@ -125,17 +124,17 @@ strategy("UnknownStrategy", overlay=true, default_qty_type=strategy.foobar_qty_t
 @pytest.mark.parametrize(
     "constant,expected_supported",
     [
-        ("timeframe.period", True),      # Sprint 29 Slice A: interpreter._eval_attribute 구현 완료
-        ("timeframe.multiplier", True),  # Sprint 58 BL-242b: 0 반환 (단일 타임프레임 가정)
-        ("timeframe.isintraday", False),  # 미처리 — unsupported 유지
+        ("timeframe.period", True),  # Sprint 29 Slice A: interpreter._eval_attribute 구현 완료
+        ("timeframe.multiplier", True),  # 명시 runtime context의 정확 배수
+        ("timeframe.isintraday", True),  # 명시 runtime context의 초/분/시 주기 판별
     ],
 )
-def test_timeframe_constants_remain_unsupported(constant: str, expected_supported: bool) -> None:
-    """timeframe.* 상수 지원 현황 (Sprint 21 G.2 + Sprint 29 Slice A 갱신).
+def test_timeframe_constants_are_known_with_runtime_context(
+    constant: str, expected_supported: bool
+) -> None:
+    """주기 속성은 알려진 지원 항목이며 period의 정적 근사 경고는 유지한다.
 
-    Sprint 21: runtime 미구현으로 전체 unsupported.
-    Sprint 29 Slice A: timeframe.period 는 interpreter._eval_attribute 구현 완료 → SUPPORTED.
-    나머지 timeframe.* 는 여전히 미구현 → unsupported 유지.
+    실제 문맥의 전달·누락 거부는 code_runtime의 worker 통합 회귀가 확인한다.
     """
     src = f"""
 //@version=5
@@ -206,9 +205,7 @@ ha = heikinashi(close)
         f"heikinashi should be supported (Sprint 29 Slice A dogfood flag). "
         f"unsupported_functions={r.unsupported_functions}"
     )
-    assert r.dogfood_only_warning is not None, (
-        "heikinashi 사용 시 dogfood_only_warning 채워야 함"
-    )
+    assert r.dogfood_only_warning is not None, "heikinashi 사용 시 dogfood_only_warning 채워야 함"
 
 
 def test_security_no_namespace_now_supported() -> None:

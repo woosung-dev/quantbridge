@@ -27,17 +27,25 @@ P-3 / Mutation / regen 은 fixture 생성 후 green (현재는 skipif).
 
 from __future__ import annotations
 
+import hashlib
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import asdict
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from pynescript import ast as A
 
 from scripts.regen_trust_layer_baseline import _trade_to_dict, metrics_snapshot
 from src.strategy.pine_v2 import coverage as cov
-from src.strategy.pine_v2.interpreter import STDLIB_NAMES
+from src.strategy.pine_v2._names import COLOR_NAMES
+from src.strategy.pine_v2.interpreter import STDLIB_NAMES, Interpreter, _attr_chain
+from src.strategy.pine_v2.rendering import PineColor
 from tests.strategy.pine_v2._corpus import RUNNABLE_CORPUS as _RUNNABLE_CORPUS
 from tests.strategy.pine_v2._corpus import SKIPPED_CORPUS as _SKIPPED_CORPUS
 from tests.strategy.pine_v2._tolerance import (
@@ -52,6 +60,7 @@ from tests.strategy.pine_v2._tolerance import (
 _CORPUS_DIR = Path(__file__).parents[2] / "fixtures" / "pine_corpus_v2"
 _OHLCV_FROZEN = _CORPUS_DIR / "corpus_ohlcv_frozen.parquet"
 _BASELINE_METRICS = _CORPUS_DIR / "baseline_metrics.json"
+_TYPED_COLOUR_STATE = _CORPUS_DIR.parent / "pine_native" / "typed_colour_state_v1.json"
 
 _BASELINE_PRESENT = _BASELINE_METRICS.exists() and _OHLCV_FROZEN.exists()
 
@@ -151,9 +160,11 @@ def test_p2_supported_functions_union_consistency() -> None:
         | cov._SECURITY_FUNCTIONS  # Sprint 29 Slice A
         | cov._HEIKINASHI_FUNCTIONS  # Sprint 29 Slice A (a)
         | cov._ARRAY_FUNCTIONS  # G2 (2026-07-12): array.* 최소 서브셋 (_names SSOT)
+        | cov._COLOR_FUNCTIONS
+        | cov._TIME_FUNCTIONS
     )
     assert expected_union == cov.SUPPORTED_FUNCTIONS, (
-        "SUPPORTED_FUNCTIONS 가 13 하위 그룹 합집합과 불일치. "
+        "SUPPORTED_FUNCTIONS 가 하위 그룹 합집합과 불일치. "
         "coverage.py 의 그룹 정의와 최종 변수 선언 재확인 필요."
     )
 
@@ -177,9 +188,23 @@ def test_p2_supported_attributes_union_consistency() -> None:
         | cov._TIMEFRAME_CONSTANTS
         | cov._INPUT_CONSTANTS
         | cov._DISPLAY_CONSTANTS
+        | frozenset(f"color.{name}" for name in COLOR_NAMES)
+        | frozenset({"math.pi", "math.e"})
+        | frozenset(
+            f"dayofweek.{name}"
+            for name in (
+                "sunday",
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+            )
+        )
     )
     assert expected_union == cov.SUPPORTED_ATTRIBUTES, (
-        "SUPPORTED_ATTRIBUTES 가 8 하위 그룹 합집합과 불일치 "
+        "SUPPORTED_ATTRIBUTES 가 명시 하위 그룹 합집합과 불일치 "
         "(explicit constant sets 동기화 누락 가능)."
     )
 
@@ -195,6 +220,75 @@ def _load_frozen_ohlcv() -> pd.DataFrame:
     if "timestamp" in df.columns:
         df = df.set_index("timestamp")
     return df
+
+
+def _legacy_colour_projection(value: Any) -> Any:
+    """해시가 고정된 두 corpus의 옛 표시용 absent 색 상태만 비교한다."""
+    if isinstance(value, PineColor):
+        return None
+    if isinstance(value, dict):
+        return {key: _legacy_colour_projection(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_legacy_colour_projection(item) for item in value]
+    return value
+
+
+def _exact_digest(value: Any) -> str:
+    """Decimal 원시 정밀도를 보존해 색 교정의 경제 불변 근거를 결박한다."""
+
+    def decimal_text(item: Any) -> str:
+        if isinstance(item, Decimal):
+            return str(item)
+        raise TypeError(type(item).__name__)
+
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), allow_nan=False, default=decimal_text
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _colour_state_record(corpus_id: str) -> dict[str, Any]:
+    sidecar = json.loads(_TYPED_COLOUR_STATE.read_text())
+    assert sidecar["schema_version"] == 1
+    assert sidecar["state_encoding"] == "pine_color_public_fields_v1"
+    assert set(sidecar["corpora"]) == {"s2_utbot", "s3_rsid"}
+    assert sidecar["baseline_sha256"] == hashlib.sha256(_BASELINE_METRICS.read_bytes()).hexdigest()
+    record = sidecar["corpora"][corpus_id]
+    assert (
+        record["source_sha256"]
+        == hashlib.sha256((_CORPUS_DIR / f"{corpus_id}.pine").read_bytes()).hexdigest()
+    )
+    return record
+
+
+@contextmanager
+def _legacy_display_colour() -> Iterator[None]:
+    """테스트 프로세스 안에서만 이전 색 표시 NOP를 재현한다. 생산 파일은 수정하지 않는다."""
+    original_expr = Interpreter._eval_expr
+    original_attribute = Interpreter._eval_attribute
+
+    def expression(self, node):
+        if isinstance(node, A.Constant) and getattr(node, "kind", None) == "#":
+            return node.value
+        return original_expr(self, node)
+
+    def attribute(self, node):
+        if _attr_chain(node).startswith("color."):
+            return float("nan")
+        return original_attribute(self, node)
+
+    def colour_call(self, name, node):
+        if name not in {"color.new", "color.rgb", "color.from_gradient"}:
+            raise AssertionError("이 legacy 재현은 두 고정 corpus의 옛 색 NOP만 지원합니다")
+        self._collect_args(node)
+        return None
+
+    with (
+        patch.object(Interpreter, "_eval_expr", expression),
+        patch.object(Interpreter, "_eval_attribute", attribute),
+        patch.object(Interpreter, "_eval_color_call", colour_call),
+    ):
+        yield
 
 
 def _extract_trades_and_runtime(
@@ -329,16 +423,69 @@ def test_p3_execution_metrics_match_golden(corpus_id: str) -> None:
         f"  actual={actual_trades_digest}\n"
         f"  baseline={expected['trades_digest']}"
     )
-    assert actual_var_series_digest == expected["var_series_digest"], (
+    expected_state_digest = expected["var_series_digest"]
+    if corpus_id in {"s2_utbot", "s3_rsid"}:
+        record = _colour_state_record(corpus_id)
+        assert record["previous_var_series_digest"] == expected_state_digest
+        assert digest_sequence(_legacy_colour_projection(var_series)) == expected_state_digest
+        assert record["legacy_projection_digest"] == expected_state_digest
+        assert actual_m == expected_m
+        assert _exact_digest(asdict(actual)) == record["raw_metrics_sha256"]
+        assert (
+            _exact_digest([trade.pnl for trade in outcome.result.trades])
+            == record["raw_pnl_sha256"]
+        )
+        assert actual_trades_digest == record["trades_digest"]
+        assert actual_warnings_digest == record["warnings_digest"]
+        assert (
+            _exact_digest(
+                {
+                    key: expected[key]
+                    for key in (
+                        "metrics",
+                        "metrics_list_digests",
+                        "trades_digest",
+                        "warnings_digest",
+                    )
+                }
+            )
+            == record["unchanged_baseline_economics_sha256"]
+        )
+        expected_state_digest = record["typed_var_series_digest"]
+    assert actual_var_series_digest == expected_state_digest, (
         f"{corpus_id}: var_series digest drift\n"
         f"  actual={actual_var_series_digest}\n"
-        f"  baseline={expected['var_series_digest']}"
+        f"  baseline={expected_state_digest}"
     )
     assert actual_warnings_digest == expected["warnings_digest"], (
         f"{corpus_id}: warnings digest drift\n"
         f"  actual={actual_warnings_digest}\n"
         f"  baseline={expected['warnings_digest']}"
     )
+
+
+@pytest.mark.skipif(not _BASELINE_PRESENT, reason="Stage 2 fixtures 미생성")
+@pytest.mark.parametrize("corpus_id", ("s2_utbot", "s3_rsid"))
+def test_typed_colour_preserves_raw_economics(corpus_id: str) -> None:
+    """고정 원문의 색 표시 타입 교정은 원시 거래·PnL·곡선 포함 지표를 바꾸지 않는다."""
+    from src.backtest.engine.v2_adapter import run_backtest_v2
+
+    record = _colour_state_record(corpus_id)
+    source = (_CORPUS_DIR / f"{corpus_id}.pine").read_text()
+    frame = _load_frozen_ohlcv()
+    current = run_backtest_v2(source, frame)
+    with _legacy_display_colour():
+        legacy = run_backtest_v2(source, frame)
+    assert current.status == legacy.status == "ok"
+    assert current.result is not None and legacy.result is not None
+    assert current.result.trades == legacy.result.trades
+    assert [trade.pnl for trade in current.result.trades] == [
+        trade.pnl for trade in legacy.result.trades
+    ]
+    assert asdict(current.result.metrics) == asdict(legacy.result.metrics)
+    assert record["raw_pnl_unchanged"] is True
+    assert record["raw_metrics_unchanged"] is True
+    assert record["raw_trades_unchanged"] is True
 
 
 @pytest.mark.skipif(
