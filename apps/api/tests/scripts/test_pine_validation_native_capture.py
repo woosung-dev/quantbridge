@@ -143,6 +143,31 @@ def test_chart_history_timescale_update_supplies_ohlcv() -> None:
     assert result.ohlcv["volume"].tolist() == [10, 11]
 
 
+@pytest.mark.parametrize("title", ["Chars", "Shapes", "", "chars"])
+def test_v4_untitled_plotchar_requires_observed_compiler_title(title) -> None:
+    source = (
+        SOURCE.replace("//@version=5", "//@version=4")
+        .replace('indicator("demo")', 'study("demo")')
+        .replace("input.int(2,", "input(2,")
+        .replace('plotshape(buy ? close : na, title="Marks",', "plotchar(buy ? close : na,")
+    )
+    payload = _payload()
+    payload.update(
+        source_sha256=hashlib.sha256(source.encode()).hexdigest(),
+        compiled_source=source,
+        compile_request_source=source,
+    )
+    metadata = payload["compile_responses"][0]["data"]["result"]["metaInfo"]
+    metadata["stats"] = {"alertcondition": 1, "plot": 1, "plotchar": 1}
+    metadata["plots"][2]["type"] = "chars"
+    metadata["styles"]["plot_2"]["title"] = title
+    if title == "Chars":
+        assert len(_parse(payload, source=source).events) == 1
+    else:
+        with pytest.raises(ValueError, match="plot title"):
+            _parse(payload, source=source)
+
+
 def test_explicit_chart_history_reset_discards_prior_timeframe_rows_only() -> None:
     payload = _payload(price_method="timescale_update")
     stale = {

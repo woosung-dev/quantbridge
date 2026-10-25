@@ -942,6 +942,8 @@ def _plot_bindings(
             if title_node is not None
             else "Shapes"
             if kind == "plotshape"
+            else "Chars"
+            if kind == "plotchar" and source_version == 4
             else "Plot"
             if kind == "plot"
             else "Bar Color"

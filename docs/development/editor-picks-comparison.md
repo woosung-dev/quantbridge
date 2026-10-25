@@ -199,6 +199,8 @@ v6·다른 수치는 이 근거로 허용하지 않는다. bool `na`는 false와
 wire 값을 함께 요구하며 추가 입력·주기 override는 거부한다. 일반 colorer는 바로 앞
 line/shapes를 가리키며 arrow 색상 열은 같은 arrow를 향한 연속 그룹으로 검사한다.
 제목 없는 plot은 관측한 기본 제목 `Plot`만 허용한다.
+v4의 제목 없는 `plotchar`는 실제 컴파일·wire로 관측한 `Chars`만 허용하며,
+다른 제목이나 대소문자 표현으로 느슨하게 대조하지 않는다.
 `indicator(timeframe="")`의 자동 Timeframe도 원문·compiler metadata·빈 wire가 함께 맞아야 한다.
 숫자 input의 관측한 정수 10·100 나눗셈과 상수 뺄셈 wrapper는 바깥 계산 없이 raw slot을 보존한다.
 알 수 없는 wrapper를 누락시키거나 bool·숫자 문자열을 숫자로 바꾸지 않는다. source `volume`·
