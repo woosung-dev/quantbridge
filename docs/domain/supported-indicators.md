@@ -36,6 +36,12 @@
 **Sprint 58 BL-241 신규:**
 `ta.wma` (Weighted MA), `ta.hma` (Hull MA), `ta.bb` (Bollinger Bands → [upper, basis, lower]), `ta.cross` (crossover or crossunder), `ta.mom` (Momentum)
 
+`ta.stoch`, `ta.cum`, `ta.linreg`, `ta.vwma`, `ta.roc`, `ta.cci`도 지원한다.
+실제 TradingView 합성 입력·NA·평탄 구간과 거래량 관측은
+`tests/fixtures/pine_native/expansion_*_v5.json`에 보존한다. 관측 전의 초기 봉 전체나
+지원 원문 전체의 일치를 뜻하지 않는다. Stochastic의 기본 인자 이름은
+`source/high/low/length`이며 새 여섯 함수는 이름 인자 순서·중복·누락을 검사한다.
+
 > **2026-07-05 TV-parity 정정:** `ta.hma` 마지막 WMA 길이가 `floor(sqrt(n))` 이던 것을 TV 빌트인 정의
 > `math.round(math.sqrt(n))` 로 수정 (예: n=15 → 4, n=34 → 6. 손유도 골든 = `test_stdlib.py`).
 > `ta.bb` 는 population stdev(TV `biased=true` 기본) 정합 확인. `ta.sar` 는 현재 봉의 반전을 먼저 판정하고 새 추세에서 직전 두 봉 가격으로 제한한다. 원본 대조 시 초기 이력 차이는 별도 구분한다.
@@ -94,6 +100,14 @@ exit ID 두 개 이상도 최초 라이브 진입부터 보수적으로 차단�
 ### 2.4 `math.*`
 
 `math.max`, `math.min`, `math.abs`, `math.sign`, `math.sqrt`, `math.exp`, `math.log`, `math.log10`, `math.pow`, `math.round`, `math.floor`, `math.ceil`, `math.sum`, `math.avg`
+
+`math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`을 지원하며
+v4의 `pow`, `exp`, `log`, `sum` 별칭을 같은 계산에 연결한다.
+
+`array.from/copy/indexof/sum/max/min`은 실제 참조 배열과 수치 계산을 사용한다.
+좌표 getter/setter·label 텍스트·색상 저장·표의 clear/merge는 메모리 객체를 유지한다.
+차트 렌더링을 하지 않아도 이 값을 신호에서 읽는 경로는 보존한다. 외부 라이브러리 import는
+의존성 해시·실행 지원이 없으므로 별칭 호출이나 미사용 import도 정적 미지원으로 판정한다.
 
 ### 2.5 Series 변수 (built-in)
 

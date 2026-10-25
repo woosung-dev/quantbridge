@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import re
+from itertools import pairwise
 from typing import Any, cast
 
 import pandas as pd
@@ -18,6 +20,62 @@ from src.strategy.python_runtime.sandbox import DockerPythonTransport
 
 _ALLOWED_ORDERS = {"strategy.entry", "strategy.close", "strategy.close_all"}
 
+_CONTEXT_TIMEFRAME_ATTRIBUTES = frozenset(
+    {
+        "timeframe.period",
+        "timeframe.multiplier",
+        "timeframe.isseconds",
+        "timeframe.isminutes",
+        "timeframe.isintraday",
+        "timeframe.isdaily",
+        "timeframe.isweekly",
+        "timeframe.ismonthly",
+    }
+)
+
+
+def validated_timeframe(ohlcv: pd.DataFrame) -> str | None:
+    """명시한 source 봉 주기를 실제 UTC index 격자와 대조한다. 주기를 추론하지 않는다."""
+    if "timeframe" not in ohlcv.attrs:
+        return None
+    value = ohlcv.attrs["timeframe"]
+    match = re.fullmatch(r"([1-9]\d*)([smhdw])", value) if isinstance(value, str) else None
+    if match is None:
+        raise CodeRuntimeError("Pine timeframe context 형식이 다릅니다")
+    count, unit = int(match[1]), match[2]
+    if (
+        (unit == "s" and count not in {1, 5, 10, 15, 30, 45})
+        or (unit == "m" and count > 1440)
+        or (unit == "h" and count > 24)
+        or (unit in {"d", "w"} and count != 1)
+    ):
+        raise CodeRuntimeError("검증하지 않은 Pine timeframe context입니다")
+    seconds = count * {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}[unit]
+    if unit in {"s", "m", "h"} and 86400 % seconds:
+        raise CodeRuntimeError("검증하지 않은 Pine intraday 주기 anchor입니다")
+    index = ohlcv.index
+    if (
+        not isinstance(index, pd.DatetimeIndex)
+        or index.tz is None
+        or index.hasnans
+        or len(index) < 2
+        or not index.is_unique
+        or not index.is_monotonic_increasing
+    ):
+        raise CodeRuntimeError(
+            "Pine timeframe context에는 정렬된 timezone-aware 2봉 이상이 필요합니다"
+        )
+    step = pd.Timedelta(seconds=seconds)
+    if not all(right - left == step for left, right in pairwise(index)):
+        raise CodeRuntimeError("Pine timeframe context와 실제 봉 간격이 다릅니다")
+    period_ns = seconds * 1000000000
+    anchor_ns = -3 * 86400 * 1000000000 if unit == "w" else 0
+    if any(
+        (stamp.value - anchor_ns) % period_ns for stamp in index.tz_convert("UTC").as_unit("ns")
+    ):
+        raise CodeRuntimeError("Pine timeframe context의 UTC 봉 격자가 다릅니다")
+    return cast(str, value)
+
 
 DEFAULT_PINE_IMAGE = "quantbridge-pine-runner:local"
 
@@ -30,10 +88,17 @@ class PineSignalTransport(DockerPythonTransport):
 
         if not math.isfinite(timeout) or timeout <= 0:
             raise CodeRuntimeError("Pine 실행 제한은 유한한 양수여야 합니다")
+        timeframe = validated_timeframe(ohlcv)
         super().__init__(image=DEFAULT_PINE_IMAGE, timeout=timeout)
         try:
-            if self.exchange({"type": "load", "bars": bars_payload(ohlcv)}) != {"loaded": True}:
-                raise CodeRuntimeError("Pine worker 데이터 초기화 실패")
+            message: dict[str, Any] = {"type": "load", "bars": bars_payload(ohlcv)}
+            if timeframe is not None:
+                message["timeframe"] = timeframe
+            expected: dict[str, Any] = {"loaded": True}
+            if timeframe is not None:
+                expected["timeframe"] = timeframe
+            if self.exchange(message) != expected:
+                raise CodeRuntimeError("Pine worker 데이터·timeframe 초기화 확인 실패")
         except BaseException as error:
             try:
                 self.close()
@@ -54,6 +119,7 @@ class _PineInterpreterTransport:
 
     def __init__(self, ohlcv: pd.DataFrame) -> None:
         self._ohlcv = ohlcv
+        self._timeframe = validated_timeframe(ohlcv)
         self._interpreter: Interpreter | None = None
         self._tree: Any = None
         self._entry_id = "code"
@@ -66,7 +132,12 @@ class _PineInterpreterTransport:
                 raise CodeRuntimeError("Pine 실행기 초기화 순서 또는 버전이 다릅니다")
             source = message["source"]
             coverage = analyze_coverage(source)
-            if not coverage.is_runnable or coverage.has_degraded:
+            degraded = set(coverage.degraded_calls)
+            if self._timeframe is not None:
+                degraded -= _CONTEXT_TIMEFRAME_ATTRIBUTES
+            elif set(coverage.used_attributes) & _CONTEXT_TIMEFRAME_ATTRIBUTES:
+                raise CodeRuntimeError("Pine 주기 속성에는 검증한 timeframe context가 필요합니다")
+            if not coverage.is_runnable or degraded:
                 raise CodeRuntimeError("Pine 공통 실행기는 미지원·근사 기능을 허용하지 않습니다")
             self._tree = parse_to_ast(source)
             if _detect_declaration(self._tree) != "strategy":
@@ -114,6 +185,7 @@ class _PineInterpreterTransport:
                 self._ohlcv.reset_index(drop=True),
                 timestamps=cast(pd.DatetimeIndex, self._ohlcv.index),
                 pine_version=pine_version_from_ast(self._tree),
+                timeframe=self._timeframe,
             )
             self._interpreter = Interpreter(
                 bar, PersistentStore(), input_overrides=message["params"]

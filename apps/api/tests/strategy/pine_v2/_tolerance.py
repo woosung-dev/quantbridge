@@ -41,6 +41,8 @@ import math
 from decimal import Decimal, getcontext
 from typing import Any
 
+from src.strategy.pine_v2.rendering import PineColor
+
 # Path β ADR-020 §4.3 + 당시 trust-layer-requirements §3.2 공식
 ABS_TOL: Decimal = Decimal("0.001")
 REL_TOL: Decimal = Decimal("0.001")  # 0.1%
@@ -151,6 +153,7 @@ def digest_sequence(values: Any, algo: str = "sha256") -> str:
     - list / dict / 중첩 구조 모두 지원
     - `sort_keys=True` + `separators=(",", ":")` 으로 정규화
     - Decimal 은 `normalize_decimal` 로 변환 후 직렬화
+    - PineColor 는 버전별 identity와 공개 색 채널을 명시해 직렬화
     - None / bool / int / str / float 은 기본 처리
 
     반환 예: `"sha256:abc123..."` (SLO TL-E-3 digest 필드 포맷 일치).
@@ -167,6 +170,19 @@ def digest_sequence(values: Any, algo: str = "sha256") -> str:
 
 def _normalize_for_json(value: Any) -> Any:
     """JSON 직렬화를 위해 Decimal 등을 정규화. 재귀."""
+    if isinstance(value, PineColor):
+        # v5의 표기 identity와 v6의 packed identity를 버리지 않는다.
+        return {
+            "$pine_color": {
+                "schema_version": 1,
+                "identity": _normalize_for_json(value.identity),
+                "red": value.red,
+                "green": value.green,
+                "blue": value.blue,
+                "alpha": _normalize_for_json(value.alpha),
+                "version": value.version,
+            }
+        }
     if isinstance(value, Decimal):
         return normalize_decimal(value)
     if isinstance(value, dict):

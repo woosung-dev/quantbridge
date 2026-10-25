@@ -56,6 +56,12 @@ TA_FUNCTIONS: frozenset[str] = frozenset(
         "ta.cross",  # crossover or crossunder
         "ta.mom",  # Momentum = src - src[length]
         "ta.obv",  # On Balance Volume (attribute 접근 — interpreter 처리)
+        "ta.stoch",
+        "ta.cum",
+        "ta.linreg",
+        "ta.vwma",
+        "ta.roc",
+        "ta.cci",
     }
 )
 
@@ -99,6 +105,12 @@ ARRAY_FUNCTIONS: frozenset[str] = frozenset(
         "array.shift",
         "array.unshift",
         "array.avg",
+        "array.from",
+        "array.copy",
+        "array.indexof",
+        "array.sum",
+        "array.max",
+        "array.min",
     }
 )
 
@@ -113,3 +125,37 @@ STDLIB_NAMES: frozenset[str] = TA_FUNCTIONS | UTILITY_FUNCTIONS
 # CAST_FUNCTIONS — scalar 캐스트는 interpreter에서 처리하며 coverage와 이름을 공유한다.
 # ---------------------------------------------------------------------------
 CAST_FUNCTIONS: frozenset[str] = frozenset({"int", "float", "bool"})
+
+COLOR_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "color",
+        "color.new",
+        "color.rgb",
+        "color.from_gradient",
+        "color.r",
+        "color.g",
+        "color.b",
+        "color.t",
+    }
+)
+COLOR_NAMES: frozenset[str] = frozenset(
+    {
+        "aqua",
+        "black",
+        "blue",
+        "fuchsia",
+        "gray",
+        "green",
+        "lime",
+        "maroon",
+        "navy",
+        "olive",
+        "orange",
+        "purple",
+        "red",
+        "silver",
+        "teal",
+        "white",
+        "yellow",
+    }
+)

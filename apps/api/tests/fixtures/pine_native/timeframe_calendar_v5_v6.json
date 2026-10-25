@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "pine_version": 6,
+      "scope": "controlled_time_diagnostic_not_strategy_reference",
+      "source": "//@version=6\nindicator(\"QB timeframe calendar diagnostics\", overlay=false)\nplot(bar_index, \"bar_index\")\nplot(time, \"time\")\nplot(time(\"D\"), \"time_D\")\nplot(time(\"W\"), \"time_W\")\nplot(time(\"M\"), \"time_M\")\nplot(timeframe.change(\"D\") ? 1 : 0, \"change_D\")\nplot(timeframe.change(\"W\") ? 1 : 0, \"change_W\")\nplot(timeframe.change(\"M\") ? 1 : 0, \"change_M\")\nplot(timeframe.in_seconds(), \"chart_seconds\")\nplot(timeframe.in_seconds(\"M\"), \"month_seconds\")\nplot(timeframe.in_seconds(\"3M\"), \"three_month_seconds\")\nplot(year, \"year\")\nplot(month, \"month\")\nplot(dayofweek, \"dayofweek\")\nplot(hour, \"hour\")\nplot(minute, \"minute\")\nplot(hour(timestamp(\"UTC\",2026,3,8,6,59),\"America/New_York\"), \"spring_before_hour\")\nplot(hour(timestamp(\"UTC\",2026,3,8,7,0),\"America/New_York\"), \"spring_after_hour\")\nplot(hour(timestamp(\"UTC\",2026,11,1,5,59),\"America/New_York\"), \"fall_before_hour\")\nplot(hour(timestamp(\"UTC\",2026,11,1,6,0),\"America/New_York\"), \"fall_after_hour\")\nplot(minute(timestamp(\"UTC\",2026,11,1,5,59),\"America/New_York\"), \"fall_before_minute\")\nplot(minute(timestamp(\"UTC\",2026,11,1,6,0),\"America/New_York\"), \"fall_after_minute\")\nplot(timeframe.multiplier, \"timeframe_multiplier\")\nplot(timeframe.isintraday ? 1 : 0, \"timeframe_isintraday\")\nvar first_day_change = timeframe.change(\"D\")\nvar first_week_change = timeframe.change(\"W\")\nvar first_month_change = timeframe.change(\"M\")\nvar first_timestamp = time\nplot(first_day_change ? 1 : 0, \"first_day_change\")\nplot(first_week_change ? 1 : 0, \"first_week_change\")\nplot(first_month_change ? 1 : 0, \"first_month_change\")\nplot(first_timestamp, \"first_timestamp\")\n",
+      "source_sha256": "e678a82396be9fb91f452e09630f28493231f6a2ba457a279521194a13c78d83",
+      "raw_sha256": "c4d34308db14b56f1678eaa4b61c613b3d4373f2831a99790e8f16920c7b306c",
+      "common_closed_bars": 1912,
+      "constants": {
+        "month_seconds": [
+          2628003
+        ],
+        "three_month_seconds": [
+          7884009
+        ],
+        "spring_before_hour": [
+          1
+        ],
+        "spring_after_hour": [
+          3
+        ],
+        "fall_before_hour": [
+          1
+        ],
+        "fall_after_hour": [
+          1
+        ],
+        "fall_before_minute": [
+          59
+        ],
+        "fall_after_minute": [
+          0
+        ],
+        "first_day_change": [
+          0
+        ],
+        "first_week_change": [
+          0
+        ],
+        "first_month_change": [
+          0
+        ],
+        "first_timestamp": [
+          1767225600000
+        ]
+      }
+    },
+    {
+      "pine_version": 5,
+      "scope": "controlled_time_diagnostic_not_strategy_reference",
+      "source": "//@version=5\nindicator(\"QB v5 timeframe first state\", overlay=false)\nvar first_day_change = timeframe.change(\"D\")\nvar first_week_change = timeframe.change(\"W\")\nvar first_month_change = timeframe.change(\"M\")\nvar first_timestamp = time\nplot(na(first_day_change) ? -1 : first_day_change ? 1 : 0, \"first_day_change\")\nplot(na(first_week_change) ? -1 : first_week_change ? 1 : 0, \"first_week_change\")\nplot(na(first_month_change) ? -1 : first_month_change ? 1 : 0, \"first_month_change\")\nplot(first_timestamp, \"first_timestamp\")\nplot(bar_index, \"bar_index\")\nplot(timeframe.in_seconds(\"1M\"), \"month_1_seconds\")\nplot(timeframe.in_seconds(\"2M\"), \"month_2_seconds\")\nplot(timeframe.in_seconds(\"3M\"), \"month_3_seconds\")\nplot(timeframe.in_seconds(\"4M\"), \"month_4_seconds\")\nplot(timeframe.in_seconds(\"5M\"), \"month_5_seconds\")\nplot(timeframe.in_seconds(\"6M\"), \"month_6_seconds\")\nplot(timeframe.in_seconds(\"7M\"), \"month_7_seconds\")\nplot(timeframe.in_seconds(\"8M\"), \"month_8_seconds\")\nplot(timeframe.in_seconds(\"9M\"), \"month_9_seconds\")\nplot(timeframe.in_seconds(\"10M\"), \"month_10_seconds\")\nplot(timeframe.in_seconds(\"11M\"), \"month_11_seconds\")\nplot(timeframe.in_seconds(\"12M\"), \"month_12_seconds\")\nf_history(x) =>\n    total = 0.0\n    for j = 0 to 2\n        total += nz(x[j],0)\n    total\nhistory_source = bar_index + 1.0\nhistory_actual = f_history(history_source)\nhistory_actual_ten = f_history(history_source * 10)\nhistory_expected = history_source + nz(history_source[1],0) + nz(history_source[2],0)\nplot(history_actual, \"own_loop_actual\")\nplot(history_expected, \"own_loop_expected\")\nplot(history_actual_ten, \"own_loop_actual_ten\")\nplot(history_expected * 10, \"own_loop_expected_ten\")\n",
+      "source_sha256": "94e55355bc3bb9feccb5646b9c2adebdea097a7bb4cdb09e5c98691310dc7a70",
+      "raw_sha256": "760f13547e97ec3fee7f6540622db045ba6c5e3853db10495ab0644d79be0e37",
+      "common_closed_bars": 7097,
+      "constants": {
+        "first_day_change": [
+          0
+        ],
+        "first_week_change": [
+          0
+        ],
+        "first_month_change": [
+          0
+        ],
+        "first_timestamp": [
+          1767225600000
+        ],
+        "month_1_seconds": [
+          2628003
+        ],
+        "month_2_seconds": [
+          5256006
+        ],
+        "month_3_seconds": [
+          7884009
+        ],
+        "month_4_seconds": [
+          10512012
+        ],
+        "month_5_seconds": [
+          13140015
+        ],
+        "month_6_seconds": [
+          15768018
+        ],
+        "month_7_seconds": [
+          18396021
+        ],
+        "month_8_seconds": [
+          21024024
+        ],
+        "month_9_seconds": [
+          23652027
+        ],
+        "month_10_seconds": [
+          26280030
+        ],
+        "month_11_seconds": [
+          28908033
+        ],
+        "month_12_seconds": [
+          31536036
+        ]
+      }
+    }
+  ],
+  "v6_calendar_cases": [
+    {
+      "bar_index": 5216,
+      "time": 1786003200000,
+      "time_D": 1785974400000,
+      "time_W": 1785715200000,
+      "time_M": 1785542400000,
+      "change_D": 0,
+      "change_W": 0,
+      "change_M": 0,
+      "year": 2026,
+      "month": 8,
+      "dayofweek": 5,
+      "hour": 8,
+      "minute": 0
+    },
+    {
+      "bar_index": 5831,
+      "time": 1788217200000,
+      "time_D": 1788134400000,
+      "time_W": 1788134400000,
+      "time_M": 1785542400000,
+      "change_D": 0,
+      "change_W": 0,
+      "change_M": 0,
+      "year": 2026,
+      "month": 8,
+      "dayofweek": 2,
+      "hour": 23,
+      "minute": 0
+    },
+    {
+      "bar_index": 5832,
+      "time": 1788220800000,
+      "time_D": 1788220800000,
+      "time_W": 1788134400000,
+      "time_M": 1788220800000,
+      "change_D": 1,
+      "change_W": 0,
+      "change_M": 1,
+      "year": 2026,
+      "month": 9,
+      "dayofweek": 3,
+      "hour": 0,
+      "minute": 0
+    },
+    {
+      "bar_index": 6647,
+      "time": 1791154800000,
+      "time_D": 1791072000000,
+      "time_W": 1790553600000,
+      "time_M": 1790812800000,
+      "change_D": 0,
+      "change_W": 0,
+      "change_M": 0,
+      "year": 2026,
+      "month": 10,
+      "dayofweek": 1,
+      "hour": 23,
+      "minute": 0
+    },
+    {
+      "bar_index": 6648,
+      "time": 1791158400000,
+      "time_D": 1791158400000,
+      "time_W": 1791158400000,
+      "time_M": 1790812800000,
+      "change_D": 1,
+      "change_W": 1,
+      "change_M": 0,
+      "year": 2026,
+      "month": 10,
+      "dayofweek": 2,
+      "hour": 0,
+      "minute": 0
+    },
+    {
+      "bar_index": 7127,
+      "time": 1792882800000,
+      "time_D": 1792800000000,
+      "time_W": 1792368000000,
+      "time_M": 1790812800000,
+      "change_D": 0,
+      "change_W": 0,
+      "change_M": 0,
+      "year": 2026,
+      "month": 10,
+      "dayofweek": 7,
+      "hour": 23,
+      "minute": 0
+    }
+  ],
+  "v5_parameter_history_cases": [
+    {
+      "bar_index": 31,
+      "own_loop_actual": 93,
+      "own_loop_expected": 93,
+      "own_loop_actual_ten": 930,
+      "own_loop_expected_ten": 930
+    },
+    {
+      "bar_index": 32,
+      "own_loop_actual": 96,
+      "own_loop_expected": 96,
+      "own_loop_actual_ten": 960,
+      "own_loop_expected_ten": 960
+    },
+    {
+      "bar_index": 33,
+      "own_loop_actual": 99,
+      "own_loop_expected": 99,
+      "own_loop_actual_ten": 990,
+      "own_loop_expected_ten": 990
+    },
+    {
+      "bar_index": 100,
+      "own_loop_actual": 300,
+      "own_loop_expected": 300,
+      "own_loop_actual_ten": 3000,
+      "own_loop_expected_ten": 3000
+    },
+    {
+      "bar_index": 1000,
+      "own_loop_actual": 3000,
+      "own_loop_expected": 3000,
+      "own_loop_actual_ten": 30000,
+      "own_loop_expected_ten": 30000
+    },
+    {
+      "bar_index": 7127,
+      "own_loop_actual": 21381,
+      "own_loop_expected": 21381,
+      "own_loop_actual_ten": 213810,
+      "own_loop_expected_ten": 213810
+    }
+  ],
+  "raw_auth_or_prices_included": false
+}

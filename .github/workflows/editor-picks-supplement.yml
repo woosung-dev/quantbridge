@@ -1,0 +1,135 @@
+name: Editor picks supplemental eighteen sources
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - tools/research/editor_picks/**
+      - tools/scripts/editor-picks-result-upload.py
+      - tools/scripts/editor-picks-compact-finish.py
+      - .github/workflows/editor-picks-supplement.yml
+
+permissions:
+  contents: read
+
+jobs:
+  execute:
+    if: >-
+      github.repository == 'woosung-dev/quantbridge' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/editor-picks-comparison-20261024' &&
+      github.event.pull_request.head.sha == vars.EDITOR_PICKS_SUPPLEMENT_HEAD &&
+      vars.EDITOR_PICKS_SUPPLEMENT_INPUT_URL != '' && vars.EDITOR_PICKS_SUPPLEMENT_INPUT_SHA256 != ''
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 330
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    concurrency:
+      group: editor-picks-supplement-${{ github.event.pull_request.head.sha }}-${{ matrix.shard }}
+      cancel-in-progress: false
+    env:
+      INPUT_URL: ${{ vars.EDITOR_PICKS_SUPPLEMENT_INPUT_URL }}
+      INPUT_SHA: ${{ vars.EDITOR_PICKS_SUPPLEMENT_INPUT_SHA256 }}
+      PLAN_FILE: full-plan.json
+      SHARD: ${{ matrix.shard }}
+      SHARDS: 32
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        with:
+          install_args: python uv
+          cache: false
+      - run: uv sync --project apps/api --frozen --no-dev
+      - name: Download exact owner research ciphertext
+        run: |
+          python3 - <<'PY_CHECK'
+          import os,re
+          from urllib.parse import urlsplit
+          url=urlsplit(os.environ['INPUT_URL'])
+          assert url.scheme=='https' and url.netloc=='github.com' and not url.query and not url.fragment
+          assert url.path=='/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/full-input-supplement-v11.enc'
+          assert re.fullmatch('[a-f0-9]{64}',os.environ['INPUT_SHA']) and os.environ['PLAN_FILE']=='full-plan.json'
+          PY_CHECK
+          curl --fail --location --retry 2 "$INPUT_URL" --output "$RUNNER_TEMP/input.enc"
+      - name: Authenticate and unpack input
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+        run: |
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote prepare \
+            --run-dir runs/editor-picks-20261025-supplement-v11 --cipher "$RUNNER_TEMP/input.enc" \
+            --archive "$RUNNER_TEMP/input.tar.gz" --sha256 "$INPUT_SHA" \
+            --key-env EDITOR_PICKS_RESEARCH_KEY
+      - name: Verify independent eighteen-source serial metadata without credentials
+        run: |
+          python3 - <<'PY_CHECK'
+          import itertools,os,re
+          from pathlib import Path
+          from tools.research.editor_picks.common import ARMS,PERIODS,SCENARIOS,TIMEFRAMES,checked_file,identity,read
+          assert 'EDITOR_PICKS_RESEARCH_KEY' not in os.environ and 'GH_TOKEN' not in os.environ
+          root=Path('runs/editor-picks-20261025-supplement-v11').resolve()
+          plan=read(root/'full-plan.json')
+          assert plan['phase']=='full' and plan['cohort_file']=='cohort.json'
+          assert type(plan.get('execution_workers',1)) is int and plan.get('execution_workers',1)==1
+          cohort=read(checked_file(root,plan['cohort_file'],plan['cohort_sha256']))
+          items=cohort['items']
+          assert cohort['target']==cohort['source_count']==len(items)==18
+          assert len({item['id'] for item in items})==len({item['source_sha256'] for item in items})==18
+          assert all(re.fullmatch('[a-f0-9]{64}',item['source_sha256']) for item in items)
+          assert ARMS==('pine','terra','gemini') and TIMEFRAMES==('1h','4h','1d')
+          assert PERIODS==(6,12,24) and SCENARIOS==('baseline','fees_x2','slippage_x2','funding_x2')
+          expected=[dict(id=i,arm=a,timeframe=t,months=m,scenario=s) for i,a,t,m,s in itertools.product([item['id'] for item in items],ARMS,TIMEFRAMES,PERIODS,SCENARIOS)]
+          assert plan['expected_cells']==len(plan['jobs'])==len(expected)==1944
+          assert plan['jobs']==expected and len({identity(job) for job in plan['jobs']})==1944
+          checked_file(root,'data/dataset.json',plan['dataset_sha256'])
+          policy=read(root/'generation-policy.json')
+          assert policy['active_generation_arms']==['terra']
+          assert policy['original_comparison_arms']==['pine','terra','gemini']
+          assert policy['gemini_status']=='disabled_after_long_retry_failure'
+          for item in items:
+              assert item['status']=='static_eligible' and not item.get('pine_preflight')
+              checked_file(root,item['source_file'],item['source_sha256'])
+              checked_file(root,item['adapted_file'],item['adapted_sha256'])
+              review=item['public_review_provenance']
+              checked_file(root,review['file'],review['sha256'])
+              evidence=item['generation_evidence']
+              for kind in ('source','request','receipt'):
+                  checked_file(root,evidence[kind+'_file'],evidence[kind+'_sha256'])
+              assert plan['artifacts'][item['id']]['pine']==dict(language='pine',source_sha256=item['adapted_sha256'])
+              assert plan['artifacts'][item['id']]['terra']==dict(language='python',source_sha256=evidence['source_sha256'])
+              assert 'unavailable_reason' in plan['artifacts'][item['id']]['gemini']
+          print('supplement_metadata_verified:18_sources:1944_cells:serial_1:independent_of_200_source_run')
+          PY_CHECK
+      - name: Install pinned isolated runtime on disposable runner
+        run: >-
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote runtime
+          --run-dir runs/editor-picks-20261025-supplement-v11
+      - name: Execute assigned cells and native checks without credentials
+        timeout-minutes: 270
+        run: >-
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote worker
+          --run-dir runs/editor-picks-20261025-supplement-v11 --plan "$PLAN_FILE" --shard "$SHARD" --shards "$SHARDS"
+      - name: Preserve authenticated result and actual exit evidence
+        if: always()
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apps/api/.venv/bin/python tools/scripts/editor-picks-compact-finish.py \
+            --run-dir runs/editor-picks-20261025-supplement-v11 --plan "$PLAN_FILE" --shard "$SHARD" --shards "$SHARDS" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --input-sha "$INPUT_SHA" \
+            --archive "$RUNNER_TEMP/result.tar.gz" \
+            --cipher "$RUNNER_TEMP/result-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SHARD}.enc" \
+            --key-env EDITOR_PICKS_RESEARCH_KEY

@@ -68,23 +68,23 @@ v = array.pop(myArr)
 def test_array_workaround_message_present() -> None:
     """Sprint Y1 trust layer 패턴: 잔여 미지원 array.* 에 workaround 안내 포함.
 
-    잔여 미지원 대표 = array.sum (집계 계열).
+    잔여 미지원 대표 = array.sort (정렬 계열).
     """
     src = """
 //@version=6
 indicator("BS")
 arr = array.new_float(10)
-v = array.sum(arr)
+array.sort(arr)
 """
     r = analyze_coverage(src)
     assert not r.is_runnable
-    matched = [c for c in r.unsupported_calls if c["name"] == "array.sum"]
-    assert matched, f"unsupported_calls 에 array.sum 누락. got={r.unsupported_calls}"
+    matched = [c for c in r.unsupported_calls if c["name"] == "array.sort"]
+    assert matched, f"unsupported_calls 에 array.sort 누락. got={r.unsupported_calls}"
     call = matched[0]
     assert call["category"] == "syntax", (
         f"array.* 잔여는 v6 type system 갭 (syntax category), got {call['category']}"
     )
-    assert call["workaround"] is not None and "루프" in call["workaround"], (
+    assert call["workaround"] is not None and "정렬" in call["workaround"], (
         f"워크어라운드 안내 누락. got={call['workaround']}"
     )
 

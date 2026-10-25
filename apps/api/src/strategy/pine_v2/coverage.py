@@ -22,6 +22,8 @@ from src.strategy.pine_v2._names import (
     ARRAY_FUNCTIONS as _ARRAY_FUNCTIONS,
 )
 from src.strategy.pine_v2._names import CAST_FUNCTIONS as _CAST_FUNCTIONS
+from src.strategy.pine_v2._names import COLOR_FUNCTIONS as _COLOR_FUNCTIONS
+from src.strategy.pine_v2._names import COLOR_NAMES as _COLOR_NAMES
 from src.strategy.pine_v2._names import (
     TA_FUNCTIONS as _TA_FUNCTIONS,
 )
@@ -98,13 +100,29 @@ _RENDERING_METHODS: frozenset[str] = frozenset(
         "label.get_x",  # Sprint 58 BL-242b: DrFX dogfood 누락
         "label.set_x",  # Sprint 58 BL-242b
         "label.set_y",  # Sprint 58 BL-242b
+        "label.get_y",
+        "label.get_text",
+        "label.set_text",
+        "label.set_color",
+        "label.set_textcolor",
         "line.delete",
         "line.get_price",
         "line.set_xy1",
         "line.set_xy2",
+        "line.get_x1",
+        "line.get_x2",
+        "line.get_y1",
+        "line.get_y2",
+        "line.set_x1",
+        "line.set_x2",
+        "line.set_y1",
+        "line.set_y2",
+        "line.set_color",
         "table.cell",
         "table.cell_set_bgcolor",  # Sprint 58 BL-242b
         "table.delete",
+        "table.clear",
+        "table.merge_cells",
     }
 )
 
@@ -128,17 +146,22 @@ _INPUT_FUNCTIONS: frozenset[str] = frozenset(
 
 # v4의 type= 인자는 함수 호출이 아닌 상수 참조다. input.* 전체를 허용하지 않는다.
 _INPUT_CONSTANTS: frozenset[str] = frozenset(
-    {"input.integer", "input.float", "input.bool", "input.source"}
+    {"input.integer", "input.float", "input.bool", "input.source", "input.string"}
 )
 
 _DISPLAY_CONSTANTS: frozenset[str] = frozenset(
     {
         "format.price",
+        "format.volume",
         "plot.style_line",
         "plot.style_linebr",
         "plot.style_circles",
         "plot.style_cross",
         "plot.style_columns",
+        "plot.style_area",
+        "plot.style_areabr",
+        "plot.style_histogram",
+        "plot.style_stepline",
         "hline.style_dotted",
     }
 )
@@ -274,6 +297,27 @@ _MATH_FUNCTIONS: frozenset[str] = frozenset(
         "math.ceil",
         "math.sum",
         "math.avg",
+        "math.sin",
+        "math.cos",
+        "math.tan",
+        "math.asin",
+        "math.acos",
+        "math.atan",
+    }
+)
+
+_TIME_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "time",
+        "year",
+        "month",
+        "dayofmonth",
+        "dayofweek",
+        "hour",
+        "minute",
+        "second",
+        "timeframe.in_seconds",
+        "timeframe.change",
     }
 )
 
@@ -285,6 +329,13 @@ _V4_ALIASES: frozenset[str] = frozenset(
         "wma",
         "ema",
         "rsi",
+        "stoch",
+        "cum",
+        "linreg",
+        "vwma",
+        "roc",
+        "cci",
+        "hma",
         "atr",
         "highest",
         "lowest",
@@ -310,6 +361,19 @@ _V4_ALIASES: frozenset[str] = frozenset(
         "barssince",
         "valuewhen",
         "timestamp",
+        "pow",
+        "exp",
+        "log",
+        "sum",
+        "ceil",
+        "sign",
+        "log10",
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
     }
 )
 
@@ -328,6 +392,8 @@ SUPPORTED_FUNCTIONS: frozenset[str] = (
     | _SECURITY_FUNCTIONS  # Sprint 29 Slice A: graceful request.security + v4 security
     | _HEIKINASHI_FUNCTIONS  # Sprint 29 Slice A (a): dogfood-only flag
     | _ARRAY_FUNCTIONS  # G2 (2026-07-12 pine-batch QA): array.* 최소 서브셋 (_names SSOT)
+    | _COLOR_FUNCTIONS
+    | _TIME_FUNCTIONS
 )
 
 # Built-in series variables (close/high/low/open/volume + ta.tr 등)
@@ -351,6 +417,13 @@ _SERIES_ATTRS: frozenset[str] = frozenset(
         "ta.tr",  # Sprint X1+X3 follow-up
         "tr",  # v4 속성 별칭 — ta.tr와 동일 계산을 공유한다.
         "ta.obv",  # Sprint 58 BL-241: On Balance Volume series
+        "year",
+        "month",
+        "dayofmonth",
+        "dayofweek",
+        "hour",
+        "minute",
+        "second",
     }
 )
 
@@ -425,6 +498,7 @@ _TIMEFRAME_CONSTANTS: frozenset[str] = frozenset(
         "timeframe.isseconds",
         "timeframe.isweekly",
         "timeframe.multiplier",
+        "timeframe.isintraday",
     }
 )
 
@@ -437,7 +511,6 @@ _ENUM_PREFIXES: tuple[str, ...] = (
     "location.",
     "size.",
     "position.",
-    "color.",  # color.* → nan (NOP)
     "alert.freq_",
     "display.",
     "xloc.",
@@ -456,6 +529,12 @@ SUPPORTED_ATTRIBUTES: frozenset[str] = (
     | _TIMEFRAME_CONSTANTS
     | _INPUT_CONSTANTS
     | _DISPLAY_CONSTANTS
+    | frozenset(f"color.{name}" for name in _COLOR_NAMES)
+    | frozenset({"math.pi", "math.e"})
+    | frozenset(
+        f"dayofweek.{name}"
+        for name in ("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
+    )
 )
 
 
@@ -537,6 +616,11 @@ _DOTTED_RE = re.compile(
 )
 _COMMENT_RE = re.compile(r"//[^\n]*")
 _STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
+# 주석을 문자열보다 먼저 토큰화해 주석의 따옴표가 다음 버전 지시문을 삼키지 않게 한다.
+_VERSION_TOKEN_RE = re.compile(
+    r"^[\t ]*//@version\s*=\s*(\d+)|" + _COMMENT_RE.pattern + "|" + _STRING_RE.pattern,
+    re.MULTILINE,
+)
 
 
 # Sprint 29 Slice B: TypedDict for each unsupported call with line/category/workaround.
@@ -730,7 +814,7 @@ def analyze_coverage(source: str) -> CoverageReport:
     Pine Script 미지원 함수 1개라도 포함 시 backtest 실행 차단 (CLAUDE.md Golden Rule).
     """
     clean = _strip_noise(source)
-    version_match = re.search(r"(?m)^[\t ]*//@version\s*=\s*(\d+)", _STRING_RE.sub('""', source))
+    version_match = next((match for match in _VERSION_TOKEN_RE.finditer(source) if match[1]), None)
     pine_version = int(version_match.group(1)) if version_match else 1
 
     # 사용자 정의 함수: `myFunc(...) =>` 패턴
@@ -771,6 +855,14 @@ def analyze_coverage(source: str) -> CoverageReport:
     unsupp_funcs_set = (
         set(unsupp_funcs_raw) | set(known_found) | {item["name"] for item in exit_quantities}
     )
+    # 라이브러리의 전역 코드도 실행 대상이다. 별칭 호출이 known namespace가
+    # 아니라는 이유로 외부 의존성을 조용히 지원한 것으로 판정하지 않는다.
+    imports = re.finditer(
+        r"(?m)^[\t ]*import\s+([A-Za-z0-9_]+/[A-Za-z0-9_]+/\d+)"
+        r"(?:\s+as\s+[A-Za-z_]\w*)?[\t \r]*$",
+        clean,
+    )
+    unsupp_funcs_set.update(f"import {match[1]}" for match in imports)
     # 명시적인 숫자 캐스트는 v4부터 지원한다. 문자열 속 버전 표기는 사용하지 않는다.
     if pine_version < 4:
         unsupp_funcs_set.update(f for f in used_funcs if f in _CAST_FUNCTIONS)

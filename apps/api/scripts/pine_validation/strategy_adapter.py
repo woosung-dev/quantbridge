@@ -27,6 +27,9 @@ _HEADER_ARGS = {
     "precision",
     "max_lines_count",
     "max_labels_count",
+    "max_boxes_count",
+    "max_bars_back",
+    "explicit_plot_zorder",
 }
 _SECONDS = {"1h": 3600, "4h": 14400, "1d": 86400}
 
@@ -162,6 +165,34 @@ def adapt_strategy(
                     "dynamic_declaration", "linktoseries는 상수만 허용합니다"
                 )
             warnings.append("화면 축 연결 전용 linktoseries 선언 인자만 제거했습니다")
+        elif (
+            argument.name is None
+            and _name(header.func) == "study"
+            and pine_version_from_ast(tree) == 4
+            and 2 <= index <= 4
+        ):
+            parameter = ("overlay", "format", "precision")[index - 2]
+            value = argument.value
+            if parameter == "overlay":
+                valid = isinstance(value, A.Constant) and type(value.value) is bool
+            elif parameter == "format":
+                valid = _name(value) in {"format.inherit", "format.price", "format.volume"}
+            else:
+                valid = (
+                    isinstance(value, A.Constant)
+                    and type(value.value) is int
+                    and 0 <= value.value <= 16
+                )
+            if (
+                not valid
+                or any(arg.name == parameter for arg in header.args)
+                or any(arg.name is not None for arg in header.args[:index])
+            ):
+                raise StrategyAdapterError(
+                    "dynamic_declaration",
+                    "v4 study 위치 인자는 중복 없는 bool·format 상수·0~16 정수만 허용합니다",
+                )
+            header_args.append(A.Arg(name=parameter, value=value))
         elif argument.name is None and index == 2 and _name(header.func) == "indicator":
             if (
                 not isinstance(argument.value, A.Constant)

@@ -1,0 +1,173 @@
+name: Editor picks six months baseline only
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - tools/research/editor_picks/**
+      - tools/scripts/editor-picks-result-upload.py
+      - tools/scripts/editor-picks-compact-finish.py
+      - tools/scripts/editor-picks-fast6m-input.py
+      - .github/workflows/editor-picks-fast6m.yml
+      - .github/workflows/editor-picks-baseline.yml
+      - tools/scripts/editor-picks-baseline-shards.py
+
+permissions:
+  contents: read
+
+jobs:
+  execute:
+    if: >-
+      github.repository == 'woosung-dev/quantbridge' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/editor-picks-comparison-20261024' &&
+      github.event.pull_request.head.sha == vars.EDITOR_PICKS_BASELINE_HEAD &&
+      vars.EDITOR_PICKS_BASELINE_SHARDS_JSON != ''
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 330
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 19
+      matrix:
+        shard: ${{ fromJSON(vars.EDITOR_PICKS_BASELINE_SHARDS_JSON) }}
+    concurrency:
+      group: editor-picks-baseline-${{ github.event.pull_request.head.sha }}-${{ matrix.shard }}
+      cancel-in-progress: false
+    env:
+      INPUT_URL: https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/fast6m-overlay-v12.enc
+      INPUT_SHA: 5d4e3d83cf494463bf5541c97d05b714c8d0e2ee76baf92bff8049d50ce5a998
+      FINANCIAL_HEAD: e4e2f06579b1ce72b019ef0f8b3be1dab4536ded
+      CONTROL_HEAD: ${{ github.event.pull_request.head.sha }}
+      SELECTED_SHARDS_JSON: ${{ vars.EDITOR_PICKS_BASELINE_SHARDS_JSON }}
+      PLAN_FILE: full-plan.json
+      SHARD: ${{ matrix.shard }}
+      SHARDS: 160
+    steps:
+      - name: Reject non-baseline or duplicate shard allocations before credentials
+        run: |
+          python3 - <<'PY_CHECK'
+          import json, os
+          selected = json.loads(os.environ['SELECTED_SHARDS_JSON'])
+          assert type(selected) is list and 1 <= len(selected) <= 40
+          assert all(type(shard) is int and 0 <= shard < 160 and shard % 4 == 0 for shard in selected)
+          assert len(set(selected)) == len(selected)
+          assert int(os.environ['SHARD']) in selected and os.environ['SHARDS'] == '160'
+          PY_CHECK
+      - uses: actions/checkout@v4
+        with:
+          ref: e4e2f06579b1ce72b019ef0f8b3be1dab4536ded
+          persist-credentials: false
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        with:
+          install_args: python uv
+          cache: false
+      - run: uv sync --project apps/api --frozen --no-dev
+      - name: Download fixed parent and exact owner overlay ciphertexts
+        run: |
+          python3 - <<'PY_CHECK'
+          import os,re
+          from urllib.parse import urlsplit
+          url=urlsplit(os.environ['INPUT_URL'])
+          assert url.scheme=='https' and url.netloc=='github.com' and not url.query and not url.fragment
+          assert url.path=='/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/fast6m-overlay-v12.enc'
+          assert os.environ['INPUT_SHA']=='5d4e3d83cf494463bf5541c97d05b714c8d0e2ee76baf92bff8049d50ce5a998'
+          assert os.environ['PLAN_FILE']=='full-plan.json'
+          PY_CHECK
+          curl --fail --location --retry 2 'https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/full-input-preflight-v8.enc' --output "$RUNNER_TEMP/base.enc"
+          curl --fail --location --retry 2 'https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/full-input-supplement-v11.enc' --output "$RUNNER_TEMP/supplement.enc"
+          curl --fail --location --retry 2 "$INPUT_URL" --output "$RUNNER_TEMP/addon.enc"
+      - name: Authenticate and unpack the three distinct input layers
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+        run: |
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote prepare \
+            --run-dir runs/editor-picks-20261025-fast6m-v12-base --cipher "$RUNNER_TEMP/base.enc" \
+            --archive "$RUNNER_TEMP/base.tar.gz" --sha256 b8f38f9d8e665d1be35fe3c04e4ec89f55477d073a7749a31ad05535f976f125 \
+            --key-env EDITOR_PICKS_RESEARCH_KEY
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote prepare \
+            --run-dir runs/editor-picks-20261025-fast6m-v12-supplement --cipher "$RUNNER_TEMP/supplement.enc" \
+            --archive "$RUNNER_TEMP/supplement.tar.gz" --sha256 a9165955129390cfa346ee77e4821f4d3ad7f3caff0e3d3293f33c540ec05f21 \
+            --key-env EDITOR_PICKS_RESEARCH_KEY
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote prepare \
+            --run-dir runs/editor-picks-20261025-fast6m-v12-addon --cipher "$RUNNER_TEMP/addon.enc" \
+            --archive "$RUNNER_TEMP/addon.tar.gz" --sha256 "$INPUT_SHA" \
+            --key-env EDITOR_PICKS_RESEARCH_KEY
+      - name: Verify and assemble the exact 200-source six-month input without credentials
+        run: |
+          python3 tools/scripts/editor-picks-fast6m-input.py \
+            --base runs/editor-picks-20261025-fast6m-v12-base \
+            --supplement runs/editor-picks-20261025-fast6m-v12-supplement \
+            --addon runs/editor-picks-20261025-fast6m-v12-addon \
+            --output runs/editor-picks-20261025-fast6m-v12
+      - name: Verify original plan and preserve separate controller provenance
+        run: |
+          apps/api/.venv/bin/python - <<'PY_CHECK'
+          import json, os, re, subprocess
+          from pathlib import Path
+          from tools.research.editor_picks.common import identity, read, write
+          from tools.research.editor_picks.verification import frozen_inputs
+          root = Path('runs/editor-picks-20261025-fast6m-v12')
+          plan = read(root / os.environ['PLAN_FILE'])
+          expected_plan = 'eaf22e7be3b9b6857a09ccdd4e3a9b6dd3cbf38d399ac3793dc0a86bec5d05f5'
+          assert identity(plan) == expected_plan
+          cohort = frozen_inputs(root, plan)
+          assert len(cohort['items']) == cohort['source_count'] == cohort['target'] == 200
+          assert plan['expected_cells'] == len(plan['jobs']) == 7200
+          assert plan['periods'] == [6] and plan.get('execution_workers', 1) == 1
+          shard, shards = int(os.environ['SHARD']), int(os.environ['SHARDS'])
+          assigned = plan['jobs'][shard::shards]
+          assert shards == 160 and shard % 4 == 0 and len(assigned) == 45
+          assert all(job['scenario'] == 'baseline' and job['months'] == 6 for job in assigned)
+          assert sum(job['scenario'] == 'baseline' for job in plan['jobs']) == 1800
+          financial_head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert financial_head == os.environ['FINANCIAL_HEAD'] == 'e4e2f06579b1ce72b019ef0f8b3be1dab4536ded'
+          assert re.fullmatch('[a-f0-9]{40}', os.environ['CONTROL_HEAD'])
+          write(root / f'results/controller-provenance-{shard}.json', {
+              'schema_version': 1,
+              'control_head': os.environ['CONTROL_HEAD'],
+              'financial_checkout_head': financial_head,
+              'workflow_ref': os.environ['GITHUB_WORKFLOW_REF'],
+              'workflow_sha': os.environ['GITHUB_WORKFLOW_SHA'],
+              'parent_plan_sha256': expected_plan,
+              'baseline_contract_sha256': 'b1cccf853e1a4ef4a185f728a9e2d025e5e616ab9965d4ee298a4548e949e776',
+              'input_sha256': os.environ['INPUT_SHA'],
+              'selected_shards': json.loads(os.environ['SELECTED_SHARDS_JSON']),
+              'selected_shard': shard,
+              'original_shards': shards,
+              'assigned_cells': len(assigned),
+              'all_assigned_cells_baseline': True,
+              'assigned_jobs_sha256': identity(assigned),
+              'parent_expected_cells': 7200,
+              'baseline_expected_cells': 1800,
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+          })
+          print(f'baseline_metadata_verified:shard={shard}:45_cells:original_shards=160')
+          PY_CHECK
+      - name: Install pinned isolated runtime on disposable runner
+        run: >-
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote runtime
+          --run-dir runs/editor-picks-20261025-fast6m-v12
+      - name: Execute assigned cells and native checks without credentials
+        timeout-minutes: 270
+        run: >-
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote worker
+          --run-dir runs/editor-picks-20261025-fast6m-v12 --plan "$PLAN_FILE" --shard "$SHARD" --shards "$SHARDS"
+      - name: Preserve authenticated result and actual exit evidence
+        if: always()
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apps/api/.venv/bin/python tools/scripts/editor-picks-compact-finish.py \
+            --run-dir runs/editor-picks-20261025-fast6m-v12 --plan "$PLAN_FILE" --shard "$SHARD" --shards "$SHARDS" \
+            --head "$FINANCIAL_HEAD" \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --input-sha "$INPUT_SHA" \
+            --archive "$RUNNER_TEMP/result.tar.gz" \
+            --cipher "$RUNNER_TEMP/result-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SHARD}.enc" \
+            --key-env EDITOR_PICKS_RESEARCH_KEY

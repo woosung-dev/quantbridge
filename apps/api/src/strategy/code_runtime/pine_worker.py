@@ -29,9 +29,16 @@ def main() -> None:
             response: dict[str, Any]
             if message.get("type") == "load" and engine is None:
                 frame = pd.DataFrame(message["bars"])
-                frame.index = pd.DatetimeIndex(pd.to_datetime(frame.pop("timestamp"), utc=True))
+                timestamps = frame.pop("timestamp")
+                if "timeframe" in message:
+                    if any(pd.Timestamp(value).tzinfo is None for value in timestamps):
+                        raise ValueError("명시 timeframe의 timestamp는 timezone-aware여야 합니다")
+                    frame.attrs["timeframe"] = message["timeframe"]
+                frame.index = pd.DatetimeIndex(pd.to_datetime(timestamps, utc=True))
                 engine = _PineInterpreterTransport(frame)
                 response = {"loaded": True}
+                if "timeframe" in message:
+                    response["timeframe"] = frame.attrs["timeframe"]
             elif engine is None:
                 raise ValueError("Pine worker 데이터가 초기화되지 않았습니다")
             else:

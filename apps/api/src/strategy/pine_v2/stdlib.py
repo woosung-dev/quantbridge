@@ -262,6 +262,124 @@ def ta_lowest(state: IndicatorState, node_id: int, source: float, length: int) -
     return min(buf)
 
 
+def ta_cum(state: IndicatorState, node_id: int, source: float) -> float:
+    """첫 봉부터의 누적합. 결측 봉은 누적 상태를 바꾸지 않는다."""
+    if _is_na(source):
+        return float("nan")
+    total = state.buffers.get(node_id, 0.0) + source
+    state.buffers[node_id] = total
+    return float(total)
+
+
+def ta_roc(state: IndicatorState, node_id: int, source: float, length: int) -> float:
+    """현재 값과 length봉 전 값의 백분율 변화."""
+    if not math.isfinite(length) or length <= 0:
+        raise ValueError("ta.roc: length must be greater than zero")
+    period = int(length)
+    history: list[float] = state.buffers.setdefault(node_id, [])
+    history.append(source)
+    if len(history) <= period:
+        return float("nan")
+    previous = history[-period - 1]
+    if _is_na(source) or _is_na(previous) or previous == 0:
+        return float("nan")
+    return 100.0 * (source - previous) / previous
+
+
+def ta_cci(state: IndicatorState, node_id: int, source: float, length: int) -> float:
+    """CCI: (현재 값 - 단순평균) / (0.015 * 평균절대편차)."""
+    period = _coerce_length(length)
+    if period is None:
+        return float("nan")
+    slot = state.buffers.setdefault(node_id, {"history": [], "previous": 0.0})
+    history = slot["history"]
+    history.append(source)
+    if len(history) < period:
+        return float("nan")
+    window = history[-period:]
+    if any(_is_na(value) for value in window):
+        return float("nan")
+    average = sum(window) / period
+    deviation = sum(abs(value - average) for value in window) / period
+    if deviation == 0:
+        return float(slot["previous"])
+    result = float((source - average) / (0.015 * deviation))
+    slot["previous"] = result
+    return result
+
+
+def ta_vwma(
+    state: IndicatorState, node_id: int, source: float, length: int, *, volume: float
+) -> float:
+    """공식 정의인 sma(source * volume, length) / sma(volume, length)."""
+    period = _coerce_length(length)
+    if period is None:
+        return float("nan")
+    slot = state.buffers.setdefault(node_id, {"products": [], "volumes": []})
+    if not _is_na(volume):
+        slot["volumes"].append(volume)
+        if not _is_na(source):
+            slot["products"].append(source * volume)
+    if len(slot["products"]) < period or len(slot["volumes"]) < period:
+        return float("nan")
+    denominator = sum(slot["volumes"][-period:])
+    if denominator == 0:
+        return float("nan")
+    return float(sum(slot["products"][-period:]) / denominator)
+
+
+def ta_linreg(
+    state: IndicatorState, node_id: int, source: float, length: int, offset: int
+) -> float:
+    """최소제곱 직선의 length - 1 - offset 지점 값."""
+    period = _coerce_length(length)
+    if period is None or period < 2 or not math.isfinite(offset):
+        return float("nan")
+    history: list[float] = state.buffers.setdefault(node_id, [])
+    history.append(source)
+    if len(history) < period:
+        return float("nan")
+    window = history[-period:]
+    if any(_is_na(value) for value in window):
+        return float("nan")
+    x_mean = (period - 1) / 2.0
+    y_mean = sum(window) / period
+    covariance = sum((index - x_mean) * (value - y_mean) for index, value in enumerate(window))
+    variance = period * (period * period - 1) / 12.0
+    slope = covariance / variance
+    return y_mean + slope * (period - 1 - offset - x_mean)
+
+
+def ta_stoch(
+    state: IndicatorState,
+    node_id: int,
+    source: float,
+    peak: float,
+    valley: float,
+    period: int,
+) -> float:
+    """100 * (source - lowest(valley)) / (highest(peak) - lowest(valley))."""
+    length = _coerce_length(period)
+    if length is None:
+        return float("nan")
+    slot = state.buffers.setdefault(node_id, {"high": [], "low": [], "previous": float("nan")})
+    if not _is_na(peak):
+        slot["high"].append(peak)
+    if not _is_na(valley):
+        slot["low"].append(valley)
+    if _is_na(source):
+        return float(slot["previous"])
+    if not slot["high"] or not slot["low"]:
+        return float(slot["previous"])
+    highest = max(slot["high"][-length:])
+    lowest = min(slot["low"][-length:])
+    if highest == lowest:
+        return float(slot["previous"]) if source == lowest else float("nan")
+    result = float(100.0 * (source - lowest) / (highest - lowest))
+    slot["previous"] = result
+    return result
+
+
 # -------- barssince / valuewhen (Sprint 8c) ---------------------------
 #
 # 상태 의존 검색: s3_rsid 계열 전략이 필수로 사용.
@@ -332,7 +450,7 @@ def ta_pivothigh(
     """Pine `ta.pivothigh(left, right)` — pivot high 감지.
 
     현재 bar N에서 "바 N-right가 pivot high인가?" 검사:
-    - high[right] > high[right+1..right+left]  (왼쪽 left 바들보다 높음)
+    - high[right] >= high[right+1..right+left] (과거 left 바들과 동률 허용)
     - high[right] > high[0..right-1]           (오른쪽 right 바들보다 높음)
 
     반환: pivot 감지되면 high[right] (= pivot 가격), 아니면 nan.
@@ -351,7 +469,7 @@ def ta_pivothigh(
     pivot_val = highs[pivot_idx]
 
     for i in range(max(0, pivot_idx - left), pivot_idx):
-        if highs[i] >= pivot_val:
+        if highs[i] > pivot_val:
             return float("nan")
     for i in range(pivot_idx + 1, len(highs)):
         if highs[i] >= pivot_val:
@@ -381,7 +499,7 @@ def ta_pivotlow(
     pivot_val = lows[pivot_idx]
 
     for i in range(max(0, pivot_idx - left), pivot_idx):
-        if lows[i] <= pivot_val:
+        if lows[i] < pivot_val:
             return float("nan")
     for i in range(pivot_idx + 1, len(lows)):
         if lows[i] <= pivot_val:
@@ -764,6 +882,7 @@ class StdlibDispatcher:
         high: float = float("nan"),
         low: float = float("nan"),
         close_prev: float = float("nan"),
+        volume: float = float("nan"),
         pine_version: int = 6,
     ) -> Any:
         """func_name이 ta.* 또는 na/nz이면 호출, 아니면 KeyError.
@@ -772,6 +891,18 @@ class StdlibDispatcher:
         top-level 호출 시 원래 node_id 그대로 사용 (backward compatible).
         """
         scoped_id = self._scoped_node_id(node_id)
+        if func_name == "ta.cum":
+            return ta_cum(self.state, scoped_id, *args)
+        if func_name == "ta.stoch":
+            return ta_stoch(self.state, scoped_id, *args)
+        if func_name == "ta.linreg":
+            return ta_linreg(self.state, scoped_id, *args)
+        if func_name == "ta.vwma":
+            return ta_vwma(self.state, scoped_id, *args, volume=volume)
+        if func_name == "ta.roc":
+            return ta_roc(self.state, scoped_id, *args)
+        if func_name == "ta.cci":
+            return ta_cci(self.state, scoped_id, *args)
         if func_name == "ta.sma":
             return ta_sma(self.state, scoped_id, *args)
         if func_name == "ta.ema":

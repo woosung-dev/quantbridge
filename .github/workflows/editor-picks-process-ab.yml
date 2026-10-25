@@ -1,0 +1,103 @@
+name: Editor picks process A-B probe
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - tools/scripts/editor-picks-process-ab.py
+      - tools/research/editor_picks/execution.py
+      - tools/research/editor_picks/__main__.py
+      - .github/workflows/editor-picks-process-ab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: >-
+      github.repository == 'woosung-dev/quantbridge' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/editor-picks-comparison-20261024' &&
+      github.event.pull_request.head.sha == vars.EDITOR_PICKS_AB_HEAD &&
+      vars.EDITOR_PICKS_AB_REGISTRATION_JSON != '' &&
+      vars.EDITOR_PICKS_AB_REGISTRATION_SHA256 != ''
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    concurrency:
+      group: editor-picks-process-ab-${{ github.event.pull_request.head.sha }}
+      cancel-in-progress: false
+    steps:
+      - name: Freeze the execution deadline before preparation
+        run: |
+          python3 - <<'PY'
+          import json,os,time
+          from pathlib import Path
+          (Path(os.environ['RUNNER_TEMP'])/'ab-deadline.json').write_text(json.dumps({'execution_deadline_monotonic':time.monotonic()+1800}))
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        with:
+          install_args: python uv
+          cache: false
+      - run: uv sync --project apps/api --frozen --no-dev
+      - name: Verify preregistration and sealed N8 parent
+        env:
+          REGISTRATION_JSON: ${{ vars.EDITOR_PICKS_AB_REGISTRATION_JSON }}
+          REGISTRATION_SHA256: ${{ vars.EDITOR_PICKS_AB_REGISTRATION_SHA256 }}
+          CONTROL_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,re
+          from pathlib import Path
+          value=os.environ['REGISTRATION_JSON'].encode()
+          assert len(value)<=48*1024 and re.fullmatch('[a-f0-9]{64}',os.environ['REGISTRATION_SHA256'])
+          assert hashlib.sha256(value).hexdigest()==os.environ['REGISTRATION_SHA256']
+          reg=json.loads(value)
+          assert reg['binding_before_dispatch']['control_head']==os.environ['CONTROL_HEAD']
+          assert reg['parent_input_url']=='https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/full-input-preflight-v8.enc'
+          (Path(os.environ['RUNNER_TEMP'])/'ab-registration.json').write_bytes(value)
+          PY
+          apps/api/.venv/bin/python tools/scripts/editor-picks-process-ab.py validate --registration "$RUNNER_TEMP/ab-registration.json"
+          curl --fail --location --retry 2 'https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/full-input-preflight-v8.enc' --output "$RUNNER_TEMP/parent.enc"
+      - name: Authenticate owner input
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+        run: |
+          parent_sha=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["parent_input_sha256"])' "$RUNNER_TEMP/ab-registration.json")
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote prepare \
+            --run-dir runs/process-ab-parent --cipher "$RUNNER_TEMP/parent.enc" \
+            --archive "$RUNNER_TEMP/parent.tar.gz" --sha256 "$parent_sha" --key-env EDITOR_PICKS_RESEARCH_KEY
+      - name: Install authenticated runtime on this disposable VM
+        run: >-
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote runtime --run-dir runs/process-ab-parent
+      - name: Compare fixed four jobs without credentials
+        run: |
+          ephemeral_key=$(python3 -c 'import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())')
+          env -i PATH="$PATH" HOME="$HOME" LANG=C.UTF-8 \
+            TRADING_ENCRYPTION_KEYS="$ephemeral_key" PINE_AST_CACHE_DIR='' \
+            apps/api/.venv/bin/python tools/scripts/editor-picks-process-ab.py run \
+              --registration "$RUNNER_TEMP/ab-registration.json" --parent runs/process-ab-parent \
+              --parent-cipher "$RUNNER_TEMP/parent.enc" --budget-file "$RUNNER_TEMP/ab-deadline.json" --run-dir runs/process-ab-result \
+              --head '${{ github.event.pull_request.head.sha }}' --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Preserve encrypted probe evidence only
+        if: always()
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apps/api/.venv/bin/python tools/scripts/editor-picks-process-ab.py finish \
+            --registration "$RUNNER_TEMP/ab-registration.json" --run-dir runs/process-ab-result \
+            --head '${{ github.event.pull_request.head.sha }}' --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
+            --cipher "$RUNNER_TEMP/process-ab-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.enc" --key-env EDITOR_PICKS_RESEARCH_KEY
+          apps/api/.venv/bin/python tools/scripts/editor-picks-result-upload.py \
+            --input "$RUNNER_TEMP/process-ab-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.enc" \
+            --output "$RUNNER_TEMP/process-ab-upload.json" --repo woosung-dev/quantbridge \
+            --tag editor-picks-research-20261024 --asset-name "process-ab-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.enc"
