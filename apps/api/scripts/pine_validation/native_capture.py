@@ -308,15 +308,20 @@ def _source_calls(
             _name(call.func) == "input"
             and (_arg(call, "type", 2) is None or _name(_arg(call, "type", 2)) == "input.source")
         )
-        generic_hex = (
+        generic_color = (
             constants.get(default_node.id)
             if isinstance(default_node, A.Name)
             and _name(call.func) == "input"
             and (_arg(call, "type", 2) is None or _name(_arg(call, "type", 2)) == "input.color")
             else None
         )
-        if isinstance(generic_hex, A.Constant) and generic_hex.kind == "#":
-            default = _color_default(generic_hex, version)
+        if (
+            isinstance(generic_color, A.Constant) and generic_color.kind == "#"
+        ) or (
+            isinstance(generic_color, A.Attribute)
+            and _name(generic_color) == f"color.{generic_color.attr}"
+        ):
+            default = _color_default(generic_color, version)
             if input_types is not None:
                 input_types[statement.target.id] = "color"
         elif _name(call.func) == "input.color":

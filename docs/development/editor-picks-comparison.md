@@ -208,6 +208,11 @@ v4의 제목 없는 `plotchar`는 실제 컴파일·wire로 관측한 `Chars`만
 generic input의 readonly hex 색 상수는 source 입력과 구분한다. 검증된 color 타입의 literal
 hex6만 RGB byte가 같은 대소문자 표현을 허용하고 원문·compiler·resolved·wire 문자열은 보존한다.
 일반 text·source·enum·제목은 대소문자를 구분하며 다른 RGBA·hex8 동치는 추가하지 않는다.
+generic `input`의 읽기 전용 전역 `color.*` 이름 상수 별칭은 기존 hex 별칭과 같은 단일쓰기·
+쉐도잉 거절 검사를 거쳐 원문 버전의 rendering SSOT로 기본값을 읽는다. 실제 compiler의 color
+슬롯과 wire를 함께 대조하며 재대입·동적 색·연쇄 별칭·`input.source` 또는 text 슬롯으로의 혼용은
+거절한다. 원문 입력값을 바꾸거나 관측 없는 색 생성식으로 지원을 넓히지 않는다.
+
 원문 `barcolor`·`bgcolor`는 실제 열·제목·순서를 결박한다. 명시 keyword 제목은 literal 문자열만
 정확 일치시키고, 생략하면 각각의 기본 제목을 사용한다. 진입 binding 범위는 확장하지 않는다.
 
