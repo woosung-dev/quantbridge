@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import re
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -22,11 +23,11 @@ from pynescript import ast as A
 from scripts.pine_validation.models import SignalEvent, utc_time
 from src.strategy.pine_v2.interpreter import _ATTR_CONSTANTS, pine_version_from_ast
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
-from src.strategy.pine_v2.rendering import color_call, color_named
+from src.strategy.pine_v2.rendering import PineColor, color_call, color_literal, color_named
 
 _STEPS = {"1h": timedelta(hours=1), "4h": timedelta(hours=4), "1d": timedelta(days=1)}
 _SIGNAL_CALLS = {"plotshape", "plotchar", "alertcondition"}
-_PLOT_CALLS = _SIGNAL_CALLS | {"plot", "barcolor", "bgcolor", "plotcandle"}
+_PLOT_CALLS = _SIGNAL_CALLS | {"plot", "barcolor", "bgcolor", "plotcandle", "plotarrow"}
 _SOURCE_NAMES = {"open", "high", "low", "close", "volume", "hl2", "hlc3", "ohlc4"}
 _INPUT_CALLS = {
     "input",
@@ -46,6 +47,7 @@ _PLOT_TYPES = {
     "barcolor": "bar_colorer",
     "bgcolor": "bg_colorer",
     "plotcandle": "ohlc_open",
+    "plotarrow": "arrows",
 }
 _FRAME = re.compile(r"~m~(\d+)~m~")
 _SENTINEL = 1e100
@@ -294,6 +296,7 @@ def _source_calls(
     calls = [(_name(call.func), call) for call in top]
     inputs: list[tuple[str, str, Any]] = []
     version = pine_version_from_ast(tree)
+    constants = _readonly_globals(source)
     for statement in tree.body:
         if not isinstance(statement, A.Assign) or not isinstance(statement.target, A.Name):
             continue
@@ -305,7 +308,18 @@ def _source_calls(
             _name(call.func) == "input"
             and (_arg(call, "type", 2) is None or _name(_arg(call, "type", 2)) == "input.source")
         )
-        if _name(call.func) == "input.color":
+        generic_hex = (
+            constants.get(default_node.id)
+            if isinstance(default_node, A.Name)
+            and _name(call.func) == "input"
+            and (_arg(call, "type", 2) is None or _name(_arg(call, "type", 2)) == "input.color")
+            else None
+        )
+        if isinstance(generic_hex, A.Constant) and generic_hex.kind == "#":
+            default = _color_default(generic_hex, version)
+            if input_types is not None:
+                input_types[statement.target.id] = "color"
+        elif _name(call.func) == "input.color":
             default = _color_default(default_node, version)
         elif _name(call.func) == "input.string":
             default = _input_default(default_node, "input.string defval")
@@ -329,16 +343,90 @@ def _source_calls(
     return calls, inputs, fills
 
 
+def _writes(tree: Any) -> Counter[str]:
+    """전역 후보와 같은 이름의 모든 중첩 대입도 보수적으로 쓰기로 센다."""
+    return Counter(
+        name.id
+        for node in A.walk(tree)
+        if isinstance(node, (A.Assign, A.ReAssign, A.AugAssign))
+        for name in A.walk(node.target)
+        if isinstance(name, A.Name)
+    )
+
+
+def _readonly_globals(source: str) -> dict[str, Any]:
+    tree = parse_to_ast(source)
+    writes = _writes(tree)
+    ambiguous = {
+        node.name for node in A.walk(tree) if isinstance(node, (A.Param, A.FunctionDef))
+    } | {
+        name.id
+        for node in A.walk(tree)
+        if isinstance(node, (A.ForTo, A.ForIn))
+        for name in A.walk(node.target)
+        if isinstance(name, A.Name)
+    }
+    return {
+        node.target.id: node.value
+        for node in tree.body
+        if isinstance(node, A.Assign)
+        and isinstance(node.target, A.Name)
+        and writes[node.target.id] == 1
+        and node.target.id not in ambiguous
+        and (
+            isinstance(node.value, A.Constant)
+            or (
+                isinstance(node.value, A.Attribute)
+                and _name(node.value) == f"color.{node.value.attr}"
+            )
+            or (
+                isinstance(node.value, A.Call)
+                and _name(node.value.func) in {"color.new", "color.rgb"}
+            )
+        )
+    }
+
+
+def _constant_color_base(node: Any, version: int, constants: Mapping[str, Any]) -> PineColor | None:
+    """관측한 hex/named와 정수3개 RGB 생성만 읽는다. 입력·임의 호출은 계산하지 않는다."""
+    if isinstance(node, A.Name):
+        node = constants.get(node.id)
+    if isinstance(node, A.Constant) and node.kind == "#" and isinstance(node.value, str):
+        return color_literal(node.value, version)
+    if isinstance(node, A.Attribute) and _name(node) == f"color.{node.attr}":
+        return color_named(node.attr, version)
+    if (
+        isinstance(node, A.Call)
+        and _name(node.func) == "color.rgb"
+        and len(node.args) == 3
+        and all(
+            arg.name is None
+            and isinstance(arg.value, A.Constant)
+            and type(arg.value.value) is int
+            and 0 <= arg.value.value <= 255
+            for arg in node.args
+        )
+    ):
+        return color_call(
+            "color.rgb",
+            dict(
+                zip(("red", "green", "blue"), [arg.value.value for arg in node.args], strict=True)
+            ),
+            version,
+        )
+    return None
+
+
 def _source_plot_variables(source: str) -> dict[str, tuple[int, int]]:
     """AST를 바꾸지 않고 단일 전역 대입의 plot handle 위치만 읽는다."""
-    positions, writes = {}, {}
-    for statement in parse_to_ast(source).body:
+    tree = parse_to_ast(source)
+    positions, writes = {}, _writes(tree)
+    for statement in tree.body:
         if not isinstance(statement, (A.Assign, A.ReAssign, A.AugAssign)) or not isinstance(
             statement.target, A.Name
         ):
             continue
         name = statement.target.id
-        writes[name] = writes.get(name, 0) + 1
         call = statement.value
         if (
             isinstance(statement, A.Assign)
@@ -354,14 +442,13 @@ def _source_static_colors(source: str) -> dict[str, tuple[str, int]]:
     tree = parse_to_ast(source)
     if pine_version_from_ast(tree) != 4:
         return {}
-    colors, writes = {}, {}
+    colors, writes = {}, _writes(tree)
     for statement in tree.body:
         if not isinstance(statement, (A.Assign, A.ReAssign, A.AugAssign)) or not isinstance(
             statement.target, A.Name
         ):
             continue
         name, value = statement.target.id, statement.value
-        writes[name] = writes.get(name, 0) + 1
         if (
             not isinstance(statement, A.Assign)
             or not isinstance(value, A.Call)
@@ -382,20 +469,31 @@ def _source_static_colors(source: str) -> dict[str, tuple[str, int]]:
     return {name: value for name, value in colors.items() if writes[name] == 1}
 
 
-def _static_fill_color(call: A.Call) -> str | None:
-    """관측한 color.new(hex6, 리터럴 투명도)만 compiler RGBA 기본값으로 읽는다."""
+def _static_fill_color(
+    call: A.Call, version: int | None = None, constants: Mapping[str, Any] | None = None
+) -> str | None:
+    """관측한 순수 color.new의 채널과 리터럴 투명도만 compiler CSS로 읽는다."""
     color = _arg(call, "color", 2)
     if not isinstance(color, A.Call) or _name(color.func) != "color.new":
         return None
     literal = _arg(color, "color", 0)
-    if not isinstance(literal, A.Constant) or literal.kind != "#":
+    base = _constant_color_base(literal, version or 6, constants or {})
+    if base is None:
         return None
     transparency = _arg(color, "transp", 1)
+    if isinstance(transparency, A.Name):
+        transparency = (constants or {}).get(transparency.id)
     if not (
         len(color.args) == 2
         and all(arg.name is None for arg in color.args)
-        and isinstance(literal.value, str)
-        and re.fullmatch(r"#[0-9a-fA-F]{6}", literal.value)
+        and (
+            not isinstance(literal, A.Constant)
+            or (
+                literal.kind == "#"
+                and isinstance(literal.value, str)
+                and re.fullmatch(r"#[0-9a-fA-F]{6}", literal.value)
+            )
+        )
         and isinstance(transparency, A.Constant)
         and _numeric(transparency.value)
         and 0 <= transparency.value <= 100
@@ -403,12 +501,82 @@ def _static_fill_color(call: A.Call) -> str | None:
         and all(arg.name is None or arg.name in {"color", "title", "display"} for arg in call.args)
     ):
         raise ValueError("관측하지 않은 정적 fill 색 형식입니다")
-    red, green, blue = [int(literal.value[index : index + 2], 16) for index in (1, 3, 5)]
+    red, green, blue = base.red, base.green, base.blue
     alpha = (
         format((Decimal(100) - Decimal(str(transparency.value))) / 100, "f").rstrip("0").rstrip(".")
         or "0"
     )
     return f"rgba({red},{green},{blue},{alpha})"
+
+
+def _source_hlines(source: str) -> tuple[list[A.Call], dict[str, str]]:
+    tree = parse_to_ast(source)
+    writes, calls, names = _writes(tree), [], {}
+    for statement in tree.body:
+        if not isinstance(statement, (A.Assign, A.Expr)):
+            continue
+        call = statement.value
+        if not isinstance(call, A.Call) or _name(call.func) != "hline":
+            continue
+        if (
+            isinstance(statement, A.Assign)
+            and isinstance(statement.target, A.Name)
+            and writes[statement.target.id] == 1
+        ):
+            names[statement.target.id] = f"hline_{len(calls)}"
+        calls.append(call)
+    if {id(call) for call in calls} != {
+        id(node)
+        for node in A.walk(tree)
+        if isinstance(node, A.Call) and _name(node.func) == "hline"
+    }:
+        raise ValueError("로컬 hline은 native band에 고정할 수 없습니다")
+    return calls, names
+
+
+def _check_bands(calls: Sequence[A.Call], bands: Any, defaults: Any, version: int | None) -> None:
+    if (
+        version != 6
+        or not isinstance(bands, list)
+        or not isinstance(defaults, list)
+        or len(bands) != len(calls)
+        or len(defaults) != len(calls)
+    ):
+        raise ValueError("관측한 hline band 목록과 다릅니다")
+    for index, (call, band, style) in enumerate(zip(calls, bands, defaults, strict=True)):
+        price, title = (
+            _literal(_arg(call, "price", 0), "hline price"),
+            _literal(_arg(call, "title", 1), "hline title"),
+        )
+        width_node = _arg(call, "linewidth", 4)
+        width = _literal(width_node, "hline linewidth") if width_node is not None else 1
+        color_node = _arg(call, "color", 2)
+        if (
+            not isinstance(color_node, A.Attribute)
+            or _name(color_node) != f"color.{color_node.attr}"
+            or _name(_arg(call, "linestyle", 3)) != "hline.style_dotted"
+            or not _numeric(price)
+            or type(width) is not int
+            or width not in {1, 2}
+        ):
+            raise ValueError("관측하지 않은 hline 원문 형식입니다")
+        expected = {
+            "color": _color_default(color_node, 6),
+            "linestyle": 1,
+            "linewidth": width,
+            "value": price,
+            "visible": True,
+        }
+        if (
+            band != {"id": f"hline_{index}", "isHidden": False, "name": title}
+            or band.get("isHidden") is not False
+            or style != expected
+            or style.get("visible") is not True
+            or type(style.get("linewidth")) is not int
+            or type(style.get("linestyle")) is not int
+            or not _numeric(style.get("value"))
+        ):
+            raise ValueError("hline band의 제목·가격·색·스타일이 원문과 다릅니다")
 
 
 def _empty_chart_resolution(source: str) -> tuple[str | None, bool | None]:
@@ -487,7 +655,19 @@ def _input_equal(actual: Any, expected: Any, kind: str) -> bool:
         return type(actual) is int and type(expected) is int and actual == expected
     if kind == "bool":
         return type(actual) is bool and type(expected) is bool and actual == expected
-    if kind in {"text", "color"}:
+    if kind == "color":
+        if type(actual) is not str or type(expected) is not str:
+            return False
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", actual) and re.fullmatch(r"#[0-9a-fA-F]{6}", expected):
+            return int(actual[1:], 16) == int(expected[1:], 16)
+        if actual != expected:
+            return False
+        try:
+            _wire_color(actual)
+        except ValueError:
+            return False
+        return True
+    if kind == "text":
         return type(actual) is str and type(expected) is str and actual == expected
     return type(actual) is type(expected) and actual == expected
 
@@ -506,6 +686,12 @@ def _plot_bindings(
     source_static_colors: Mapping[str, tuple[str, int]] | None = None,
     source_version: int | None = None,
     ohlc_defaults: Any = None,
+    constants: Mapping[str, Any] | None = None,
+    hlines: tuple[Sequence[A.Call], Mapping[str, str]] | None = None,
+    bands: Any = None,
+    band_defaults: Any = None,
+    palettes: Any = None,
+    palette_defaults: Any = None,
 ) -> list[tuple[int, str, int]]:
     if (
         not isinstance(plots, list)
@@ -517,6 +703,7 @@ def _plot_bindings(
         raise ValueError("컴파일 plot id 순서가 연속적이지 않습니다")
     expected_fill_columns = []
     static_fills = []
+    series_gradients = []
     for index, call in enumerate(fills):
         target = f"fill_{index}"
         top_value, bottom_value = _arg(call, "top_value", 2), _arg(call, "bottom_value", 3)
@@ -539,9 +726,36 @@ def _plot_bindings(
                 )
             ):
                 raise ValueError("관측하지 않은 v4 정적 fill 호출 형식입니다")
-            static_color = constant[0] if constant else _static_fill_color(call)
+            extra_style = {"display": 15, "transparency": constant[1]} if constant else {}
+            if (
+                source_version == 4
+                and isinstance(reference, A.Attribute)
+                and _name(reference) == f"color.{reference.attr}"
+                and _arg(call, "transp") is not None
+            ):
+                if len([arg for arg in call.args if arg.name is None]) > 3 or any(
+                    arg.name is not None and arg.name not in {"color", "title", "transp"}
+                    for arg in call.args
+                ):
+                    raise ValueError("관측하지 않은 legacy fill 호출 형식입니다")
+                transparency = _literal(_arg(call, "transp"), "fill transp")
+                if type(transparency) is not int or transparency != 70:
+                    raise ValueError("관측하지 않은 legacy fill 투명도입니다")
+                static_color = _color_default(reference, 4)
+                extra_style = {"display": 15, "transparency": transparency}
+            else:
+                static_color = (
+                    constant[0] if constant else _static_fill_color(call, source_version, constants)
+                )
+                if (
+                    static_color is not None
+                    and source_version == 5
+                    and isinstance(reference, A.Call)
+                    and isinstance(_arg(reference, "color", 0), A.Name)
+                ):
+                    extra_style = {"transparency": 0}
             if static_color is not None:
-                static_fills.append((target, call, static_color, constant))
+                static_fills.append((target, call, static_color, extra_style))
                 continue
             expected_fill_columns.append({"type": "colorer", "target": target})
             continue
@@ -558,25 +772,47 @@ def _plot_bindings(
             if isinstance(bottom_value, A.UnaryOp) and isinstance(bottom_value.op, A.USub)
             else bottom_value
         )
+        # d3 실제 형식은 두 series 값과 조건부 topColor의 세 비신호 열이다.
+        conditional = (
+            source_version == 6
+            and len(call.args) == 6
+            and all(arg.name is None for arg in call.args)
+            and isinstance(top_value, A.Name)
+            and isinstance(bottom_value, A.Name)
+            and isinstance(top_color, A.Conditional)
+            and isinstance(top_color.test, A.Name)
+            and isinstance(top_color.orelse, A.Name)
+            and top_color.orelse.id == "na"
+        )
+        top_color_call = top_color.body if conditional else top_color
         if not (
             isinstance(top_reference, A.Name)
-            and isinstance(bottom_constant, A.Constant)
-            and _numeric(bottom_constant.value)
-            and isinstance(top_color, A.Call)
-            and _name(top_color.func) == "color.new"
-            and len(top_color.args) == 2
-            and all(arg.name is None for arg in top_color.args)
-            and isinstance(top_color.args[0].value, A.Name)
-            and isinstance(top_color.args[1].value, A.Constant)
-            and _numeric(top_color.args[1].value.value)
-            and 0 <= top_color.args[1].value.value <= 100
+            and (
+                conditional
+                or (isinstance(bottom_constant, A.Constant) and _numeric(bottom_constant.value))
+            )
+            and isinstance(top_color_call, A.Call)
+            and _name(top_color_call.func) == "color.new"
+            and len(top_color_call.args) == 2
+            and all(arg.name is None for arg in top_color_call.args)
+            and isinstance(top_color_call.args[0].value, A.Name)
+            and isinstance(top_color_call.args[1].value, A.Constant)
+            and _numeric(top_color_call.args[1].value.value)
+            and 0 <= top_color_call.args[1].value.value <= 100
             and isinstance(bottom_color, A.Name)
             and bottom_color.id == "na"
         ):
             raise ValueError("관측하지 않은 gradient fill 형식입니다")
+        if conditional:
+            series_gradients.append((target, call))
         expected_fill_columns.extend(
             [
                 {"type": "data", "target": target, "targetField": "topValue"},
+                *(
+                    [{"type": "data", "target": target, "targetField": "bottomValue"}]
+                    if conditional
+                    else []
+                ),
                 {"type": "colorer", "target": target, "targetField": "topColor"},
             ]
         )
@@ -604,9 +840,22 @@ def _plot_bindings(
     candle_columns: set[int] = set()
     candle_count = 0
     candle_calls = [call for kind, call in calls if kind == "plotcandle"]
+    arrow_columns: set[int] = set()
     for index, plot in enumerate(plots):
-        if index in candle_columns:
+        if index in candle_columns or index in arrow_columns:
             continue
+        if plot.get("type") == "arrows":
+            group = plots[index : index + 3]
+            if (
+                len(group) != 3
+                or group[0] != {"id": f"plot_{index}", "type": "arrows"}
+                or group[1]
+                != {"id": f"plot_{index + 1}", "type": "up_colorer", "target": f"plot_{index}"}
+                or group[2]
+                != {"id": f"plot_{index + 2}", "type": "down_colorer", "target": f"plot_{index}"}
+            ):
+                raise ValueError("관측한 plotarrow 3열 순서·대상이 다릅니다")
+            arrow_columns.update((index + 1, index + 2))
         if plot.get("type") == "ohlc_open":
             target = f"plotcandle_{candle_count}"
             if candle_count >= len(candle_calls):
@@ -688,9 +937,6 @@ def _plot_bindings(
             "title",
             4 if kind == "plotcandle" else None if kind in {"barcolor", "bgcolor"} else 1,
         )
-        if kind in {"barcolor", "bgcolor"} and title_node is not None:
-            default_title = "Bar Color" if kind == "barcolor" else "Background Color"
-            raise ValueError(f"{kind}는 관측한 기본 제목 {default_title}만 허용합니다")
         title = (
             _literal(title_node, "plot title")
             if title_node is not None
@@ -708,9 +954,17 @@ def _plot_bindings(
         )
         if title is None or style.get("title") != title:
             raise ValueError("원문 plot title과 컴파일 스타일 제목이 다릅니다")
-        if kind == "bgcolor" and (
-            style != {"title": "Background Color", "isHidden": False}
+        if kind == "plotarrow" and (
+            style != {"isHidden": False, "maxHeight": 100, "minHeight": 5, "title": title}
             or style.get("isHidden") is not False
+            or type(style.get("maxHeight")) is not int
+            or type(style.get("minHeight")) is not int
+            or _arg(call, "minheight", 5) is not None
+            or _arg(call, "maxheight", 6) is not None
+        ):
+            raise ValueError("관측한 plotarrow 기본 스타일과 다릅니다")
+        if kind == "bgcolor" and (
+            style != {"title": title, "isHidden": False} or style.get("isHidden") is not False
         ):
             raise ValueError("관측한 bgcolor 기본 스타일과 다릅니다")
         text_node = _arg(call, "message" if kind == "alertcondition" else "text")
@@ -720,7 +974,7 @@ def _plot_bindings(
             and style.get("text") != _literal(text_node, "signal text")
         ):
             raise ValueError("원문 신호 text와 컴파일 스타일이 다릅니다")
-    if static_fills:
+    if static_fills or series_gradients:
         if (
             not isinstance(filled_areas, list)
             or len(filled_areas) != len(fills)
@@ -733,19 +987,29 @@ def _plot_bindings(
             for (kind, call), (_, plot) in zip(calls, visible, strict=True)
             if kind == "plot"
         }
-        for target, call, color, constant in static_fills:
+        for target, call, color, extra_style in static_fills:
             endpoints = [_arg(call, name, index) for index, name in enumerate(("plot1", "plot2"))]
-            if not source_plot_variables or any(
+            is_band = hlines is not None and all(
+                isinstance(node, A.Name) and node.id in hlines[1] for node in endpoints
+            )
+            if is_band:
+                _check_bands(hlines[0], bands, band_defaults, source_version)
+                object_ids = [hlines[1][node.id] for node in endpoints]
+            elif not source_plot_variables or any(
                 not isinstance(node, A.Name) or source_plot_variables.get(node.id) not in plot_ids
                 for node in endpoints
             ):
                 raise ValueError("정적 fill 끝점은 단일 전역 plot 변수여야 합니다")
+            else:
+                object_ids = [plot_ids[source_plot_variables[node.id]] for node in endpoints]
             expected_area = {
                 "id": target,
-                "objAId": plot_ids[source_plot_variables[endpoints[0].id]],
-                "objBId": plot_ids[source_plot_variables[endpoints[1].id]],
-                "title": _literal(_arg(call, "title", 3), "fill title"),
-                "type": "plot_plot",
+                "objAId": object_ids[0],
+                "objBId": object_ids[1],
+                "title": _literal(_arg(call, "title", 3), "fill title")
+                if _arg(call, "title", 3) is not None
+                else "Plots Background",
+                "type": "hline_hline" if is_band else "plot_plot",
                 "fillgaps": False,
                 "isHidden": False,
             }
@@ -759,7 +1023,7 @@ def _plot_bindings(
             style = (
                 filled_area_defaults.get(target) if isinstance(filled_area_defaults, dict) else None
             )
-            keys = {"color", "visible"} | ({"display", "transparency"} if constant else set())
+            keys = {"color", "visible"} | set(extra_style)
             if (
                 not isinstance(style, dict)
                 or set(style) != keys
@@ -767,13 +1031,39 @@ def _plot_bindings(
                 or type(style["visible"]) is not bool
             ):
                 raise ValueError("정적 fill의 기본 색·투명도 스타일이 원문과 다릅니다")
-            if constant and (
-                type(style["display"]) is not int
-                or style["display"] != 15
-                or type(style["transparency"]) is not int
-                or style["transparency"] != constant[1]
+            if any(
+                type(style[key]) is not int or style[key] != value
+                for key, value in extra_style.items()
             ):
                 raise ValueError("관측한 v4 정적 fill의 display·투명도와 다릅니다")
+    for target, call in series_gradients:
+        endpoints = [_arg(call, name, index) for index, name in enumerate(("plot1", "plot2"))]
+        if not source_plot_variables or any(
+            not isinstance(node, A.Name) or source_plot_variables.get(node.id) not in plot_ids
+            for node in endpoints
+        ):
+            raise ValueError("gradient fill 끝점이 원문 전역 plot과 다릅니다")
+        expected_area = {
+            "id": target,
+            "objAId": plot_ids[source_plot_variables[endpoints[0].id]],
+            "objBId": plot_ids[source_plot_variables[endpoints[1].id]],
+            "title": "Plots Background",
+            "type": "plot_plot",
+            "fillgaps": False,
+            "isHidden": False,
+        }
+        area = filled_areas[int(target.split("_")[1])]
+        style = filled_area_defaults.get(target) if isinstance(filled_area_defaults, dict) else None
+        if (
+            area != expected_area
+            or area.get("fillgaps") is not False
+            or area.get("isHidden") is not False
+            or style != {"bottomColor": "rgba(0,0,0,0)", "fillType": "gradient", "visible": True}
+            or style.get("visible") is not True
+            or palettes is not None
+            or palette_defaults is not None
+        ):
+            raise ValueError("관측한 gradient fill 제목·끝점·기본색·palette가 다릅니다")
     bound: list[tuple[int, str, int]] = []
     used: set[int] = set()
     directions: set[str] = set()
@@ -867,7 +1157,16 @@ def parse_native_capture(
         raise ValueError("원본 입력 override 계약 또는 resolved_inputs가 없습니다")
     defaults = {name: default for name, _, default in source_inputs}
     expected_values = {**defaults, **overrides}
-    if set(overrides) - set(defaults) or resolved != expected_values:
+    if (
+        set(overrides) - set(defaults)
+        or set(resolved) != set(expected_values)
+        or any(
+            not _input_equal(resolved[name], value, "color")
+            if source_input_types.get(name) == "color"
+            else resolved[name] != value
+            for name, value in expected_values.items()
+        )
+    ):
         raise ValueError("실제 입력 값이 원본 기본값·override와 다릅니다")
     responses = payload.get("compile_responses")
     if (
@@ -974,6 +1273,16 @@ def parse_native_capture(
         ohlc_defaults=meta.get("defaults", {}).get("ohlcPlots")
         if isinstance(meta.get("defaults"), dict)
         else None,
+        constants=_readonly_globals(source_text),
+        hlines=_source_hlines(source_text),
+        bands=meta.get("bands"),
+        band_defaults=meta.get("defaults", {}).get("bands")
+        if isinstance(meta.get("defaults"), dict)
+        else None,
+        palettes=meta.get("palettes"),
+        palette_defaults=meta.get("defaults", {}).get("palettes")
+        if isinstance(meta.get("defaults"), dict)
+        else None,
     )
     wire = payload.get("wire")
     if not isinstance(wire, list) or not wire:
@@ -1018,7 +1327,7 @@ def parse_native_capture(
                     or (
                         source_version <= 5
                         and type(wire_input.get("v")) is str
-                        and wire_input["v"] == resolved[name]
+                        and _input_equal(wire_input["v"], resolved[name], "color")
                     )
                 )
             )

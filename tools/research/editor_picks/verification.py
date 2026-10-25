@@ -16,6 +16,7 @@ from tools.research.editor_picks.common import (
     sha,
     write,
 )
+from tools.research.editor_picks.compact import check_file as check_evidence_file
 from tools.research.editor_picks.execution import (
     artifact,
     implementation,
@@ -33,10 +34,7 @@ def receipts(root: Path, frozen: dict) -> dict:
             continue
         if value["job_hash"] != identity(request):
             raise ValueError("작업 완료 기록이 다른 요청을 가리킵니다")
-        if (
-            value.get("job") != request.get("job")
-            or identity(value["job"]) not in assigned
-        ):
+        if value.get("job") != request.get("job") or identity(value["job"]) not in assigned:
             raise ValueError("완료 기록이 배정한 셀과 다릅니다")
         required = {"request.json"}
         if value["status"] == "completed":
@@ -50,7 +48,7 @@ def receipts(root: Path, frozen: dict) -> dict:
         if not required <= value["files"].keys():
             raise ValueError("완료 기록의 필수 원시 근거가 없습니다")
         for name, digest in value["files"].items():
-            checked_file(path.parent, name, digest)
+            check_evidence_file(root, str(path.parent.relative_to(root) / name), digest)
         key = identity(value["job"])
         if key in rows:
             raise ValueError("한 계획의 동일 셀이 중복 완료됐습니다")
@@ -58,6 +56,13 @@ def receipts(root: Path, frozen: dict) -> dict:
             **value,
             "evidence_folder": str(path.parent),
             "execution_images": request.get("images"),
+            "raw_result_storage": (
+                "local_full_payload"
+                if (path.parent / "result.json.gz").is_file()
+                else "authenticated_remote_payload"
+                if value["status"] == "completed"
+                else None
+            ),
         }
     return rows
 
@@ -141,15 +146,10 @@ def session_actions(source, language, frame, params, images):
             bar = {
                 "index": index,
                 "timestamp": timestamp.isoformat(),
-                **{
-                    key: str(row[key])
-                    for key in ("open", "high", "low", "close", "volume")
-                },
+                **{key: str(row[key]) for key in ("open", "high", "low", "close", "volume")},
             }
             actions.append(
-                session.action(
-                    bar, {"direction": "flat", "size": "0", "average_price": None}
-                )
+                session.action(bar, {"direction": "flat", "size": "0", "average_price": None})
             )
     return actions
 
@@ -167,8 +167,7 @@ def native_bindings(item: dict) -> list[dict]:
         matches = [
             candidate
             for candidate in adapted
-            if tuple(candidate[name] for name in ("function", "line", "direction"))
-            == key
+            if tuple(candidate[name] for name in ("function", "line", "direction")) == key
         ]
         if key in seen or len(matches) != 1:
             raise ValueError("native 바인딩의 원문 위치·방향이 모호하거나 다릅니다")
@@ -191,9 +190,7 @@ def native_bindings(item: dict) -> list[dict]:
 
 def native_reference(root: Path, item: dict) -> tuple[bytes, dict]:
     """원문을 먼저 검증하고 진단 원문은 검토 조건에서 재현한 경우만 참조한다."""
-    original = checked_file(
-        root, item["source_file"], item["source_sha256"]
-    ).read_bytes()
+    original = checked_file(root, item["source_file"], item["source_sha256"]).read_bytes()
     provenance = item.get("expression_provenance")
     if provenance is None:
         if item.get("binding_type") == "expression":
@@ -235,9 +232,7 @@ def native_action_match(expected, first, repeated, prefix, warmup: int) -> bool:
     ):
         raise ValueError("native 준비봉과 검증·prefix 구간이 충분하지 않습니다")
     return (
-        first[warmup:] == expected[warmup:]
-        and first == repeated
-        and first[: len(prefix)] == prefix
+        first[warmup:] == expected[warmup:] and first == repeated and first[: len(prefix)] == prefix
     )
 
 
@@ -274,9 +269,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                 identity(raw.get("collection_policy")) != identity(NATIVE_POLICY)
                 or raw.get("quota_popup_observed") is not False
             ):
-                raise ValueError(
-                    "계정 한도 내 자연 수신·팝업 미발생 수집 근거가 없습니다"
-                )
+                raise ValueError("계정 한도 내 자연 수신·팝업 미발생 수집 근거가 없습니다")
             source, reference = native_reference(root, item)
             native = parse_native_capture(
                 raw,
@@ -307,16 +300,11 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
             warmup = item["warmup_bars"]
             if len(frame) <= warmup + 1:
                 raise ValueError("native 이력이 동결 준비봉보다 짧습니다")
-            events = native.window_events(
-                frame.index[warmup].to_pydatetime(), end.to_pydatetime()
-            )
+            events = native.window_events(frame.index[warmup].to_pydatetime(), end.to_pydatetime())
             expected = dict.fromkeys(frame.index, "hold")
             for event in events:
                 action = event.direction
-                if (
-                    action not in {"long", "short"}
-                    or expected[event.bar_time] != "hold"
-                ):
+                if action not in {"long", "short"} or expected[event.bar_time] != "hold":
                     raise ValueError("native 사건의 방향 또는 동봉 충돌이 모호합니다")
                 expected[event.bar_time] = action
             if {"long", "short"} - set(list(expected.values())[warmup:]):
@@ -325,9 +313,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
             for arm in ARMS:
                 try:
                     code, language, digest = artifact(root, item, arm)
-                    first = session_actions(
-                        code, language, frame, item.get("inputs", {}), images
-                    )
+                    first = session_actions(code, language, frame, item.get("inputs", {}), images)
                     repeated = session_actions(
                         code, language, frame, item.get("inputs", {}), images
                     )
@@ -418,9 +404,7 @@ def reconcile(root: Path, plan_path: Path) -> dict:
                 if selection != {"language": language, "source_sha256": digest}:
                     raise ValueError("ARM 검증 후 동결 생성물이 바뀌었습니다")
                 try:
-                    native_export_gate(
-                        root, item["id"], raw, arm, digest, item["warmup_bars"]
-                    )
+                    native_export_gate(root, item["id"], raw, arm, digest, item["warmup_bars"])
                 except ValueError as error:
                     native_passed, reason = False, str(error)
             exact = exact_cells(completed, jobs, arm, raw["images"])
@@ -483,14 +467,10 @@ def export(root: Path, plan_path: Path) -> dict:
             selection = frozen["artifacts"][item["id"]][arm]
             if selection != {"language": language, "source_sha256": digest}:
                 raise ValueError("검증 후 동결 생성물이 바뀌었습니다")
-            native_export_gate(
-                root, item["id"], proof, arm, digest, item["warmup_bars"]
-            )
+            native_export_gate(root, item["id"], proof, arm, digest, item["warmup_bars"])
             jobs = [job for job in frozen["jobs"] if job["id"] == item["id"]]
             if exact_cells(completed, jobs, arm, proof["images"]) != 36:
-                raise ValueError(
-                    "현재 원시 근거로 경제 36셀의 일치를 확인할 수 없습니다"
-                )
+                raise ValueError("현재 원시 근거로 경제 36셀의 일치를 확인할 수 없습니다")
             provenance = {
                 "origin": "editor_picks_reproduction",
                 "experiment": root.name,
@@ -533,9 +513,7 @@ def export(root: Path, plan_path: Path) -> dict:
                 _, reference = native_reference(root, item)
                 provenance.update(
                     origin="editor_picks_reviewed_expression_research",
-                    entry_rule_origin=item.get(
-                        "entry_rule_origin", "reviewed_indicator_state"
-                    ),
+                    entry_rule_origin=item.get("entry_rule_origin", "reviewed_indicator_state"),
                     reference_scope=reference["reference_scope"],
                     reference_source_sha256=reference["reference_source_sha256"],
                     signal_conditions=item["expression_bindings"],
@@ -549,9 +527,7 @@ def export(root: Path, plan_path: Path) -> dict:
                     "settings": {
                         "leverage": int(RESEARCH_POLICY["leverage"]),
                         "margin_mode": "isolated",
-                        "position_size_pct": float(
-                            RESEARCH_POLICY["position_size_pct"]
-                        ),
+                        "position_size_pct": float(RESEARCH_POLICY["position_size_pct"]),
                         "fill_timing": RESEARCH_POLICY["fill_timing"],
                     },
                     "code": {

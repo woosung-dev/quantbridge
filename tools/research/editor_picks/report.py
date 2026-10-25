@@ -81,6 +81,7 @@ def build(root: Path, plan_path: Path) -> dict:
                 failure_stage=evidence.get("failure_stage"),
                 source_present=evidence.get("source_present"),
                 runtime_attempted=evidence.get("runtime_attempted"),
+                raw_result_storage=evidence.get("raw_result_storage"),
             )
             pine = completed.get(identity({**job, "arm": "pine"}))
             row["signal_exact"] = (
@@ -109,7 +110,9 @@ def build(root: Path, plan_path: Path) -> dict:
     cohort = read(root / frozen["cohort_file"])
     available = len(cohort["items"])
     scope = read(root / "scope-audit.json") if (root / "scope-audit.json").exists() else {}
-    generation_policy = read(root / "generation-policy.json") if (root / "generation-policy.json").exists() else {}
+    generation_policy = (
+        read(root / "generation-policy.json") if (root / "generation-policy.json").exists() else {}
+    )
     runtime_evidence = {}
     for arm in ARMS:
         arm_rows = [row for row in rows if row["arm"] == arm]
@@ -118,11 +121,23 @@ def build(root: Path, plan_path: Path) -> dict:
             statuses.setdefault(row["id"], []).append(row["status"])
         runtime_evidence[arm] = {
             "requested_cells": sum(row.get("runtime_attempted") is True for row in arm_rows),
-            "requested_originals": len({row["id"] for row in arm_rows if row.get("runtime_attempted") is True}),
-            "originals_with_completed_cells": len({row["id"] for row in arm_rows if row["status"] == "completed"}),
-            "originals_with_all_cells_completed": sum(all(status == "completed" for status in values) for values in statuses.values()),
-            "static_preflight_rejected_cells": sum(row.get("failure_stage") == "static_preflight" for row in arm_rows),
-            "legacy_unknown_request_cells": sum(row.get("runtime_attempted") is None for row in arm_rows if row["status"] != "not_run"),
+            "requested_originals": len(
+                {row["id"] for row in arm_rows if row.get("runtime_attempted") is True}
+            ),
+            "originals_with_completed_cells": len(
+                {row["id"] for row in arm_rows if row["status"] == "completed"}
+            ),
+            "originals_with_all_cells_completed": sum(
+                all(status == "completed" for status in values) for values in statuses.values()
+            ),
+            "static_preflight_rejected_cells": sum(
+                row.get("failure_stage") == "static_preflight" for row in arm_rows
+            ),
+            "legacy_unknown_request_cells": sum(
+                row.get("runtime_attempted") is None
+                for row in arm_rows
+                if row["status"] != "not_run"
+            ),
         }
     summary = {
         "generated_at": now(),
@@ -135,12 +150,23 @@ def build(root: Path, plan_path: Path) -> dict:
             arm: dict(Counter(row["status"] for row in rows if row["arm"] == arm)) for arm in ARMS
         },
         "runtime_evidence": runtime_evidence,
+        "raw_result_storage": dict(
+            Counter(row["raw_result_storage"] for row in rows if row.get("raw_result_storage"))
+        ),
         "complete": len(completed) == frozen["expected_cells"]
         and all(row["status"] != "not_run" for row in rows),
         "target_originals": 200,
         "available_originals": available,
         "source_target_met": available == 200,
-        "source_acquisition": {key: scope.get(key) for key in ("inventory_count", "captured_indicator_count", "missing_ids", "indicator_screening_counts")},
+        "source_acquisition": {
+            key: scope.get(key)
+            for key in (
+                "inventory_count",
+                "captured_indicator_count",
+                "missing_ids",
+                "indicator_screening_counts",
+            )
+        },
         "generation_policy": generation_policy,
         "target_full_cells": 21600,
         "holdout_status": "retrospective_not_untouched",
@@ -154,6 +180,7 @@ def build(root: Path, plan_path: Path) -> dict:
             "펀딩 완전성 UNKNOWN과 경제 수치선 실패를 구분합니다.",
             "파일럿 종결은 200원문·21600셀 종결이 아닙니다.",
             "정적 사전검사 거절은 실제 격리 실행 수에 포함하지 않습니다. 실행 요청은 transport 생성 호출이며 성공 실행과 구분합니다.",
+            "authenticated_remote_payload의 전체 원시는 암호화된 원격 분할 파일에 보존됩니다. 원시 SHA를 검증한 인증 증거와 필수 요청·신호·영수증은 로컬에 보존합니다.",
         ],
     }
     output = root / "report" / frozen["phase"]

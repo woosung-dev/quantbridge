@@ -92,6 +92,21 @@ apps/api/.venv/bin/python tools/scripts/editor-picks-generate-parallel.py \
 생성 시간과 원문·데이터·이미지·실행기 해시를 결박한다. gVisor가 없으면 blocked이며 호스트의
 `exec/eval`이나 공유 Celery로 우회하지 않는다. 원시 곡선·신호는 lossless gzip으로 보존한다.
 
+대규모 회차는 일회용 ARM에서 전체 결과 archive의 모든 파일을 스트림으로 읽어 원래
+envelope의 SHA·크기·경로를 검증한다. 전체 원시는 인증 암호화한 뒤 1GiB 이하 release
+asset으로 분할 보존한다. 각 asset의 공식 ID·크기·digest·소유 URL이 일치해야 작은 인증
+번들을 마지막에 공개한다. 기존 asset은 덮어쓰지 않는다.
+로컬에는 요청·신호·영수증·native proof·실제 종료 증거와 인증 번들을 보존하고,
+정확한 `results/<작업 SHA>/result.json.gz`만 원격 원시로 참조할 수 있다. 검증 때마다
+번들을 AES로 재인증하고 원래 SHA·분할 asset 근거·보존 파일을 다시 확인한 문맥에서만
+그 누락을 허용한다. 다른 필수 파일은 누락을 허용하지 않으며 가짜 파일 경로도 만들지
+않는다. 보고서의 `raw_result_storage`는 로컬 전체 원시와 인증된 원격 원시를 구분한다.
+이 방식은 전체 곡선을 로컬에서 재계산했다는 의미가 아니다. 새 계획에 보관·수거 구현도
+동결하며 이전 회차의 원시 파일·실행 provenance는 바꾸지 않는다.
+새 전체 회차의 실행 step은 270분, job 전체는 330분으로 제한해 뒤의 인증 보관에 시간을
+남긴다. 초기 설정·압축·전송 시간 때문에 보관 완료를 보장하는 수치는 아니다. 제한에 닿으면
+실제 완료한 receipt와 로그를 보존하고, 미소비 셀·종료 근거 누락을 미완으로 남긴다.
+
 ## 판정과 저장
 
 `verify --id ID --plan <full-plan.json>`은 원본 UI compile/study/OHLCV 캡처를 기존
@@ -107,6 +122,8 @@ TradingView Basic 원본 대조는 워밍업과 미확정 봉을 포함해 수�
 상태를 보존하고 검증 중에만 숨겼다가 복구한다. 한도 안내가 `dialog` role 없이 표시되는
 경우도 있으므로 실제 보이는 한도 문구를 함께 검사한다. 세 번째 추가가 차단된 시험은
 한도 발생 원시로 남기며 관측 성공으로 합산하지 않는다.
+진단 출력을 덧붙인 버전이 서비스의 스크립트 출력 한도를 넘으면 원문·출력을 삭제해 맞추지
+않는다. 원문 자체와 진단 버전의 제한을 구분하고 실제 오류·소스 SHA를 검증 불가 근거로 남긴다.
 계획에도 같은 한도를 동결한다. 기존 확대·드래그 반복으로 얻은 초과 기록은 보존하되 새
 계약의 통과 근거로 재사용하거나 후미만 잘라 사용하지 않는다. 로컬 실행은 TV 계산의 첫
 봉부터 같은 OHLCV로 시작하며, 준비봉이나 양방향 사건이 부족하면 검증 불가로 남긴다.
@@ -134,6 +151,16 @@ v4에서 wick·border 색을 생략한 경우는 실측 5열과 compiler의 기�
 정적 `color.new(hex6, transp)` fill은 색상 열이 없을 수 있다. 원문 plot 변수의 위치와 compiler의
 끝점·제목·색·투명도까지 맞는 경우만 수용하며 동적·gradient 열 요구는 유지한다. `bgcolor`의
 별도 `bg_colorer`도 비신호 열로 고정한다. 신규 형식은 실제 원시로 대조하며 기존 epoch는 갱신하지 않는다.
+정적 색은 전체 AST의 중첩 쓰기까지 단일 쓰기가 확인된 전역 hex·named·정수 RGB 생성으로
+제한한다. 이 색의 fill과 legacy 투명도는 실제 compiler 스타일·끝점에 결박한다. hline fill은
+독립 band ordinal·제목·가격·스타일을 확인하며 plot ordinal과 섞지 않는다. `plotarrow`는 비신호
+arrows/up/down 3열·target·제목·높이 스타일을 확인한다. 일반 plot과 같이 showLast/display 표시식은
+평가하지 않으며, 실제 행·열·시간격자와 선택한 신호 열은 계속 검증한다.
+정적 fill의 투명도는 전역 단일 쓰기의 0~100 숫자 리터럴 별칭도 허용하지만 입력·식·재대입·
+이름 충돌은 거부한다. 관측한 v6 gradient의 두 series 값과 조건부 topColor는 세 비신호 열로
+대조한다. 6개 위치 인자·Name 조건·`color.new(Name, 숫자 리터럴)`·na 가지에 한정하고,
+끝점·기본 제목·gradient 스타일·palette 부재를 실제 compiler와 맞춘다. 조건·값을 호스트에서
+계산하지 않으며 기존 두 열 형식과 진입 바인딩은 유지한다([공식 gradient 형식](https://www.tradingview.com/blog/en/pine-script-vertical-gradients-33586/)).
 v4/5의 바인딩된 alertcondition에서 실측한 정확한 양수 `1e100`은 초기 결측으로 기록한다.
 원시 관측값과 시각·열·방향을 보존하고 이벤트를 만들지 않으며, 요청 비교창에 결측이 있으면
 `window_events`가 거부한다. 따라서 준비봉 이후의 결측은 native 통과가 될 수 없다. `None`과
@@ -151,17 +178,25 @@ v6·다른 수치는 이 근거로 허용하지 않는다. bool `na`는 false와
 보존하고 후속 관측을 합친 결과임을 명시한다. 외부 실패 원시는 식별명·SHA 참조만 담으며
 실행 입력에 본문을 추가하지 않는다. Mac 파생 복사는 APFS CoW로 압축 영수증의 재팽창을 막는다.
 
-실제 compile metadata로 확인한 generic `input(close)`·`type=input.source`는 고정 OHLC source
+실제 compile metadata로 확인한 generic `input(close)`·`type=input.source`는 고정 OHLCV source
 이름만 검증한다. 빈 `study(resolution="")`의 compiler 자동 주기 slot은 정확한 metadata와 빈
-wire 값을 함께 요구하며 추가 입력·주기 override는 거부한다. 색상 열은 바로 앞 line/shapes만
-가리킬 수 있고 제목 없는 plot은 관측한 기본 제목 `Plot`만 허용한다.
+wire 값을 함께 요구하며 추가 입력·주기 override는 거부한다. 일반 colorer는 바로 앞
+line/shapes를 가리키며 arrow 색상 열은 같은 arrow를 향한 연속 그룹으로 검사한다.
+제목 없는 plot은 관측한 기본 제목 `Plot`만 허용한다.
 `indicator(timeframe="")`의 자동 Timeframe도 원문·compiler metadata·빈 wire가 함께 맞아야 한다.
 숫자 input의 관측한 정수 10·100 나눗셈과 상수 뺄셈 wrapper는 바깥 계산 없이 raw slot을 보존한다.
 알 수 없는 wrapper를 누락시키거나 bool·숫자 문자열을 숫자로 바꾸지 않는다. source `volume`·
 부호 숫자·`size.*` 기본값과 버전별 named/new 색은 원문·compiler·typed wire를 함께 대조한다.
-원문 `barcolor`는 실제 `bar_colorer`·기본 제목·열 순서와 일치할 때만 비신호 열로 대응한다.
+generic input의 readonly hex 색 상수는 source 입력과 구분한다. 검증된 color 타입의 literal
+hex6만 RGB byte가 같은 대소문자 표현을 허용하고 원문·compiler·resolved·wire 문자열은 보존한다.
+일반 text·source·enum·제목은 대소문자를 구분하며 다른 RGBA·hex8 동치는 추가하지 않는다.
+원문 `barcolor`·`bgcolor`는 실제 열·제목·순서를 결박한다. 명시 keyword 제목은 literal 문자열만
+정확 일치시키고, 생략하면 각각의 기본 제목을 사용한다. 진입 binding 범위는 확장하지 않는다.
 
 실제 TV 통제 반례가 Pine builtin 의미 오류를 드러내면 기존 Pine 출력을 정답으로 고정하지 않는다.
+정적 원본 재검사는 비어 있는 전용 private 디렉터리에 현재 파서가 직접 생성한 AST 캐시만
+재사용할 수 있다. source bytes·파서 버전·스키마 키와 디렉터리 권한을 보존하며 외부 캐시를
+복사하지 않는다. 원격 격리 worker의 캐시 설정과 원본·시장·행동 결과는 바꾸지 않는다.
 원래 결과·실패·모델 생성물을 보존한 새 epoch에서 계산 소스·이미지·계획 SHA를 다시 동결한다.
 RSS_WMA의 전체 이력 재계산처럼 공개 실행 계약의 자원 오류를 수정할 때도 매매 조건·기본 입력은
 바꾸지 않고 별도 생성 시도와 선택 근거를 남긴다. 완료 부모 시도는 새 epoch의 이력으로 옮겨

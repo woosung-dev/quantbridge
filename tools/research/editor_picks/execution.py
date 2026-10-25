@@ -50,6 +50,8 @@ def implementation() -> dict:
             "apps/api/src/strategy/pine/types.py",
             "apps/api/scripts/pine_validation/native_capture.py",
             "infra/python-runner/main.py",
+            "tools/scripts/editor-picks-result-upload.py",
+            "tools/scripts/editor-picks-compact-finish.py",
         )
     ]
     return {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in paths}
@@ -62,8 +64,12 @@ def pine_preflight_failure(root: Path, item: dict) -> dict | None:
         return None
     if (
         set(proof) != {"status", "source_sha256", "evidence_file", "evidence_sha256"}
-        or proof["status"] not in {
-            "unsupported", "parser_timeout", "screen_failed", "adaptation_unsupported",
+        or proof["status"]
+        not in {
+            "unsupported",
+            "parser_timeout",
+            "screen_failed",
+            "adaptation_unsupported",
             "needs_binding_review",
         }
         or proof["source_sha256"] != item["source_sha256"]
@@ -122,11 +128,7 @@ def plan(root: Path, pilot: bool = False) -> dict:
         "schema_version": 1,
         "phase": "pilot" if pilot else "full",
         "jobs": jobs,
-        "expected_cells": target
-        * len(ARMS)
-        * len(TIMEFRAMES)
-        * len(period_options)
-        * len(costs),
+        "expected_cells": target * len(ARMS) * len(TIMEFRAMES) * len(period_options) * len(costs),
         "cohort_file": cohort_file,
         "cohort_sha256": sha((root / cohort_file).read_bytes()),
         "dataset_sha256": sha((root / "data/dataset.json").read_bytes()),
@@ -157,9 +159,7 @@ def artifact(root: Path, item: dict, arm: str) -> tuple[str, str, str]:
             continue
         value = read(folder / "receipt.json")
         if value["status"] == "completed":
-            request_path = checked_file(
-                folder, "request.json", value["files"]["request.json"]
-            )
+            request_path = checked_file(folder, "request.json", value["files"]["request.json"])
             request = read(request_path)
             if value["job_hash"] != identity(request):
                 raise ValueError("생성 완료 기록의 요청 해시가 다릅니다")
@@ -267,9 +267,7 @@ def episode_metrics(payload: dict, trace: list[dict]) -> dict:
         "avg_closed_episode_r": str(sum(multiples, Decimal(0)) / len(multiples))
         if multiples
         else None,
-        "closed_episode_win_rate_pct": str(Decimal(wins) * 100 / len(closed))
-        if closed
-        else None,
+        "closed_episode_win_rate_pct": str(Decimal(wins) * 100 / len(closed)) if closed else None,
         "exposure_minute_pct": str(Decimal(exposed) * 100 / bars) if bars else None,
         "closed_episodes": len(closed),
     }
@@ -316,9 +314,13 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
         immutable(folder / "request.json", request)
         if "preflight_failure" in request:
             return receipt(
-                folder, request, "failed", job=job,
+                folder,
+                request,
+                "failed",
+                job=job,
                 error=f"pine_static_preflight_failed:{request['preflight_failure']['status']}",
-                failure_stage="static_preflight", source_present=True,
+                failure_stage="static_preflight",
+                source_present=True,
                 runtime_attempted=False,
             )
         if source is None:
@@ -362,9 +364,7 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             ]
             scenario = next(s for s in stress_scenarios() if s["id"] == job["scenario"])
             funding = funding.map(
-                lambda rate: (
-                    Decimal(str(rate)) * Decimal(scenario["funding_multiplier"])
-                )
+                lambda rate: Decimal(str(rate)) * Decimal(scenario["funding_multiplier"])
             )
             config = scenario_config(tf, scenario)
             trace = []
@@ -404,9 +404,7 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             action_hash = identity(
                 [{key: row[key] for key in ("timestamp", "action")} for row in actions]
             )
-            signal_rows = [
-                {key: row[key] for key in ("timestamp", "action")} for row in actions
-            ]
+            signal_rows = [{key: row[key] for key in ("timestamp", "action")} for row in actions]
             (folder / "signals.json.gz").write_bytes(
                 gzip.compress(json.dumps(signal_rows).encode(), mtime=0)
             )
@@ -431,10 +429,13 @@ def execute_job(root: Path, frozen: dict, job: dict, images: dict) -> dict:
             }
             status = "completed"
         except Exception as error:
-            details, status = {
-                "error": f"{type(error).__name__}: {error}",
-                "failure_stage": "runtime" if runtime_attempted else "input_preparation",
-            }, "failed"
+            details, status = (
+                {
+                    "error": f"{type(error).__name__}: {error}",
+                    "failure_stage": "runtime" if runtime_attempted else "input_preparation",
+                },
+                "failed",
+            )
         return receipt(
             folder,
             request,

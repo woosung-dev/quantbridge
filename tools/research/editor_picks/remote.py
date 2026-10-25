@@ -23,6 +23,7 @@ from tools.research.editor_picks.common import (
     sha,
     write,
 )
+from tools.research.editor_picks.compact import check_file as check_evidence_file
 from tools.research.editor_picks.crypto import transform
 
 CONTEXT = "editor-picks-20261024"
@@ -333,7 +334,7 @@ def finalize(root: Path, plan: Path, expected: dict) -> dict:
             if any(envelope.get(key) != value for key, value in provenance.items()):
                 raise ValueError("provenance 불일치")
             for name, digest in envelope["files"].items():
-                checked_file(root, name, digest)
+                check_evidence_file(root, name, digest)
             terminal = read(folder / f"terminal-{shard}.json")
             allocation = read(folder / f"worker-{frozen['phase']}-{shard}.json")
             if (

@@ -4,6 +4,7 @@ import copy
 import gzip
 import json
 import sys
+import tarfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,8 +14,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from tools.research import sol_economic_data
-from tools.research.editor_picks import execution, verification
+from tools.research.editor_picks import compact, execution, remote, verification
 from tools.research.editor_picks.common import identity, read, sha, write
+from tools.research.editor_picks.crypto import transform
 
 from src.strategy.code_runtime import backtest
 from src.strategy.python_runtime import serialization
@@ -91,6 +93,106 @@ def test_raw_full_payload_curves_and_economic_inputs_are_preserved(completed):
         {"trades": raw["result"]["trades"], "equity": raw["result"]["equity_curve"]}
     )
     assert receipt["files"]["result.json.gz"] == sha((folder / "result.json.gz").read_bytes())
+
+
+def compact_receipt(completed):
+    root, frozen, _, folder, _ = completed
+    expected = {
+        "head": "a" * 40,
+        "run_id": "123",
+        "attempt": "1",
+        "shards": 1,
+        "shard": 0,
+        "input_sha256": "b" * 64,
+        "plan": "pilot-plan.json",
+        "plan_sha256": identity(frozen),
+    }
+    prefix = remote.remote_namespace(expected) / "0"
+    paths = {str(path.relative_to(root)): path for path in folder.iterdir() if path.is_file()}
+    envelope = root / "envelope.json"
+    write(
+        envelope,
+        {**expected, "files": {name: sha(path.read_bytes()) for name, path in paths.items()}},
+    )
+    archive = root / "full.tar.gz"
+    with tarfile.open(archive, "w:gz") as bundle:
+        for name, path in paths.items():
+            bundle.add(path, arcname=name)
+        bundle.add(envelope, arcname=str(prefix / "envelope.json"))
+    stage = root / "compact-stage"
+    compact.prepare(archive, expected, stage)
+    body = b"synthetic separately preserved encrypted full result"
+    part = {
+        "name": "full.enc",
+        "bytes": len(body),
+        "sha256": sha(body),
+        "asset_id": 1,
+        "browser_download_url": "https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/full.enc",
+    }
+    compact_archive = root / "compact.tar.gz"
+    compact.seal(
+        stage,
+        {"schema_version": 1, "bytes": len(body), "sha256": sha(body), "parts": [part]},
+        compact_archive,
+    )
+    cipher = root / "compact.enc"
+    key = bytes(32)
+    transform(
+        "encrypt",
+        compact_archive,
+        cipher,
+        key,
+        "editor-picks-20261024/compact-result/" + identity(expected),
+    )
+    target = root / "collected"
+    compact.collect(
+        compact_archive,
+        target,
+        expected,
+        [
+            {
+                "id": 1,
+                "name": part["name"],
+                "size": part["bytes"],
+                "digest": "sha256:" + part["sha256"],
+                "state": "uploaded",
+                "browser_download_url": part["browser_download_url"],
+            }
+        ],
+        cipher,
+        sha(cipher.read_bytes()),
+    )
+    return target, key, expected
+
+
+def test_receipts_accept_only_authenticated_remote_raw_and_keep_financial_values(completed):
+    _, frozen, receipt, folder, _ = completed
+    local = verification.receipts(completed[0], frozen)[identity(frozen["jobs"][0])]
+    assert local["raw_result_storage"] == "local_full_payload"
+    target, key, expected = compact_receipt(completed)
+    assert not (target / folder.relative_to(completed[0]) / "result.json.gz").exists()
+    with pytest.raises(ValueError):
+        verification.receipts(target, frozen)
+    with compact.context(target, key, expected):
+        remote_row = verification.receipts(target, frozen)[identity(frozen["jobs"][0])]
+        assert remote_row["raw_result_storage"] == "authenticated_remote_payload"
+        for field in ("metrics", "action_sha256", "ledger_sha256", "economic_verdict", "files"):
+            assert remote_row[field] == receipt[field]
+        wrong = copy.deepcopy(frozen)
+        wrong["artifacts"]["one"]["pine"]["source_sha256"] = "changed"
+        # 계획 SHA도 바꾸면 해당 receipt 자체가 다른 계획이므로 읽히지 않는다.
+        assert verification.receipts(target, wrong) == {}
+    with pytest.raises(ValueError):
+        verification.receipts(target, frozen)
+
+
+@pytest.mark.parametrize("name", ("request.json", "signals.json.gz", "receipt.json"))
+def test_compact_context_never_replaces_required_receipt_evidence(completed, name):
+    target, key, expected = compact_receipt(completed)
+    folder = completed[3].relative_to(completed[0])
+    (target / folder / name).unlink()
+    with pytest.raises((OSError, ValueError)), compact.context(target, key, expected):
+        verification.receipts(target, completed[1])
 
 
 @pytest.mark.parametrize("legacy_curves", (False, True))

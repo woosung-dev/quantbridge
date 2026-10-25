@@ -201,12 +201,12 @@ def test_empty_indicator_cannot_reuse_study_specific_compiler_metadata():
         _parse(payload, source=source)
 
 
-def test_barcolor_does_not_accept_an_unobserved_custom_title():
+def test_barcolor_custom_title_requires_exact_compiler_title():
     source, payload, meta = barcolor_payload()
     source = source.replace("barcolor(color.red)", 'barcolor(color.red, title="Other")')
     set_source(payload, source)
-    meta["styles"]["plot_3"]["title"] = "Other"
-    with pytest.raises(ValueError, match="Bar Color"):
+    meta["styles"]["plot_3"]["title"] = "Different"
+    with pytest.raises(ValueError, match="제목"):
         _parse(payload, source=source)
 
 

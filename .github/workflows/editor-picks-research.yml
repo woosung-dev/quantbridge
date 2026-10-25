@@ -7,6 +7,8 @@ on:
     paths:
       - tools/research/editor_picks/**
       - tools/scripts/editor-picks-resume-cache.py
+      - tools/scripts/editor-picks-result-upload.py
+      - tools/scripts/editor-picks-compact-finish.py
       - .github/workflows/editor-picks-research.yml
 
 permissions:
@@ -41,7 +43,6 @@ jobs:
       INPUT_URL: ${{ vars.EDITOR_PICKS_INPUT_URL }}
       INPUT_SHA: ${{ vars.EDITOR_PICKS_INPUT_SHA256 }}
       PLAN_FILE: ${{ vars.EDITOR_PICKS_PLAN_FILE || 'pilot-plan.json' }}
-      RESEARCH_RELEASE: editor-picks-research-20261024
       SHARD: ${{ matrix.shard }}
       SHARDS: 80
     steps:
@@ -91,6 +92,7 @@ jobs:
             rm -- "$resume_cipher"
           done
       - name: Execute assigned cells and native checks without credentials
+        timeout-minutes: 270
         run: >-
           apps/api/.venv/bin/python -m tools.research.editor_picks.remote worker
           --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" --shards "$SHARDS"
@@ -100,12 +102,10 @@ jobs:
           EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          apps/api/.venv/bin/python -m tools.research.editor_picks.remote finish \
+          apps/api/.venv/bin/python tools/scripts/editor-picks-compact-finish.py \
             --run-dir runs/editor-picks-20261024 --plan "$PLAN_FILE" --shard "$SHARD" --shards "$SHARDS" \
             --head "${{ github.event.pull_request.head.sha }}" \
             --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --input-sha "$INPUT_SHA" \
             --archive "$RUNNER_TEMP/result.tar.gz" \
             --cipher "$RUNNER_TEMP/result-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SHARD}.enc" \
             --key-env EDITOR_PICKS_RESEARCH_KEY
-          gh release upload "$RESEARCH_RELEASE" \
-            "$RUNNER_TEMP/result-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SHARD}.enc"
