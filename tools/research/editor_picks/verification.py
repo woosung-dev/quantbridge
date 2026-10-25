@@ -163,6 +163,40 @@ def native_bindings(item: dict) -> list[dict]:
     return result
 
 
+def native_reference(root: Path, item: dict) -> tuple[bytes, dict]:
+    """원문을 먼저 검증하고 진단 원문은 검토 조건에서 재현한 경우만 참조한다."""
+    original = checked_file(root, item["source_file"], item["source_sha256"]).read_bytes()
+    provenance = item.get("expression_provenance")
+    if provenance is None:
+        if item.get("binding_type") == "expression":
+            raise ValueError("조건식 진단 출처가 없습니다")
+        return original, {}
+    from tools.research.editor_picks.catalogue import augment_expression_signals
+
+    if item.get("binding_type") != "expression":
+        raise ValueError("조건식 진단의 바인딩 형식이 다릅니다")
+    augmented = checked_file(
+        root, provenance["augmented_file"], provenance["augmented_source_sha256"]
+    ).read_bytes()
+    regenerated, bindings, expected = augment_expression_signals(
+        original.decode(), item["expression_bindings"]
+    )
+    expected["augmented_file"] = f"augmented/{item['id']}.pine"
+    if (
+        augmented != regenerated.encode()
+        or provenance != expected
+        or item["signal_bindings"] != bindings
+        or item["adaptation"]["source_sha256"] != expected["augmented_source_sha256"]
+    ):
+        raise ValueError("조건식 진단 원문·위치·조건·출처가 재생성과 다릅니다")
+    return augmented, {
+        "reference_source_sha256": expected["augmented_source_sha256"],
+        "reference_scope": "appended_reviewed_expression_diagnostics",
+        "original_source_sha256": item["source_sha256"],
+        "diagnostics": expected["diagnostics"],
+    }
+
+
 def native_action_match(expected, first, repeated, prefix, warmup: int) -> bool:
     """준비봉 이후 native를 대조하고 재실행·미래 제거는 전체 이력을 확인한다."""
     if (
@@ -207,7 +241,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
             continue
         try:
             raw = read(native_path)
-            source = checked_file(root, item["source_file"], item["source_sha256"]).read_bytes()
+            source, reference = native_reference(root, item)
             native = parse_native_capture(
                 raw,
                 source=source,
@@ -272,6 +306,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                     checks[arm] = {"passed": False, "error": str(error)}
             result["native_windows"][tf] = {
                 "status": "checked_partial_window",
+                **reference,
                 "checks": checks,
                 "capture_sha256": sha(native_path.read_bytes()),
                 "start": str(native.ohlcv.index[0]),
@@ -430,6 +465,15 @@ def export(root: Path, plan_path: Path) -> dict:
                     "execution_timeframe": "1min",
                 },
             }
+            if item.get("binding_type") == "expression":
+                _, reference = native_reference(root, item)
+                provenance.update(
+                    origin="editor_picks_reviewed_expression_research",
+                    entry_rule_origin=item.get("entry_rule_origin", "reviewed_indicator_state"),
+                    reference_scope=reference["reference_scope"],
+                    reference_source_sha256=reference["reference_source_sha256"],
+                    signal_conditions=item["expression_bindings"],
+                )
             request = SaveCodeStrategyRequest.model_validate(
                 {
                     "name": f"{item['title'][:85]} · {arm} · {item['id']}",

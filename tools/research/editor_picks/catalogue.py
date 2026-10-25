@@ -144,6 +144,116 @@ def raw_signal_strategy(adapted):
     )
 
 
+def augment_expression_signals(source: str, bindings: list[dict]) -> tuple[str, list[dict], dict]:
+    """검토한 읽기 전용 전역 조건만 원문 끝의 별도 진단 호출로 연결한다."""
+    from pynescript import ast as A
+
+    from src.strategy.pine_v2.parser_adapter import parse_to_ast
+
+    if len(bindings) != 2 or {b.get("direction") for b in bindings} != {"long", "short"}:
+        raise ValueError("조건식은 long/short 한 개씩 필요합니다")
+    tree = parse_to_ast(source)
+    globals_ = {
+        "open", "high", "low", "close", "volume", "hl2", "hlc3", "ohlc4", "hlcc4",
+        "time", "bar_index", "na",
+    }
+    for statement in tree.body:
+        if isinstance(statement, A.Assign):
+            target = statement.target
+            targets = target.elts if isinstance(target, A.Tuple) else [target]
+            globals_.update(t.id for t in targets if isinstance(t, A.Name))
+    udf_names = {node.name for node in A.walk(tree) if isinstance(node, A.FunctionDef)}
+    allowed_calls = {"ta.crossover", "ta.crossunder", "crossover", "crossunder", "na"}
+    allowed_calls.update(
+        f"math.{name}" for name in (
+            "abs", "min", "max", "round", "floor", "ceil", "sqrt", "pow", "log", "exp",
+            "sign", "sin", "cos", "tan", "asin", "acos", "atan",
+        )
+    )
+
+    def call_name(node):
+        if isinstance(node, A.Name):
+            return node.id
+        if isinstance(node, A.Attribute) and isinstance(node.value, A.Name):
+            return f"{node.value.id}.{node.attr}"
+        return ""
+
+    def validate(node):
+        if isinstance(node, A.Name):
+            if node.id not in globals_ or node.id in udf_names:
+                raise ValueError(f"조건식의 미지원 전역 이름: {node.id}")
+        elif isinstance(node, A.Constant):
+            if type(node.value) not in (bool, int, float, str):
+                raise ValueError("조건식 상수 형식이 다릅니다")
+        elif isinstance(node, A.Call):
+            name = call_name(node.func)
+            if name not in allowed_calls or name in udf_names:
+                raise ValueError(f"조건식의 미지원 호출: {name}")
+            for argument in node.args:
+                if argument.name is not None:
+                    raise ValueError("진단 조건 호출은 positional 인자만 허용합니다")
+                validate(argument.value)
+        elif isinstance(node, A.Subscript):
+            if not isinstance(node.value, A.Name) or not isinstance(node.slice, A.Constant):
+                raise ValueError("조건식 이력은 전역 변수의 상수 인덱스만 허용합니다")
+            if type(node.slice.value) is not int or not 0 <= node.slice.value <= 10000:
+                raise ValueError("조건식 이력 인덱스가 범위 밖입니다")
+            validate(node.value)
+        elif isinstance(node, A.BoolOp):
+            if not isinstance(node.op, (A.And, A.Or)):
+                raise ValueError("조건식 논리 연산이 다릅니다")
+            for value in node.values:
+                validate(value)
+        elif isinstance(node, A.Compare):
+            if not all(isinstance(op, (A.Eq, A.NotEq, A.Lt, A.LtE, A.Gt, A.GtE)) for op in node.ops):
+                raise ValueError("조건식 비교 연산이 다릅니다")
+            for value in [node.left, *node.comparators]:
+                validate(value)
+        elif isinstance(node, A.BinOp) and isinstance(node.op, (A.Add, A.Sub, A.Mult, A.Div, A.Mod)):
+            validate(node.left)
+            validate(node.right)
+        elif isinstance(node, A.UnaryOp) and isinstance(node.op, (A.Not, A.UAdd, A.USub)):
+            validate(node.operand)
+        else:
+            raise ValueError("조건식은 읽기 전용 스칼라 연산만 허용합니다")
+
+    newline = "\r\n" if "\r\n" in source else "\n"
+    augmented = source + ("" if source.endswith("\n") else newline)
+    generated = []
+    diagnostics = []
+    for binding in sorted(bindings, key=lambda b: b["direction"]):
+        expression = binding.get("expression")
+        if not isinstance(expression, str) or not expression.strip() or len(expression) > 2048:
+            raise ValueError("검토한 조건식 문자열이 필요합니다")
+        if "\n" in expression or "\r" in expression:
+            raise ValueError("조건식은 한 줄이어야 합니다")
+        parsed = parse_to_ast(f"alertcondition(({expression}))\n")
+        if len(parsed.body) != 1 or not isinstance(parsed.body[0], A.Expr):
+            raise ValueError("조건식 외 문장이 있습니다")
+        call = parsed.body[0].value
+        if not isinstance(call, A.Call) or call_name(call.func) != "alertcondition" or len(call.args) != 1:
+            raise ValueError("조건식 외 호출이 있습니다")
+        validate(call.args[0].value)
+        title = f"qb_expression_{sha(source.encode())[:12]}_{binding['direction']}"
+        while title in source:
+            title += "_"
+        line = augmented.count("\n") + 1
+        augmented += f'alertcondition(({expression}), title="{title}", message="{title}"){newline}'
+        generated.append({
+            "direction": binding["direction"], "function": "alertcondition", "line": line,
+            "expression": expression,
+        })
+        diagnostics.append({**binding, "line": line, "title": title, "message": title})
+    return augmented, generated, {
+        "policy": "reviewed_expression_v1",
+        "original_source_sha256": sha(source.encode()),
+        "augmented_source_sha256": sha(augmented.encode()),
+        "original_line_count": len(source.splitlines()),
+        "diagnostics": diagnostics,
+        "native_verified": False,
+    }
+
+
 def screen_one(root: Path, identifier: str) -> dict:
     from scripts.pine_validation.strategy_adapter import adapt_strategy
     from src.strategy.pine_v2.coverage import analyze_coverage
@@ -162,7 +272,8 @@ def screen_one(root: Path, identifier: str) -> dict:
         .read_bytes()
         .decode()
     )
-    coverage = analyze_coverage(source)
+    # 원문 바이트는 보존한다. 줄 단위 정적 검사는 CRLF의 CR을 문법으로 오인하지 않는다.
+    coverage = analyze_coverage(source.replace("\r\n", "\n"))
     base = {"id": identifier, "source_sha256": item["source_sha256"]}
     if not coverage.is_runnable or coverage.has_degraded:
         return {**base, "status": "unsupported", "detail": str(coverage)}
@@ -180,11 +291,29 @@ def screen_one(root: Path, identifier: str) -> dict:
         or not review.get("reviewed_by")
         or not review.get("basis")
         or not review.get("family")
-        or {b["direction"] for b in review["signal_bindings"]} != {"long", "short"}
+        or {b.get("direction") for b in review.get(
+            "expression_bindings" if review.get("binding_type") == "expression" else "signal_bindings", []
+        )} != {"long", "short"}
         or not 200 <= review.get("warmup_bars", 0) <= 10000
     ):
         raise ValueError("원문 해시·양방향 신호·준비봉·검토 근거가 필요합니다")
-    adapted = adapt_strategy(source, review["signal_bindings"], fixed_quantity=None)
+    expression_provenance = None
+    signal_bindings = review.get("signal_bindings", [])
+    if review.get("binding_type", "call") not in {"call", "expression"}:
+        raise ValueError("신호 바인딩 형식이 다릅니다")
+    if review.get("binding_type") == "expression":
+        source, signal_bindings, expression_provenance = augment_expression_signals(
+            source, review["expression_bindings"]
+        )
+        augmented_path = root / "augmented" / f"{identifier}.pine"
+        augmented_path.parent.mkdir(parents=True, exist_ok=True)
+        if augmented_path.exists():
+            if augmented_path.read_bytes() != source.encode():
+                raise ValueError("이미 생성한 진단 원문 변경을 거부합니다")
+        else:
+            augmented_path.write_bytes(source.encode())
+        expression_provenance["augmented_file"] = str(augmented_path.relative_to(root))
+    adapted = adapt_strategy(source, signal_bindings, fixed_quantity=None)
     base_adapted_sha256 = adapted.converted_sha256
     adapted = raw_signal_strategy(adapted)
     code = adapted.strategy_source
@@ -200,6 +329,8 @@ def screen_one(root: Path, identifier: str) -> dict:
         "adapted_file": str(path.relative_to(root)),
         "adapted_sha256": sha(code.encode()),
         "adaptation": adapted.to_dict(),
+        **({"signal_bindings": signal_bindings, "expression_provenance": expression_provenance}
+           if expression_provenance is not None else {}),
         "research_adapter": {"policy": "raw_signal_v1", "base_adapted_sha256": base_adapted_sha256},
         "execution_verified": False,
     }
@@ -216,6 +347,7 @@ def _screen_implementation_hash() -> str:
             # 스케줄러 수정은 기존 판정을 무효화하지 않는다.
             "binding": ast.dump(ast.parse(inspect.getsource(screen_one))),
             "research_adapter": ast.dump(ast.parse(inspect.getsource(raw_signal_strategy))),
+            "expression_adapter": ast.dump(ast.parse(inspect.getsource(augment_expression_signals))),
             "file_validation": ast.dump(ast.parse(inspect.getsource(checked_file))),
         }
     )

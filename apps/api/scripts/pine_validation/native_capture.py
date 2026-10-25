@@ -88,8 +88,58 @@ def _literal(node: Any, label: str) -> Any:
     return node.value
 
 
+def _color_default(node: Any) -> str:
+    """관측한 불투명 hex6·white·color.new(hex6, 0)만 해석한다."""
+    if (
+        isinstance(node, A.Constant)
+        and node.kind == "#"
+        and isinstance(node.value, str)
+        and re.fullmatch(r"#[0-9a-fA-F]{6}", node.value)
+    ):
+        return node.value
+    if _name(node) == "color.white":
+        return "#FFFFFF"
+    if (
+        isinstance(node, A.Call)
+        and _name(node.func) == "color.new"
+        and len(node.args) == 2
+        and all(arg.name is None for arg in node.args)
+    ):
+        base, transparency = [arg.value for arg in node.args]
+        if (
+            isinstance(base, A.Constant)
+            and base.kind == "#"
+            and isinstance(base.value, str)
+            and re.fullmatch(r"#[0-9a-fA-F]{6}", base.value)
+            and isinstance(transparency, A.Constant)
+            and type(transparency.value) in (int, float)
+            and transparency.value == 0
+        ):
+            red, green, blue = [int(base.value[i : i + 2], 16) for i in (1, 3, 5)]
+            return f"rgba({red},{green},{blue},1)"
+    raise ValueError("input.color: 관측하지 않은 색 또는 동적 기본값입니다")
+
+
+def _wire_color(value: Any) -> int:
+    if not isinstance(value, str):
+        raise ValueError("color 입력은 검증한 색 문자열이어야 합니다")
+    if re.fullmatch(r"#[0-9a-fA-F]{6}", value):
+        red, green, blue = [int(value[i : i + 2], 16) for i in (1, 3, 5)]
+    else:
+        match = re.fullmatch(r"rgba\((\d+),(\d+),(\d+),1\)", value)
+        if match is None:
+            raise ValueError("color 입력의 wire 변환 근거가 없습니다")
+        red, green, blue = map(int, match.groups())
+        if max(red, green, blue) > 255:
+            raise ValueError("color 채널이 범위 밖입니다")
+    # 실제 create_study의 불투명 color는 unsigned ABGR이다.
+    return (255 << 24) | (blue << 16) | (green << 8) | red
+
+
 def _source_calls(
     source: str,
+    *,
+    input_types: dict[str, str] | None = None,
 ) -> tuple[list[tuple[str, A.Call]], list[tuple[str, str, Any]], list[A.Call]]:
     try:
         tree = parse_to_ast(source)
@@ -139,12 +189,24 @@ def _source_calls(
             and type(_arg(call.left, "defval", 0).value) in (int, float)
         ):
             call = call.left
+        # 관측한 Band Scale은 tonumber 결과가 아니라 내부 text 입력 slot을 검증한다.
+        if (
+            isinstance(call, A.Call)
+            and _name(call.func) == "str.tonumber"
+            and len(call.args) == 1
+            and call.args[0].name is None
+            and isinstance(call.args[0].value, A.Call)
+            and _name(call.args[0].value.func) == "input.string"
+        ):
+            call = call.args[0].value
         if not isinstance(call, A.Call) or _name(call.func) not in {
             "input",
             "input.int",
             "input.float",
             "input.bool",
             "input.source",
+            "input.string",
+            "input.color",
         }:
             continue
         default_node = _arg(call, "defval", 0)
@@ -152,7 +214,13 @@ def _source_calls(
             _name(call.func) == "input"
             and (_arg(call, "type", 2) is None or _name(_arg(call, "type", 2)) == "input.source")
         )
-        if source_input and isinstance(default_node, A.Name):
+        if _name(call.func) == "input.color":
+            default = _color_default(default_node)
+        elif _name(call.func) == "input.string":
+            default = _literal(default_node, "input.string defval")
+            if type(default) is not str:
+                raise ValueError("input.string 기본값은 문자열이어야 합니다")
+        elif source_input and isinstance(default_node, A.Name):
             if default_node.id not in _SOURCE_NAMES:
                 raise ValueError("input.source 기본값은 확인한 OHLCV source만 허용합니다")
             default = default_node.id
@@ -163,10 +231,14 @@ def _source_calls(
             _literal(title_node, "input title") if title_node is not None else statement.target.id
         )
         inputs.append((statement.target.id, title, default))
+        if input_types is not None and _name(call.func) in {"input.string", "input.color"}:
+            input_types[statement.target.id] = (
+                "text" if _name(call.func) == "input.string" else "color"
+            )
     return calls, inputs, fills
 
 
-def _empty_chart_resolution(source: str) -> str | None:
+def _empty_chart_resolution(source: str) -> tuple[str | None, bool | None]:
     declarations = [
         statement.value
         for statement in parse_to_ast(source).body
@@ -175,16 +247,19 @@ def _empty_chart_resolution(source: str) -> str | None:
         and _name(statement.value.func) in {"study", "indicator", "strategy"}
     ]
     if len(declarations) != 1:
-        return None
+        return None, None
     kind = _name(declarations[0].func)
     if kind not in {"study", "indicator"}:
-        return None
+        return None, None
     value = _arg(declarations[0], "resolution" if kind == "study" else "timeframe")
-    return (
-        kind
-        if isinstance(value, A.Constant) and type(value.value) is str and value.value == ""
-        else None
-    )
+    if not (isinstance(value, A.Constant) and type(value.value) is str and value.value == ""):
+        return None, None
+    gaps = _arg(declarations[0], "timeframe_gaps")
+    if gaps is None:
+        return kind, None
+    if kind != "indicator" or not isinstance(gaps, A.Constant) or gaps.value is not False:
+        raise ValueError("빈 주기의 timeframe_gaps는 관측한 명시 false만 지원합니다")
+    return kind, False
 
 
 def _frames(data: str) -> list[dict[str, Any]]:
@@ -235,6 +310,12 @@ def _numeric(value: Any) -> bool:
 def _input_equal(actual: Any, expected: Any, kind: str) -> bool:
     if kind == "float":
         return _numeric(actual) and _numeric(expected) and actual == expected
+    if kind == "integer":
+        return type(actual) is int and type(expected) is int and actual == expected
+    if kind == "bool":
+        return type(actual) is bool and type(expected) is bool and actual == expected
+    if kind in {"text", "color"}:
+        return type(actual) is str and type(expected) is str and actual == expected
     return type(actual) is type(expected) and actual == expected
 
 
@@ -253,24 +334,78 @@ def _plot_bindings(
         raise ValueError("컴파일 plot 메타데이터가 없습니다")
     if [plot.get("id") for plot in plots] != [f"plot_{i}" for i in range(len(plots))]:
         raise ValueError("컴파일 plot id 순서가 연속적이지 않습니다")
-    visible = [(index, plot) for index, plot in enumerate(plots) if plot.get("type") != "colorer"]
-    if len(visible) != len(calls):
-        raise ValueError("원문 전역 plot/alert 호출 수와 컴파일 plot 수가 다릅니다")
-    fill_colorer_targets = []
+    expected_fill_columns = []
+    for index, call in enumerate(fills):
+        target = f"fill_{index}"
+        top_value, bottom_value = _arg(call, "top_value", 2), _arg(call, "bottom_value", 3)
+        if len([arg for arg in call.args if arg.name is None]) <= 3 and not any(
+            arg.name in {"top_value", "bottom_value", "top_color", "bottom_color"}
+            for arg in call.args
+        ):
+            expected_fill_columns.append({"type": "colorer", "target": target})
+            continue
+        # rbeErVR5의 관측한 gradient 형식: series topValue / const bottomValue /
+        # color.new(series, const) topColor / na bottomColor의 두 비신호 열이다.
+        top_color, bottom_color = _arg(call, "top_color", 4), _arg(call, "bottom_color", 5)
+        top_reference = (
+            top_value.operand
+            if isinstance(top_value, A.UnaryOp) and isinstance(top_value.op, A.USub)
+            else top_value
+        )
+        bottom_constant = (
+            bottom_value.operand
+            if isinstance(bottom_value, A.UnaryOp) and isinstance(bottom_value.op, A.USub)
+            else bottom_value
+        )
+        if not (
+            isinstance(top_reference, A.Name)
+            and isinstance(bottom_constant, A.Constant)
+            and _numeric(bottom_constant.value)
+            and isinstance(top_color, A.Call)
+            and _name(top_color.func) == "color.new"
+            and len(top_color.args) == 2
+            and all(arg.name is None for arg in top_color.args)
+            and isinstance(top_color.args[0].value, A.Name)
+            and isinstance(top_color.args[1].value, A.Constant)
+            and _numeric(top_color.args[1].value.value)
+            and 0 <= top_color.args[1].value.value <= 100
+            and isinstance(bottom_color, A.Name)
+            and bottom_color.id == "na"
+        ):
+            raise ValueError("관측하지 않은 gradient fill 형식입니다")
+        expected_fill_columns.extend(
+            [
+                {"type": "data", "target": target, "targetField": "topValue"},
+                {"type": "colorer", "target": target, "targetField": "topColor"},
+            ]
+        )
+    fill_columns = []
     for index, plot in enumerate(plots):
-        if plot["type"] != "colorer":
+        if plot["type"] not in {"colorer", "data"}:
             continue
         target = plot.get("target")
         if isinstance(target, str) and target.startswith("fill_"):
-            fill_colorer_targets.append(target)
+            ignored = {"id"}
+            # 기존 단색 fill의 palette 식별자는 비신호 부가 메타데이터다.
+            if plot["type"] == "colorer" and "targetField" not in plot:
+                ignored.add("palette")
+            fill_columns.append({key: value for key, value in plot.items() if key not in ignored})
         elif (
-            index == 0
+            plot["type"] == "data"
+            or index == 0
             or target != f"plot_{index - 1}"
             or plots[index - 1].get("type") not in {"line", "shapes"}
         ):
             raise ValueError("컴파일 colorer가 앞선 line/shapes plot에 결합되지 않았습니다")
-    if fill_colorer_targets != [f"fill_{index}" for index in range(len(fills))]:
-        raise ValueError("컴파일 fill colorer와 원문 전역 fill 호출이 다릅니다")
+    if fill_columns != expected_fill_columns:
+        raise ValueError("컴파일 fill data/colorer와 원문 전역 fill 호출이 다릅니다")
+    visible = [
+        (index, plot)
+        for index, plot in enumerate(plots)
+        if plot.get("type") not in {"colorer", "data"}
+    ]
+    if len(visible) != len(calls):
+        raise ValueError("원문 전역 plot/alert 호출 수와 컴파일 plot 수가 다릅니다")
     for (kind, call), (index, plot) in zip(calls, visible, strict=True):
         if plot.get("type") != _PLOT_TYPES[kind]:
             raise ValueError("원문 호출 유형과 컴파일 plot 유형이 다릅니다")
@@ -375,7 +510,8 @@ def parse_native_capture(
         request_source
     ):
         raise ValueError("compile 소스가 무수정 원본과 다릅니다")
-    calls, source_inputs, fills = _source_calls(source_text)
+    source_input_types: dict[str, str] = {}
+    calls, source_inputs, fills = _source_calls(source_text, input_types=source_input_types)
     overrides = payload.get("inputs")
     resolved = payload.get("resolved_inputs")
     if (
@@ -385,7 +521,8 @@ def parse_native_capture(
     ):
         raise ValueError("원본 입력 override 계약 또는 resolved_inputs가 없습니다")
     defaults = {name: default for name, _, default in source_inputs}
-    if set(overrides) - set(defaults) or resolved != {**defaults, **overrides}:
+    expected_values = {**defaults, **overrides}
+    if set(overrides) - set(defaults) or resolved != expected_values:
         raise ValueError("실제 입력 값이 원본 기본값·override와 다릅니다")
     responses = payload.get("compile_responses")
     if (
@@ -413,12 +550,15 @@ def parse_native_capture(
         if (
             not isinstance(item, dict)
             or item.get("name") != title
-            or not _input_equal(item.get("defval"), resolved[name], item.get("type", ""))
+            or (name in source_input_types and item.get("type") != source_input_types[name])
+            or not _input_equal(item.get("defval"), defaults[name], item.get("type", ""))
+            or not _input_equal(resolved[name], expected_values[name], item.get("type", ""))
         ):
             raise ValueError("컴파일 입력 기본값·제목이 원문과 다릅니다")
     expected_slots = {f"in_{i}" for i in range(len(source_inputs))}
-    resolution_kind = _empty_chart_resolution(source_text)
+    resolution_kind, explicit_gaps = _empty_chart_resolution(source_text)
     resolution_slot = f"in_{len(source_inputs)}" if resolution_kind is not None else None
+    gaps_slot = f"in_{len(source_inputs) + 1}" if explicit_gaps is not None else None
     if resolution_slot is not None:
         expected_slots.add(resolution_slot)
         slot = compiled_inputs.get(resolution_slot)
@@ -434,8 +574,11 @@ def parse_native_capture(
             expected_resolution["inline"] = "study_mtf"
         else:
             expected_resolution.update(group="Calculation", solutionId=43000591555)
+        if isinstance(slot, dict) and "active" in slot:
+            expected_resolution["active"] = True
         if (
             slot != expected_resolution
+            or ("active" in slot and slot["active"] is not True)
             or slot["isMTFResolution"] is not True
             or slot["isFake"] is not True
             or sum(
@@ -445,6 +588,28 @@ def parse_native_capture(
             != 1
         ):
             raise ValueError("빈 차트 resolution의 compiler 자동 입력 근거가 다릅니다")
+    if gaps_slot is not None:
+        expected_slots.add(gaps_slot)
+        slot = compiled_inputs.get(gaps_slot)
+        expected_gaps = {
+            "defval": False,
+            "group": "Calculation",
+            "id": gaps_slot,
+            "isFake": True,
+            "isMTFGaps": True,
+            "name": "Wait for timeframe closes",
+            "type": "bool",
+        }
+        if isinstance(slot, dict) and "active" in slot:
+            expected_gaps["active"] = True
+        if (
+            slot != expected_gaps
+            or slot.get("defval") is not False
+            or ("active" in slot and slot["active"] is not True)
+            or slot.get("isFake") is not True
+            or slot.get("isMTFGaps") is not True
+        ):
+            raise ValueError("명시 timeframe_gaps=false의 compiler 자동 입력 근거가 다릅니다")
     if {key for key in compiled_inputs if re.fullmatch(r"in_\d+", str(key))} != expected_slots:
         raise ValueError("컴파일 입력 개수가 원문과 다릅니다")
     bound = _plot_bindings(calls, meta.get("plots"), meta.get("styles"), signal_bindings, fills)
@@ -477,9 +642,20 @@ def parse_native_capture(
         raise ValueError("create_study IL과 컴파일 결과가 다릅니다")
     for index, (name, _, _) in enumerate(source_inputs):
         wire_input = study_inputs.get(f"in_{index}")
-        if not isinstance(wire_input, dict) or not _input_equal(
-            wire_input.get("v"), resolved[name], compiled_inputs[f"in_{index}"].get("type", "")
-        ):
+        kind = compiled_inputs[f"in_{index}"].get("type", "")
+        if kind == "color":
+            matches = (
+                isinstance(wire_input, dict)
+                and type(wire_input.get("v")) is int
+                and wire_input["v"] == _wire_color(resolved[name])
+            )
+        else:
+            matches = isinstance(wire_input, dict) and _input_equal(
+                wire_input.get("v"), resolved[name], kind
+            )
+        if name in source_input_types and isinstance(wire_input, dict):
+            matches &= wire_input.get("t") == source_input_types[name]
+        if not matches:
             raise ValueError("create_study 실제 입력이 원본 기본값과 다릅니다")
     if {key for key in study_inputs if re.fullmatch(r"in_\d+", str(key))} != expected_slots:
         raise ValueError("create_study 입력 개수가 컴파일 결과와 다릅니다")
@@ -487,6 +663,14 @@ def parse_native_capture(
         slot = study_inputs.get(resolution_slot)
         if slot != {"v": "", "f": True, "t": "resolution"} or slot["f"] is not True:
             raise ValueError("create_study resolution은 원문의 빈 차트 주기를 유지해야 합니다")
+    if gaps_slot is not None:
+        slot = study_inputs.get(gaps_slot)
+        if (
+            slot != {"v": False, "f": True, "t": "bool"}
+            or slot.get("v") is not False
+            or slot.get("f") is not True
+        ):
+            raise ValueError("create_study timeframe_gaps는 원문의 명시 false를 유지해야 합니다")
     completed = [
         m
         for m in received

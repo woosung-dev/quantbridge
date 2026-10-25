@@ -64,6 +64,7 @@ def pack(root: Path, archive: Path) -> None:
         "runtime",
         "sources",
         "adapted",
+        "augmented",
         "generation",
         "native",
         "reviews",

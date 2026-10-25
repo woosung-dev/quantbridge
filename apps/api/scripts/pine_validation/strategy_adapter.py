@@ -27,6 +27,9 @@ _HEADER_ARGS = {
     "precision",
     "max_lines_count",
     "max_labels_count",
+    "max_boxes_count",
+    "max_bars_back",
+    "explicit_plot_zorder",
 }
 _SECONDS = {"1h": 3600, "4h": 14400, "1d": 86400}
 

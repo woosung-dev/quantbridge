@@ -1,4 +1,4 @@
-"""기존 구독 생성 계약으로 독립 원문을 최대 세 개씩 병렬 처리한다."""
+"""기존 구독 생성 계약으로 독립 원문을 최대 여섯 개씩 병렬 처리한다."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from tools.research.editor_picks.generation import generate  # noqa: E402
 
 
 def dispatch(args: argparse.Namespace) -> dict:
-    if args.arm not in MODELS or not 1 <= args.workers <= 3 or args.limit < 1 or args.timeout < 1:
+    if args.arm not in MODELS or not 1 <= args.workers <= 6 or args.limit < 1 or args.timeout < 1:
         raise ValueError("모델·동시성·개수·제한 시간을 확인하세요")
     root = args.run_dir.resolve()
     cohort_path = root / ("pilot-cohort.json" if args.pilot else "cohort.json")
@@ -109,7 +109,7 @@ def main() -> int:
     parser.add_argument("--run-dir", required=True)
     parser.add_argument("--arm", required=True, choices=tuple(MODELS))
     parser.add_argument("--pilot", action="store_true")
-    parser.add_argument("--workers", type=int, choices=(1, 2, 3), default=3)
+    parser.add_argument("--workers", type=int, choices=(1, 2, 3, 4, 5, 6), default=3)
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--timeout", type=int, default=180)
     args = parser.parse_args()

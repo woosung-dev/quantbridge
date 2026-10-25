@@ -36,7 +36,7 @@ def setup(tmp_path, monkeypatch):
     return args, items
 
 
-@pytest.mark.parametrize("workers", [2, 3])
+@pytest.mark.parametrize("workers", [2, 3, 6])
 def test_independent_sources_run_concurrently_with_ordered_audit(setup, monkeypatch, workers):
     args, items = setup
     args.workers = workers
@@ -126,7 +126,7 @@ def test_duplicate_id_rejected_before_any_generation(setup):
 
 
 @pytest.mark.parametrize(
-    "field,value", [("workers", 0), ("workers", 4), ("limit", 0), ("timeout", 0), ("arm", "other")]
+    "field,value", [("workers", 0), ("workers", 7), ("limit", 0), ("timeout", 0), ("arm", "other")]
 )
 def test_invalid_limits_rejected_before_reading_cohort(setup, field, value):
     args, _ = setup
