@@ -37,6 +37,12 @@ v4 이하의 추가 진단에서만 검토식의 `ta.*`·`math.*` 이름을 해�
 일반 주석의 apostrophe 때문에 실제 `//@version`이 사라지거나 문자열 안의 예제가 버전으로
 승격되지 않아야 한다. v4 미만의 캐스트 제한과 다른 미지원 의존성의 전체 실행 차단은 유지한다.
 
+어댑터는 [TradingView v4 study 선언](https://www.tradingview.com/pine-script-docs/v4/annotations/study-annotation/)의
+`study(title, shorttitle, overlay, format, precision)` 중 표시용 위치 인자만 같은 이름의 전략
+인자로 연결한다. `overlay`는 bool 상수, `format`은 원래 `inherit`·`price`·`volume` 상수,
+`precision`은 0~16 정수 상수만 허용한다. 중복·동적 인자·이름 인자 뒤의 위치 인자·추가 옵션은
+거절한다. v4 밖의 `study` 위치 규칙을 추측하지 않으며 원문 계산·신호·기본 입력은 바꾸지 않는다.
+
 원저자가 방향을 정하지 않은 MA 리본의 연구 규칙은 `research_prespecified_ribbon_order_v1`이다.
 원문 기본 길이의 모든 표시 MA를 빠름→느림으로 정렬하고, 모든 인접 쌍이 상승 정렬인 상태의 첫
 진입은 long, 전부 하락 정렬인 상태의 첫 진입은 short다. 동률·준비 이력 부재는 진입하지 않는다.
