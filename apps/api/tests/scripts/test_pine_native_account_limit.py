@@ -21,7 +21,7 @@ def capture(count, *, unclosed=False):
     return raw
 
 
-def parse(raw, limit=5000, *, full_prefix=True):
+def parse(raw, limit=5000, *, full_prefix=True, include_price_prefix=False):
     return parse_native_capture(
         raw,
         source=SOURCE.encode(),
@@ -32,6 +32,7 @@ def parse(raw, limit=5000, *, full_prefix=True):
         expected_inputs={},
         max_total_bars=limit,
         require_full_prefix=full_prefix,
+        include_price_prefix=include_price_prefix,
     )
 
 
@@ -72,3 +73,24 @@ def test_missing_initial_price_cannot_be_hidden_by_warmup_or_common_intersection
     generic = parse(raw, full_prefix=False)
     assert len(generic.ohlcv) == 2
     assert generic.metadata["full_study_prefix_covered"] is False
+
+
+def test_price_prefix_is_retained_when_leading_study_outputs_are_absent():
+    raw = capture(4)
+    messages = _frames(raw["wire"][1]["data"])
+    messages[1]["p"][1]["study"]["st"] = messages[1]["p"][1]["study"]["st"][1:]
+    raw["wire"][1]["data"] = "".join(_frame(message) for message in messages)
+    old_common = parse(raw)
+    native = parse(raw, include_price_prefix=True)
+    assert len(old_common.ohlcv) == 3
+    assert len(native.ohlcv) == 4
+    assert native.ohlcv.index[0].timestamp() == T0
+    assert native.observations.index[0].timestamp() == T0 + 3600
+    assert native.metadata["full_price_history_used"] is True
+    assert native.window_events(
+        native.ohlcv.index[2],
+        native.ohlcv.index[-1] + (native.ohlcv.index[1] - native.ohlcv.index[0]),
+    )
+    # 관측이 없는 초기 봉은 native 출력이 있는 것처럼 채우지 않는다.
+    with pytest.raises(ValueError, match="누락"):
+        native.window_events(native.ohlcv.index[0], native.ohlcv.index[-1])

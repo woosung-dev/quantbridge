@@ -214,7 +214,7 @@ def augment_expression_signals(
 
     def validate(node):
         if isinstance(node, A.Name):
-            if node.id not in globals_ or node.id in udf_names:
+            if node.id not in globals_:
                 raise ValueError(f"조건식의 미지원 전역 이름: {node.id}")
         elif isinstance(node, A.Constant):
             if type(node.value) not in (bool, int, float, str):

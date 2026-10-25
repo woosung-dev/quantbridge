@@ -103,6 +103,10 @@ apps/api/.venv/bin/python tools/scripts/editor-picks-generate-parallel.py \
 TradingView Basic 원본 대조는 워밍업과 미확정 봉을 포함해 수신한 고유 시각의 합집합이
 5,000봉 이내여야 한다. 정상 UI에서 필요한 범위만 단계적으로 확인하고, 한도 팝업을 만나면
 추가 요청을 멈춘다. 캡처의 `collection_policy`와 `quota_popup_observed=false`를 확인하며
+동시 지표 한도는 계정 UI에서 실측한 Basic **2개**를 적용한다. 기존 사용자 지표는 ID·활성
+상태를 보존하고 검증 중에만 숨겼다가 복구한다. 한도 안내가 `dialog` role 없이 표시되는
+경우도 있으므로 실제 보이는 한도 문구를 함께 검사한다. 세 번째 추가가 차단된 시험은
+한도 발생 원시로 남기며 관측 성공으로 합산하지 않는다.
 계획에도 같은 한도를 동결한다. 기존 확대·드래그 반복으로 얻은 초과 기록은 보존하되 새
 계약의 통과 근거로 재사용하거나 후미만 잘라 사용하지 않는다. 로컬 실행은 TV 계산의 첫
 봉부터 같은 OHLCV로 시작하며, 준비봉이나 양방향 사건이 부족하면 검증 불가로 남긴다.
@@ -111,6 +115,10 @@ UI의 사용자 지정 기간으로 추가 이력을 받으면 기존 행과 합
 결박한다. 완료되지 않은 추가 계산이나 확정 봉의 값 충돌은 거부한다. 지표의 초기 가격이
 공통 구간 밖에서 누락되면 워밍업으로 대신하지 않는다. 원시는 보존하고 평가 종료 뒤의
 봉만 동결 데이터의 종료 시각에서 제외한다.
+초기 plot이 NA라 지표 출력이 뒤에서 시작해도 실제 가격이 앞에 있으면 그 가격부터 계산한다.
+가격 입력의 첫 봉을 공통 plot 구간으로 잘라 초기 상태를 바꾸지 않는다. native 사건 대조는
+동일한 1,000봉 준비 이후의 완전한 관측 구간에서 수행한다. 이전 고정 코어의 common-only
+입력이 앞 가격을 제외하는 경우에는 후속 통과로 승격하지 않고 수정한 새 회차로 넘긴다.
 계정이 제공하는 기간 시작점 추가 봉도 이번 연구에서는 5,000봉 한도 안에서만 수용한다
 ([TradingView 공식 한도](https://www.tradingview.com/support/solutions/43000480679-historical-intraday-data-bars-and-limits-explained/)).
 독립 Bybit 시세의 6·12·24개월 경제 측정은 유지하고, TV 원본 대조 구간 밖의 일치를 주장하지 않는다.
@@ -124,6 +132,14 @@ v4의 `stoch/cum/linreg/vwma/roc/cci/hma` 별칭은 기존 `ta.*` 계산으로 �
 별도다. native의 candle OHLC·색상 7열도 실제 metadata 순서·대상·제목과 함께 결박한다.
 전체 36개 경제 셀의 Pine↔Python 신호·곡선·거래 원장 일치도 별도 요구한다. Python은 독립 정답
 오라클이 아니다. 기존 연간 strict 검증기의 최대 100개·독립 oracle 계약은 바꾸지 않는다.
+
+늦게 도착한 관측은 `editor-picks-native-followup.py`가 원래 고정 코어·입력·계획·이미지로
+별도 검증한다. 첫 수집 통과 3TF 묶음과 앞선 실패 참조를 gVisor 실행 전에 동결하며 결과로
+구간을 다시 선택하지 않는다. worker에는 키·자격증명을 주지 않고 경제 셀을 재실행하지 않는다.
+원래 20개 경제 봉투와 후속 봉투를 인증한 뒤 별도 파생 root에만 선택본을 배치하여 기존
+`reconcile/export`의 36셀·이미지·원문·native 게이트를 재사용한다. 원본 영수증과 판정은
+보존하고 후속 관측을 합친 결과임을 명시한다. 외부 실패 원시는 식별명·SHA 참조만 담으며
+실행 입력에 본문을 추가하지 않는다. Mac 파생 복사는 APFS CoW로 압축 영수증의 재팽창을 막는다.
 
 실제 compile metadata로 확인한 generic `input(close)`·`type=input.source`는 고정 OHLC source
 이름만 검증한다. 빈 `study(resolution="")`의 compiler 자동 주기 slot은 정확한 metadata와 빈

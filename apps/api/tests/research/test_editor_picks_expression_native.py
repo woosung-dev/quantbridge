@@ -194,6 +194,7 @@ def test_verify_forwards_exact_reference_to_existing_parser(tmp_path, monkeypatc
         assert kwargs["expected_inputs"] == {}
         assert kwargs["max_total_bars"] == 5000
         assert kwargs["require_full_prefix"] is True
+        assert kwargs["include_price_prefix"] is True
     for window in result["native_windows"].values():
         assert window["status"] == "checked_partial_window"
         assert window["bars"] == 6

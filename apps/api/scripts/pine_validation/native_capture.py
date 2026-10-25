@@ -544,6 +544,7 @@ def parse_native_capture(
     expected_inputs: Mapping[str, Any],
     max_total_bars: int | None = None,
     require_full_prefix: bool = False,
+    include_price_prefix: bool = False,
 ) -> NativeCapture:
     """원본과 교차 확인한 확정 common cohort에서만 native 사건을 만든다."""
     if (
@@ -899,11 +900,33 @@ def parse_native_capture(
             raise ValueError("동일 봉 매수·매도 신호가 충돌합니다")
         observations.append(row[1:])
         prices.append(price)
+    input_times = sorted(closed_price) if include_price_prefix else common
+    if include_price_prefix:
+        if any(current - previous != step for previous, current in pairwise(input_times)):
+            raise ValueError("초기 가격 입력 격자가 불연속입니다")
+        prices = []
+        for at in input_times:
+            price = closed_price[at][1:]
+            if not all(_numeric(value) for value in price):
+                raise ValueError("초기 OHLCV에 비수치 값이 있습니다")
+            open_, high, low, close, volume = price
+            if (
+                min(open_, high, low, close) <= 0
+                or volume < 0
+                or high < max(open_, close, low)
+                or low > min(open_, close, high)
+            ):
+                raise ValueError("초기 OHLCV 가격 범위 또는 거래량이 잘못됐습니다")
+            prices.append(price)
     index = pd.DatetimeIndex(common, name="time")
     observation_frame = pd.DataFrame(
         observations, columns=[plot["id"] for plot in plots], index=index
     )
-    ohlcv = pd.DataFrame(prices, columns=["open", "high", "low", "close", "volume"], index=index)
+    ohlcv = pd.DataFrame(
+        prices,
+        columns=["open", "high", "low", "close", "volume"],
+        index=pd.DatetimeIndex(input_times, name="time"),
+    )
     return NativeCapture(
         observation_frame,
         ohlcv,
@@ -929,5 +952,6 @@ def parse_native_capture(
             "study_first_bar": min(study_rows).isoformat(),
             "price_first_bar": min(price_rows).isoformat(),
             "study_completed_epochs": len(completed),
+            "full_price_history_used": input_times == sorted(closed_price),
         },
     )

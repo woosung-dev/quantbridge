@@ -109,6 +109,7 @@ def native_export_gate(
             or window.get("bars") != warmup + window["checked_bars"]
             or type(window.get("metadata", {}).get("total_received_bars")) is not int
             or window.get("metadata", {}).get("full_study_prefix_covered") is not True
+            or window.get("metadata", {}).get("full_price_history_used") is not True
             or not window["bars"]
             <= window["metadata"]["total_received_bars"]
             <= NATIVE_POLICY["max_total_bars"]
@@ -287,6 +288,7 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                 expected_inputs=item.get("inputs", {}),
                 max_total_bars=NATIVE_POLICY["max_total_bars"],
                 require_full_prefix=True,
+                include_price_prefix=True,
             )
             cutoff = pd.Timestamp(frozen["dataset"]["end"])
             frame = native.ohlcv.loc[native.ohlcv.index < cutoff].copy()
@@ -302,8 +304,11 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                 }[tf]
             )
             end = min(end, cutoff)
+            warmup = item["warmup_bars"]
+            if len(frame) <= warmup + 1:
+                raise ValueError("native 이력이 동결 준비봉보다 짧습니다")
             events = native.window_events(
-                frame.index[0].to_pydatetime(), end.to_pydatetime()
+                frame.index[warmup].to_pydatetime(), end.to_pydatetime()
             )
             expected = dict.fromkeys(frame.index, "hold")
             for event in events:
@@ -314,9 +319,6 @@ def verify(root: Path, identifier: str, plan_path: Path) -> dict:
                 ):
                     raise ValueError("native 사건의 방향 또는 동봉 충돌이 모호합니다")
                 expected[event.bar_time] = action
-            warmup = item["warmup_bars"]
-            if len(frame) <= warmup + 1:
-                raise ValueError("native 이력이 동결 준비봉보다 짧습니다")
             if {"long", "short"} - set(list(expected.values())[warmup:]):
                 raise ValueError("native 구간의 양방향 사건 근거가 부족합니다")
             checks = {}

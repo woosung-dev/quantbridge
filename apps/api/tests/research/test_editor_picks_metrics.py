@@ -133,7 +133,11 @@ def test_native_export_requires_all_timeframes_and_unchanged_capture(tmp_path):
             "warmup_bars": 1000,
             "checked_bars": 500,
             "bars": 1500,
-            "metadata": {"total_received_bars": 1501, "full_study_prefix_covered": True},
+            "metadata": {
+                "total_received_bars": 1501,
+                "full_study_prefix_covered": True,
+                "full_price_history_used": True,
+            },
             "checks": {"pine": {"passed": True, "source_sha256": "code", "prefix_bars": 1333}},
         }
     proof = {"native_windows": windows, "native_policy": dict(NATIVE_POLICY)}
@@ -170,7 +174,11 @@ def native_proof(root):
             "warmup_bars": 1000,
             "checked_bars": 500,
             "bars": 1500,
-            "metadata": {"total_received_bars": 5000, "full_study_prefix_covered": True},
+            "metadata": {
+                "total_received_bars": 5000,
+                "full_study_prefix_covered": True,
+                "full_price_history_used": True,
+            },
             "checks": {"pine": {"passed": True, "source_sha256": "code", "prefix_bars": 1333}},
         }
     return {"native_policy": dict(NATIVE_POLICY), "native_windows": windows}

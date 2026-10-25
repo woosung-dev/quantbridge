@@ -26,6 +26,29 @@ EXPRESSIONS = [
 ]
 
 
+def test_global_value_can_share_udf_name_without_allowing_new_udf_calls():
+    source = SOURCE + "UO(x) => x\nfloat UO = close\n"
+    expressions = [
+        {"direction": "long", "expression": "ta.crossover(UO, 0)"},
+        {"direction": "short", "expression": "ta.crossunder(UO, 0)"},
+    ]
+    augmented, bindings, _ = catalogue.augment_expression_signals(source, expressions)
+    assert augmented.startswith(source)
+    assert bindings[0]["expression"] == "ta.crossover(UO, 0)"
+    with pytest.raises(ValueError, match="미지원 호출"):
+        catalogue.augment_expression_signals(
+            source, [{"direction": "long", "expression": "UO(close) > 0"}, expressions[1]]
+        )
+
+
+def test_udf_name_without_global_value_is_still_not_a_read_only_series():
+    with pytest.raises(ValueError, match="미지원 전역"):
+        catalogue.augment_expression_signals(
+            SOURCE,
+            [{"direction": "long", "expression": "f > 0"}, EXPRESSIONS[1]],
+        )
+
+
 @pytest.mark.parametrize("source", [SOURCE, SOURCE.rstrip("\n"), SOURCE.replace("\n", "\r\n")])
 def test_append_only_diagnostics_keep_original_bytes_and_split_provenance(source):
     augmented, bindings, provenance = catalogue.augment_expression_signals(source, EXPRESSIONS)

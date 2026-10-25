@@ -1,0 +1,113 @@
+name: Editor picks pinned native followup
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - tools/scripts/editor-picks-native-followup.py
+      - .github/workflows/editor-picks-native-followup.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: >-
+      github.repository == 'woosung-dev/quantbridge' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/editor-picks-comparison-20261024' &&
+      github.event.pull_request.head.sha == vars.EDITOR_PICKS_NATIVE_FOLLOWUP_HEAD &&
+      vars.EDITOR_PICKS_NATIVE_OVERLAY_URL != '' &&
+      vars.EDITOR_PICKS_NATIVE_OVERLAY_SHA256 != '' &&
+      vars.EDITOR_PICKS_NATIVE_SELECTION_SHA256 != '' &&
+      vars.EDITOR_PICKS_NATIVE_HELPER_SHA256 != ''
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    permissions:
+      contents: write
+    concurrency:
+      group: editor-picks-native-${{ vars.EDITOR_PICKS_NATIVE_SELECTION_SHA256 }}
+      cancel-in-progress: false
+    env:
+      BASE_INPUT_URL: https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/full-input-basic-v6.enc
+      OVERLAY_URL: ${{ vars.EDITOR_PICKS_NATIVE_OVERLAY_URL }}
+      OVERLAY_SHA: ${{ vars.EDITOR_PICKS_NATIVE_OVERLAY_SHA256 }}
+      SELECTION_SHA: ${{ vars.EDITOR_PICKS_NATIVE_SELECTION_SHA256 }}
+      HELPER_SHA: ${{ vars.EDITOR_PICKS_NATIVE_HELPER_SHA256 }}
+      CONTROL_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Preserve exact owner control script
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, pathlib, re, shutil
+          source = pathlib.Path('tools/scripts/editor-picks-native-followup.py')
+          assert re.fullmatch('[a-f0-9]{64}', os.environ['HELPER_SHA'])
+          assert hashlib.sha256(source.read_bytes()).hexdigest() == os.environ['HELPER_SHA']
+          shutil.copyfile(source, pathlib.Path(os.environ['RUNNER_TEMP']) / 'native-followup.py')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: 897e3028a57b02a631a9331ed59de79a0f57b5fe
+          persist-credentials: false
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        with:
+          install_args: python uv
+          cache: false
+      - run: uv sync --project apps/api --frozen --no-dev
+      - name: Download owner base and native-only ciphertext
+        run: |
+          python3 - <<'PY'
+          import os, re
+          prefix = 'https://github.com/woosung-dev/quantbridge/releases/download/editor-picks-research-20261024/'
+          for name in ('BASE_INPUT_URL', 'OVERLAY_URL'):
+              assert os.environ[name].startswith(prefix)
+          for name in ('OVERLAY_SHA', 'SELECTION_SHA'):
+              assert re.fullmatch('[a-f0-9]{64}', os.environ[name])
+          PY
+          curl --fail --location --retry 2 "$BASE_INPUT_URL" --output "$RUNNER_TEMP/base.enc"
+          curl --fail --location --retry 2 "$OVERLAY_URL" --output "$RUNNER_TEMP/overlay.enc"
+      - name: Authenticate original input and preregistered native overlay
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+        run: |
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote prepare \
+            --run-dir runs/native-followup --cipher "$RUNNER_TEMP/base.enc" \
+            --archive "$RUNNER_TEMP/base.tar.gz" \
+            --sha256 ee8f9834c2d0e18c0a056ba7e22e94d1d3a14f1fecfba01ccb7f84896dda647f \
+            --key-env EDITOR_PICKS_RESEARCH_KEY
+          apps/api/.venv/bin/python "$RUNNER_TEMP/native-followup.py" prepare \
+            --run-dir runs/native-followup --cipher "$RUNNER_TEMP/overlay.enc" \
+            --sha256 "$OVERLAY_SHA" --selection-sha "$SELECTION_SHA" \
+            --overlay "$RUNNER_TEMP/native-overlay" --key-env EDITOR_PICKS_RESEARCH_KEY
+      - name: Install original pinned isolated runtime
+        run: >-
+          apps/api/.venv/bin/python -m tools.research.editor_picks.remote runtime
+          --run-dir runs/native-followup
+      - name: Verify selected native captures without credentials or economic rerun
+        run: >-
+          apps/api/.venv/bin/python "$RUNNER_TEMP/native-followup.py" worker
+          --run-dir runs/native-followup --run-id "$GITHUB_RUN_ID"
+          --attempt "$GITHUB_RUN_ATTEMPT" --control-head "$CONTROL_HEAD"
+      - name: Preserve authenticated native result including failures
+        if: always()
+        env:
+          EDITOR_PICKS_RESEARCH_KEY: ${{ secrets.EDITOR_PICKS_RESEARCH_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apps/api/.venv/bin/python "$RUNNER_TEMP/native-followup.py" bundle \
+            --run-dir runs/native-followup --run-id "$GITHUB_RUN_ID" \
+            --attempt "$GITHUB_RUN_ATTEMPT" --archive "$RUNNER_TEMP/native-result.tar.gz"
+          apps/api/.venv/bin/python -m tools.research.editor_picks.crypto encrypt \
+            --input "$RUNNER_TEMP/native-result.tar.gz" \
+            --output "$RUNNER_TEMP/native-followup-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.enc" \
+            --key-env EDITOR_PICKS_RESEARCH_KEY \
+            --context "editor-picks/native-followup-v1/result/${SELECTION_SHA}/${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+          gh release upload editor-picks-research-20261024 \
+            "$RUNNER_TEMP/native-followup-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.enc"
