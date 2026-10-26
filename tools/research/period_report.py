@@ -9,11 +9,18 @@ import hashlib
 import html
 import json
 import shutil
+import sys
 from collections import Counter
 from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import quote
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "apps/api"))
+
+from tools.research.pine_first import build_pine_first_view  # noqa: E402
 
 DEFAULT_RUN = Path("runs/indicator-strategy-period-study-20261026")
 DEFAULT_OUTPUT = Path("/Users/woosung/Downloads/QuantBridge-기간별-비교연구-20261026")
@@ -320,7 +327,6 @@ def prepare(run: Path, output: Path) -> dict:
     keys = [tuple(row.get(name) for name in IDENTITY[:5]) for row in rows]
     if len(keys) != len(set(keys)):
         raise ValueError("금융 셀 식별자가 중복됩니다")
-    plan_count = manifest.get("expected_cells", source_target * 2 * 2 * 3 * 5)
     ledger = export_ledgers(run, output, rows)
     sources = {item.get("id", item.get("publication_id")): item for item in receipts}
     review_by_id = {item.get("id", item.get("publication_id")): item for item in reviews}
@@ -360,7 +366,6 @@ def prepare(run: Path, output: Path) -> dict:
         row["url"] = source.get("url")
         row["author"] = source.get("author")
         row["signal_mode"] = row.get("signal_mode") or source.get("signal_mode")
-    counts = Counter(row.get("status", "UNKNOWN") for row in rows)
     review_statuses = Counter(item.get("status", "UNKNOWN") for item in reviews)
     generation_reviews = Counter()
     for item in generations:
@@ -384,7 +389,32 @@ def prepare(run: Path, output: Path) -> dict:
             if reviewed.get("status") == "rejected"
             else "pending"
         ] += 1
-    pending = max(0, plan_count - len(rows))
+    pine_first = build_pine_first_view(run, rows)
+    selected_rows = pine_first["rows"]
+    selected_progress = pine_first["progress"]
+    required_progress = {
+        "financial_target",
+        "financial_recorded",
+        "financial_statuses",
+        "financial_pending",
+        "pine_completed",
+        "python_fallback_completed",
+        "legacy_financial_target",
+        "legacy_financial_recorded",
+        "legacy_financial_statuses",
+        "legacy_python_completed_excluded",
+    }
+    if not required_progress <= selected_progress.keys():
+        raise ValueError("Pine 우선 보고서의 현재·과거 분모와 경로별 집계가 필요합니다")
+    selected_counts = selected_progress["financial_statuses"]
+    if (
+        sum(selected_counts.get(key, 0) for key in ("completed", "failed", "not_run", "pending"))
+        != selected_progress["financial_target"]
+        or selected_progress["pine_completed"] + selected_progress["python_fallback_completed"]
+        != selected_counts.get("completed", 0)
+        or selected_progress["financial_pending"] != selected_counts.get("pending", 0)
+    ):
+        raise ValueError("Pine 우선 보고서의 상태 분모 또는 성공 경로 합계가 다릅니다")
     generated_at = datetime.now(UTC).isoformat()
     progress = {
         "source_target": source_target,
@@ -416,11 +446,9 @@ def prepare(run: Path, output: Path) -> dict:
         "reported_models": dict(
             Counter(item.get("provider_reported_model") or "UNKNOWN" for item in generations)
         ),
-        "financial_target": plan_count,
-        "financial_statuses": dict(counts),
-        "financial_recorded": len(rows),
-        "financial_pending": pending,
-        "registration_target_max": source_target * 2 * 2 * 3,
+        "registration_target_max": source_target * 2 * 3,
+        "legacy_registration_target_max": source_target * 2 * 2 * 3,
+        **selected_progress,
         **evidence_counts(run),
     }
     periods = []
@@ -461,13 +489,18 @@ def prepare(run: Path, output: Path) -> dict:
         },
         "deployment_status": "awaiting_review_and_deployment",
         "scope": "provided_download_only_current_popularity_retrospective",
-        "cells": rows,
+        "execution_policy": pine_first["policy"],
+        "cells": selected_rows,
     }
     write_json(
         output / "study-summary.json",
         {key: value for key, value in summary.items() if key != "cells"},
     )
     write_json(output / "financial-cells.json", {"units": summary["units"], "cells": rows})
+    write_json(
+        output / "selected-financial-cells.json",
+        {"units": summary["units"], "policy": pine_first["policy"], "cells": selected_rows},
+    )
     fields = list(
         dict.fromkeys(
             [
@@ -503,6 +536,7 @@ def prepare(run: Path, output: Path) -> dict:
         )
     )
     write_csv(output / "financial-cells.csv", rows, fields)
+    write_csv(output / "selected-financial-cells.csv", selected_rows, [*fields, "selection_reason"])
     write_json(
         output / "provenance.json",
         {
@@ -594,7 +628,7 @@ function filters(){return Object.fromEntries(['kind','code_path','policy','perio
 function apply(){clearTimeout(timer);const f=filters(),invalid=(f.min!==null&&f.max!==null&&f.min>f.max)||['min','max'].some(k=>!$(k).validity.valid);$('filter-error').hidden=!invalid;$('filter-error').textContent=invalid?'숫자 범위와 최솟값 ≤ 최댓값을 확인하세요.':'';filtered=invalid?[]:all.filter(g=>core.matches(g,f,units));filtered.sort((a,b)=>core.compare(a,b,sortKey,direction,units));page=1;render()}
 function evidence(row){if(!row)return '정책 기록 대기';const parts=['상태: '+(labels[row.status]??row.status),'실행 결과 근거: '+(row.result_integrity==='verified'?'파일 SHA256 확인':row.result_integrity??'해당 없음')];for(const [key,label] of [['profit_factor','Profit factor'],['sharpe_ratio','샤프'],['total_fees','수수료 USDT'],['total_slippage','슬리피지 USDT'],['total_funding','펀딩 USDT'],['open_pnl','미청산 평가손익 USDT'],['long_closed_episode_net_pnl','롱 완료 순손익 USDT'],['short_closed_episode_net_pnl','숏 완료 순손익 USDT']]){const n=key==='sharpe_ratio'&&!['tv_monthly_rfr2','tv_daily_rfr2'].includes(row.sharpe_convention)?null:core.number(row[key]);parts.push(label+': '+(row.status==='completed'&&n!==null?nf.format(n):'미산출'))}parts.push('곡선 저장: '+(row.curve_storage==='raw_minute_curves'?'원시 1분 곡선':row.curve_storage==='event_ledger_recipe_v1_verified_restoration'?'원장·데이터 SHA 기반 재현 recipe · 전량 복원 검증 기록':'저장·복원 미확인'));parts.push('샤프 관례: '+(row.sharpe_convention??'UNKNOWN'));parts.push('거래 빈도: '+(core.number(row.trade_frequency_30d)===null?'미산출':nf.format(Number(row.trade_frequency_30d))+' 완료 episode / 30일'));parts.push('보유 시간 노출: '+(core.number(row.exposure_pct)===null?'미산출':nf.format(Number(row.exposure_pct))+'%')+' · 분봉 포함 가정');if(row.activity_unavailable_reason)parts.push('빈도·노출 미산출 사유: '+row.activity_unavailable_reason);parts.push('R 통계: '+(row.policy==='A'?'해당 없음':'개별 fill 계획·SL 변화 원장 참고'));parts.push('펀딩 완전성: '+(row.funding_data_incomplete===true?'누락 관측':row.funding_data_incomplete===false?'노출 없음 또는 해당 실행 완전':'UNKNOWN'));parts.push('최초 체결 UTC / KST: '+(row.first_fill_utc??'미산출')+' / '+(row.first_fill_kst??'미산출'));parts.push('최종 체결 UTC / KST: '+(row.last_fill_utc??'미산출')+' / '+(row.last_fill_kst??'미산출'));parts.push('신호 해시: '+(row.signal_hash??'미산출'));if(row.reason)parts.push('사유: '+row.reason);return '<pre>'+esc(parts.join('\n'))+'</pre>'+(row.evidence_link?'<a download href="'+esc(row.evidence_link)+'">전체 결과·재현 기록 JSON.GZ</a>':'')}
 function render(){const size=50,pages=Math.max(1,Math.ceil(filtered.length/size));page=Math.max(1,Math.min(page,pages));const start=(page-1)*size;
- $('rows').innerHTML=filtered.slice(start,start+size).map(g=>{let title=esc(g.title||g.publication_id);if(typeof g.url==='string'&&/^https:\/\/(?:www\.)?tradingview\.com\/script\//.test(g.url))title='<a href="'+esc(g.url)+'" target="_blank" rel="noopener noreferrer">'+title+'</a>';const mode=g.signal_mode==='shared_events'?'공통 신호 · 청산 차이':g.signal_mode==='position_feedback'?'포지션 반영 · 매수·청산 변화':'신호 모드 미확인';let cells='<td>'+title+'<span class="small">'+esc(g.publication_id)+' · '+esc(g.kind==='strategies'?'전략':'지표')+' · '+esc(g.code_path==='python'?'Python · Sol 요청':'Pine')+'</span></td><td>'+esc(g.period)+' · '+esc(g.timeframe)+'<span class="small">UTC ['+esc(g.start_utc)+' , '+esc(g.end_exclusive_utc)+')</span></td><td>'+esc(mode)+'</td>';for(const p of ['A','B'])for(const [key] of metrics){const row=g[p];cells+='<td>'+num(row,key)+(key==='total_return'?'<span class="small">'+esc(row?(labels[row.status]??row.status):'기록 대기')+'</span>':key==='episode_count'&&row?'<span class="small">완료 '+esc(row.closed_episodes??'미산출')+'</span>':'')+'</td>'}return '<tr>'+cells+'</tr><tr class="detail"><td colspan="13"><details><summary>비용·롱/숏·실제 체결 시각·근거 보기</summary><p class="meta">평가 KST ['+esc(g.start_kst)+' , '+esc(g.end_exclusive_kst)+') · 종료 미포함</p><div class="detail-grid"><div><h3>A · 신호 청산</h3>'+evidence(g.A)+'</div><div><h3>B · 손절·반익절·추적</h3>'+evidence(g.B)+'</div></div></details></td></tr>'}).join('');
+ $('rows').innerHTML=filtered.slice(start,start+size).map(g=>{let title=esc(g.title||g.publication_id);if(typeof g.url==='string'&&/^https:\/\/(?:www\.)?tradingview\.com\/script\//.test(g.url))title='<a href="'+esc(g.url)+'" target="_blank" rel="noopener noreferrer">'+title+'</a>';const mode=g.signal_mode==='shared_events'?'공통 신호 · 청산 차이':g.signal_mode==='position_feedback'?'포지션 반영 · 매수·청산 변화':'신호 모드 미확인';let cells='<td>'+title+'<span class="small">'+esc(g.publication_id)+' · '+esc(g.kind==='strategies'?'전략':'지표')+' · '+esc(g.code_path==='python'?'Python · 대체':'Pine')+'</span></td><td>'+esc(g.period)+' · '+esc(g.timeframe)+'<span class="small">UTC ['+esc(g.start_utc)+' , '+esc(g.end_exclusive_utc)+')</span></td><td>'+esc(mode)+'</td>';for(const p of ['A','B'])for(const [key] of metrics){const row=g[p];cells+='<td>'+num(row,key)+(key==='total_return'?'<span class="small">'+esc(row?(labels[row.status]??row.status):'기록 대기')+'</span>':key==='episode_count'&&row?'<span class="small">완료 '+esc(row.closed_episodes??'미산출')+'</span>':'')+'</td>'}return '<tr>'+cells+'</tr><tr class="detail"><td colspan="13"><details><summary>비용·롱/숏·실제 체결 시각·근거 보기</summary><p class="meta">평가 KST ['+esc(g.start_kst)+' , '+esc(g.end_exclusive_kst)+') · 종료 미포함</p><div class="detail-grid"><div><h3>A · 신호 청산</h3>'+evidence(g.A)+'</div><div><h3>B · 손절·반익절·추적</h3>'+evidence(g.B)+'</div></div></details></td></tr>'}).join('');
  $('count').textContent=filtered.length.toLocaleString('ko-KR')+'개 A/B 비교행 · 금융 기록 '+report.cells.length.toLocaleString('ko-KR')+' / '+report.progress.financial_target.toLocaleString('ko-KR')+'셀';$('empty').hidden=filtered.length!==0;$('page-info').textContent=filtered.length?page+' / '+pages+' 페이지':'0 / 0 페이지';$('prev').disabled=page<=1||!filtered.length;$('next').disabled=page>=pages||!filtered.length;
  document.querySelectorAll('[data-sort]').forEach(b=>{const active=b.dataset.sort===sortKey;b.querySelector('span').textContent=active?(direction==='desc'?'↓':'↑'):'↕';b.closest('th').setAttribute('aria-sort',active?(direction==='desc'?'descending':'ascending'):'none')});$('sort-state').textContent=sortKey.replace('total_return','총수익률').replace('max_drawdown','최대 낙폭').replace('closed_episode_win_rate_pct','완료 승률').replace('episode_count','episode').replace('fill_count','fill')+' '+(direction==='desc'?'내림차순':'오름차순')+' · 미산출은 마지막';
 }
@@ -611,8 +645,9 @@ def render(summary: dict) -> str:
         return html.escape(str(value), quote=True)
 
     status_text = (
-        ", ".join(f"{key} {value:,}" for key, value in p["financial_statuses"].items())
-        or "아직 실행 기록 없음"
+        f"실패 {p['financial_statuses'].get('failed', 0):,} · "
+        f"미실행 {p['financial_statuses'].get('not_run', 0):,} · "
+        f"대기 {p['financial_pending']:,}"
     )
     stages = [
         (
@@ -622,10 +657,10 @@ def render(summary: dict) -> str:
             "실제 소스 파일·SHA 일치. 목록 확보와 구분",
         ),
         (
-            "2. Python 생성",
-            p["generation_verified"],
+            "2. 원문 신호 매핑",
+            p["review_completed"],
             p["source_target"],
-            f"생성 파일·SHA 일치. 명시 리뷰 승인 {p['generation_review_approved']:,}개 · native 통과와 별개",
+            "Pine 우선 · Python은 필요한 대체 범위만 검토",
         ),
         (
             "3. 원본 신호 대조",
@@ -634,16 +669,16 @@ def render(summary: dict) -> str:
             f"원본·시간봉 조합. 판정 {p['native_records']:,}건 · 파일 보유와 통과 구분",
         ),
         (
-            "4. 금융 셀",
+            "4. 금융 셀 · 언어 중복 제외",
             p["financial_statuses"].get("completed", 0),
             p["financial_target"],
-            f"기록 {p['financial_recorded']:,} · 대기 {p['financial_pending']:,} · {status_text}",
+            f"Pine {p['pine_completed']:,} · Python 대체 {p['python_fallback_completed']:,} · {status_text}",
         ),
         (
             "5. 등록·GET 재조회",
             p["registered"],
             p["registration_target_max"],
-            "최대 원본·경로·A/B·시간봉 조합. 배포·자동매매와 별개",
+            "최대 원본·선택 경로·A/B·시간봉 조합. 전체 연구 후 마지막 단계",
         ),
     ]
     cards = "".join(
@@ -667,7 +702,7 @@ def render(summary: dict) -> str:
             select(
                 "code_path",
                 "코드 경로",
-                [("pine", "Pine"), ("python", "Python · Sol 요청")],
+                [("pine", "Pine"), ("python", "Python · 대체")],
             ),
             select(
                 "policy",
@@ -735,14 +770,14 @@ def render(summary: dict) -> str:
     )
     return f'''<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'"><link rel="icon" href="data:,"><title>QuantBridge 기간별 A/B 비교 연구 · 진행 보고서</title><style>{CSS}</style></head>
-<body><header><div class="eyebrow">QUANTBRIDGE / RESEARCH NOTE 2026.10.26</div><h1>기간별 Pine · Python,<br>두 청산 정책 비교</h1><span class="status">진행 보고서 · 연구 미완료</span><p>작성 UTC {esc(summary["generated_at_utc"])}<br>KST {esc(summary["generated_at_kst"])}</p><p>작성 시점 스냅샷입니다. 실행 중인 작업의 완료를 뜻하지 않으며 이 파일은 자동 갱신되지 않습니다.</p></header>
+<body><header><div class="eyebrow">QUANTBRIDGE / RESEARCH NOTE 2026.10.26</div><h1>Pine 우선 기간별 연구,<br>두 청산 정책 비교</h1><span class="status">진행 보고서 · 연구 미완료</span><p>작성 UTC {esc(summary["generated_at_utc"])}<br>KST {esc(summary["generated_at_kst"])}</p><p>작성 시점 스냅샷입니다. 실행 중인 작업의 완료를 뜻하지 않으며 이 파일은 자동 갱신되지 않습니다.</p></header>
 <main><section class="stages" aria-label="단계별 완료 분모">{cards}</section>
-<section class="notice"><strong>금융 실행 성공 ≠ TradingView 원본 일치 ≠ 수익성 검증 ≠ 실서버 등록</strong><br>정적 분류 기록 {p["review_records"]:,} / {p["source_target"]:,}원본: 매핑 확정 {p["review_completed"]:,} · 검토 대기 {p["review_pending"]:,} · 비교 불가 {p["review_not_comparable"]:,}. Python 생성물 명시 리뷰 승인 {p["generation_review_approved"]:,}개 (생성 파일 확보와 별도).<br>native 판정 파일 {p["native_records"]:,}건 · 기술 통과 {p["native_passed"]:,}건. 기존 native 파일을 가지고 있다는 사실만으로 통과를 세지 않습니다. 실서버 새 정책은 검토·배포 대기이며 데모 활성화·주문은 포함하지 않습니다.</section>
+<section class="notice"><strong>금융 실행 성공 ≠ TradingView 원본 일치 ≠ 수익성 검증 ≠ 실서버 등록</strong><br>정적 분류 기록 {p["review_records"]:,} / {p["source_target"]:,}원본: 매핑 확정 {p["review_completed"]:,} · 검토 대기 {p["review_pending"]:,} · 비교 불가 {p["review_not_comparable"]:,}. 현재 정책은 Pine 우선이며 Pine 성공 원본의 Python 생성·중복 금융 실행을 생략합니다. Python은 Pine 실행 실패 중 변환 가능한 범위에서 명시 근거를 확인한 대체만 포함합니다. 수익·승률을 보고 대체 경로를 선택하지 않습니다.<br>현재 금융 분모 {p["financial_target"]:,}셀 · 과거 양언어 계획 {p["legacy_financial_target"]:,}셀. 기존 경로별 기록 {p["legacy_financial_recorded"]:,}셀과 현재 미선택 Python 완료 {p["legacy_python_completed_excluded"]:,}셀은 감사 자료로 보존합니다. 기존 Python 생성 파일 {p["generation_verified"]:,}개 · 명시 리뷰 승인 {p["generation_review_approved"]:,}개는 현재 실행 목표와 별도입니다.<br>native 판정 파일 {p["native_records"]:,}건 · 기술 통과 {p["native_passed"]:,}건. 기존 native 파일을 가지고 있다는 사실만으로 통과를 세지 않습니다. 실서버 새 정책은 검토·배포 대기이며 데모 활성화·주문은 포함하지 않습니다.</section>
 <section class="panel"><h2>고정된 평가 기간</h2><div class="periods">{periods}</div><p class="meta">UTC 시작 포함·종료 미포함. 준비 이력은 거래 금지이며 기간 말 미청산 손익은 평가액에 포함합니다. 가상 종료 청산으로 비용을 추가하지 않습니다. 신호 주기 1h/4h/1d와 체결 계산 1분봉을 구분합니다.</p></section>
 <section class="panel"><h2>결과 탐색</h2><form id="filters"><div class="filters"><div class="field search"><label for="query">원본 제목·작성자·publication ID</label><input id="query" type="search" placeholder="원본 검색" autocomplete="off"></div>{controls}<div class="field"><label for="metric">수치 필터 항목</label><select id="metric"><option value="total_return">총수익률 (%)</option><option value="max_drawdown">최대 낙폭 (%)</option><option value="closed_episode_win_rate_pct">완료 episode 승률 (%)</option><option value="episode_count">episode 수</option><option value="fill_count">fill 수</option></select></div><div class="field search"><label for="min">수치 범위 · 미산출은 범위 필터에서 제외</label><div class="range"><input id="min" type="number" step="any" placeholder="최소" aria-label="최솟값"><input id="max" type="number" step="any" placeholder="최대" aria-label="최댓값"></div></div><button id="reset-filters" type="button">필터·정렬 초기화</button></div><p id="filter-error" class="error" role="alert" hidden></p></form><p class="meta">A/B는 동일 원본·코드 경로·시간봉·평가 기간·신호 모드를 나란히 비교합니다. 정책 필터는 해당 정책 기록이 있는 비교행을 고릅니다. 공통 신호는 청산 효과, 포지션 반영 신호는 진입까지 달라지는 전체 전략 비교입니다.</p></section>
 <section aria-label="A/B 성과 비교"><div class="toolbar"><p id="count" role="status" aria-live="polite"></p><p id="sort-state" class="meta" role="status"></p></div><div class="table-region" role="region" aria-label="가로 스크롤 가능한 A/B 성과 표" tabindex="0"><table><caption>표 제목을 누르면 정렬합니다. 단위가 없거나 실패·미실행인 셀은 미산출입니다.</caption><thead><tr><th rowspan="2" scope="col">원본 / 경로</th><th rowspan="2" scope="col">기간 / 신호 주기</th><th rowspan="2" scope="col">비교 해석</th><th colspan="5" scope="colgroup">A · 신호 청산</th><th colspan="5" scope="colgroup">B · 손절·반익절·추적</th></tr><tr id="metric-head"></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden><strong>표시할 금융 결과가 없습니다.</strong><p>아직 실행되지 않았거나 현재 필터에 맞는 기록이 없습니다. 미실행을 수익률 0%로 표시하지 않습니다.</p><button id="empty-reset" type="button">조건 초기화</button></div></div><nav class="pager" aria-label="결과 페이지"><button id="prev" type="button">이전 50개</button><span id="page-info" role="status"></span><button id="next" type="button">다음 50개</button></nav></section>
-<section class="panel"><h2>원장·근거 다운로드</h2><div class="links"><a href="financial-cells.csv" download>전체 금융 셀 CSV</a><a href="financial-cells.json" download>금융 셀·단위 JSON</a><a href="ledgers/episodes.csv" download>전체 episode CSV</a><a href="ledgers/episodes.json" download>episode JSON</a><a href="ledgers/fills.csv" download>전체 체결 fill CSV</a><a href="ledgers/fills.json" download>fill JSON</a><a href="ledgers/trace.jsonl.gz" download>SL·신호·펀딩 이벤트 원장</a><a href="sources-status.csv" download>원본별 진행 CSV</a><a href="sources-status.json" download>원본별 진행 JSON</a><a href="provenance.json" download>입력 SHA256·단위 근거</a><a href="study-summary.json" download>연구 진행 JSON</a>{audit_link}<a href="{quote("선정목록.html")}">최초 선정 목록</a></div><p class="meta">episode {summary["ledger"]["episodes"]:,}행 · fill {summary["ledger"]["fills"]:,}행. 비어 있는 CSV는 데이터가 없다는 뜻입니다. 개별 완료 셀의 전체 결과 JSON.GZ는 표의 근거에서 내려받습니다. HTML과 상대 폴더를 함께 보관하세요. 결과의 곡선은 원시 저장 또는 검증된 원장 재현 recipe이며 각 셀에 구분 표시합니다. recipe 전량 복원에는 해당 SHA의 연구 데이터와 encoding.restore가 필요합니다.</p></section>
-<section class="panel limits"><div><h2>읽을 때 필요한 가정</h2><p>Bybit BTCUSDT 무기한 선물 · 초기 자본 10,000 USDT · 1배 · 자본 배분 100%. taker {esc(summary["costs"].get("taker", "UNKNOWN"))}, maker {esc(summary["costs"].get("maker", "UNKNOWN"))}, 슬리피지 {esc(summary["costs"].get("slippage", "UNKNOWN"))}는 비율 단위이며 이번 연구의 고정 가정입니다.</p><p>A는 원문 신호 청산만, B는 고정 2봉 swing 손절·1.5R 절반 익절·2R 본절/추적입니다. 둘 다 새로운 같은 방향 신호에서도 잔량 청산 후 다시 진입합니다. B의 반익절 fill은 독립 승리 episode가 아닙니다.</p><p>완료 episode가 0개면 승률은 미산출입니다. A의 R 통계는 해당 없음입니다. 승률은 예측 정확도가 아니며 native precision/recall 미산출을 100%로 표시하지 않습니다. 샤프는 평가곡선의 월간·표본 부족 시 일간 리샘플 관례이며 연율화하지 않습니다. 셀별 관례를 근거에서 확인하세요. 거래 빈도는 완료 episode / UTC 평가 일수 곱하기 30입니다. 보유 시간 노출은 전체 1분봉 중 포지션 보유 분봉의 합집합 비율입니다. 시가 청산 분봉은 제외하고 봉 내부 청산 분봉은 포함하며, 실제 틱 체결 시각이 아닌 분봉 포함 가정입니다.</p></div><div><h2>자료 범위와 미확인</h2><p>{esc(source_failure_note)}</p><p>제공된 지표 12,000개·전략 3,360개 안에서 현재 로켓/댓글 상위를 선정한 회고 분석입니다. TradingView 전체 상위나 과거 당시 선정 가능성을 뜻하지 않습니다. 전략 목록의 표시 총수 5,760개 중 일부만 수집됐으며 인기 선정 편향이 있습니다.</p><p>펀딩 상태: {esc(summary["dataset"]["funding_status"])}. 과거 정산 일정의 독립 검증: {"확인" if summary["dataset"]["historical_schedule_independently_verified"] else "UNKNOWN"}. 관측 정산 데이터와 완전성 보증을 구분합니다. 실제 틱 순서를 재현하지 않으며 1분 OHLC의 불리한 경로 가정을 사용합니다.</p><details><summary>기간별 데이터 수집 범위</summary><ul>{data_ranges or "<li>동결 데이터 미확보</li>"}</ul></details><p>요청 모델은 gpt-6.1-sol/high입니다. 실제 응답 모델 보고: {esc(summary["progress"]["reported_models"] or "UNKNOWN · 생성 기록 없음")}. 코드 생성 성공과 원문 의미 일치는 별도 판정입니다.</p></div></section><footer>인터넷 없이 필터·정렬·페이지 이동·상대 파일 다운로드가 동작합니다. TradingView 원문 링크를 열 때만 인터넷이 필요합니다. 외부 폰트·CDN·추적 요청을 사용하지 않습니다.</footer></main><script id="report-data" type="application/json">{json_script(summary)}</script><script>{CORE_JS}\n{UI_JS}</script></body></html>'''
+<section class="panel"><h2>원장·근거 다운로드</h2><div class="links"><a href="selected-financial-cells.csv" download>현재 정책 금융 셀 CSV</a><a href="selected-financial-cells.json" download>현재 정책 금융 셀 JSON</a><a href="financial-cells.csv" download>기존 전체 경로 CSV · 감사</a><a href="financial-cells.json" download>기존 전체 경로 JSON · 감사</a><a href="ledgers/episodes.csv" download>전체 episode CSV</a><a href="ledgers/episodes.json" download>episode JSON</a><a href="ledgers/fills.csv" download>전체 체결 fill CSV</a><a href="ledgers/fills.json" download>fill JSON</a><a href="ledgers/trace.jsonl.gz" download>SL·신호·펀딩 이벤트 원장</a><a href="sources-status.csv" download>원본별 진행 CSV</a><a href="sources-status.json" download>원본별 진행 JSON</a><a href="provenance.json" download>입력 SHA256·단위 근거</a><a href="study-summary.json" download>연구 진행 JSON</a>{audit_link}<a href="{quote("선정목록.html")}">최초 선정 목록</a></div><p class="meta">전체 경로 감사 원장: episode {summary["ledger"]["episodes"]:,}행 · fill {summary["ledger"]["fills"]:,}행. 현재 정책 선택 여부와 별도로 기존 실행 증거를 보존합니다. 비어 있는 CSV는 데이터가 없다는 뜻입니다. 개별 완료 셀의 전체 결과 JSON.GZ는 표의 근거에서 내려받습니다. HTML과 상대 폴더를 함께 보관하세요. 결과의 곡선은 원시 저장 또는 검증된 원장 재현 recipe이며 각 셀에 구분 표시합니다. recipe 전량 복원에는 해당 SHA의 연구 데이터와 encoding.restore가 필요합니다.</p></section>
+<section class="panel limits"><div><h2>읽을 때 필요한 가정</h2><p>Bybit BTCUSDT 무기한 선물 · 초기 자본 10,000 USDT · 1배 · 자본 배분 100%. taker {esc(summary["costs"].get("taker", "UNKNOWN"))}, maker {esc(summary["costs"].get("maker", "UNKNOWN"))}, 슬리피지 {esc(summary["costs"].get("slippage", "UNKNOWN"))}는 비율 단위이며 이번 연구의 고정 가정입니다.</p><p>A는 원문 신호 청산만, B는 고정 2봉 swing 손절·1.5R 절반 익절·2R 본절/추적입니다. 둘 다 새로운 같은 방향 신호에서도 잔량 청산 후 다시 진입합니다. B의 반익절 fill은 독립 승리 episode가 아닙니다.</p><p>완료 episode가 0개면 승률은 미산출입니다. A의 R 통계는 해당 없음입니다. 승률은 예측 정확도가 아니며 native precision/recall 미산출을 100%로 표시하지 않습니다. 샤프는 평가곡선의 월간·표본 부족 시 일간 리샘플 관례이며 연율화하지 않습니다. 셀별 관례를 근거에서 확인하세요. 거래 빈도는 완료 episode / UTC 평가 일수 곱하기 30입니다. 보유 시간 노출은 전체 1분봉 중 포지션 보유 분봉의 합집합 비율입니다. 시가 청산 분봉은 제외하고 봉 내부 청산 분봉은 포함하며, 실제 틱 체결 시각이 아닌 분봉 포함 가정입니다.</p></div><div><h2>자료 범위와 미확인</h2><p>{esc(source_failure_note)}</p><p>제공된 지표 12,000개·전략 3,360개 안에서 현재 로켓/댓글 상위를 선정한 회고 분석입니다. TradingView 전체 상위나 과거 당시 선정 가능성을 뜻하지 않습니다. 전략 목록의 표시 총수 5,760개 중 일부만 수집됐으며 인기 선정 편향이 있습니다.</p><p>펀딩 상태: {esc(summary["dataset"]["funding_status"])}. 과거 정산 일정의 독립 검증: {"확인" if summary["dataset"]["historical_schedule_independently_verified"] else "UNKNOWN"}. 관측 정산 데이터와 완전성 보증을 구분합니다. 실제 틱 순서를 재현하지 않으며 1분 OHLC의 불리한 경로 가정을 사용합니다.</p><details><summary>기간별 데이터 수집 범위</summary><ul>{data_ranges or "<li>동결 데이터 미확보</li>"}</ul></details><p>보존한 Python 생성 기록의 요청 모델은 gpt-6.1-sol/high입니다. 실제 응답 모델 보고: {esc(summary["progress"]["reported_models"] or "UNKNOWN · 생성 기록 없음")}. 코드 생성 성공과 원문 의미 일치는 별도 판정입니다.</p></div></section><footer>인터넷 없이 필터·정렬·페이지 이동·상대 파일 다운로드가 동작합니다. TradingView 원문 링크를 열 때만 인터넷이 필요합니다. 외부 폰트·CDN·추적 요청을 사용하지 않습니다.</footer></main><script id="report-data" type="application/json">{json_script(summary)}</script><script>{CORE_JS}\n{UI_JS}</script></body></html>'''
 
 
 def generate(run: Path, output: Path) -> dict:

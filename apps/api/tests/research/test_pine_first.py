@@ -1,0 +1,400 @@
+"""Pine 우선 선택의 성과 독립성·원장 보존·증거 변조 경계를 검증한다."""
+
+import copy
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+
+from tools.research import pine_first as policy
+from tools.research.period_study.state import identity, read, sha, write
+
+
+class PineFirstTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        write(self.root / "manifest.json", {"source_count": 1, "expected_cells": 60})
+        write(self.root / "pine-first/policy.json", {"policy": policy.POLICY, "source_count": 1})
+        self.cell = {"publication_id": "one", "timeframe": "1h", "period": "P1", "policy": "A"}
+        self.pine = {
+            **self.cell,
+            "code_path": "pine",
+            "status": "not_run",
+            "reason": "reviewed_pine_executable_missing",
+        }
+        source = self.root / "sources/one.pine"
+        source.parent.mkdir()
+        source.write_text("//@version=6\nindicator('one')\n")
+        self.review = {
+            "status": "reviewed",
+            "source_sha256": sha(source.read_bytes()),
+            "reviewer": "test-reviewer",
+            "basis": "원문 대조",
+            "signal_mode": "shared_events",
+            "signal_bindings": [],
+            "inputs": {},
+            "warmup_bars": 1000,
+            "pine_coverage": {"status": "unsupported", "unsupported_functions": ["ta.vwma"]},
+        }
+        write(self.root / "reviews/one.json", self.review)
+        write(
+            self.root / "source_receipts/one.json", {"source_sha256": self.review["source_sha256"]}
+        )
+        self.files = {}
+        for kind in ("1h", "1min", "funding"):
+            path = self.root / "data/P1" / f"{kind}.csv"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("trusted fixture bytes\n")
+            self.files[kind] = {"path": f"P1/{kind}.csv", "sha256": sha(path.read_bytes())}
+        self.dataset = {"warmup_bars": 1000, "files": {"P1": self.files}}
+        write(self.root / "data/dataset.json", self.dataset)
+        self.checkpoint = "cells/one/pine/1h/P1/A/latest.json"
+        write(self.root / self.checkpoint, self.pine)
+        self.proof = {
+            "policy": policy.POLICY,
+            "publication_id": "one",
+            "cells": [self.cell],
+            "reviewer": "test-reviewer",
+            "basis": "원문과 미지원 API 대조",
+            "failure_kind": "unsupported_api",
+            "failure_stage": "source_compilation",
+            "required_inputs_satisfied": True,
+            "language_conversion_can_resolve": True,
+            "evidence": {
+                role: self.ref(path)
+                for role, path in {
+                    "source": "sources/one.pine",
+                    "review": "reviews/one.json",
+                    "data": "data/dataset.json",
+                    "pine_failure": "reviews/one.json",
+                    "checkpoint": self.checkpoint,
+                    "policy": "pine-first/policy.json",
+                }.items()
+            },
+        }
+
+    def ref(self, relative):
+        return {"path": relative, "sha256": sha((self.root / relative).read_bytes())}
+
+    def eligibility(self):
+        write(self.root / "pine-first/eligibility/one.json", self.proof)
+        return policy._Evidence(self.root).eligibility(self.pine, self.review)
+
+    def test_known_language_failure_requires_actual_complete_evidence_and_exact_scope(self):
+        self.assertTrue(self.eligibility()["eligible"])
+        self.proof["cells"][0] = {**self.cell, "policy": "B"}
+        self.assertFalse(self.eligibility()["eligible"])
+
+    def test_role_omission_and_source_policy_data_tampering_fail_closed(self):
+        original = copy.deepcopy(self.proof)
+        for role in policy.EVIDENCE_ROLES:
+            with self.subTest(role=role):
+                self.proof = copy.deepcopy(original)
+                del self.proof["evidence"][role]
+                self.assertFalse(self.eligibility()["eligible"])
+        self.proof = original
+        for relative in ("sources/one.pine", "pine-first/policy.json", "data/P1/funding.csv"):
+            path = self.root / relative
+            before = path.read_bytes()
+            path.write_bytes(before + b"tamper")
+            self.assertFalse(self.eligibility()["eligible"])
+            path.write_bytes(before)
+
+    def test_infrastructure_data_and_empty_tape_cannot_be_overridden_by_static_unsupported(self):
+        for reason in (
+            "RuntimeError:docker_missing",
+            "frozen_dataset_missing",
+            "warmup_extension_missing",
+            "shared_signal_tape_unavailable",
+            "zero_trades",
+            "low_profit",
+            "timeout",
+            "docker_missing:reviewed_pine_executable_missing",
+        ):
+            with self.subTest(reason=reason):
+                self.pine["reason"] = reason
+                write(self.root / self.checkpoint, self.pine)
+                self.proof["evidence"]["checkpoint"] = self.ref(self.checkpoint)
+                self.assertFalse(self.eligibility()["eligible"])
+
+    def test_unverified_flags_and_unapproved_old_python_success_do_not_count(self):
+        forged = {**self.proof, "_verified": True}
+        classified = policy.classify_pine_failure(
+            self.pine, {**self.review, "pine_first_eligibility": forged}
+        )
+        self.assertFalse(classified["eligible"])
+        python = {**self.cell, "code_path": "python", "status": "completed", "total_return": "99"}
+        rows = [self.pine, python]
+        before = copy.deepcopy(rows)
+        view = policy.build_pine_first_view(self.root, rows)
+        self.assertEqual(rows, before)
+        self.assertEqual(
+            view["progress"]["financial_statuses"],
+            {"completed": 0, "failed": 0, "not_run": 1, "pending": 29},
+        )
+        self.assertEqual(view["progress"]["legacy_python_completed_excluded"], 1)
+
+    def completed_fixture(self, language="pine"):
+        code = "compiled source fixture"
+        path = self.root / f"adapted/one.{language}"
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(code)
+        self.review.update(
+            adapted_file=str(path.relative_to(self.root)), adapted_sha256=sha(path.read_bytes())
+        )
+        write(self.root / "reviews/one.json", self.review)
+        mapping = identity(
+            {
+                "source_sha256": self.review["source_sha256"],
+                "inputs": {},
+                "signal_bindings": [],
+                "signal_mode": "shared_events",
+            }
+        )
+        images = {"pine": "sha256:pine", "python": "sha256:python"}
+        write(self.root / "runtime-smoke.json", {"image_ids": images})
+        cell = {**self.cell, "code_path": language}
+        self.request = {
+            "cell": cell,
+            "source_sha256": sha(path.read_bytes()),
+            "parameters": {},
+            "signal_mode": "shared_events",
+            "warmup_bars": 1000,
+            "costs": policy.COSTS,
+            "mapping_hash": mapping,
+            "dataset_sha256": identity(self.dataset),
+            "data_files": self.files,
+            "implementation": {"fixture": "same"},
+            "image_ids": images,
+            "policy": {
+                "contract_version": 1,
+                "exit_policy": "signal_only_v1",
+                "reentry_policy": "close_then_reenter_v1",
+                "signal_mode": "shared_events",
+                "signal_mapping_hash": mapping,
+            },
+        }
+        return self.save_completed(cell)
+
+    def save_completed(self, cell):
+        request_hash = identity(self.request)
+        folder = "cells/one/" + cell["code_path"] + "/1h/P1/A"
+        result_file = folder + "/result.json"
+        write(self.root / result_file, {"request": self.request})
+        record = {
+            **cell,
+            "status": "completed",
+            "request_hash": request_hash,
+            "result_file": result_file,
+            "result_sha256": sha((self.root / result_file).read_bytes()),
+            "metrics": {"total_return": "-0.5", "closed_episodes": 0},
+        }
+        write(self.root / folder / f"request-{request_hash}.json", self.request)
+        write(self.root / folder / "latest.json", record)
+        return {**record, **record["metrics"]}
+
+    def test_verified_pine_wins_with_zero_trades_and_loss_and_result_mutation_excludes_it(self):
+        row = self.completed_fixture()
+        old_python = {**row, "code_path": "python", "total_return": "100"}
+        with patch(
+            "tools.research.period_study.controller.implementation",
+            return_value={"fixture": "same"},
+        ):
+            view = policy.build_pine_first_view(self.root, [row, old_python])
+            self.assertEqual(view["progress"]["pine_completed"], 1)
+            self.assertEqual(view["rows"][0]["total_return"], "-0.5")
+            self.assertEqual(view["rows"][0]["closed_episodes"], 0)
+            (self.root / row["result_file"]).write_text("changed")
+            after = policy.build_pine_first_view(self.root, [row, old_python])
+            self.assertEqual(after["progress"]["financial_statuses"]["completed"], 0)
+            self.assertEqual(after["progress"]["financial_pending"], 30)
+
+    def test_stale_source_review_and_changed_costs_images_implementation_are_not_current_success(
+        self,
+    ):
+        row = self.completed_fixture()
+        for field, value in (
+            ("costs", {}),
+            ("image_ids", {}),
+            ("implementation", {}),
+            ("parameters", {"new": 1}),
+        ):
+            with self.subTest(field=field):
+                previous = self.request[field]
+                self.request[field] = value
+                altered = self.save_completed({**self.cell, "code_path": "pine"})
+                with patch(
+                    "tools.research.period_study.controller.implementation",
+                    return_value={"fixture": "same"},
+                ):
+                    view = policy.build_pine_first_view(self.root, [altered])
+                self.assertEqual(view["progress"]["pine_completed"], 0)
+                self.request[field] = previous
+        self.save_completed({**self.cell, "code_path": "pine"})
+        (self.root / "sources/one.pine").write_text("new source")
+        with patch(
+            "tools.research.period_study.controller.implementation",
+            return_value={"fixture": "same"},
+        ):
+            self.assertEqual(
+                policy.build_pine_first_view(self.root, [row])["progress"]["pine_completed"], 0
+            )
+
+    def test_shared_b_runtime_is_not_a_source_execution_failure(self):
+        self.pine.update(
+            policy="B", status="failed", reason="PineRuntimeError: supported diagnosis"
+        )
+        proof = {
+            **self.proof,
+            "failure_kind": "pine_runtime_language",
+            "failure_stage": "source_evaluation",
+            "_verified": policy._VERIFIED,
+        }
+        result = policy.classify_pine_failure(
+            self.pine, {**self.review, "pine_first_eligibility": proof}
+        )
+        self.assertEqual(result["reason"], "shared_events_B_does_not_execute_source")
+
+    def test_python_reuse_is_scoped_to_reviewed_request_and_matching_approval(self):
+        row = self.completed_fixture("python")
+        self.review.pop("adapted_file")
+        self.review.pop("adapted_sha256")
+        write(self.root / "reviews/one.json", self.review)
+        source = (self.root / "sources/one.pine").read_text()
+        generated = "adapted/one.python"
+        generated_sha = sha((self.root / generated).read_bytes())
+        status = {
+            "status": "completed",
+            "attempt": 0,
+            "source_sha256": self.review["source_sha256"],
+            "generated_file": generated,
+            "generated_sha256": generated_sha,
+            "input_hash": identity(
+                {
+                    "source": source,
+                    "signal_bindings": [],
+                    "inputs": {},
+                    "signal_mode": "shared_events",
+                }
+            ),
+        }
+        approval = {
+            "status": "reviewed_for_isolated_execution",
+            "reviewer": "test",
+            "original_source_sha256": self.review["source_sha256"],
+            "generated_sha256": generated_sha,
+        }
+        write(self.root / "generation/one/status.json", status)
+        write(self.root / "generation/one/0/code-review.json", approval)
+        self.request["generated_code_review_sha256"] = sha(
+            (self.root / "generation/one/0/code-review.json").read_bytes()
+        )
+        row = self.save_completed({**self.cell, "code_path": "python"})
+        self.proof["evidence"]["review"] = self.ref("reviews/one.json")
+        self.proof["evidence"]["pine_failure"] = self.ref("reviews/one.json")
+        self.proof["python_request_hash"] = row["request_hash"]
+        self.eligibility()
+        with patch(
+            "tools.research.period_study.controller.implementation",
+            return_value={"fixture": "same"},
+        ):
+            view = policy.build_pine_first_view(self.root, [self.pine, row])
+            self.assertEqual(view["progress"]["python_fallback_completed"], 1)
+            self.assertEqual(view["rows"][0]["code_path"], "python")
+            write(self.root / "report-input.json", {"cells": [self.pine, row]})
+            descriptors = []
+            self.assertEqual(
+                policy.native_code_paths(self.root, "one", "1h", descriptors), ("python",)
+            )
+            self.assertEqual(descriptors, [self.ref("pine-first/eligibility/one.json")])
+            # A에 대한 명시 증거가 B의 기존 성공으로 번지지 않는다.
+            b = {**row, "policy": "B"}
+            other = policy.build_pine_first_view(self.root, [self.pine, row, b])
+            self.assertEqual(other["progress"]["python_fallback_completed"], 1)
+            self.assertEqual(other["progress"]["financial_pending"], 29)
+            write(
+                self.root / "generation/one/0/code-review.json", {**approval, "reviewer": "changed"}
+            )
+            invalid = policy.build_pine_first_view(self.root, [self.pine, row])
+            self.assertEqual(invalid["progress"]["python_fallback_completed"], 0)
+
+    def test_duplicate_rows_rejected_and_native_legacy_is_preserved(self):
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            policy.build_pine_first_view(self.root, [self.pine, self.pine])
+        self.assertEqual(policy.native_code_paths(self.root, "one", "1h"), ("pine",))
+        (self.root / "pine-first/policy.json").unlink()
+        self.assertEqual(policy.native_code_paths(self.root, "one", "1h"), ("pine", "python"))
+
+    def test_shared_b_dependency_requires_actual_matching_A_language_failure(self):
+        parent = self.eligibility()
+        self.assertTrue(parent["eligible"])
+        b = {**self.pine, "policy": "B", "reason": "shared_signal_tape_unavailable"}
+        write(self.root / "cells/one/pine/1h/P1/B/latest.json", b)
+        proof = {
+            **copy.deepcopy(self.proof),
+            "cells": [{**self.cell, "policy": "B"}],
+            "failure_kind": "shared_signal_dependency",
+            "failure_stage": "source_dependency",
+            "requires_python_A_signal_tape": True,
+        }
+        proof["evidence"].update(
+            pine_failure=self.ref("cells/one/pine/1h/P1/B/latest.json"),
+            checkpoint=self.ref("cells/one/pine/1h/P1/B/latest.json"),
+            parent_checkpoint=self.ref(self.checkpoint),
+            parent_eligibility=self.ref(parent["proof_file"]),
+        )
+        path = self.root / "pine-first/eligibility/one/1h/P1/B.json"
+        write(path, proof)
+        self.assertTrue(policy._Evidence(self.root).eligibility(b, self.review)["eligible"])
+        # 정상 Pine A에서 생긴 빈 테이프는 전환의 원인이 되지 않는다.
+        write(self.root / self.checkpoint, {**self.pine, "status": "completed"})
+        proof["evidence"]["parent_checkpoint"] = self.ref(self.checkpoint)
+        write(path, proof)
+        self.assertFalse(policy._Evidence(self.root).eligibility(b, self.review)["eligible"])
+
+    def test_orchestration_compatibility_rejects_numeric_or_unarchived_change(self):
+        controller = "tools/research/period_study/controller.py"
+        before = (
+            "def run_group(x):\n cells = [p for p in ('A', 'B')]\n tape = []\n return cells, tape\n"
+        )
+        after = (
+            "def run_group(x, *, policies=('A', 'B'), signal_tape=None):\n"
+            " if policies not in (('A','B'), ('A',), ('B',)):\n  raise ValueError('scope')\n"
+            " if signal_tape is not None and policies != ('B',):\n  raise ValueError('tape')\n"
+            " cells = [p for p in policies]\n tape = signal_tape if signal_tape is not None else []\n return cells, tape\n"
+        )
+        old = {controller: sha(before.encode()), "engine.py": sha(b"same math")}
+        new = {controller: sha(after.encode()), "engine.py": sha(b"same math")}
+        for mapping, raw in ((old, before), (new, after)):
+            prefix = self.root / "implementation-snapshots" / identity(mapping)
+            file = prefix / controller
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(raw)
+            (prefix / "engine.py").write_bytes(b"same math")
+        receipt = {
+            "status": "verified",
+            "old_implementation": old,
+            "new_implementation": new,
+            "changed_files": [controller],
+        }
+        write(self.root / "pine-first/orchestration-epoch.json", receipt)
+        self.assertTrue(policy.compatible_implementation(self.root, old, new))
+        self.assertFalse(
+            policy.compatible_implementation(self.root, old, {**new, "engine.py": "0" * 64})
+        )
+        (self.root / "implementation-snapshots" / identity(new) / controller).write_text(
+            after + "\nprofit = 100\n"
+        )
+        self.assertFalse(policy.compatible_implementation(self.root, old, new))
+
+    def test_unverified_pine_completed_without_result_is_pending(self):
+        row = {**self.pine, "status": "completed", "total_return": "100"}
+        view = policy.build_pine_first_view(self.root, [row])
+        self.assertEqual(view["rows"], [])
+        self.assertEqual(view["progress"]["financial_pending"], 30)
+        self.assertEqual(read(self.root / self.checkpoint)["status"], "not_run")

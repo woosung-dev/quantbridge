@@ -145,10 +145,15 @@ def existing(run: Path, cell: dict, request: dict) -> dict | None:
     return None
 
 
-def run_group(run: Path, source_root: Path, item: dict, path: str, timeframe: str, period: str) -> list[dict]:
+def run_group(run: Path, source_root: Path, item: dict, path: str, timeframe: str, period: str,
+              *, policies: tuple[str, ...] = ("A", "B"), signal_tape: list[dict] | None = None) -> list[dict]:
+    if policies not in (("A", "B"), ("A",), ("B",)):
+        raise ValueError("정책 범위는 A, B 또는 순서가 고정된 A/B여야 합니다")
+    if signal_tape is not None and policies != ("B",):
+        raise ValueError("기존 공통 신호열은 B 단독 실행에만 전달합니다")
     pid = publication_id(item)
     cells = [{"publication_id": pid, "code_path": path, "policy": policy,
-              "timeframe": timeframe, "period": period} for policy in ("A", "B")]
+              "timeframe": timeframe, "period": period} for policy in policies]
     base = {"cells": cells, "costs": COSTS, "implementation": implementation()}
     try:
         source, source_hash, review = artifact(run, source_root, item, path)
@@ -191,7 +196,7 @@ def run_group(run: Path, source_root: Path, item: dict, path: str, timeframe: st
         reason = f"{type(error).__name__}:{error}"
         return [record(run, cell, {**base, "unavailable_reason": reason}, "not_run", reason=reason) for cell in cells]
     base["data_files"] = data_record
-    tape = []
+    tape = signal_tape if signal_tape is not None else []
     completed = []
     for cell in cells:
         policy = ResearchExecution(

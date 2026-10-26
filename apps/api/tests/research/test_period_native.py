@@ -285,6 +285,29 @@ def test_success_in_one_code_path_never_promotes_the_other(study, monkeypatch):
     assert len(result["evidence"]) == 3
 
 
+@pytest.mark.parametrize("selected", [("pine",), ("python",)])
+def test_policy_selection_never_executes_an_unneeded_native_path(study, monkeypatch, selected):
+    root, _, _ = prepared(study, monkeypatch)
+    called = []
+    monkeypatch.setattr(native, "native_code_paths", lambda *args: selected)
+
+    def compare(root, item, path, *args):
+        called.append(path)
+        return {"status": "passed"}
+
+    monkeypatch.setattr(native, "compare_path", compare)
+    result = native.verify(root, "example", "1h", None)
+
+    assert called == list(selected)
+    assert result["passed_paths"] == list(selected)
+    omitted = "python" if selected == ("pine",) else "pine"
+    assert result["paths"][omitted] == {
+        "status": "not_run",
+        "reason": "pine_first_policy_path_not_required",
+        "execution_attempted": False,
+    }
+
+
 def test_unobserved_position_feedback_never_enters_strict_native_comparison(study, monkeypatch):
     root, item, _ = prepared(study, monkeypatch)
     review = read(root / item["review_file"])

@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
@@ -49,6 +50,12 @@ class PeriodReportTests(unittest.TestCase):
             "(() => {const row={publication_id:'one',code_path:'pine',timeframe:'1h',period:'P1',signal_mode:'shared_events',policy:'A'};const groups=core.groups([row,{...row,policy:'B'},{...row,timeframe:'4h'},{...row,period:'P2'},{...row,code_path:'python'},{...row,signal_mode:'position_feedback'}]);return {count:groups.length,paired:groups.filter(g=>g.A&&g.B).length}})()"
         )
         self.assertEqual(result, {"count": 5, "paired": 1})
+
+    def test_pine_a_and_python_b_never_form_one_comparison_pair(self):
+        result = self.javascript(
+            "(() => {const row={publication_id:'one',timeframe:'1h',period:'P1',signal_mode:'shared_events',status:'completed'};const groups=core.groups([{...row,code_path:'pine',policy:'A'},{...row,code_path:'python',policy:'B'}]);return {count:groups.length,paired:groups.filter(g=>g.A&&g.B).length}})()"
+        )
+        self.assertEqual(result, {"count": 2, "paired": 0})
 
     def test_filters_and_numeric_bounds_use_the_selected_policy_and_status(self):
         result = self.javascript(
@@ -215,8 +222,137 @@ class PeriodReportTests(unittest.TestCase):
             self.assertEqual(result["progress"]["generation_verified"], 0)
             self.assertEqual(result["progress"]["native_passed"], 0)
             self.assertEqual(result["progress"]["registered"], 0)
-            self.assertEqual(result["progress"]["financial_pending"], 60)
-            self.assertEqual(result["progress"]["registration_target_max"], 12)
+            self.assertEqual(result["progress"]["financial_target"], 30)
+            self.assertEqual(result["progress"]["financial_pending"], 30)
+            self.assertEqual(result["progress"]["legacy_financial_target"], 60)
+            self.assertEqual(result["progress"]["registration_target_max"], 6)
+            self.assertEqual(result["progress"]["legacy_registration_target_max"], 12)
+
+    def policy_progress(self):
+        return {
+            "financial_target": 30,
+            "financial_recorded": 1,
+            "financial_statuses": {"completed": 0, "failed": 1, "not_run": 0, "pending": 29},
+            "financial_pending": 29,
+            "pine_completed": 0,
+            "python_fallback_completed": 0,
+            "legacy_financial_target": 60,
+            "legacy_financial_recorded": 2,
+            "legacy_financial_statuses": {"failed": 1, "completed": 1},
+            "legacy_python_completed_excluded": 1,
+        }
+
+    def test_primary_rows_use_policy_view_and_legacy_python_result_remains_downloadable(self):
+        with tempfile.TemporaryDirectory() as name:
+            run, output = self.fixture(Path(name))
+            base = {
+                "publication_id": "one",
+                "timeframe": "1h",
+                "period": "P1",
+                "policy": "A",
+                "signal_mode": "shared_events",
+            }
+            rows = [
+                {**base, "code_path": "pine", "status": "failed"},
+                {**base, "code_path": "python", "status": "completed"},
+            ]
+            (run / "report-input.json").write_text(json.dumps({"cells": rows}))
+
+            def selected_view(_run, exported_rows):
+                return {
+                    "rows": [exported_rows[0]],
+                    "progress": self.policy_progress(),
+                    "policy": {"version": "pine_first_v1"},
+                }
+
+            with patch(
+                "tools.research.period_report.build_pine_first_view", side_effect=selected_view
+            ):
+                result = generate(run, output)
+            self.assertEqual(result["cells"], 1)
+            current = json.loads((output / "selected-financial-cells.json").read_text())
+            legacy = json.loads((output / "financial-cells.json").read_text())
+            self.assertEqual([row["code_path"] for row in current["cells"]], ["pine"])
+            self.assertEqual([row["code_path"] for row in legacy["cells"]], ["pine", "python"])
+            self.assertTrue((output / "selected-financial-cells.csv").is_file())
+            self.assertTrue((output / "financial-cells.csv").is_file())
+            self.assertNotIn(
+                "selection_reason",
+                (output / "financial-cells.csv").read_text(encoding="utf-8-sig").splitlines()[0],
+            )
+            self.assertIn(
+                "selection_reason",
+                (output / "selected-financial-cells.csv").read_text(encoding="utf-8-sig").splitlines()[0],
+            )
+            document = (output / "report.html").read_text()
+            self.assertIn("현재 금융 분모 30셀 · 과거 양언어 계획 60셀", document)
+            self.assertIn("현재 미선택 Python 완료 1셀", document)
+            self.assertIn("실패 1 · 미실행 0 · 대기 29", document)
+            self.assertIn("2. 원문 신호 매핑", document)
+            self.assertNotIn("2. Python 생성", document)
+            self.assertIn('href="selected-financial-cells.csv"', document)
+            embedded = document.split('<script id="report-data" type="application/json">')[1].split(
+                "</script>"
+            )[0]
+            self.assertEqual(len(json.loads(embedded)["cells"]), 1)
+
+    def test_missing_or_inconsistent_policy_denominator_cannot_publish_a_report(self):
+        for kind in ("missing", "status_total", "success_paths", "pending"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as name:
+                run, output = self.fixture(Path(name))
+                progress = self.policy_progress()
+                if kind == "missing":
+                    del progress["financial_target"]
+                elif kind == "status_total":
+                    progress["financial_target"] = 31
+                elif kind == "success_paths":
+                    progress["python_fallback_completed"] = 1
+                else:
+                    progress["financial_pending"] = 28
+                with (
+                    patch(
+                        "tools.research.period_report.build_pine_first_view",
+                        return_value={"rows": [], "progress": progress, "policy": {}},
+                    ),
+                    self.assertRaises(ValueError),
+                ):
+                    generate(run, output)
+                self.assertFalse((output / "report.html").exists())
+
+    def test_unverified_pine_completion_is_preserved_but_not_current_success(self):
+        with tempfile.TemporaryDirectory() as name:
+            run, output = self.fixture(Path(name))
+            row = {
+                "publication_id": "one",
+                "code_path": "pine",
+                "timeframe": "1h",
+                "period": "P1",
+                "policy": "A",
+                "status": "completed",
+                "total_return": "100",
+            }
+            (run / "report-input.json").write_text(json.dumps({"cells": [row]}))
+            result = generate(run, output)
+            self.assertEqual(result["progress"]["pine_completed"], 0)
+            self.assertEqual(result["progress"]["financial_statuses"]["completed"], 0)
+            self.assertEqual(result["progress"]["legacy_financial_statuses"]["completed"], 1)
+            audit = json.loads((output / "financial-cells.json").read_text())
+            self.assertEqual(audit["cells"][0]["status"], "completed")
+            selected = json.loads((output / "selected-financial-cells.json").read_text())
+            self.assertFalse(any(item["status"] == "completed" for item in selected["cells"]))
+
+    def test_direct_cli_can_import_policy_helper(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve().parents[4] / "tools/research/period_report.py"),
+                "--help",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--run-root", result.stdout)
 
     def test_static_classification_and_generation_are_not_review_approval(self):
         with tempfile.TemporaryDirectory() as name:
