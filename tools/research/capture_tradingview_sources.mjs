@@ -35,8 +35,8 @@ readline.createInterface({ input: server.stdout }).on('line', line => {
   if (message.error) handler.reject(new Error(JSON.stringify(message.error)));
   else handler.resolve(message.result);
 });
-server.on('exit', code => {
-  for (const handler of pending.values()) { clearTimeout(handler.timer); handler.reject(new Error(`MCP server exited ${code}`)); }
+server.on('exit', (code, signal) => {
+  for (const handler of pending.values()) { clearTimeout(handler.timer); handler.reject(new Error(`MCP server exited ${code} signal=${signal}`)); }
   pending.clear();
 });
 async function rpc(method, params = {}) {
@@ -48,7 +48,7 @@ async function rpc(method, params = {}) {
   server.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
   return result;
 }
-const progress = { schema_version: 1, job_id: `tv-source-ui-${process.pid}`, pid: process.pid, started_at: now(), status: 'running', total: catalogue.items.length, completed_this_process: 0 };
+const progress = { schema_version: 1, job_id: `tv-source-ui-${process.pid}`, pid: process.pid, started_at: now(), status: 'running', total: catalogue.items.length, requested_limit: args.limit ? Number(args.limit) : null, script_sha256: digest(await fs.readFile(new URL(import.meta.url))), completed_this_process: 0 };
 try {
   await rpc('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'quantbridge-source-checkpoint', version: '1' } });
   server.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);

@@ -182,7 +182,7 @@ jobs:
     # BL-845: 인증 이후 핵심 여정은 실제 서비스로 검사한다. 거래소 호출은 고정 OHLCV로 대체.
     needs: changes
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       db:
