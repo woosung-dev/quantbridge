@@ -103,6 +103,69 @@ OHLCV·검토 binding이 일치한 원시 캡처, 비어 있지 않은 확정 �
 검사한다. 포지션 의존 원본은 실제 상태를 맞춘 대조와 정책별 피드백 검증도 구분한다.
 부분창 관측은 전체 과거 기간의 TradingView 성과 검증이 아니다. 수익성 필터는 적용하지 않는다.
 
+### Native 부분창 대조 CLI
+
+`tools/research/period_native.py`는 검토한 `shared_events` 원본의 실제 TradingView 캡처를
+Pine·Python 각각의 gVisor 실행과 대조한다. 첫 지원 범위는 전역의 명시적인 방향 plot/alert
+신호다. 미지원 Pine이 Python의 직접 대조까지 막지는 않는다. 포지션 의존 원본은 native가
+관측한 실제 정책별 포지션 상태를 아직 재생하지 못하므로 strict native 통과로 승격하지 않는다.
+
+브라우저에서 무수정 원문을 실제 에디터에 넣고 컴파일·차트 추가한 뒤
+`native/<publication_id>/<timeframe>.json`에 아래 관측을 보존한다. 에디터에 다른 스크립트가
+남아 있거나 컴파일 요청과 원문이 다르면 의도한 소스로 바꿔 기록하지 않는다.
+
+| 원시 필드 | 실제 관측과 검증 |
+| --- | --- |
+| `id`, `symbol`, `timeframe`, `observed_at` | 게시물·`BYBIT:BTCUSDT.P`·시간봉·UTC 관측 시각 |
+| `source_sha256` | 해당 캡처 소스 bytes의 SHA-256 |
+| `compiled_source`, `compile_request_source` | 실제 에디터 본문과 실제 컴파일 HTTP 요청 본문. 원문과 LF 정규화 후 일치 |
+| `inputs`, `resolved_inputs` | 검토된 override와 기본값을 포함한 전체 실제 입력 |
+| `compile_responses` | 해당 컴파일의 성공 응답 하나. 실제 `ilTemplate`·`metaInfo` 보존 |
+| `wire` | 실제 WebSocket 송수신 `{direction, data}`. `~m~길이~m~` 프레이밍 보존. 손실 없이 해독한 `{direction, m, p}`도 허용 |
+
+같은 chart session의 `create_study`로 study·chart·IL·입력을 결박한다.
+`study_completed`, study의 `du.st`, chart의 `du.s` 또는 `timescale_update.s`가 필요하다.
+행의 `v[0]`는 Unix 초이며 OHLCV 행은 `[시각, O, H, L, C, V]`다. 다른 study나 차트의
+값을 합치지 않으며 미확정 봉·충돌하는 확정 중복·공통 확정봉 누락은 거절한다.
+색 입력은 실제 v6 캡처에서 확인한 `color.green/yellow/red/aqua`의 컴파일 hex와
+unsigned ABGR wire 값을 대조한다. 관측하지 않은 버전·기본색은 추측하지 않고 거절한다.
+
+요청의 첫 행 인덱스 `i=0`은 숨은 계산 이력이 없다는 증거가 아니다. 무수정 원본 캡처와
+별개로, **원문 본문을 정확한 접두사로 보존**하고 다음 한 줄만 끝에 추가한 진단본을 같은
+심볼·입력·시간봉에서 컴파일·차트 추가한다.
+
+```pine
+plot(bar_index, "__QB_BAR_INDEX__", display=display.none)
+```
+
+진단본은 `native/<publication_id>/<timeframe>-initialization.json`에 실제 별도 캡처로
+저장한다. 이 파일의 `source_sha256`·에디터·요청은 진단본 자체에 대응해야 한다. 진단본을
+무수정 원본이라고 부르지 않는다. 두 캡처의 첫 확정봉과 전체 원본 관측창의 OHLCV·원래
+방향 신호가 정확히 같고, study/가격 전체 행이 공통창과 일치하며 진단 열이 첫 봉부터
+`0, 1, 2, …`일 때만 초기 이력을 확인한다. 다른 진단 로직·추가 신호는 허용하지 않는다.
+
+```bash
+cd apps/api
+set -a; . ./.env.local; set +a
+uv run --no-sync python ../../tools/research/period_native.py \
+  --run ../../runs/indicator-strategy-period-study-20261026 \
+  --id so4mWdrN --timeframe 1d
+```
+
+실행 전 기존 격리 VM의 Docker endpoint와 gVisor 이미지를 사용한다. CLI는 호스트에서
+전략을 실행하지 않는다. 전체 이력·동일 입력 반복·짧은 접두 이력을 각 코드 경로에서 실제
+실행하고, 검토된 준비 봉 이후 양방향 사건의 시각·방향이 native와 정확히 같아야 한다.
+이미지 ID와 원시 증거 SHA도 실행 전후 확인한다.
+
+결과는 `native-verification/<publication_id>-<timeframe>.json`과 삭제하지 않는
+`native-attempts/`에 기록한다. `paths.pine`·`paths.python`을 독립 판정하고, 전체
+`status=passed`는 적어도 한 경로가 통과했다는 뜻이다. 등록은 해당 코드 경로의
+`paths.<code_path>.status=passed`·`evidence_verified=true`와 5기간 원장 재현을 모두
+요구한다. 원시 캡처나 초기 이력 증거가 없으면 `unverified`, 실행하지 못한 경로는
+`not_run`, 실제 실행 오류는 `failed`, 신호·반복·접두창 불일치는 `mismatch`로 보존한다.
+파서·컴파일 응답·소스·실행기·증거 해시와 관측창을 남기며, 이 판정은 **관측한 부분창의
+기술 대조**다. P1~P5 전체 native 신호·성과 또는 Strategy Tester 체결 재현을 보증하지 않는다.
+
 새 정책을 지원하는 서버에서만 정의를 저장하고 원문·계약·해시·불변 version UUID·기간
 근거를 전량 GET해 대조한다. 기존 정의는 보존한다. 서버가 지원하지 않으면 등록 payload와
 검증 PR을 준비해 `validated_registration_pending_deployment`로 남긴다.

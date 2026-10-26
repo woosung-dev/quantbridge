@@ -312,3 +312,131 @@ def test_plotshape_sentinel_and_zero_do_not_fire() -> None:
         expected_inputs={},
     )
     assert [event.bar_time.timestamp() for event in result.events] == [T0]
+
+
+def _color_payload(name: str, hex_value: str, wire_value: int) -> tuple[str, dict]:
+    source = SOURCE.replace("//@version=5", "//@version=6").replace(
+        'length = input.int(2, title="Length")',
+        f'col = input.color(color.{name}, title="Color")',
+    )
+    payload = _payload()
+    payload.update(
+        source_sha256=hashlib.sha256(source.encode()).hexdigest(),
+        compiled_source=source,
+        compile_request_source=source,
+        resolved_inputs={"col": hex_value},
+    )
+    payload["compile_responses"][0]["data"]["result"]["metaInfo"]["inputs"][1].update(
+        name="Color", defval=hex_value, type="color"
+    )
+    payload["wire"][0]["data"] = _frame(
+        {
+            "m": "create_study",
+            "p": [
+                "cs",
+                "study",
+                "st1",
+                "chart",
+                "script",
+                {
+                    "text": "compiled-il",
+                    "in_0": {"v": wire_value, "t": "color"},
+                },
+            ],
+        }
+    )
+    return source, payload
+
+
+@pytest.mark.parametrize(
+    "name,hex_value,wire_value",
+    [
+        # so4mWdrN 무수정 v6 원문의 실제 compiler defval/create_study 관측.
+        ("green", "#4CAF50", 4283477836),
+        ("yellow", "#FDD835", 4281719037),
+        ("red", "#F23645", 4282726130),
+        ("aqua", "#00BCD4", 4292131840),
+    ],
+)
+def test_observed_v6_color_input_binds_hex_compiler_default_to_unsigned_abgr(
+    name: str, hex_value: str, wire_value: int
+) -> None:
+    source, payload = _color_payload(name, hex_value, wire_value)
+    result = _parse(payload, source=source)
+    assert len(result.events) == 1
+    assert result.metadata["resolved_inputs"] == {"col": hex_value}
+
+
+@pytest.mark.parametrize(
+    "wire_value,wire_type",
+    [
+        (4283477837, "color"),
+        (-16732340, "color"),
+        (4283477836.0, "color"),
+        ("#4CAF50", "color"),
+        (4283477836, "integer"),
+    ],
+)
+def test_color_input_wire_value_and_type_must_match_actual_observation(wire_value, wire_type):
+    source, payload = _color_payload("green", "#4CAF50", 4283477836)
+    message = json.loads(payload["wire"][0]["data"].split("~m~", 2)[2])
+    message["p"][5]["in_0"].update(v=wire_value, t=wire_type)
+    payload["wire"][0]["data"] = _frame(message)
+    with pytest.raises(ValueError, match="create_study 실제 입력"):
+        _parse(payload, source=source)
+
+
+@pytest.mark.parametrize(
+    "change", ["compiler_color", "compiler_type", "unobserved_version", "unobserved_color"]
+)
+def test_unverified_color_semantics_are_rejected(change: str):
+    source, payload = _color_payload("green", "#4CAF50", 4283477836)
+    slot = payload["compile_responses"][0]["data"]["result"]["metaInfo"]["inputs"][1]
+    if change == "compiler_color":
+        slot["defval"] = "#F23645"
+    elif change == "compiler_type":
+        slot["type"] = "text"
+    else:
+        source = (
+            source.replace("//@version=6", "//@version=5")
+            if change == "unobserved_version"
+            else source.replace("color.green", "color.black")
+        )
+        payload.update(
+            source_sha256=hashlib.sha256(source.encode()).hexdigest(),
+            compiled_source=source,
+            compile_request_source=source,
+        )
+    with pytest.raises(ValueError, match=r"입력|input\.color"):
+        _parse(payload, source=source)
+
+
+def test_observed_dynamic_line_and_three_fill_columns_preserve_signal_column():
+    source, payload = _color_payload("green", "#4CAF50", 4283477836)
+    source = source.replace('plot(close, title="Line")', 'p = plot(close, title="Line", color=col)')
+    source += "\n".join(f'fill(p, p, color=col, title="Fill {i}")' for i in range(3)) + "\n"
+    payload.update(
+        source_sha256=hashlib.sha256(source.encode()).hexdigest(),
+        compiled_source=source,
+        compile_request_source=source,
+    )
+    meta = payload["compile_responses"][0]["data"]["result"]["metaInfo"]
+    meta["plots"] = [
+        *meta["plots"][:2],
+        {"id": "plot_2", "type": "colorer", "target": "plot_1"},
+        *({"id": f"plot_{i + 3}", "type": "colorer", "target": f"fill_{i}"} for i in range(3)),
+        {"id": "plot_6", "type": "shapes"},
+    ]
+    meta["styles"]["plot_6"] = meta["styles"].pop("plot_2")
+    messages = []
+    for message in payload["wire"][1]["data"].split("~m~"):
+        if message.startswith("{"):
+            decoded = json.loads(message)
+            if decoded["m"] == "du" and "study" in decoded["p"][1]:
+                for row in decoded["p"][1]["study"]["st"]:
+                    row["v"][3:3] = [0] * 4
+            messages.append(_frame(decoded))
+    payload["wire"][1]["data"] = "".join(messages)
+    result = _parse(payload, source=source)
+    assert result.observations.columns.tolist() == [f"plot_{i}" for i in range(7)]
+    assert [event.bar_time.timestamp() for event in result.events] == [T0]
