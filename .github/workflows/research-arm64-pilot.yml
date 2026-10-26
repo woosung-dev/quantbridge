@@ -1,0 +1,96 @@
+# ROOT가 검토한 고정 입력·이미지·코어만 별도 표준 ARM VM에서 재계산한다.
+name: Period study ARM64 pilot v1
+on:
+  pull_request:
+    branches: [feat/pine-first-study-20261026]
+    types: [opened, synchronize, labeled]
+    paths: [.github/workflows/research-arm64-pilot.yml, 'tools/research_cloud/**']
+permissions:
+  contents: write
+jobs:
+  pilot:
+    if: >-
+      github.repository == 'woosung-dev/quantbridge' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/research-actions-arm64-20261027' &&
+      contains(github.event.pull_request.labels.*.name, 'research-arm64-pilot-v1') &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        case: [0, 1, 2]
+    concurrency:
+      group: period-arm64-pilot-v1-${{ github.event.pull_request.head.sha }}-${{ matrix.case }}
+      cancel-in-progress: false
+    env:
+      # ROOT가 draft release의 정확 asset와 암호문/평문 tar SHA를 봉인하기 전에는 거절한다.
+      DRAFT_TAG: research-period-arm64-pilot-20261027-v1
+      INPUT_ASSET_ID: '679619694'
+      INPUT_CIPHER_SHA256: 'c8b31a041ae3da9c16feaa72d7ff2f621f2331f06e7c32db42da694ced804caa'
+      INPUT_TAR_SHA256: 'fe4161a465c51c372f955d226de4db4956c0fd5cfba440d090164cfb61e19897'
+      DOCKER_HOST: unix:///var/run/docker.sock
+      PYTHONDONTWRITEBYTECODE: '1'
+      UV_NO_CACHE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Validate file and result boundaries
+        run: python3 -m unittest discover -s tools/research_cloud/tests -v
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        with:
+          install_args: uv
+          cache: false
+          cache_save: false
+          env: false
+      - name: Fetch only pinned ciphertext
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$INPUT_ASSET_ID" != 0
+          test "$INPUT_CIPHER_SHA256" != 0000000000000000000000000000000000000000000000000000000000000000
+          gh api "repos/woosung-dev/quantbridge/releases/assets/$INPUT_ASSET_ID" -H 'Accept: application/octet-stream' > "$RUNNER_TEMP/input.enc"
+          echo "$INPUT_CIPHER_SHA256  $RUNNER_TEMP/input.enc" > "$RUNNER_TEMP/check.sha256"
+          sha256sum -c "$RUNNER_TEMP/check.sha256"
+      - name: Decrypt and prepare exact runtime
+        env:
+          PERIOD_STUDY_ARM64_PILOT_20261027_KEY: ${{ secrets.PERIOD_STUDY_ARM64_PILOT_20261027_KEY }}
+        run: |
+          uv run --no-project --with cryptography==46.0.7 python tools/research_cloud/crypto.py decrypt --input "$RUNNER_TEMP/input.enc" --output "$RUNNER_TEMP/input.tar" --key-env PERIOD_STUDY_ARM64_PILOT_20261027_KEY --context period-study-arm64-pilot-input-v1
+          python3 tools/research_cloud/bootstrap.py "$RUNNER_TEMP/input.tar" --sha256 "$INPUT_TAR_SHA256" --directory "$RUNNER_TEMP/pilot"
+      - name: Match frozen host dependencies
+        run: |
+          version=$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/pilot/pilot.json"))["python_version"])')
+          uv venv --python "$version" "$RUNNER_TEMP/host-venv"
+          uv pip install --python "$RUNNER_TEMP/host-venv/bin/python" --no-deps --requirement "$RUNNER_TEMP/pilot/host-requirements.txt"
+      - name: Recompute exact single source A and B
+        run: >-
+          "$RUNNER_TEMP/host-venv/bin/python" tools/research_cloud/runner.py
+          "$RUNNER_TEMP/pilot" --case ${{ matrix.case }} --execute
+      - name: Seal result only
+        if: always()
+        env:
+          PERIOD_STUDY_ARM64_PILOT_20261027_KEY: ${{ secrets.PERIOD_STUDY_ARM64_PILOT_20261027_KEY }}
+        run: |
+          if [ -d "$RUNNER_TEMP/pilot/result-output" ]; then
+            tar -C "$RUNNER_TEMP/pilot" -czf "$RUNNER_TEMP/result.tar.gz" result-output runtime-observation.json
+            uv run --no-project --with cryptography==46.0.7 python tools/research_cloud/crypto.py encrypt --input "$RUNNER_TEMP/result.tar.gz" --output "$RUNNER_TEMP/result.enc" --key-env PERIOD_STUDY_ARM64_PILOT_20261027_KEY --context period-study-arm64-pilot-result-v1
+            test "$(stat -c %s "$RUNNER_TEMP/result.enc")" -le 8388608
+          fi
+      - name: Upload only bounded ciphertext to existing draft release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f "$RUNNER_TEMP/result.enc" ]; then
+            test "$(stat -c %s "$RUNNER_TEMP/result.enc")" -le 8388608
+            asset="$RUNNER_TEMP/period-arm64-case-${{ matrix.case }}-$GITHUB_RUN_ID.enc"
+            cp "$RUNNER_TEMP/result.enc" "$asset"
+            gh release upload "$DRAFT_TAG" "$asset" --repo woosung-dev/quantbridge
+          fi
