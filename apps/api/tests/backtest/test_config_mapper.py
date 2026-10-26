@@ -130,3 +130,9 @@ def test_build_engine_config_partial_sizing_fields_omitted() -> None:
     assert cfg.live_position_size_pct is None
     assert cfg.sizing_source == "fallback"
     assert cfg.sizing_basis == "fallback_qty1"
+
+
+def test_legacy_maker_default_and_explicit_maker_rate_are_preserved() -> None:
+    assert build_engine_config_from_db(_make_bt(config={})).maker_fee == BacktestConfig().maker_fee
+    assert build_engine_config_from_db(_make_bt(config={"maker_fee": "0.00010"})).maker_fee == 0.00010
+    assert build_engine_config_from_db(_make_bt(config={"maker_fee": "0"})).maker_fee == 0

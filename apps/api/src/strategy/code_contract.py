@@ -1,4 +1,4 @@
-"""code_v1의 불변 입력과 legacy Pine 경계. 연구 compiler와 독립된 제품 계약이다."""
+"""코드 전략의 불변 입력과 legacy Pine 경계. 실행 정책을 버전 해시로 고정한다."""
 
 from __future__ import annotations
 
@@ -12,15 +12,20 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from src.strategy.code_runtime.models import CodeLanguage
 from src.strategy.exceptions import CodeStrategyPolicyError
 from src.strategy.python_runtime.protocol import validate_source_and_params
+from src.strategy.research_contract import ResearchExecution
 
 if TYPE_CHECKING:
     from src.strategy.models import Strategy, StrategyVersion
 
 
+CodeExecutionPolicy = Literal["code_v1", "code_research_v1"]
+CODE_EXECUTION_POLICIES: tuple[CodeExecutionPolicy, ...] = ("code_v1", "code_research_v1")
+
+
 class CodeSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     schema_version: Literal[1] = 1
-    execution_policy: Literal["code_v1"]
+    execution_policy: CodeExecutionPolicy
     language: CodeLanguage
     source_code: str = Field(min_length=1, max_length=131072)
     warmup_bars: int = Field(ge=1, le=10000)
@@ -33,7 +38,15 @@ class CodeSnapshot(BaseModel):
         provenance = json.dumps(self.provenance, allow_nan=False, ensure_ascii=False)
         if len(provenance.encode()) > 32768:
             raise ValueError("provenance는 32768 bytes 이하여야 합니다")
+        if self.execution_policy == "code_research_v1":
+            ResearchExecution.model_validate(self.provenance.get("research_execution"))
         return self
+
+    @property
+    def research_execution(self) -> ResearchExecution | None:
+        if self.execution_policy == "code_research_v1":
+            return ResearchExecution.model_validate(self.provenance["research_execution"])
+        return None
 
     @property
     def source_hash(self) -> str:

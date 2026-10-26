@@ -439,7 +439,10 @@
           "execution_policy": {
             "anyOf": [
               {
-                "const": "code_v1",
+                "enum": [
+                  "code_v1",
+                  "code_research_v1"
+                ],
                 "type": "string"
               },
               {
@@ -464,6 +467,27 @@
           "leverage": {
             "title": "Leverage",
             "type": "number"
+          },
+          "maker_fee": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maker Fee"
+          },
+          "research_execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResearchExecution"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "slippage": {
             "title": "Slippage",
@@ -620,6 +644,18 @@
             "format": "uuid",
             "title": "Strategy Id",
             "type": "string"
+          },
+          "strategy_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Version Id"
           },
           "symbol": {
             "title": "Symbol",
@@ -1929,7 +1965,10 @@
         "additionalProperties": false,
         "properties": {
           "execution_policy": {
-            "const": "code_v1",
+            "enum": [
+              "code_v1",
+              "code_research_v1"
+            ],
             "title": "Execution Policy",
             "type": "string"
           },
@@ -2087,7 +2126,10 @@
             "type": "string"
           },
           "execution_policy": {
-            "const": "code_v1",
+            "enum": [
+              "code_v1",
+              "code_research_v1"
+            ],
             "title": "Execution Policy",
             "type": "string"
           },
@@ -2333,14 +2375,17 @@
           "execution_policy": {
             "anyOf": [
               {
-                "const": "code_v1",
+                "enum": [
+                  "code_v1",
+                  "code_research_v1"
+                ],
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "code_v1은 명시적 opt-in이며 1h/4h/1d 신호 주기, next_bar_open, 1X만 지원합니다.",
+            "description": "코드 실행은 명시적 정책·불변 버전의 opt-in이며 1h/4h/1d, next_bar_open, 1X만 지원합니다.",
             "title": "Execution Policy"
           },
           "fees_pct": {
@@ -2400,6 +2445,24 @@
             "default": "1.0",
             "title": "Leverage"
           },
+          "maker_fee_pct": {
+            "anyOf": [
+              {
+                "maximum": 0.01,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,1}|(?=[\\d.]{1,7}0*$)\\d{0,1}\\.\\d{0,5}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "코드 전략의 maker 수수료 비율. 생략 시 연구 정책 0.00010, 기존 코드 정책 0.00020입니다.",
+            "title": "Maker Fee Pct"
+          },
           "period_end": {
             "format": "date-time",
             "title": "Period End",
@@ -2457,7 +2520,7 @@
                 "type": "null"
               }
             ],
-            "description": "code_v1에서 실행할 소유 전략의 불변 버전 ID입니다. 생략하면 현재 버전을 사용하며 기존 Pine 경로에서는 허용하지 않습니다.",
+            "description": "코드 전략에서 실행할 소유 전략의 불변 버전 ID입니다. 생략하면 현재 버전을 사용하며 기존 Pine 경로에서는 허용하지 않습니다.",
             "title": "Strategy Version Id"
           },
           "symbol": {
@@ -6553,7 +6616,10 @@
         "additionalProperties": false,
         "properties": {
           "execution_policy": {
-            "const": "code_v1",
+            "enum": [
+              "code_v1",
+              "code_research_v1"
+            ],
             "title": "Execution Policy",
             "type": "string"
           },
@@ -6755,6 +6821,51 @@
           "interval"
         ],
         "title": "RegisterLiveSessionRequest",
+        "type": "object"
+      },
+      "ResearchExecution": {
+        "additionalProperties": false,
+        "properties": {
+          "contract_version": {
+            "const": 1,
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "exit_policy": {
+            "enum": [
+              "signal_only_v1",
+              "swing_two_bar_v1"
+            ],
+            "title": "Exit Policy",
+            "type": "string"
+          },
+          "reentry_policy": {
+            "const": "close_then_reenter_v1",
+            "title": "Reentry Policy",
+            "type": "string"
+          },
+          "signal_mapping_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Signal Mapping Hash",
+            "type": "string"
+          },
+          "signal_mode": {
+            "enum": [
+              "shared_events",
+              "position_feedback"
+            ],
+            "title": "Signal Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract_version",
+          "exit_policy",
+          "reentry_policy",
+          "signal_mode",
+          "signal_mapping_hash"
+        ],
+        "title": "ResearchExecution",
         "type": "object"
       },
       "RestingEntriesConflictDetail": {

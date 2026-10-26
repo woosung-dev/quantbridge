@@ -101,27 +101,30 @@ def test_to_detail_config_defaults_match_engine_defaults() -> None:
 
 
 def test_to_detail_config_serialization_matches_fe_schema() -> None:
-    """FE features/backtest/schemas.ts BacktestConfigSchema 5 키 정합."""
+    """FE BacktestConfigSchema의 비용·실행 정책 응답 키와 기본값 정합."""
     service = _make_service()
     bt = _make_completed_bt()
     detail = service._to_detail(bt)
 
     assert detail.config is not None
     dumped = detail.config.model_dump()
-    # FE schema: { leverage, fees, slippage, include_funding, fill_timing } 5 키
     assert set(dumped.keys()) == {
         "leverage",
         "fees",
+        "maker_fee",
         "slippage",
         "include_funding",
         "fill_timing",
         "execution_policy",
+        "research_execution",
         "default_qty_type",
         "default_qty_value",
     }
     # 타입 정합 — number / boolean
     assert isinstance(dumped["leverage"], float)
     assert isinstance(dumped["fees"], float)
+    assert dumped["maker_fee"] is None
+    assert dumped["research_execution"] is None
     assert isinstance(dumped["slippage"], float)
     assert isinstance(dumped["include_funding"], bool)
 

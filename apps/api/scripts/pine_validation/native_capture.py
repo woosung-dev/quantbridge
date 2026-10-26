@@ -19,6 +19,7 @@ import pandas as pd
 from pynescript import ast as A
 
 from scripts.pine_validation.models import SignalEvent, utc_time
+from src.strategy.pine_v2.interpreter import pine_version_from_ast
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
 
 _STEPS = {"1h": timedelta(hours=1), "4h": timedelta(hours=4), "1d": timedelta(days=1)}
@@ -33,6 +34,12 @@ _PLOT_TYPES = {
 }
 _FRAME = re.compile(r"~m~(\d+)~m~")
 _SENTINEL = 1e100
+_OBSERVED_V6_INPUT_COLORS = {
+    "color.green": "#4CAF50",
+    "color.yellow": "#FDD835",
+    "color.red": "#F23645",
+    "color.aqua": "#00BCD4",
+}
 
 
 @dataclass(frozen=True)
@@ -89,6 +96,8 @@ def _literal(node: Any, label: str) -> Any:
 
 def _source_calls(
     source: str,
+    *,
+    input_types: dict[str, str] | None = None,
 ) -> tuple[list[tuple[str, A.Call]], list[tuple[str, str, Any]], list[A.Call]]:
     try:
         tree = parse_to_ast(source)
@@ -121,6 +130,7 @@ def _source_calls(
         raise ValueError("로컬·동적 fill 호출은 native 열에 고정할 수 없습니다")
     calls = [(_name(call.func), call) for call in top]
     inputs: list[tuple[str, str, Any]] = []
+    source_version = pine_version_from_ast(tree)
     for statement in tree.body:
         if not isinstance(statement, A.Assign) or not isinstance(statement.target, A.Name):
             continue
@@ -131,10 +141,17 @@ def _source_calls(
             "input.float",
             "input.bool",
             "input.source",
+            "input.color",
         }:
             continue
         default_node = _arg(call, "defval", 0)
-        if _name(call.func) == "input.source" and isinstance(default_node, A.Name):
+        if _name(call.func) == "input.color":
+            if source_version != 6 or _name(default_node) not in _OBSERVED_V6_INPUT_COLORS:
+                raise ValueError("input.color: 실제 native로 관측하지 않은 버전·색 기본값입니다")
+            default = _OBSERVED_V6_INPUT_COLORS[_name(default_node)]
+            if input_types is not None:
+                input_types[statement.target.id] = "color"
+        elif _name(call.func) == "input.source" and isinstance(default_node, A.Name):
             if default_node.id not in _SOURCE_NAMES:
                 raise ValueError("input.source 기본값은 확인한 OHLCV source만 허용합니다")
             default = default_node.id
@@ -196,7 +213,81 @@ def _numeric(value: Any) -> bool:
 def _input_equal(actual: Any, expected: Any, kind: str) -> bool:
     if kind == "float":
         return _numeric(actual) and _numeric(expected) and actual == expected
+    if kind == "color":
+        return (
+            isinstance(actual, str)
+            and isinstance(expected, str)
+            and re.fullmatch(r"#[0-9a-fA-F]{6}", actual) is not None
+            and re.fullmatch(r"#[0-9a-fA-F]{6}", expected) is not None
+            and actual.upper() == expected.upper()
+        )
     return type(actual) is type(expected) and actual == expected
+
+
+def _wire_color(value: str) -> int:
+    """실제 v6 create_study의 불투명 hex 색 입력은 unsigned ABGR이다."""
+    if not isinstance(value, str) or re.fullmatch(r"#[0-9a-fA-F]{6}", value) is None:
+        raise ValueError("실제 native로 관측한 불투명 hex 색만 wire로 대조합니다")
+    red, green, blue = (int(value[index : index + 2], 16) for index in (1, 3, 5))
+    return (255 << 24) | (blue << 16) | (green << 8) | red
+
+
+def _chart_identity(
+    sent: Sequence[Mapping[str, Any]],
+    received: Sequence[Mapping[str, Any]],
+    session: str,
+    chart_id: str,
+    symbol: str,
+    timeframe: str,
+) -> dict[str, str]:
+    """관측한 새 가격 series의 심볼 요청·해석 결과·시간봉을 study chart에 결박한다."""
+
+    def matching(messages, method, reference):
+        return [
+            message
+            for message in messages
+            if message.get("m") == method
+            and isinstance(message.get("p"), list)
+            and message["p"][:2] == [session, reference]
+        ]
+
+    creates = matching(sent, "create_series", chart_id)
+    if len(creates) != 1 or len(creates[0]["p"]) < 5:
+        raise ValueError("해당 study chart의 create_series 관측 하나가 필요합니다")
+    if matching(sent, "modify_series", chart_id):
+        raise ValueError("modify_series 뒤의 활성 심볼·시간봉은 아직 검증하지 않습니다")
+    symbol_id, interval = creates[0]["p"][3:5]
+    if not isinstance(symbol_id, str) or not symbol_id:
+        raise ValueError("create_series의 symbol reference가 없습니다")
+    if interval != {"1h": "60", "4h": "240", "1d": "D"}[timeframe]:
+        raise ValueError("실제 create_series 시간봉이 기대값과 다릅니다")
+    resolves = matching(sent, "resolve_symbol", symbol_id)
+    if len(resolves) != 1 or len(resolves[0]["p"]) != 3:
+        raise ValueError("가격 series의 resolve_symbol 관측 하나가 필요합니다")
+    encoded = resolves[0]["p"][2]
+    if not isinstance(encoded, str) or not encoded.startswith("="):
+        raise ValueError("관측한 resolve_symbol 요청 형식이 아닙니다")
+    try:
+        request = json.loads(encoded[1:])
+    except json.JSONDecodeError as error:
+        raise ValueError("resolve_symbol 요청 JSON이 잘못됐습니다") from error
+    if request != {
+        "adjustment": "splits",
+        "currency-id": "XTVCUSDT",
+        "metric": "price",
+        "symbol": symbol,
+    }:
+        raise ValueError("실제 resolve_symbol의 심볼·가격 문맥이 기대값과 다릅니다")
+    resolved = matching(received, "symbol_resolved", symbol_id)
+    if (
+        len(resolved) != 1
+        or len(resolved[0]["p"]) != 3
+        or not isinstance(resolved[0]["p"][2], dict)
+        or resolved[0]["p"][2].get("full_name") != symbol
+        or resolved[0]["p"][2].get("pro_name") != symbol
+    ):
+        raise ValueError("실제 symbol_resolved 결과가 가격 series의 기대 심볼과 다릅니다")
+    return {"symbol_id": symbol_id, "symbol": symbol, "interval": interval}
 
 
 def _plot_bindings(
@@ -326,7 +417,8 @@ def parse_native_capture(
         request_source
     ):
         raise ValueError("compile 소스가 무수정 원본과 다릅니다")
-    calls, source_inputs, fills = _source_calls(source_text)
+    source_input_types: dict[str, str] = {}
+    calls, source_inputs, fills = _source_calls(source_text, input_types=source_input_types)
     overrides = payload.get("inputs")
     resolved = payload.get("resolved_inputs")
     if (
@@ -360,6 +452,7 @@ def parse_native_capture(
         if (
             not isinstance(item, dict)
             or item.get("name") != title
+            or (name in source_input_types and item.get("type") != source_input_types[name])
             or not _input_equal(item.get("defval"), resolved[name], item.get("type", ""))
         ):
             raise ValueError("컴파일 입력 기본값·제목이 원문과 다릅니다")
@@ -391,15 +484,28 @@ def parse_native_capture(
         isinstance(value, str) and value for value in (session, study_id, chart_id)
     ) or not isinstance(study_inputs, dict):
         raise ValueError("study cohort가 잘못됐습니다")
+    chart_identity = _chart_identity(
+        sent, received, session, chart_id, expected_symbol, expected_timeframe
+    )
     if study_inputs.get("text") != meta["inputs"][0].get("defval") or study_inputs.get(
         "text"
     ) != responses[0]["data"]["result"].get("ilTemplate"):
         raise ValueError("create_study IL과 컴파일 결과가 다릅니다")
     for index, (name, _, _) in enumerate(source_inputs):
         wire_input = study_inputs.get(f"in_{index}")
-        if not isinstance(wire_input, dict) or not _input_equal(
-            wire_input.get("v"), resolved[name], compiled_inputs[f"in_{index}"].get("type", "")
-        ):
+        kind = compiled_inputs[f"in_{index}"].get("type", "")
+        if kind == "color":
+            matches = (
+                isinstance(wire_input, dict)
+                and wire_input.get("t") == "color"
+                and type(wire_input.get("v")) is int
+                and wire_input["v"] == _wire_color(resolved[name])
+            )
+        else:
+            matches = isinstance(wire_input, dict) and _input_equal(
+                wire_input.get("v"), resolved[name], kind
+            )
+        if not matches:
             raise ValueError("create_study 실제 입력이 원본 기본값과 다릅니다")
     completed = [
         m
@@ -509,6 +615,7 @@ def parse_native_capture(
             "source_sha256": digest,
             "study_id": study_id,
             "chart_id": chart_id,
+            "chart_identity": chart_identity,
             "symbol": expected_symbol,
             "timeframe": expected_timeframe,
             "inputs": overrides,

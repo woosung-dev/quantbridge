@@ -48,7 +48,7 @@ from src.optimizer.schemas import (
     ParamSpace,
 )
 from src.optimizer.serializers import best_metrics_from_jsonb, optimizer_result_to_jsonb
-from src.strategy.code_contract import legacy_pine_source
+from src.strategy.code_contract import CODE_EXECUTION_POLICIES, legacy_pine_source
 from src.strategy.exceptions import CodeStrategyPolicyError
 from src.strategy.repository import StrategyRepository
 
@@ -138,7 +138,7 @@ class OptimizerService:
         """공통 submit path — Backtest ownership + COMPLETED + dispatch."""
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
-        if bt.engine_version == "code_v1":
+        if bt.engine_version in CODE_EXECUTION_POLICIES:
             raise CodeStrategyPolicyError()
 
         run = OptimizationRun(

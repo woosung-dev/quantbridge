@@ -57,6 +57,8 @@ class _Episode:
     exit_notional: Decimal = ZERO
     exit_index: int | None = None
     exit_time: str | None = None
+    signal_event_id: str | None = None
+    exit_reason: str | None = None
 
 
 @dataclass
@@ -96,9 +98,24 @@ class _Ledger:
             maker_fee=Decimal(str(self.cfg.maker_fee)),
         )
 
-    def exit(self, event: RiskEvent, index: int, timestamp: str, phase: str) -> None:
+    def exit(
+        self,
+        event: RiskEvent,
+        index: int,
+        timestamp: str,
+        phase: str,
+        *,
+        signal_event_id: str | None = None,
+        exit_reason: str | None = None,
+    ) -> None:
         episode = self.current
         assert episode is not None
+        if episode.signal_event_id is not None and (
+            event.generation != episode.generation
+            or event.qty <= ZERO
+            or event.qty > self.remaining_qty
+        ):
+            raise ValueError("연구 청산의 세대 또는 잔량이 올바르지 않습니다")
         sign = ONE if episode.direction == "long" else -ONE
         gross = (event.price - episode.entry_price) * event.qty * sign
         fee, slip = self.costs(event.price * event.qty, maker=event.kind == "partial_tp")
@@ -122,8 +139,17 @@ class _Ledger:
                 "gross_pnl": gross,
             }
         )
+        if episode.signal_event_id is not None:
+            self.fills[-1].update(
+                episode_id=episode.generation,
+                entry_signal_event_id=episode.signal_event_id,
+                signal_event_id=signal_event_id,
+                exit_reason=exit_reason or event.kind,
+            )
         if self.remaining_qty == ZERO:
             episode.exit_index, episode.exit_time = index, timestamp
+            if episode.signal_event_id is not None:
+                episode.exit_reason = exit_reason or event.kind
             self.current, self.state = None, None
 
     def market(
@@ -134,14 +160,26 @@ class _Ledger:
         timestamp: str,
         phase: str,
         previous_bars: Sequence[Mapping[str, Decimal]],
+        *,
+        reenter_same_direction: bool = False,
+        signal_event_id: str | None = None,
     ) -> str:
-        if self.current is not None and self.current.direction == direction:
+        same_direction = self.current is not None and self.current.direction == direction
+        if same_direction and not reenter_same_direction:
             self.counters["same_direction_ignored"] += 1
             return "same_direction_ignored"
         if self.current is not None:
             event = RiskEvent(self.generation, "close", price, self.remaining_qty)
-            self.exit(event, index, timestamp, phase)
-            self.counters["reversal"] += 1
+            reason = "same_direction_reentry" if same_direction else "opposite_direction_reversal"
+            self.exit(
+                event,
+                index,
+                timestamp,
+                phase,
+                signal_event_id=signal_event_id,
+                exit_reason=reason if reenter_same_direction else None,
+            )
+            self.counters["same_direction_reentry" if same_direction else "reversal"] += 1
         if self.cash <= ZERO:
             self.counters["nonpositive_equity"] += 1
             return "nonpositive_equity"
@@ -185,6 +223,7 @@ class _Ledger:
             phase,
             fees=fee,
             slippage=slip,
+            signal_event_id=signal_event_id,
         )
         self.episodes.append(self.current)
         self.counters["entry"] += 1
@@ -202,6 +241,8 @@ class _Ledger:
                 "plan": json_value(plan),
             }
         )
+        if signal_event_id is not None:
+            self.fills[-1].update(episode_id=self.generation, signal_event_id=signal_event_id)
         return "entry"
 
 

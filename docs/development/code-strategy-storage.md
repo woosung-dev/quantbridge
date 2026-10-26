@@ -9,6 +9,15 @@
 수동 저장의 `provenance`는 사용자 제출 설명이다. 해시는 저장 이후 변경 여부를 검증하며,
 모델이 실제로 생성했다는 증명이나 의미 검증 통과 인증을 제공하지 않는다.
 
+선택형 `execution_policy:"code_research_v1"`는 기존 JSONB에
+`provenance.research_execution`을 보존하고 청산·재진입·신호 모드를 실행 해시에 포함한다.
+A는 `signal_only_v1`, B는 `swing_two_bar_v1`이며 두 정책 모두 새 같은 방향 이벤트에도
+잔량 청산 후 새 episode를 만든다. 기존 `code_v1`의 의미·기본값·해시는 유지한다.
+공유 신호는 원문·입력·전체 봉에 결박한 `signal_tape`를 A/B에 재생하고,
+포지션 피드백 모드는 각 정책 코드를 별도로 실행한다. 결과의 `strategy_version_id`와
+정책·불변 버전을 재실행에 그대로 전달한다. 연구 정의는 Demo 활성화를 거부한다.
+전체 계약·기술 통과와 배포 대기 경계는 [기간별 정책 연구](period-policy-study.md)를 따른다.
+
 `POST /backtests`는 기존 202 비동기 dispatch를 유지하며 코드 전략에 `execution_policy:"code_v1"`가 필수다. 현재 신호 주기는 **1h/4h/1d**만 지원하며 1m/5m/15m은 dispatch 전에 422다. 평가 입력 버전·해시를 고정하고 완료 봉→다음 봉 시가, 레버리지 1, 공통 `swing_two_bar_v1` 정책을 사용한다. Pine 자체 수량·가격 청산은 허용하지 않으며 무효화 `strategy.close` 의도는 허용한다. 워밍업 포함 부모 봉이 정확히 연속되어야 하고 평가 구간의 1분 실행 봉을 별도로 읽는다. 거래 시각은 1분 실행 인덱스로 저장한다. 분봉 내부 경로는 OHLC 근사이며 실제 틱 체결 보장이 아니다. 실제 펀딩·수수료·슬리피지를 공통 원장에 반영한다.
 
 선택적 `strategy_version_id`는 해당 소유 전략에 속한 불변 버전을 지정한다. 생략 또는 NULL이면

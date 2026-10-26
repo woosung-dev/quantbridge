@@ -65,17 +65,26 @@ from src.backtest.serializers import (
 )
 from src.common.pagination import Page
 from src.core.config import settings
-from src.market_data.constants import TIMEFRAME_SECONDS, normalize_symbol, to_ccxt_perpetual_symbol
+from src.market_data.constants import (
+    TIMEFRAME_SECONDS,
+    normalize_symbol,
+    to_ccxt_perpetual_symbol,
+)
 from src.market_data.models import OHLCV
 from src.market_data.providers import OHLCVProvider
 from src.market_data.repository import OHLCVRepository
 from src.notifications.dispatcher import backtest_finished_payload, enqueue_push
-from src.strategy.code_contract import legacy_pine_source, read_code_version
+from src.strategy.code_contract import (
+    CODE_EXECUTION_POLICIES,
+    legacy_pine_source,
+    read_code_version,
+)
 from src.strategy.exceptions import CodeStrategyPolicyError, StrategyNotFoundError
 from src.strategy.models import Strategy, StrategyVersion
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.sizing import extract_pine_default_qty
 from src.strategy.repository import StrategyRepository
+from src.strategy.research_contract import ResearchExecution
 from src.strategy.schemas import StrategySettings
 from src.trading.repositories.funding_rate_repository import FundingRateRepository
 
@@ -168,18 +177,27 @@ class BacktestService:
         strategy = await self.strategy_repo.find_by_id_and_owner(data.strategy_id, user_id)
         if strategy is None:
             raise StrategyNotFoundError()
-        if strategy.execution_policy == "code_v1":
-            if data.execution_policy != "code_v1":
+        if strategy.execution_policy in CODE_EXECUTION_POLICIES:
+            if data.execution_policy not in CODE_EXECUTION_POLICIES:
                 raise CodeStrategyPolicyError()
             version = await self.strategy_repo.get_version_by_id(
-                data.strategy_version_id or strategy.strategy_version_id, strategy_id=strategy.id
+                data.strategy_version_id or strategy.strategy_version_id,
+                strategy_id=strategy.id,
             )
             if version is None:
                 raise CodeStrategyPolicyError()
             return await self._submit_code(
-                data, version, user_id=user_id, idempotency_key=idempotency_key, body_hash=body_hash
+                data,
+                version,
+                user_id=user_id,
+                idempotency_key=idempotency_key,
+                body_hash=body_hash,
             )
-        if data.execution_policy is not None or data.strategy_version_id is not None:
+        if (
+            data.execution_policy is not None
+            or data.strategy_version_id is not None
+            or data.maker_fee_pct is not None
+        ):
             raise CodeStrategyPolicyError()
         strategy_version = await self._ensure_current_strategy_version(strategy)
 
@@ -293,9 +311,11 @@ class BacktestService:
         body_hash: bytes | None,
     ) -> BacktestCreatedResponse:
         code = read_code_version(version, strategy_id=data.strategy_id)
+        if data.execution_policy != code.execution_policy:
+            raise CodeStrategyPolicyError()
         if data.timeframe not in ("1h", "4h", "1d"):
             raise CodeStrategyPolicyError(
-                "code_v1 1분 실행 백테스트는 현재 1h/4h/1d 신호 주기만 지원합니다"
+                "코드 1분 실행 백테스트는 현재 1h/4h/1d 신호 주기만 지원합니다"
             )
         if (
             data.fill_timing != "next_bar_open"
@@ -305,11 +325,15 @@ class BacktestService:
             raise CodeStrategyPolicyError()
         qty_type = data.default_qty_type or "strategy.percent_of_equity"
         qty_value = data.default_qty_value or data.position_size_pct or Decimal("100")
-        config = {
-            "execution_policy": "code_v1",
+        config: dict[str, Any] = {
+            "execution_policy": code.execution_policy,
             "execution_hash": code.execution_hash,
             "language": code.language.value,
-            "risk_policy": "swing_two_bar_v1",
+            "risk_policy": (
+                code.research_execution.exit_policy
+                if code.research_execution is not None
+                else "swing_two_bar_v1"
+            ),
             "warmup_bars": code.warmup_bars,
             "fill_timing": "next_bar_open",
             "leverage": 1.0,
@@ -323,11 +347,17 @@ class BacktestService:
             "leverage_basis": 1.0,
             "execution_resolution": "1min",
         }
+        if data.maker_fee_pct is not None or code.execution_policy == "code_research_v1":
+            config["maker_fee"] = str(
+                data.maker_fee_pct if data.maker_fee_pct is not None else Decimal("0.00010")
+            )
+        if code.research_execution is not None:
+            config["research_execution"] = code.research_execution.model_dump(mode="json")
         bt = Backtest(
             user_id=user_id,
             strategy_id=data.strategy_id,
             strategy_version_id=version.id,
-            engine_version="code_v1",
+            engine_version=code.execution_policy,
             symbol=data.symbol,
             timeframe=data.timeframe,
             period_start=data.period_start,
@@ -424,9 +454,10 @@ class BacktestService:
             )
             await self.repo.commit()
             return BacktestStatus.FAILED if fail_rows else None
-        if (bt.engine_version == "code_v1" and strategy_version is None) or (
+        if (bt.engine_version in CODE_EXECUTION_POLICIES and strategy_version is None) or (
             strategy_version is not None
-            and (strategy_version.execution_policy == "code_v1") != (bt.engine_version == "code_v1")
+            and strategy_version.execution_policy
+            != (bt.engine_version if bt.engine_version in CODE_EXECUTION_POLICIES else None)
         ):
             fail_rows = await self.repo.fail(
                 backtest_id,
@@ -438,7 +469,10 @@ class BacktestService:
         if strategy_version is None:
             logger.warning(
                 "backtest_run_without_pinned_strategy_version",
-                extra={"backtest_id": str(backtest_id), "strategy_id": str(bt.strategy_id)},
+                extra={
+                    "backtest_id": str(backtest_id),
+                    "strategy_id": str(bt.strategy_id),
+                },
             )
             strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
             if strategy is None:
@@ -452,12 +486,12 @@ class BacktestService:
             pine_source = legacy_pine_source(strategy)
         else:
             pine_source = ""
-            if bt.engine_version != "code_v1":
+            if bt.engine_version not in CODE_EXECUTION_POLICIES:
                 pine_source = legacy_pine_source(strategy_version)
 
         execution: CodeBacktestExecution | None = None
         try:
-            if bt.engine_version == "code_v1" and strategy_version is not None:
+            if bt.engine_version in CODE_EXECUTION_POLICIES and strategy_version is not None:
                 from src.strategy.product_execution import CodeBacktestExecution
 
                 execution = await CodeBacktestExecution.prepare(
@@ -516,7 +550,7 @@ class BacktestService:
                 start=bt.period_start,
                 end=bt.period_end,
             )
-        if bt.engine_version == "code_v1":
+        if bt.engine_version in CODE_EXECUTION_POLICIES:
             try:
                 if execution is None:
                     raise CodeStrategyPolicyError()
@@ -525,6 +559,11 @@ class BacktestService:
                 outcome_error = None
                 outcome_warnings = [
                     "code_v1: fixed swing_two_bar_v1 risk policy; 1min OHLC path approximation"
+                    if bt.engine_version == "code_v1"
+                    else (
+                        f"code_research_v1: {(bt.config or {}).get('risk_policy')}; "
+                        "close_then_reenter_v1; 1min OHLC path approximation"
+                    )
                 ]
             except Exception as exc:
                 logger.exception("code_strategy_execution_failed")
@@ -576,7 +615,7 @@ class BacktestService:
                     bt.timeframe,
                     bt.period_start,
                     bt.period_end,
-                    end_inclusive=bt.engine_version != "code_v1",
+                    end_inclusive=bt.engine_version not in CODE_EXECUTION_POLICIES,
                 ).model_dump(mode="json"),
             )
             if completed_rows == 0:
@@ -589,7 +628,7 @@ class BacktestService:
                 backtest_id,
                 pd.DatetimeIndex(
                     outcome_result.equity_curve.index
-                    if bt.engine_version == "code_v1"
+                    if bt.engine_version in CODE_EXECUTION_POLICIES
                     else ohlcv.index
                 ),
             )
@@ -985,15 +1024,26 @@ class BacktestService:
         # 사용자 입력값 — float coerce + 누락 키(또는 NULL config 전체)는 default 로 fallback.
         cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
         config_out = BacktestConfigOut(
-            execution_policy="code_v1" if bt.engine_version == "code_v1" else None,
+            execution_policy=next(
+                (policy for policy in CODE_EXECUTION_POLICIES if policy == bt.engine_version),
+                None,
+            ),
+            research_execution=(
+                ResearchExecution.model_validate(cfg_dict.get("research_execution"))
+                if bt.engine_version == "code_research_v1"
+                else None
+            ),
             default_qty_type=cfg_dict.get("default_qty_type")
-            if bt.engine_version == "code_v1"
+            if bt.engine_version in CODE_EXECUTION_POLICIES
             else None,
             default_qty_value=cfg_dict.get("default_qty_value")
-            if bt.engine_version == "code_v1"
+            if bt.engine_version in CODE_EXECUTION_POLICIES
             else None,
             leverage=float(cfg_dict.get("leverage", _default.leverage)),
             fees=float(cfg_dict.get("fees", _default.fees)),
+            maker_fee=float(cfg_dict.get("maker_fee", _default.maker_fee))
+            if bt.engine_version in CODE_EXECUTION_POLICIES
+            else None,
             slippage=float(cfg_dict.get("slippage", _default.slippage)),
             include_funding=bool(cfg_dict.get("include_funding", _default.include_funding)),
             fill_timing=str(cfg_dict.get("fill_timing", _default.fill_timing)),
@@ -1045,6 +1095,7 @@ class BacktestService:
         return BacktestDetail(
             id=bt.id,
             strategy_id=bt.strategy_id,
+            strategy_version_id=bt.strategy_version_id,
             symbol=bt.symbol,
             timeframe=bt.timeframe,
             period_start=bt.period_start,
@@ -1236,6 +1287,8 @@ def _compute_body_hash(data: CreateBacktestRequest, user_id: UUID) -> bytes:
         payload.pop("execution_policy", None)
     if data.strategy_version_id is None:
         payload.pop("strategy_version_id", None)
+    if data.maker_fee_pct is None:
+        payload.pop("maker_fee_pct", None)
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).digest()

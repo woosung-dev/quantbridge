@@ -1037,7 +1037,8 @@ main 에서 빨간 게이트) **셋 다 닫혔다.** 남은 [BL-852]·[BL-853]·
 ~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 아키텍처 개선 4개 PR의 손익 증거·실행 session·전략 검토·체결 관측 계약과 CI를 검토한다. 재현된 손익 재시도·Pine 중단 정리 결함의 수정 근거와 실제 gVisor 미검증 범위를 구분한다.**~~
 → **2026-10-24 #931 → #933 → #932 → #934 순차 머지. 통합 코드 검토의 차단급 발견은 없으며, 기존 운영 스키마 차이가 자동 배포를 막고 있다.**
 
-**다음 행동 = PRD §5의 결과·가정 공개 기준으로 Trading 조회 조합 단일 PR의 조회 대상·UID 격리·이름 연결·선택 상태·새로고침 보존과 실제 인증 dev 화면·CI·Standards/Spec 근거를 확인한다. 책임 계약은 [데이터 흐름 §7.6](./architecture/data-flow.md#76-trading-브라우저-조회-조합)을 따른다.**
+~~**다음 행동 = PRD §5의 결과·가정 공개 기준으로 Trading 조회 조합 단일 PR의 조회 대상·UID 격리·이름 연결·선택 상태·새로고침 보존과 실제 인증 dev 화면·CI·Standards/Spec 근거를 확인한다. 책임 계약은 [데이터 흐름 §7.6](./architecture/data-flow.md#76-trading-브라우저-조회-조합)을 따른다.**~~ → **2026-10-26 사용자 지시로 지표·전략 기간별 정책 비교 연구를 우선한다.**
+**다음 행동 = PRD §5의 결과·가정 공개 기준으로 1,400개 선정 코호트의 Pine·Sol Python, A/B·5기간·3시간봉 실행과 실제 native 대조·실패/미실행·등록 대기를 분리 검증한다. 계약은 [기간별 정책 연구](./development/period-policy-study.md)를 따른다. 운영 배포·PR 병합·Demo 활성화·주문은 이번 범위에 없다.**
 운영 DB `20261021_0002 → 20261022_0005`의 DDL 5개와 이미지 `sha-e2173c1`의 배포는 [배포 런북 §3](./operations/backend-deploy.md#3-사람이-하는-것)에 따른 명시 승인 대기다. 외부 백업 왕복·격리 복원·기존 데이터 보존은 확인했다. 실제 gVisor 검증과 legacy 손익 [BL-871](./backlog.md#bl-871)은 별도 검증이다.
 남은 Pine 검증 계약 = [Pine 신호 교차 검증](./development/pine-signal-validation.md).
 기존 `python-research` 전용 화면·API·작업의 철거와 DB 이력 보존은 [ADR-045](./adr/045-python-strategy-research.md)를 따른다.

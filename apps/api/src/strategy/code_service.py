@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from src.strategy.code_contract import read_code_version
+from src.strategy.code_contract import CODE_EXECUTION_POLICIES, read_code_version
 from src.strategy.code_schemas import (
     CodeStrategyListResponse,
     CodeStrategyResponse,
@@ -47,7 +47,7 @@ class CodeStrategyService:
         strategy = await self.repo.find_by_id_and_owner(strategy_id, owner_id)
         if strategy is None:
             raise StrategyNotFoundError()
-        if strategy.execution_policy != "code_v1":
+        if strategy.execution_policy not in CODE_EXECUTION_POLICIES:
             raise CodeStrategyPolicyError()
         version = await self.repo.get_version_by_id(
             strategy.strategy_version_id, strategy_id=strategy.id
@@ -69,7 +69,7 @@ class CodeStrategyService:
             pine_source=None,
             pine_version=None,
             source_language=data.code.language.value,
-            execution_policy="code_v1",
+            execution_policy=data.code.execution_policy,
             parse_status=ParseStatus.unsupported,
             settings=data.settings.model_dump(mode="json") if data.settings is not None else None,
         )
@@ -86,6 +86,7 @@ class CodeStrategyService:
         strategy.name, strategy.description = data.name, data.description
         strategy.symbol, strategy.timeframe = data.symbol, data.timeframe
         strategy.source_language = data.code.language.value
+        strategy.execution_policy = data.code.execution_policy
         if "settings" in data.model_fields_set:
             strategy.settings = (
                 data.settings.model_dump(mode="json") if data.settings is not None else None

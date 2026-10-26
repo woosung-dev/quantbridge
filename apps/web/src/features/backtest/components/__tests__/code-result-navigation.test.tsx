@@ -102,6 +102,42 @@ describe("코드 백테스트 결과에서 전략으로 이동", () => {
     await waitFor(() => expect(screen.getByTestId(testId)).toHaveTextContent("user-b"));
   });
 
+  it("연구 결과도 연구 계약을 읽고 코드 전략으로 연결한다", async () => {
+    const research = {
+      contract_version: 1,
+      exit_policy: "signal_only_v1",
+      reentry_policy: "close_then_reenter_v1",
+      signal_mode: "shared_events",
+      signal_mapping_hash: "a".repeat(64),
+    } as const;
+    detail = {
+      ...BACKTEST,
+      config: { execution_policy: "code_research_v1", research_execution: research },
+    };
+    const stored = codeResponse("연구 A");
+    mocks.apiFetch.mockResolvedValue({
+      ...stored,
+      version: {
+        ...stored.version,
+        execution_policy: "code_research_v1",
+        provenance: { research_execution: research },
+      },
+    });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <BacktestDetailView id={BACKTEST.id} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("report-strategy-chip")).toHaveTextContent("연구 A"),
+    );
+    expect(screen.getByTestId("report-strategy-chip")).toHaveAttribute(
+      "href",
+      `/strategies/code?strategy=${ID}`,
+    );
+    expect(mocks.legacy).not.toHaveBeenCalled();
+  });
+
   it("기존 Pine 결과는 기존 조회·편집기를 유지한다", () => {
     detail = { ...BACKTEST, config: null };
     render(<BacktestDetailView id={BACKTEST.id} />);

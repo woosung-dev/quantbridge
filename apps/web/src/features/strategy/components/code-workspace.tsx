@@ -6,6 +6,7 @@ import { Suspense, useSyncExternalStore } from "react";
 import { CODE_LANGUAGE_LABELS, type CodeLanguage } from "@/features/strategy/code-schemas";
 import { useCodeWorkspace } from "@/features/strategy/code-hooks";
 import { describeApiError } from "@/lib/api-client";
+import { ResearchExecutionSchema, researchPolicyLabel } from "../research-contract";
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import { CodeGenerationPanel } from "./code-generation-panel";
 
@@ -182,24 +183,29 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
               배분합니다.
             </p>
             <p className="strip-note">
-              손절 1R · 1.5R에서 최초 수량 절반 익절 · 2R에서 본절과 2R 거리 추적. 원문이 수량이나
-              손절 가격을 지정할 수 없습니다.
+              {work.researchExecution
+                ? `${researchPolicyLabel(work.researchExecution)} · 새 진입 신호마다 잔량 청산 후 재진입. ${work.researchExecution.signal_mode === "shared_events" ? "A/B 공통 신호" : "포지션 반영 신호"}.`
+                : "손절 1R · 1.5R에서 최초 수량 절반 익절 · 2R에서 본절과 2R 거리 추적. 원문이 수량이나 손절 가격을 지정할 수 없습니다."}
             </p>
             <div className="report-actions">
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={!draft.source.trim() || !draft.name.trim()}
+                disabled={
+                  !draft.source.trim() || !draft.name.trim() || work.saveBlockReason !== null
+                }
+                title={work.saveBlockReason ?? undefined}
                 onClick={() => work.save.mutate()}
               >
                 {work.save.isPending ? "저장 중…" : work.selected ? "새 버전 저장" : "전략 저장"}
               </button>
               <span className="field-hint" role="status">
-                {work.selected
-                  ? work.dirty
-                    ? "변경 사항이 있습니다."
-                    : "저장한 원문과 일치합니다."
-                  : "저장 전입니다."}
+                {work.saveBlockReason ??
+                  (work.selected
+                    ? work.dirty
+                      ? "변경 사항이 있습니다."
+                      : "저장한 원문과 일치합니다."
+                    : "저장 전입니다.")}
               </span>
             </div>
           </fieldset>
@@ -311,6 +317,10 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
           <h2 id="saved-code-title">저장한 코드 전략</h2>
         </header>
         <div className="card p-5">
+          <p className="field-hint" role="status">
+            전체 {work.total.toLocaleString("ko-KR")}개 중{" "}
+            {work.items.length === 0 ? 0 : work.offset + 1}–{work.offset + work.items.length}개 표시
+          </p>
           <ul className="grid gap-3">
             {work.items.map((item) => (
               <li key={item.id}>
@@ -321,10 +331,33 @@ function CodeWorkspaceContent({ initialStrategyId }: { initialStrategyId?: strin
                   onClick={() => work.load(item)}
                 >
                   {item.name} · {CODE_LANGUAGE_LABELS[item.version.language]}
+                  {item.version.execution_policy === "code_research_v1"
+                    ? ` · ${researchPolicyLabel(ResearchExecutionSchema.parse(item.version.provenance.research_execution))}`
+                    : ""}
                 </button>
               </li>
             ))}
           </ul>
+          {work.total > 20 ? (
+            <nav className="report-actions" aria-label="코드 전략 목록 페이지">
+              <button
+                type="button"
+                className="btn"
+                disabled={work.busy || work.offset === 0}
+                onClick={() => work.setOffset(Math.max(0, work.offset - 20))}
+              >
+                이전 페이지
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={work.busy || work.offset + work.items.length >= work.total}
+                onClick={() => work.setOffset(work.offset + 20)}
+              >
+                다음 페이지
+              </button>
+            </nav>
+          ) : null}
           {work.items.length === 0 ? (
             <p className="dim">아직 저장한 코드 전략이 없습니다.</p>
           ) : null}
