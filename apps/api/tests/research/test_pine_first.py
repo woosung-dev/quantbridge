@@ -420,7 +420,8 @@ class PineFirstTests(unittest.TestCase):
             invalid = policy.build_pine_first_view(self.root, [self.pine, row])
             self.assertEqual(invalid["progress"]["python_fallback_completed"], 0)
 
-    def completion_fixture(self, *, request_change=None, status="completed", execution_attempt=1):
+    def completion_fixture(self, *, request_change=None, status="completed", execution_attempt=1,
+                           failure_reason="PythonRuntimeError: isolated financial execution failed"):
         self.python_completed_fixture(pinned=False)
         self.request.update(request_change or {})
         row = self.save_completed({**self.cell, "code_path": "python"})
@@ -436,7 +437,7 @@ class PineFirstTests(unittest.TestCase):
             for key in ("result_file", "result_sha256", "metrics"):
                 record.pop(key)
             record.update(status="failed", execution_attempt=execution_attempt,
-                          reason="PythonRuntimeError: isolated financial execution failed")
+                          reason=failure_reason)
         attempt_file = f"{folder}/attempt-{record['attempt']:03}.json"
         write(self.root / folder / "latest.json", record)
         write(self.root / attempt_file, record)
@@ -535,6 +536,22 @@ class PineFirstTests(unittest.TestCase):
         with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
             view = policy.build_pine_first_view(self.root, [self.pine, row])
         self.assertEqual(view["progress"]["financial_failed_terminal"], 0)
+
+    def test_runner_unavailable_is_recovery_after_two_attempts_and_reason_is_not_forgeable(self):
+        row = self.completion_fixture(status="failed", execution_attempt=2,
+                                      failure_reason="PythonRunnerUnavailable:격리 실행기를 시작할 수 없습니다")
+        with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+            view = policy.build_pine_first_view(self.root, [self.pine, row])
+            selected = view["rows"][0]
+            self.assertEqual(selected["code_path"], "python")
+            self.assertEqual(selected["failure_category"], "infrastructure")
+            self.assertEqual(selected["status"], "pending")
+            self.assertEqual(view["progress"]["financial_recovery_pending"], 1)
+            self.assertEqual(view["progress"]["financial_failed_terminal"], 0)
+            forged = {**row, "reason": "PythonRuntimeError: forged strategy execution failure"}
+            invalid = policy.build_pine_first_view(self.root, [self.pine, forged])
+            self.assertEqual(invalid["progress"]["financial_failed_terminal"], 0)
+            self.assertNotEqual(invalid["rows"][0]["code_path"], "python")
 
     def test_failed_completion_requires_request_scope_worker_and_exact_attempt(self):
         row = self.completion_fixture(status="failed", execution_attempt=2)

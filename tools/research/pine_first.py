@@ -230,7 +230,10 @@ def _logical_failure_status(row: dict) -> dict:
     """원시 경로 실패를 복구 대기와 대체 금융 재시도 소진으로 구분한다."""
     if row.get("status") != "failed":
         return row
-    terminal = row.get("code_path") == "python" and (
+    infrastructure = row.get("code_path") == "python" and str(row.get("reason", "")).startswith(
+        "PythonRunnerUnavailable:"
+    )
+    terminal = not infrastructure and row.get("code_path") == "python" and (
         (type(row.get("execution_attempt")) is int and row["execution_attempt"] == 2)
         or row.get("bounded_retries_exhausted") is True
     )
@@ -241,6 +244,7 @@ def _logical_failure_status(row: dict) -> dict:
         "original_path_reason": row.get("reason"),
         "recovery_pending": not terminal,
         "failed_terminal": terminal,
+        **({"failure_category": "infrastructure"} if infrastructure else {}),
     }
 
 
@@ -563,7 +567,7 @@ class _Evidence:
                 if proof.get("python_request_hash") is not None:
                     raise ValueError("reviewed_reuse_request_missing")
                 completion = self.completion_binding(row, proof, record, request, folder)
-            for key in (*IDENTITY, "code_path", "status", "result_sha256"):
+            for key in (*IDENTITY, "code_path", "status", "result_sha256", "reason"):
                 if row.get(key) != record.get(key):
                     raise ValueError("export_checkpoint_mismatch")
             dataset = read(self.root / "data/dataset.json")
@@ -747,6 +751,7 @@ def build_pine_first_view(run: Path, exported_rows: list[dict]) -> dict:
             "failed_terminal_definition": (
                 "적격·동일 입력이 검증된 Python 금융 실행의 execution_attempt=2 또는 "
                 "bounded_retries_exhausted=true인 실패만 최종 금융 실패다. "
+                "PythonRunnerUnavailable 인프라 실패는 재시도 소진 후에도 복구 대기다. "
                 "Pine 경로 실패·생성 실패·자료 부재·변환 부적격은 최종 금융 실패가 아니다."
             ),
             "pine_completed": pine_completed,
