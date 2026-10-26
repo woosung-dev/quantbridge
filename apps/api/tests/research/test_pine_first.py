@@ -321,7 +321,7 @@ class PineFirstTests(unittest.TestCase):
         )
         self.assertEqual(result["reason"], "shared_events_B_does_not_execute_source")
 
-    def test_python_reuse_is_scoped_to_reviewed_request_and_matching_approval(self):
+    def python_completed_fixture(self, *, pinned=True):
         row = self.completed_fixture("python")
         self.review.pop("adapted_file")
         self.review.pop("adapted_sha256")
@@ -358,8 +358,12 @@ class PineFirstTests(unittest.TestCase):
         row = self.save_completed({**self.cell, "code_path": "python"})
         self.proof["evidence"]["review"] = self.ref("reviews/one.json")
         self.proof["evidence"]["pine_failure"] = self.ref("reviews/one.json")
-        self.proof["python_request_hash"] = row["request_hash"]
+        self.proof["python_request_hash"] = row["request_hash"] if pinned else None
         self.eligibility()
+        return row, approval
+
+    def test_python_reuse_is_scoped_to_reviewed_request_and_matching_approval(self):
+        row, approval = self.python_completed_fixture()
         with patch(
             "tools.research.period_study.controller.implementation",
             return_value={"fixture": "same"},
@@ -415,6 +419,248 @@ class PineFirstTests(unittest.TestCase):
             )
             invalid = policy.build_pine_first_view(self.root, [self.pine, row])
             self.assertEqual(invalid["progress"]["python_fallback_completed"], 0)
+
+    def completion_fixture(self, *, request_change=None, status="completed", execution_attempt=1):
+        self.python_completed_fixture(pinned=False)
+        self.request.update(request_change or {})
+        row = self.save_completed({**self.cell, "code_path": "python"})
+        folder = "cells/one/python/1h/P1/A"
+        result_file = f"{folder}/result-{row['request_hash']}.json.gz"
+        write(self.root / result_file, read(self.root / row["result_file"]))
+        record = {
+            key: value for key, value in row.items() if key not in row["metrics"]
+        }
+        record.update(attempt=execution_attempt, result_file=result_file,
+                      result_sha256=sha((self.root / result_file).read_bytes()))
+        if status == "failed":
+            for key in ("result_file", "result_sha256", "metrics"):
+                record.pop(key)
+            record.update(status="failed", execution_attempt=execution_attempt,
+                          reason="PythonRuntimeError: isolated financial execution failed")
+        attempt_file = f"{folder}/attempt-{record['attempt']:03}.json"
+        write(self.root / folder / "latest.json", record)
+        write(self.root / attempt_file, record)
+        self.completion_row = {**record, **record.get("metrics", {})}
+        eligibility = self.ref("pine-first/eligibility/one.json")
+        job = {
+            "publication_id": "one", "code_path": "python", "timeframe": "1h", "period": "P1",
+            "policies": ["A"], "eligibility_proofs": [eligibility],
+            "policy_sha256": self.ref("pine-first/policy.json")["sha256"],
+            "input_evidence": [self.ref(name) for name in (
+                "sources/one.pine", "reviews/one.json", "data/dataset.json", "runtime-smoke.json",
+                "generation/one/status.json", "generation/one/0/code-review.json", "adapted/one.python",
+                "data/P1/1h.csv", "data/P1/1min.csv", "data/P1/funding.csv",
+            )],
+        }
+        job["job_hash"] = identity(job)
+        job_file = f"pine-first/jobs/{job['job_hash']}.json"
+        write(self.root / job_file, job)
+        worker_file = f"pine-first/jobs/{job['job_hash']}/worker-status.json"
+        write(self.root / worker_file, {
+            "job_hash": job["job_hash"], "status": "completed", "phase": "common_engine_dispatch",
+            "run_group_calls": 1, "dispatched_policies": ["A"], "results": [record],
+            "selection_evidence": [{"policy": "A", "proof_file": eligibility["path"],
+                                    "proof_sha256": eligibility["sha256"]}],
+        })
+        self.completion = {
+            "schema_version": 1, "cell": {**self.cell, "code_path": "python"},
+            "request_hash": row["request_hash"], "eligibility": eligibility,
+            "job": self.ref(job_file), "worker_status": self.ref(worker_file),
+            "checkpoint": self.ref(attempt_file),
+            "request": self.ref(f"{folder}/request-{row['request_hash']}.json"),
+            **({"result": self.ref(result_file)} if status == "completed" else {}),
+        }
+        self.completion_path = (
+            self.root / "pine-first/completions/one/1h/P1/A"
+            / f"{row['request_hash']}-attempt-{record['attempt']:03}.json"
+        )
+        write(self.completion_path, self.completion)
+        return self.completion_row
+
+    def completion_count(self, row):
+        with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+            return policy.build_pine_first_view(self.root, [self.pine, row])["progress"]["python_fallback_completed"]
+
+    def rewrite_completion_job(self, changes):
+        job = read(self.root / self.completion["job"]["path"])
+        worker = read(self.root / self.completion["worker_status"]["path"])
+        job.update(changes)
+        job["job_hash"] = identity({key: value for key, value in job.items() if key != "job_hash"})
+        job_path = f"pine-first/jobs/{job['job_hash']}.json"
+        worker_path = f"pine-first/jobs/{job['job_hash']}/worker-status.json"
+        worker["job_hash"] = job["job_hash"]
+        write(self.root / job_path, job)
+        write(self.root / worker_path, worker)
+        self.completion.update(job=self.ref(job_path), worker_status=self.ref(worker_path))
+        write(self.completion_path, self.completion)
+
+    def test_unpinned_new_python_completion_uses_append_only_binding(self):
+        row = self.completion_fixture()
+        proof_before = (self.root / "pine-first/eligibility/one.json").read_bytes()
+        self.assertEqual(self.completion_count(row), 1)
+        self.assertEqual((self.root / "pine-first/eligibility/one.json").read_bytes(), proof_before)
+        self.completion_path.unlink()
+        self.assertEqual(self.completion_count(row), 0)
+
+    def test_completion_legacy_success_path_remains_compatible_without_failed_fallback(self):
+        row = self.completion_fixture()
+        legacy = self.completion_path.with_name(f"{row['request_hash']}.json")
+        self.completion_path.rename(legacy)
+        self.assertEqual(self.completion_count(row), 1)
+        write(self.completion_path, {"schema_version": 1})
+        self.assertEqual(self.completion_count(row), 0)
+        row = self.completion_fixture(status="failed", execution_attempt=2)
+        self.completion_path.replace(legacy)
+        with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+            view = policy.build_pine_first_view(self.root, [self.pine, row])
+        self.assertEqual(view["progress"]["financial_failed_terminal"], 0)
+
+    def test_unpinned_python_failed_execution_uses_actual_attempt_for_terminal_status(self):
+        for execution_attempt in (1, 2):
+            with self.subTest(execution_attempt=execution_attempt):
+                row = self.completion_fixture(status="failed", execution_attempt=execution_attempt)
+                proof_before = (self.root / "pine-first/eligibility/one.json").read_bytes()
+                with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+                    view = policy.build_pine_first_view(self.root, [self.pine, row])
+                self.assertEqual(view["rows"][0]["code_path"], "python")
+                self.assertEqual(view["rows"][0]["status"], "pending" if execution_attempt == 1 else "failed")
+                self.assertEqual(view["progress"]["financial_failed_terminal"], 0 if execution_attempt == 1 else 1)
+                self.assertEqual(view["progress"]["financial_recovery_pending"], 1 if execution_attempt == 1 else 0)
+                self.assertEqual((self.root / "pine-first/eligibility/one.json").read_bytes(), proof_before)
+
+    def test_previous_completion_attempt_cannot_substitute_current_execution(self):
+        row = self.completion_fixture(status="failed", execution_attempt=2)
+        previous = self.completion_path.with_name(f"{row['request_hash']}-attempt-001.json")
+        self.completion_path.rename(previous)
+        with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+            view = policy.build_pine_first_view(self.root, [self.pine, row])
+        self.assertEqual(view["progress"]["financial_failed_terminal"], 0)
+
+    def test_failed_completion_requires_request_scope_worker_and_exact_attempt(self):
+        row = self.completion_fixture(status="failed", execution_attempt=2)
+        original = copy.deepcopy(self.completion)
+        worker_path = self.root / original["worker_status"]["path"]
+        worker_before = worker_path.read_bytes()
+        for changed in ("request", "cell", "worker", "attempt", "result"):
+            with self.subTest(changed=changed):
+                value = copy.deepcopy(original)
+                if changed == "request":
+                    del value["request"]
+                elif changed == "cell":
+                    value["cell"]["period"] = "P2"
+                elif changed == "worker":
+                    worker = read(worker_path)
+                    worker["status"] = "failed"
+                    write(worker_path, worker)
+                    value["worker_status"] = self.ref(str(worker_path.relative_to(self.root)))
+                elif changed == "attempt":
+                    wrong = "cells/one/python/1h/P1/A/attempt-001.json"
+                    write(self.root / wrong, read(self.root / original["checkpoint"]["path"]))
+                    value["checkpoint"] = self.ref(wrong)
+                else:
+                    value["result"] = self.ref(original["request"]["path"])
+                write(self.completion_path, value)
+                with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+                    view = policy.build_pine_first_view(self.root, [self.pine, row])
+                self.assertEqual(view["progress"]["financial_failed_terminal"], 0)
+                worker_path.write_bytes(worker_before)
+
+    def test_completion_roles_and_cell_cannot_be_forged(self):
+        row = self.completion_fixture()
+        for role in ("eligibility", "job", "worker_status", "checkpoint", "request", "result"):
+            with self.subTest(role=role):
+                value = copy.deepcopy(self.completion)
+                del value[role]
+                write(self.completion_path, value)
+                self.assertEqual(self.completion_count(row), 0)
+        value = copy.deepcopy(self.completion)
+        value["cell"]["policy"] = "B"
+        write(self.completion_path, value)
+        self.assertEqual(self.completion_count(row), 0)
+
+    def test_completion_job_proof_worker_and_result_tampering_is_rejected(self):
+        row = self.completion_fixture()
+        for role in ("eligibility", "result"):
+            with self.subTest(role=role):
+                value = copy.deepcopy(self.completion)
+                value[role]["sha256"] = "0" * 64
+                write(self.completion_path, value)
+                self.assertEqual(self.completion_count(row), 0)
+        job_path = self.root / self.completion["job"]["path"]
+        original = job_path.read_bytes()
+        job = read(job_path)
+        job["job_hash"] = "0" * 64
+        write(job_path, job)
+        value = copy.deepcopy(self.completion)
+        value["job"] = self.ref(str(job_path.relative_to(self.root)))
+        write(self.completion_path, value)
+        self.assertEqual(self.completion_count(row), 0)
+        job_path.write_bytes(original)
+        worker_path = self.root / self.completion["worker_status"]["path"]
+        original_worker = worker_path.read_bytes()
+        for fields in ({"status": "failed"}, {"phase": "no_new_calculation"}, {"run_group_calls": 0}):
+            with self.subTest(fields=fields):
+                worker = read(worker_path)
+                worker.update(fields)
+                write(worker_path, worker)
+                value = copy.deepcopy(self.completion)
+                value["worker_status"] = self.ref(str(worker_path.relative_to(self.root)))
+                write(self.completion_path, value)
+                self.assertEqual(self.completion_count(row), 0)
+                worker_path.write_bytes(original_worker)
+
+    def test_completion_does_not_bypass_current_inputs_or_explicit_old_pin(self):
+        row = self.completion_fixture(request_change={"costs": {**policy.COSTS, "maker": "0"}})
+        self.assertEqual(self.completion_count(row), 0)
+        row = self.completion_fixture()
+        write(self.root / "pine-first/policy.json", {"policy": policy.POLICY, "source_count": 2})
+        self.assertEqual(self.completion_count(row), 0)
+        write(self.root / "pine-first/policy.json", {"policy": policy.POLICY, "source_count": 1})
+        self.proof["python_request_hash"] = "f" * 64
+        self.eligibility()
+        with patch.object(policy._Evidence, "completion_binding", side_effect=AssertionError("명시 pin에는 진입 금지")) as fallback:
+            self.assertEqual(self.completion_count(row), 0)
+            fallback.assert_not_called()
+
+    def test_validly_hashed_job_still_requires_scope_policy_and_all_inputs(self):
+        row = self.completion_fixture()
+        original = copy.deepcopy(self.completion)
+        for changes in (
+            {"period": "P2"}, {"code_path": "pine"}, {"policies": ["B"]},
+            {"eligibility_proofs": []}, {"policy_sha256": "0" * 64}, {"input_evidence": []},
+            {"input_evidence": [{"path": "data/P1/1min.csv", "sha256": "0" * 64}]},
+        ):
+            with self.subTest(changes=changes):
+                self.completion = copy.deepcopy(original)
+                self.rewrite_completion_job(changes)
+                self.assertEqual(self.completion_count(row), 0)
+
+    def test_completion_rejects_foreign_paths_and_different_worker_result_or_proof(self):
+        row = self.completion_fixture()
+        for role in ("checkpoint", "request", "result"):
+            with self.subTest(role=role):
+                value = copy.deepcopy(self.completion)
+                original = self.root / value[role]["path"]
+                foreign = self.root / "foreign" / original.name
+                foreign.parent.mkdir(exist_ok=True)
+                foreign.write_bytes(original.read_bytes())
+                value[role] = self.ref(str(foreign.relative_to(self.root)))
+                write(self.completion_path, value)
+                self.assertEqual(self.completion_count(row), 0)
+        worker_path = self.root / self.completion["worker_status"]["path"]
+        original = read(worker_path)
+        for changed in ("result", "proof"):
+            with self.subTest(changed=changed):
+                worker = copy.deepcopy(original)
+                if changed == "result":
+                    worker["results"][0]["result_sha256"] = "0" * 64
+                else:
+                    worker["selection_evidence"][0]["proof_sha256"] = "0" * 64
+                write(worker_path, worker)
+                value = copy.deepcopy(self.completion)
+                value["worker_status"] = self.ref(str(worker_path.relative_to(self.root)))
+                write(self.completion_path, value)
+                self.assertEqual(self.completion_count(row), 0)
 
     def test_duplicate_rows_rejected_and_native_legacy_is_preserved(self):
         with self.assertRaisesRegex(ValueError, "duplicate"):

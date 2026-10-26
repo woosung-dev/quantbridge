@@ -434,6 +434,113 @@ class _Evidence:
         except (OSError, ValueError, KeyError, TypeError) as error:
             return {"eligible": False, "reason": f"invalid_eligibility_evidence:{error}"}
 
+    def completion_binding(
+        self, row: dict, proof: dict, record: dict, request: dict, folder: Path
+    ) -> dict:
+        """해시가 미지정된 기존 적격 proof에 새 실제 실행 근거만 덧붙인다."""
+        pid, tf, period, selected_policy = _key(row)
+        request_hash = record["request_hash"]
+        prefix = f"pine-first/completions/{pid}/{tf}/{period}/{selected_policy}/{request_hash}"
+        if type(record.get("attempt")) is not int or record["attempt"] < 1:
+            raise ValueError("completion_attempt_missing")
+        relative = f"{prefix}-attempt-{record['attempt']:03}.json"
+        if not (self.root / relative).exists() and record.get("status") == "completed":
+            relative = f"{prefix}.json"
+        descriptor = {"path": relative, "sha256": sha((self.root / relative).read_bytes())}
+        binding = read(self.check(descriptor))
+        if not isinstance(binding, dict):
+            raise ValueError("completion_binding_must_be_object")
+        cell = {**dict(zip(IDENTITY, _key(row), strict=True)), "code_path": "python"}
+        eligibility = {"path": proof["proof_file"], "sha256": proof["proof_sha256"]}
+        if (
+            proof.get("_verified") is not _VERIFIED
+            or proof.get("python_request_hash") is not None
+            or type(binding.get("schema_version")) is not int
+            or binding["schema_version"] != 1
+            or binding.get("cell") != cell
+            or binding.get("request_hash") != request_hash
+            or binding.get("eligibility") != eligibility
+            or record.get("status") not in ("completed", "failed")
+        ):
+            raise ValueError("completion_scope_or_eligibility_mismatch")
+        roles = ("eligibility", "job", "worker_status", "checkpoint", "request")
+        if record["status"] == "completed":
+            roles += ("result",)
+        elif "result" in binding or any(key in record for key in ("result_file", "result_sha256")):
+            raise ValueError("failed_completion_cannot_claim_result")
+        files = {
+            role: self.check(binding[role])
+            for role in roles
+        }
+        if read(files["eligibility"]).get("python_request_hash") is not None:
+            raise ValueError("completion_cannot_replace_explicit_request_pin")
+        checkpoint_paths = {folder / "latest.json"}
+        if type(record.get("attempt")) is int and record["attempt"] > 0:
+            checkpoint_paths.add(folder / f"attempt-{record['attempt']:03}.json")
+        if (
+            files["checkpoint"] not in checkpoint_paths
+            or read(files["checkpoint"]) != record
+            or files["request"] != folder / f"request-{request_hash}.json"
+            or read(files["request"]) != request
+        ):
+            raise ValueError("completion_checkpoint_or_request_mismatch")
+        if record["status"] == "completed" and (
+            files["result"] != folder / f"result-{request_hash}.json.gz"
+            or binding["result"] != {
+                "path": record["result_file"], "sha256": record["result_sha256"]
+            }
+        ):
+            raise ValueError("completion_result_mismatch")
+        if identity(request) != request_hash:
+            raise ValueError("completion_request_hash_mismatch")
+        job = read(files["job"])
+        if not isinstance(job, dict):
+            raise ValueError("completion_job_must_be_object")
+        job_hash = job.get("job_hash")
+        if (
+            not isinstance(job_hash, str)
+            or len(job_hash) != 64
+            or any(char not in "0123456789abcdef" for char in job_hash)
+            or identity({key: value for key, value in job.items() if key != "job_hash"}) != job_hash
+            or files["job"] != self.root / "pine-first/jobs" / f"{job_hash}.json"
+            or any(job.get(key) != cell[key] for key in (*IDENTITY[:3], "code_path"))
+            or job.get("policies") not in [["A"], ["B"], ["A", "B"]]
+            or selected_policy not in job["policies"]
+            or not isinstance(job.get("eligibility_proofs"), list)
+            or eligibility not in job["eligibility_proofs"]
+            or job.get("policy_sha256") != sha((self.root / "pine-first/policy.json").read_bytes())
+            or not isinstance(job.get("input_evidence"), list)
+            or not job["input_evidence"]
+        ):
+            raise ValueError("completion_job_identity_or_inputs_mismatch")
+        for entry in [*job["input_evidence"], *job["eligibility_proofs"]]:
+            self.check(entry)
+        worker = read(files["worker_status"])
+        if not isinstance(worker, dict):
+            raise ValueError("completion_worker_must_be_object")
+        if (
+            files["worker_status"] != self.root / "pine-first/jobs" / job_hash / "worker-status.json"
+            or worker.get("job_hash") != job_hash
+            or worker.get("status") != "completed"
+            or worker.get("phase") != "common_engine_dispatch"
+            or type(worker.get("run_group_calls")) is not int
+            or worker["run_group_calls"] < 1
+            or not isinstance(worker.get("results"), list)
+            or sum(value == record for value in worker["results"]) != 1
+            or not isinstance(worker.get("selection_evidence"), list)
+            or not any(
+                isinstance(value, dict)
+                and value.get("policy") == selected_policy
+                and value.get("proof_file") == eligibility["path"]
+                and value.get("proof_sha256") == eligibility["sha256"]
+                for value in worker["selection_evidence"]
+            )
+        ):
+            raise ValueError("completion_worker_dispatch_mismatch")
+        if sha((self.root / relative).read_bytes()) != descriptor["sha256"]:
+            raise ValueError("completion_changed_during_verification")
+        return descriptor
+
     def verified_row(self, row: dict, proof: dict, review: dict) -> dict:
         """기존 성공은 양 언어 모두 현재 원문·입력·결과 SHA를 검증해 재사용한다."""
         language = row["code_path"]
@@ -451,8 +558,11 @@ class _Evidence:
             request = read(folder / f"request-{record['request_hash']}.json")
             if identity(request) != record["request_hash"]:
                 raise ValueError("request_hash_mismatch")
+            completion = None
             if language == "python" and proof.get("python_request_hash") != record["request_hash"]:
-                raise ValueError("reviewed_reuse_request_missing")
+                if proof.get("python_request_hash") is not None:
+                    raise ValueError("reviewed_reuse_request_missing")
+                completion = self.completion_binding(row, proof, record, request, folder)
             for key in (*IDENTITY, "code_path", "status", "result_sha256"):
                 if row.get(key) != record.get(key):
                     raise ValueError("export_checkpoint_mismatch")
@@ -566,6 +676,7 @@ class _Evidence:
                     raise ValueError("exported_metric_mismatch")
             return {
                 **row,
+                **({"completion_binding": completion} if completion is not None else {}),
                 "execution_attempt": record.get("execution_attempt"),
                 "bounded_retries_exhausted": record.get("bounded_retries_exhausted") is True,
                 "_same_input_verified": _VERIFIED,
