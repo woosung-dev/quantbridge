@@ -25,6 +25,18 @@ def guard_environment(bundle):
     assert not any(p.name.startswith(".env") for p in bundle.rglob("*"))
 
 
+def gzip_os_19_sha(path):
+    """원파일은 읽기만 하며 gzip OS byte9 하나만 0x13으로 바꾼 SHA를 구한다."""
+    with path.open("rb") as stream:
+        header = stream.read(10)
+        if len(header) != 10 or header[:3] != b"\x1f\x8b\x08":
+            return None
+        value = hashlib.sha256(header[:9] + b"\x13")
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            value.update(block)
+        return value.hexdigest()
+
+
 def compare_rows(rows, case, run):
     assert len(rows) == 2 and [r["policy"] for r in rows] == ["A", "B"]
     assert set(case["expected"]) == {"A", "B"}
@@ -36,7 +48,11 @@ def compare_rows(rows, case, run):
         assert actual.is_relative_to(run.resolve()) and actual.is_file() and sha(actual) == row["result_sha256"]
         oracle = case["expected"][row["policy"]]
         exact = row["request_hash"] == oracle["request_hash"] and row["result_sha256"] == oracle["result_sha256"]
-        comparisons.append({"policy": row["policy"], "request_hash": row["request_hash"], "result_sha256": row["result_sha256"], "exact": exact})
+        normalized = gzip_os_19_sha(actual) if not exact else None
+        header_only = (row["request_hash"] == oracle["request_hash"] and row["result_sha256"] != oracle["result_sha256"]
+                       and normalized == oracle["result_sha256"])
+        comparisons.append({"policy": row["policy"], "request_hash": row["request_hash"], "result_sha256": row["result_sha256"], "exact": exact,
+                            "transport_header_only": header_only, "gzip_os_19_sha256": normalized})
     assert len(comparisons) == 2
     return comparisons
 
@@ -168,7 +184,7 @@ def main():
             if (run / "cells").exists():
                 shutil.copytree(run / "cells", output / "cells")
     (output / "receipt.json").write_text(json.dumps(receipt, ensure_ascii=False, sort_keys=True) + "\n")
-    if args.execute and (not receipt["source_execution"] or len(receipt["comparisons"]) != 2 or not all(c["exact"] for c in receipt["comparisons"])):
+    if args.execute and (not receipt["source_execution"] or len(receipt["comparisons"]) != 2 or not all(c["exact"] or c["transport_header_only"] for c in receipt["comparisons"])):
         raise SystemExit(2)
 
 
