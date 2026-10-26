@@ -1,5 +1,6 @@
 """원 run_group과 실제 컨테이너 증거만 사용하는 세 범위 ARM pilot."""
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -112,6 +113,8 @@ def main():
     args = parser.parse_args()
     bundle = args.bundle.resolve()
     guard_environment(bundle)
+    # 애플리케이션 설정 import가 요구하는 일회용 키다. DB·거래소·기존 키에 연결하지 않는다.
+    os.environ["TRADING_ENCRYPTION_KEYS"] = base64.urlsafe_b64encode(os.urandom(32)).decode()
     manifest = json.loads((bundle / "pilot.json").read_bytes())
     assert manifest["kind"] == "period_study_arm64_three_case_pilot_v1"
     for relative, expected in manifest["files"].items():
@@ -149,6 +152,11 @@ def main():
             receipt["status"] = "compared"
         except Exception as error:
             receipt.update(status="failed", error_type=type(error).__name__)
+            if type(error).__name__ == "ValidationError":
+                receipt["validation_fields"] = [
+                    {"loc": list(item["loc"]), "type": item["type"]}
+                    for item in error.errors(include_input=False, include_context=False, include_url=False)
+                ]
         finally:
             observer.close(count)
             receipt.update(duration_seconds=time.monotonic() - started, container_events=observer.events, observer_errors=observer.errors, containers_after=containers())
