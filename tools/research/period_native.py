@@ -287,6 +287,25 @@ def compare_path(
 
 
 def verify(root: Path, pid: str, timeframe: str, probe_path: Path | None) -> dict:
+    policy_path = root / "pine-first/policy.json"
+    if policy_path.exists() and read(policy_path).get("native_verification") == (
+        "deferred_until_after_financial_research"
+    ):
+        reason = "native_verification_deferred_until_after_financial_research"
+        return {
+            "publication_id": pid,
+            "timeframe": timeframe,
+            "status": "deferred",
+            "reason": reason,
+            "execution_attempted": False,
+            "evidence_verified": False,
+            "evidence": [],
+            "passed_paths": [],
+            "paths": {
+                path: {"status": "not_run", "reason": reason, "execution_attempted": False}
+                for path in ("pine", "python")
+            },
+        }
     catalogue = read(root / "catalogue.json")
     item = next(value for value in catalogue["items"] if value["id"] == pid)
     capture_path = root / "native" / pid / f"{timeframe}.json"

@@ -139,6 +139,67 @@ class PineFirstTests(unittest.TestCase):
         )
         self.assertEqual(view["progress"]["legacy_python_completed_excluded"], 1)
 
+    def test_pine_second_failure_is_recovery_pending_without_python_financial_attempt(self):
+        pine = {
+            **self.pine,
+            "status": "failed",
+            "reason": "PineRuntimeError: UDF local history in loops is not supported",
+            "execution_attempt": 2,
+        }
+        write(self.root / self.checkpoint, pine)
+        unavailable = {**self.pine, "policy": "B", "reason": "source_data_unavailable"}
+        rows = [pine, unavailable]
+        before = copy.deepcopy(rows)
+        view = policy.build_pine_first_view(self.root, rows)
+        recovered = next(row for row in view["rows"] if row["policy"] == "A")
+        self.assertEqual(recovered["status"], "pending")
+        self.assertTrue(recovered["recovery_pending"])
+        self.assertFalse(recovered["failed_terminal"])
+        self.assertEqual(recovered["original_path_status"], "failed")
+        self.assertEqual(recovered["reason"], pine["reason"])
+        self.assertEqual(recovered["original_path_reason"], pine["reason"])
+        self.assertEqual(view["progress"]["financial_recovery_pending"], 1)
+        self.assertEqual(view["progress"]["financial_failed_terminal"], 0)
+        self.assertEqual(
+            view["progress"]["financial_statuses"],
+            {"completed": 0, "failed": 0, "not_run": 1, "pending": 29},
+        )
+        self.assertEqual(rows, before)
+        self.assertEqual(read(self.root / self.checkpoint), pine)
+
+    def test_only_verified_python_financial_retry_exhaustion_is_terminal(self):
+        pine = {**self.pine, "status": "failed", "execution_attempt": 2}
+        proof = {"eligible": True, "_verified": policy._VERIFIED}
+        for extra, terminal in (
+            ({"execution_attempt": 1, "attempt": 99}, False),
+            ({"execution_attempt": 2}, True),
+            ({"execution_attempt": 1, "bounded_retries_exhausted": True}, True),
+            ({"execution_attempt": 1, "bounded_retries_exhausted": "true"}, False),
+        ):
+            with self.subTest(extra=extra):
+                python = {
+                    **self.cell,
+                    "code_path": "python",
+                    "status": "failed",
+                    "reason": "PythonRuntimeError: isolated financial execution failed",
+                    "_same_input_verified": policy._VERIFIED,
+                    **extra,
+                }
+                chosen = policy.choose_logical_cell(pine, python, proof)
+                self.assertEqual(chosen["status"], "failed" if terminal else "pending")
+                self.assertEqual(chosen["recovery_pending"], not terminal)
+                self.assertEqual(chosen["failed_terminal"], terminal)
+                self.assertEqual(chosen["reason"], python["reason"])
+                self.assertEqual(chosen["original_path_status"], "failed")
+                self.assertNotIn("total_return", chosen)
+                self.assertEqual(python["status"], "failed")
+        # 생성 실패나 미승인 대체 행은 금융 재시도 소진의 증거가 아니다.
+        unapproved = {**python, "execution_attempt": 2}
+        unapproved.pop("_same_input_verified")
+        unchanged = policy.choose_logical_cell(self.pine, unapproved, proof)
+        self.assertEqual(unchanged["status"], "not_run")
+        self.assertEqual(unchanged["reason"], self.pine["reason"])
+
     def completed_fixture(self, language="pine"):
         code = "compiled source fixture"
         path = self.root / f"adapted/one.{language}"
@@ -312,6 +373,38 @@ class PineFirstTests(unittest.TestCase):
                 policy.native_code_paths(self.root, "one", "1h", descriptors), ("python",)
             )
             self.assertEqual(descriptors, [self.ref("pine-first/eligibility/one.json")])
+            checkpoint = self.root / "cells/one/python/1h/P1/A/latest.json"
+            completed_record = read(checkpoint)
+            for execution_attempt in (1, 2):
+                failed = {
+                    key: value
+                    for key, value in completed_record.items()
+                    if key not in {"result_file", "result_sha256", "metrics"}
+                }
+                failed.update(
+                    status="failed",
+                    reason="PythonRuntimeError: isolated financial execution failed",
+                    execution_attempt=execution_attempt,
+                )
+                write(checkpoint, failed)
+                # export가 생략하거나 잘못 전달한 retry 번호 대신 실제 checkpoint를 쓴다.
+                exported_failure = {**failed, "execution_attempt": 99}
+                retries = policy.build_pine_first_view(self.root, [self.pine, exported_failure])
+                self.assertEqual(retries["rows"][0]["execution_attempt"], execution_attempt)
+                self.assertEqual(
+                    retries["rows"][0]["status"],
+                    "pending" if execution_attempt == 1 else "failed",
+                )
+                self.assertEqual(
+                    retries["progress"]["financial_recovery_pending"],
+                    1 if execution_attempt == 1 else 0,
+                )
+                self.assertEqual(
+                    retries["progress"]["financial_failed_terminal"],
+                    0 if execution_attempt == 1 else 1,
+                )
+                self.assertEqual(read(checkpoint), failed)
+            write(checkpoint, completed_record)
             # A에 대한 명시 증거가 B의 기존 성공으로 번지지 않는다.
             b = {**row, "policy": "B"}
             other = policy.build_pine_first_view(self.root, [self.pine, row, b])

@@ -226,6 +226,24 @@ def classify_pine_failure(pine_record: dict | None, review: dict) -> dict:
     }
 
 
+def _logical_failure_status(row: dict) -> dict:
+    """원시 경로 실패를 복구 대기와 대체 금융 재시도 소진으로 구분한다."""
+    if row.get("status") != "failed":
+        return row
+    terminal = row.get("code_path") == "python" and (
+        (type(row.get("execution_attempt")) is int and row["execution_attempt"] == 2)
+        or row.get("bounded_retries_exhausted") is True
+    )
+    return {
+        **row,
+        "status": "failed" if terminal else "pending",
+        "original_path_status": "failed",
+        "original_path_reason": row.get("reason"),
+        "recovery_pending": not terminal,
+        "failed_terminal": terminal,
+    }
+
+
 def choose_logical_cell(
     pine: dict | None, python: dict | None, eligibility_proof: dict
 ) -> dict | None:
@@ -242,14 +260,16 @@ def choose_logical_cell(
     if eligible and python and python.get("_same_input_verified") is _VERIFIED:
         selected = {k: v for k, v in python.items() if not k.startswith("_")}
         return {
-            **selected,
+            **_logical_failure_status(selected),
             "selection_reason": "python_language_fallback",
             "eligibility_evidence": {
                 k: v for k, v in eligibility_proof.items() if not k.startswith("_")
             },
         }
     if pine:
-        return {**pine, "selection_reason": eligibility_proof.get("reason", "pine_first")}
+        return _logical_failure_status(
+            {**pine, "selection_reason": eligibility_proof.get("reason", "pine_first")}
+        )
     return None
 
 
@@ -544,7 +564,12 @@ class _Evidence:
             for metric, value in record.get("metrics", {}).items():
                 if metric in row and row[metric] != value:
                     raise ValueError("exported_metric_mismatch")
-            return {**row, "_same_input_verified": _VERIFIED}
+            return {
+                **row,
+                "execution_attempt": record.get("execution_attempt"),
+                "bounded_retries_exhausted": record.get("bounded_retries_exhausted") is True,
+                "_same_input_verified": _VERIFIED,
+            }
         except (OSError, ValueError, KeyError, TypeError):
             return row
 
@@ -604,6 +629,15 @@ def build_pine_first_view(run: Path, exported_rows: list[dict]) -> dict:
             "financial_recorded": len(selected),
             "financial_statuses": {s: counts[s] for s in STATUSES},
             "financial_pending": counts["pending"],
+            "financial_recovery_pending": sum(
+                row.get("recovery_pending") is True for row in selected
+            ),
+            "financial_failed_terminal": counts["failed"],
+            "failed_terminal_definition": (
+                "적격·동일 입력이 검증된 Python 금융 실행의 execution_attempt=2 또는 "
+                "bounded_retries_exhausted=true인 실패만 최종 금융 실패다. "
+                "Pine 경로 실패·생성 실패·자료 부재·변환 부적격은 최종 금융 실패가 아니다."
+            ),
             "pine_completed": pine_completed,
             "python_fallback_completed": python_completed,
             "legacy_financial_target": manifest.get("expected_cells", count * 60),

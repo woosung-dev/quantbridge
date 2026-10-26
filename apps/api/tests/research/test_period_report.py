@@ -287,7 +287,7 @@ class PeriodReportTests(unittest.TestCase):
             document = (output / "report.html").read_text()
             self.assertIn("현재 금융 분모 30셀 · 과거 양언어 계획 60셀", document)
             self.assertIn("현재 미선택 Python 완료 1셀", document)
-            self.assertIn("실패 1 · 미실행 0 · 대기 29", document)
+            self.assertIn("최종 실패 1 · 복구 대기 0 · 미실행 0 · 일반 대기 29", document)
             self.assertIn("2. 원문 신호 매핑", document)
             self.assertNotIn("2. Python 생성", document)
             self.assertIn('href="selected-financial-cells.csv"', document)
@@ -295,6 +295,44 @@ class PeriodReportTests(unittest.TestCase):
                 "</script>"
             )[0]
             self.assertEqual(len(json.loads(embedded)["cells"]), 1)
+
+    def test_deferred_native_stage_is_removed_and_recovery_preserves_raw_failure(self):
+        with tempfile.TemporaryDirectory() as name:
+            run, output = self.fixture(Path(name))
+            row = {"publication_id": "one", "code_path": "pine", "timeframe": "1h",
+                   "period": "P1", "policy": "A", "status": "failed", "reason": "unsupported timestamp"}
+            (run / "report-input.json").write_text(json.dumps({"cells": [row]}))
+            progress = self.policy_progress()
+            progress.update(financial_statuses={"completed": 0, "failed": 0, "not_run": 0, "pending": 30},
+                            financial_pending=30, financial_recovery_pending=1)
+
+            def selected_view(_run, exported_rows):
+                return {"rows": [{**exported_rows[0], "status": "pending", "recovery_pending": True,
+                                   "failed_terminal": False, "original_path_status": "failed",
+                                   "original_path_reason": row["reason"]}],
+                        "progress": progress,
+                        "policy": {"native_verification": "deferred_until_after_financial_research"}}
+
+            with patch("tools.research.period_report.build_pine_first_view", side_effect=selected_view):
+                generate(run, output)
+            document = (output / "report.html").read_text()
+            self.assertNotIn("3. 원본 신호 대조", document)
+            self.assertIn("3. 금융 셀", document)
+            self.assertIn("최종 실패 0 · 복구 대기 1 · 미실행 0 · 일반 대기 29", document)
+            self.assertIn("금융 연구 뒤 후속 수행", document)
+            selected = json.loads((output / "selected-financial-cells.json").read_text())["cells"][0]
+            legacy = json.loads((output / "financial-cells.json").read_text())["cells"][0]
+            self.assertEqual(selected["status"], "pending")
+            self.assertEqual(selected["original_path_reason"], row["reason"])
+            self.assertEqual(legacy["status"], "failed")
+            self.assertIn("recovery_pending", (output / "selected-financial-cells.csv").read_text())
+
+    def test_recovery_filter_is_separate_from_general_pending_and_final_failure(self):
+        result = self.javascript(
+            "(() => {const g={A:{status:'pending',recovery_pending:true},B:{status:'pending'}};"
+            "return ['recovery_pending','pending','failed'].map(status=>core.matches(g,{status,policy:'A',min:null,max:null},{}))})()"
+        )
+        self.assertEqual(result, [True, False, False])
 
     def test_missing_or_inconsistent_policy_denominator_cannot_publish_a_report(self):
         for kind in ("missing", "status_total", "success_paths", "pending"):
