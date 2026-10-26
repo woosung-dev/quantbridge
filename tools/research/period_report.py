@@ -11,9 +11,11 @@ import json
 import shutil
 import sys
 from collections import Counter
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -85,7 +87,7 @@ def json_script(value) -> str:
     )
 
 
-def write_csv(path: Path, rows: list[dict], fields: list[str]) -> None:
+def write_csv(path: Path, rows: Iterable[dict], fields: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fields, extrasaction="ignore")
@@ -213,12 +215,39 @@ def derived_activity(
     }
 
 
+def _export_ledger_files(spool: Path, destination: Path, fields: list[str]) -> None:
+    """전체 필드가 확정된 JSONL을 한 행씩 CSV와 기존 들여쓰기 JSON으로 쓴다."""
+    with spool.open(encoding="utf-8") as source, destination.with_suffix(".json").open(
+        "w", encoding="utf-8"
+    ) as stream:
+        stream.write("[")
+        count = 0
+
+        def entries():
+            nonlocal count
+            for line in source:
+                entry = json.loads(line)
+                encoded = json.dumps(entry, ensure_ascii=False, allow_nan=False, indent=2)
+                stream.write((",\n" if count else "\n") + "  " + encoded.replace("\n", "\n  "))
+                count += 1
+                yield entry
+
+        write_csv(destination.with_suffix(".csv"), entries(), fields)
+        stream.write("\n]\n" if count else "]\n")
+
+
 def export_ledgers(root: Path, output: Path, rows: list[dict]) -> dict:
-    episodes, fills, links = [], [], {}
+    counts, links = Counter(), {}
+    field_sets = {"episodes": set(), "fills": set()}
     integrity = Counter()
     trace_path = output / "ledgers" / "trace.jsonl.gz"
     trace_path.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(trace_path, "wt", encoding="utf-8") as trace_stream:
+    with (
+        TemporaryDirectory(prefix=".ledger-", dir=trace_path.parent) as temporary,
+        (Path(temporary) / "episodes.jsonl").open("w", encoding="utf-8") as episode_spool,
+        (Path(temporary) / "fills.jsonl").open("w", encoding="utf-8") as fill_spool,
+        gzip.open(trace_path, "wt", encoding="utf-8") as trace_stream,
+    ):
         for row in rows:
             if row.get("status") != "completed":
                 continue
@@ -242,14 +271,20 @@ def export_ledgers(root: Path, output: Path, rows: list[dict]) -> dict:
             row["evidence_link"] = quote(relative.as_posix())
             identity = {key: row.get(key) for key in IDENTITY}
             for trade in result.get("trades", []):
-                episodes.append({**identity, **trade})
+                entry = {**identity, **trade}
+                episode_spool.write(json.dumps(entry, ensure_ascii=False, allow_nan=False) + "\n")
+                field_sets["episodes"].update(entry)
+                counts["episodes"] += 1
             timestamps, cell_fills = [], []
             for event in result.get("trace", []):
                 trace_stream.write(
                     json.dumps({**identity, "event": event}, ensure_ascii=False) + "\n"
                 )
                 if event.get("type") == "fill":
-                    fills.append({**identity, **event})
+                    entry = {**identity, **event}
+                    fill_spool.write(json.dumps(entry, ensure_ascii=False, allow_nan=False) + "\n")
+                    field_sets["fills"].update(entry)
+                    counts["fills"] += 1
                     cell_fills.append(event)
                     if isinstance(event.get("timestamp"), str):
                         timestamps.append(event["timestamp"])
@@ -295,15 +330,15 @@ def export_ledgers(root: Path, output: Path, rows: list[dict]) -> dict:
                     exposure_pct=None,
                     activity_unavailable_reason=str(error),
                 )
-    for name, entries in (("episodes", episodes), ("fills", fills)):
-        fields = list(IDENTITY) + sorted({key for item in entries for key in item} - set(IDENTITY))
-        write_csv(output / "ledgers" / f"{name}.csv", entries, fields)
-        write_json(output / "ledgers" / f"{name}.json", entries)
-        links[name] = f"ledgers/{name}.csv"
+        for name, spool in (("episodes", episode_spool), ("fills", fill_spool)):
+            spool.flush()
+            fields = list(IDENTITY) + sorted(field_sets[name] - set(IDENTITY))
+            _export_ledger_files(Path(spool.name), output / "ledgers" / name, fields)
+            links[name] = f"ledgers/{name}.csv"
     return {
         "integrity": dict(integrity),
-        "episodes": len(episodes),
-        "fills": len(fills),
+        "episodes": counts["episodes"],
+        "fills": counts["fills"],
         "links": links,
     }
 

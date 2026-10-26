@@ -1,17 +1,29 @@
 """보고서의 단위·미산출·A/B 조합·필터·오프라인 안전·분모 회귀."""
 
+import gc
+import gzip
 import hashlib
 import json
 import subprocess
 import sys
 import tempfile
+import tracemalloc
 import unittest
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from tools.research.period_report import CORE_JS, derived_activity, generate
+from tools.research.period_report import (
+    CORE_JS,
+    IDENTITY,
+    derived_activity,
+    export_ledgers,
+    generate,
+    write_csv,
+    write_json,
+)
 
 
 class PeriodReportTests(unittest.TestCase):
@@ -95,6 +107,147 @@ class PeriodReportTests(unittest.TestCase):
             derived_activity(
                 entries, "2024-01-01T00:00:00+00:00", "2024-01-01T00:10:00+00:00", 2, 9
             )
+
+    def ledger_fixture(self, root, payloads):
+        run, output = root / "run", root / "output"
+        (run / "cells").mkdir(parents=True)
+        output.mkdir()
+        rows = []
+        for index, payload in enumerate(payloads):
+            path = run / "cells" / f"{index}.json.gz"
+            path.write_bytes(gzip.compress(json.dumps(payload, ensure_ascii=False).encode(), mtime=0))
+            rows.append(
+                {
+                    "publication_id": f"source-{index}",
+                    "code_path": "pine" if index == 0 else "python",
+                    "timeframe": "1h",
+                    "period": "P1",
+                    "policy": "A" if index == 0 else "B",
+                    "signal_mode": "shared_events",
+                    "status": "completed",
+                    "result_file": str(path.relative_to(run)),
+                    "result_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                    "start_utc": "2024-01-01T00:00:00+00:00",
+                    "end_exclusive_utc": "2024-01-01T00:10:00+00:00",
+                    "closed_episodes": 1,
+                }
+            )
+        return run, output, rows
+
+    def ledger_fill(self, minute, kind, quantity="1", **extra):
+        return {
+            "type": "fill",
+            "episode_id": 1,
+            "timestamp": f"2024-01-01T00:{minute:02d}:00+00:00",
+            "kind": kind,
+            "quantity": quantity,
+            "phase": "bar_open",
+            **extra,
+        }
+
+    def test_streamed_ledgers_match_previous_json_csv_trace_and_row_metadata(self):
+        payloads = [
+            {
+                "trades": [{"episode_id": 1, "note": "=SUM(1,2)", "nested": {"z": [None, 1.25], "a": "한글\n인용\""}, "publication_id": "trade-override"}],
+                "trace": [
+                    {"type": "signal", "action": "long"},
+                    self.ledger_fill(1, "entry", "2", nested={"z": 1, "a": [False]}),
+                    self.ledger_fill(2, "partial_tp", phase="intrabar_scenario"),
+                    self.ledger_fill(4, "close"),
+                    {"type": "risk", "reason": None},
+                ],
+                "equity_curve": [{}] * 10,
+                "metrics": {"funding_data_incomplete": True, "sharpe_convention": "test"},
+            },
+            {
+                "trades": [{"episode_id": 1, "late_column": ["late", None], "note": "+formula"}],
+                "trace": [
+                    self.ledger_fill(5, "entry", late_fill_column="@formula"),
+                    self.ledger_fill(5, "close", phase="intrabar_scenario"),
+                ],
+                "curve_encoding": {"kind": "event_ledger_recipe_v1", "restoration_verified": True, "row_count": 10},
+            },
+        ]
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            run, output, rows = self.ledger_fixture(root, payloads)
+            original_rows = [dict(row) for row in rows]
+            rows.extend([
+                {**rows[0], "result_sha256": "0" * 64},
+                {**rows[0], "result_file": "outside.json.gz"},
+                {**rows[0], "status": "not_run"},
+            ])
+            (run / "outside.json.gz").write_bytes((run / "cells/0.json.gz").read_bytes())
+            result = export_ledgers(run, output, rows)
+            self.assertEqual(result["integrity"], {"verified": 2, "missing_or_hash_mismatch": 2})
+            expected = {"episodes": [], "fills": []}
+            expected_trace = []
+            for row, payload in zip(original_rows, payloads, strict=True):
+                identity = {key: row.get(key) for key in IDENTITY}
+                expected["episodes"].extend({**identity, **trade} for trade in payload["trades"])
+                expected["fills"].extend({**identity, **event} for event in payload["trace"] if event["type"] == "fill")
+                expected_trace.extend({**identity, "event": event} for event in payload["trace"])
+                copied = output / "evidence" / row["result_file"]
+                self.assertEqual(copied.read_bytes(), (run / row["result_file"]).read_bytes())
+                self.assertEqual(hashlib.sha256(copied.read_bytes()).hexdigest(), row["result_sha256"])
+            reference = root / "reference"
+            for ledger, entries in expected.items():
+                fields = list(IDENTITY) + sorted({key for item in entries for key in item} - set(IDENTITY))
+                write_json(reference / f"{ledger}.json", entries)
+                write_csv(reference / f"{ledger}.csv", entries, fields)
+                for extension in ("json", "csv"):
+                    self.assertEqual((output / f"ledgers/{ledger}.{extension}").read_bytes(), (reference / f"{ledger}.{extension}").read_bytes())
+                self.assertEqual(result[ledger], len(entries))
+                self.assertEqual(result["links"][ledger], f"ledgers/{ledger}.csv")
+            self.assertEqual(gzip.decompress((output / "ledgers/trace.jsonl.gz").read_bytes()).decode(), "".join(json.dumps(event, ensure_ascii=False) + "\n" for event in expected_trace))
+            self.assertEqual(rows[0]["first_fill_utc"], self.ledger_fill(1, "entry")["timestamp"])
+            self.assertEqual(rows[0]["last_fill_kst"], "2024-01-01T09:04:00+09:00")
+            self.assertEqual([row["exposure_pct"] for row in rows[:2]], ["30", "10"])
+            self.assertEqual(rows[1]["curve_storage"], "event_ledger_recipe_v1_verified_restoration")
+            self.assertTrue(rows[0]["funding_data_incomplete"])
+            self.assertEqual(rows[0]["sharpe_convention"], "test")
+            self.assertFalse(list((output / "ledgers").glob(".ledger-*")))
+
+    def test_empty_ledgers_keep_identity_csv_headers_and_empty_json_arrays(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            run, output, _ = self.ledger_fixture(root, [])
+            result = export_ledgers(run, output, [])
+            self.assertEqual((result["episodes"], result["fills"]), (0, 0))
+            for ledger in ("episodes", "fills"):
+                self.assertEqual((output / f"ledgers/{ledger}.json").read_bytes(), b"[]\n")
+                self.assertEqual((output / f"ledgers/{ledger}.csv").read_text(encoding="utf-8-sig").splitlines(), [",".join(IDENTITY)])
+            self.assertEqual(gzip.decompress((output / "ledgers/trace.jsonl.gz").read_bytes()), b"")
+
+    def test_ledger_peak_memory_does_not_accumulate_across_completed_cells(self):
+        start = datetime(2024, 1, 1, tzinfo=UTC)
+        note = "원장 근거 " * 128
+        payload = {
+            "trades": [{"episode_id": index, "note": note} for index in range(64)],
+            "trace": [
+                {"type": "fill", "episode_id": index, "timestamp": (start + timedelta(minutes=index * 2 + offset)).isoformat(), "kind": kind, "quantity": "1", "phase": "bar_open", "note": note}
+                for index in range(64)
+                for offset, kind in enumerate(("entry", "close"))
+            ],
+            "curve_encoding": {"kind": "event_ledger_recipe_v1", "restoration_verified": True, "row_count": 128},
+        }
+        peaks, sizes = [], []
+        with tempfile.TemporaryDirectory() as name:
+            for count in (1, 40):
+                root = Path(name) / str(count)
+                run, output, rows = self.ledger_fixture(root, [payload])
+                rows = [{**rows[0], "publication_id": f"source-{index}", "end_exclusive_utc": (start + timedelta(minutes=128)).isoformat(), "closed_episodes": 64} for index in range(count)]
+                gc.collect()
+                tracemalloc.start()
+                try:
+                    result = export_ledgers(run, output, rows)
+                    peaks.append(tracemalloc.get_traced_memory()[1])
+                finally:
+                    tracemalloc.stop()
+                self.assertEqual((result["episodes"], result["fills"]), (count * 64, count * 128))
+                sizes.append((output / "ledgers/fills.json").stat().st_size)
+        self.assertGreater(sizes[1], sizes[0] * 30)
+        self.assertLessEqual(peaks[1], peaks[0] * 3 + 512 * 1024, peaks)
 
     def fixture(self, root):
         run, output = root / "run", root / "output"
