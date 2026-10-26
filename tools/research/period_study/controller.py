@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -72,6 +73,9 @@ def runtime() -> dict:
 def artifact(run: Path, source_root: Path, item: dict, code_path: str) -> tuple[str, str, dict]:
     original, source_hash, review = reviewed_source(source_root, item)
     if code_path == "pine":
+        executable = re.sub(r'//[^\n]*|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'', "", original)
+        if re.search(r"\bsyminfo\s*\.\s*(?:mintick|tickerid|ticker|prefix)\b", executable):
+            raise ValueError("pine_market_context_unavailable:fixed_interpreter_metadata_is_not_Bybit_symbol_metadata")
         relative = review.get("adapted_file", review.get("executable_file"))
         expected = review.get("adapted_sha256", review.get("executable_sha256"))
         if not relative or not expected:
@@ -87,6 +91,17 @@ def artifact(run: Path, source_root: Path, item: dict, code_path: str) -> tuple[
                         "inputs": review.get("inputs", {}), "signal_mode": review.get("signal_mode")})
     if status["source_sha256"] != source_hash or status["input_hash"] != current:
         raise ValueError("sol_generation_input_mismatch")
+    review_file = run / "generation" / publication_id(item) / str(status["attempt"]) / "code-review.json"
+    if not review_file.exists():
+        raise ValueError("sol_generated_code_review_missing")
+    generated_review = read(review_file)
+    if (generated_review.get("original_source_sha256") != source_hash
+            or generated_review.get("generated_sha256") != status["generated_sha256"]
+            or not generated_review.get("reviewer")):
+        raise ValueError("sol_generated_code_review_hash_mismatch")
+    if generated_review.get("status") != "reviewed_for_isolated_execution":
+        raise ValueError("sol_generated_code_review_rejected:" + str(generated_review.get("reason", generated_review.get("status"))))
+    review = {**review, "generated_code_review_sha256": sha(review_file.read_bytes())}
     return checked(run, status["generated_file"], status["generated_sha256"]).read_text(), status["generated_sha256"], review
 
 
@@ -152,7 +167,8 @@ def run_group(run: Path, source_root: Path, item: dict, path: str, timeframe: st
                              "signal_mode": mode})
     base.update(source_sha256=source_hash, mapping_hash=mapping_hash,
                 parameters=review.get("inputs", {}), signal_mode=mode, warmup_bars=warmup,
-                dataset_sha256=identity(dataset), image_ids=images)
+                dataset_sha256=identity(dataset), image_ids=images,
+                generated_code_review_sha256=review.get("generated_code_review_sha256"))
     config = BacktestConfig(
         init_cash=Decimal("10000"), fees=Decimal(COSTS["taker"]),
         maker_fee=Decimal(COSTS["maker"]), slippage=Decimal(COSTS["slippage"]),

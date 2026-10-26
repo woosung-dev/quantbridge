@@ -36,6 +36,12 @@ DOCKER_HOST="unix://$HOME/.lima/qb-python-research/sock/docker.sock" \
 `signal_mode`(`shared_events`/`position_feedback`), `warmup_bars`를 갖는다. Pine 실행은 검토한
 `adapted_file`/`adapted_sha256`이 추가로 필요하다. 원본 indicator를 실행 가능한 strategy로 가장하지 않는다.
 Sol 생성물은 원문·입력·매핑 해시가 모두 일치해야 하며 실제 응답 모델이 미보고되면 UNKNOWN이다.
+생성 완료는 코드 검토 통과가 아니다. Python 금융 실행 전에는 해당 생성 시도의 `code-review.json`에
+`status=reviewed_for_isolated_execution`, `reviewer`, `original_source_sha256`, `generated_sha256`가
+정확히 결박돼 있어야 한다. 미검토·거절·해시 불일치는 실제 코드를 실행하지 않고 별도로 남긴다.
+원문에 없는 동봉 신호 우선순위나 추정한 시장 메타데이터를 정상 원본 재현으로 승인하지 않는다.
+Pine 실행기는 심볼 메타데이터를 주입하지 않으므로 원문의 `syminfo.mintick`·ticker 계열 사용은
+시장 문맥 미지원으로 보류한다. 원문 매핑 검토와 Python의 독립 실행 가능성은 별개로 보존한다.
 
 A는 신호만, B는 고정2봉 swing SL·1.5R 절반·2R 본절/추적 정책이다. 양쪽 모두 같은 방향 신규
 이벤트에서도 잔량 청산 후 신규 episode를 만든다. `shared_events`는 A에서 실제 실행한 신호열을

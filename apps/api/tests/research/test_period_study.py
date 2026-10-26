@@ -215,3 +215,56 @@ def test_disk_reserve_pauses_financial_work_without_turning_pending_cells_into_f
     assert result["storage_paused"] is True
     assert result["financial_cells"] == {}
     assert result["pending_cells"] == 60
+
+
+def test_python_artifact_requires_explicit_review_of_the_same_source_and_generated_bytes(tmp_path):
+    item = reviewed(tmp_path)
+    original, original_hash, source_review = generation.reviewed_source(tmp_path, item)
+    code = "def on_bar(ctx,state):\n return {'action':'hold'}\n"
+    folder = tmp_path / "generation/Abcd1234/0"
+    folder.mkdir(parents=True)
+    (folder / "source.py").write_text(code)
+    status = {"status": "completed", "attempt": 0, "source_sha256": original_hash,
+              "generated_file": "generation/Abcd1234/0/source.py", "generated_sha256": sha(code.encode()),
+              "input_hash": identity({"source": original, "signal_bindings": source_review["signal_bindings"],
+                                      "inputs": {}, "signal_mode": "shared_events"})}
+    write(tmp_path / "generation/Abcd1234/status.json", status)
+    with pytest.raises(ValueError, match="review_missing"):
+        controller.artifact(tmp_path, tmp_path, item, "python")
+    proof = {"status": "rejected", "reason": "invented_same_bar_priority", "reviewer": "independent-review",
+             "original_source_sha256": original_hash, "generated_sha256": status["generated_sha256"]}
+    write(folder / "code-review.json", proof)
+    with pytest.raises(ValueError, match="review_rejected"):
+        controller.artifact(tmp_path, tmp_path, item, "python")
+    proof["status"] = "reviewed_for_isolated_execution"
+    proof["generated_sha256"] = "f" * 64
+    write(folder / "code-review.json", proof)
+    with pytest.raises(ValueError, match="hash_mismatch"):
+        controller.artifact(tmp_path, tmp_path, item, "python")
+    proof["generated_sha256"] = status["generated_sha256"]
+    write(folder / "code-review.json", proof)
+    source, expected, execution_review = controller.artifact(tmp_path, tmp_path, item, "python")
+    assert source == code
+    assert expected == status["generated_sha256"]
+    assert execution_review["generated_code_review_sha256"] == sha((folder / "code-review.json").read_bytes())
+
+
+def test_pine_does_not_treat_fixed_symbol_metadata_as_actual_bybit_metadata(tmp_path):
+    item = reviewed(tmp_path)
+    source = '//@version=5\nindicator("meta")\nx=syminfo . mintick\nplot(x)\n'
+    (tmp_path / item["source_file"]).write_text(source)
+    digest = sha(source.encode())
+    write(tmp_path / "source_receipts/Abcd1234.json", {"source_sha256": digest})
+    review = read(tmp_path / "reviews/Abcd1234.json")
+    review["source_sha256"] = digest
+    write(tmp_path / "reviews/Abcd1234.json", review)
+    with pytest.raises(ValueError, match="pine_market_context_unavailable"):
+        controller.artifact(tmp_path, tmp_path, item, "pine")
+    source = '//@version=5\nindicator("syminfo.mintick")\n// syminfo.mintick\nplot(close)\n'
+    (tmp_path / item["source_file"]).write_text(source)
+    digest = sha(source.encode())
+    write(tmp_path / "source_receipts/Abcd1234.json", {"source_sha256": digest})
+    review["source_sha256"] = digest
+    write(tmp_path / "reviews/Abcd1234.json", review)
+    with pytest.raises(ValueError, match="reviewed_pine_executable_missing"):
+        controller.artifact(tmp_path, tmp_path, item, "pine")
