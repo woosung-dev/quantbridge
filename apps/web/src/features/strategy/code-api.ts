@@ -1,6 +1,7 @@
 import { BacktestCreatedResponseSchema } from "@/features/backtest/schemas";
 import { LiveSessionSchema } from "@/features/live-sessions/schemas";
 import { apiFetch } from "@/lib/api-client";
+import type { CodeExecutionPolicy } from "./research-contract";
 
 import {
   CodeStrategyListSchema,
@@ -29,8 +30,9 @@ export async function generateCodeStrategy(
   );
 }
 
-export async function listCodeStrategies(token: string | null) {
-  return CodeStrategyListSchema.parse(await apiFetch<unknown>(CODE_PATH, { token }));
+export async function listCodeStrategies(token: string | null, offset = 0) {
+  const path = offset === 0 ? CODE_PATH : `${CODE_PATH}?limit=20&offset=${offset}`;
+  return CodeStrategyListSchema.parse(await apiFetch<unknown>(path, { token }));
 }
 
 export async function submitCodeDemo(body: CodeDemoRequest, token: string | null) {
@@ -62,6 +64,10 @@ export async function submitCodeBacktest(
   body: {
     strategy_id: string;
     strategy_version_id: string;
+    execution_policy?: CodeExecutionPolicy;
+    fees_pct?: number;
+    maker_fee_pct?: number;
+    slippage_pct?: number;
     symbol: string;
     timeframe: string;
     period_start: string;
@@ -77,7 +83,14 @@ export async function submitCodeBacktest(
       token,
       body: {
         ...body,
-        execution_policy: "code_v1",
+        execution_policy: body.execution_policy ?? "code_v1",
+        ...(body.execution_policy === "code_research_v1"
+          ? {
+              fees_pct: body.fees_pct ?? 0.0002,
+              maker_fee_pct: body.maker_fee_pct ?? 0.0001,
+              slippage_pct: body.slippage_pct ?? 0.0001,
+            }
+          : {}),
         fill_timing: "next_bar_open",
         leverage: "1",
         include_funding: true,

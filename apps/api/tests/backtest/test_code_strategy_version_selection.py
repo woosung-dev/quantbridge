@@ -123,13 +123,16 @@ async def test_another_owner_strategy_is_not_found_even_with_its_valid_version(
     backtests = _service(db_session)
     with pytest.raises(StrategyNotFoundError):
         await backtests.submit(
-            _request(foreign.id, strategy_version_id=foreign.version.id), user_id=user.id
+            _request(foreign.id, strategy_version_id=foreign.version.id),
+            user_id=user.id,
         )
     assert backtests.dispatcher.dispatched == []
 
 
 @pytest.mark.asyncio
-async def test_unknown_version_does_not_fall_back_to_current(db_session: AsyncSession) -> None:
+async def test_unknown_version_does_not_fall_back_to_current(
+    db_session: AsyncSession,
+) -> None:
     user = await _user(db_session)
     owned = await CodeStrategyService(StrategyRepository(db_session)).create(
         _code_request(), owner_id=user.id
@@ -163,12 +166,14 @@ async def test_legacy_pine_rejects_explicit_version_instead_of_ignoring_it(
 
 
 @pytest.mark.parametrize("policy", [None, "code_v1"])
-def test_omitted_version_preserves_pre_field_idempotency_hash(policy: str | None) -> None:
+def test_omitted_version_preserves_pre_field_idempotency_hash(
+    policy: str | None,
+) -> None:
     owner = uuid4()
     request = _request(uuid4(), execution_policy=policy)
     # 새 필드가 없던 요청의 canonical payload를 그대로 구성한다.
     old_payload = {
-        **request.model_dump(mode="json", exclude={"strategy_version_id"}),
+        **request.model_dump(mode="json", exclude={"strategy_version_id", "maker_fee_pct"}),
         "user_id": str(owner),
     }
     if policy is None:
@@ -195,3 +200,62 @@ def test_explicit_versions_are_distinct_idempotency_payloads() -> None:
         )
     }
     assert len(hashes) == 3
+
+
+@pytest.mark.asyncio
+async def test_research_and_legacy_code_roundtrip_list_and_pinned_policies(
+    db_session: AsyncSession,
+) -> None:
+    from tests.strategy.test_research_code_contract import code, research
+
+    user = await _user(db_session)
+    other = await _user(db_session)
+    repo = StrategyRepository(db_session)
+    codes = CodeStrategyService(repo)
+    legacy = await codes.create(_code_request(), owner_id=user.id)
+    a = await codes.create(
+        SaveCodeStrategyRequest(name="research A", code=code()), owner_id=user.id
+    )
+    b = await codes.update(
+        a.id,
+        SaveCodeStrategyRequest(name="research B", code=code(exit_policy="swing_two_bar_v1")),
+        owner_id=user.id,
+    )
+    await codes.create(SaveCodeStrategyRequest(name="other owner", code=code()), owner_id=other.id)
+    restored = await codes.get(a.id, owner_id=user.id)
+    assert restored.version.execution_hash == b.version.execution_hash
+    assert restored.version.provenance["research_execution"] == research(
+        exit_policy="swing_two_bar_v1"
+    )
+    listed = await codes.list(owner_id=user.id, limit=100, offset=0)
+    assert listed.total == 2
+    assert {item.id for item in listed.items} == {legacy.id, a.id}
+    backtests = _service(db_session)
+    queued = await backtests.submit(
+        _request(a.id, execution_policy="code_research_v1", strategy_version_id=a.version.id),
+        user_id=user.id,
+    )
+    stored = await BacktestRepository(db_session).get_by_id(queued.backtest_id)
+    assert stored is not None and stored.engine_version == "code_research_v1"
+    assert stored.strategy_version_id == a.version.id
+    assert stored.config["research_execution"] == research()
+    with pytest.raises(CodeStrategyPolicyError):
+        await backtests.submit(_request(a.id, strategy_version_id=a.version.id), user_id=user.id)
+
+
+@pytest.mark.parametrize("policy", [None, "code_v1", "code_research_v1"])
+def test_maker_omission_preserves_hash_but_explicit_value_changes_it(policy):
+    owner = uuid4()
+    request = _request(uuid4(), execution_policy=policy)
+    legacy_payload = {
+        **request.model_dump(mode="json", exclude={"maker_fee_pct", "strategy_version_id"}),
+        "user_id": str(owner),
+    }
+    if policy is None:
+        legacy_payload.pop("execution_policy")
+    expected = hashlib.sha256(
+        json.dumps(legacy_payload, sort_keys=True, separators=(",", ":")).encode()
+    ).digest()
+    assert _compute_body_hash(request, owner) == expected
+    explicit = request.model_copy(update={"maker_fee_pct": Decimal("0.00010")})
+    assert _compute_body_hash(explicit, owner) != expected

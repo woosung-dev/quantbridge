@@ -9,7 +9,8 @@ import { useStrategy } from "@/features/strategy/hooks";
 type Props = { backtest: BacktestDetail; testId: string };
 
 export function BacktestStrategyLink({ backtest, testId }: Props) {
-  return backtest.config?.execution_policy === "code_v1" ? (
+  return backtest.config?.execution_policy === "code_v1" ||
+    backtest.config?.execution_policy === "code_research_v1" ? (
     <CodeStrategyLink id={backtest.strategy_id} testId={testId} />
   ) : (
     <LegacyStrategyLink id={backtest.strategy_id} testId={testId} />

@@ -92,6 +92,9 @@ class LiveSignalSessionService:
         if strategy is None:
             raise StrategyNotFoundError()
 
+        if getattr(strategy, "execution_policy", None) == "code_research_v1":
+            raise InvalidStrategySettings(error="연구 실행 정책은 데모 세션을 지원하지 않습니다")
+
         if (
             getattr(strategy, "execution_policy", None) == "code_v1"
             and req.source_policy != "code_v1"

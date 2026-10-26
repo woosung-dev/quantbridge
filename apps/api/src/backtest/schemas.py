@@ -6,10 +6,19 @@ from decimal import Decimal
 from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_serializer, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
 
 from src.backtest.data_coverage import DataCoverage
 from src.backtest.models import BacktestStatus, TradeDirection, TradeStatus
+from src.strategy.code_contract import CodeExecutionPolicy
+from src.strategy.research_contract import ResearchExecution
 
 # --- Request ---
 
@@ -32,13 +41,13 @@ class CreateBacktestRequest(BaseModel):
     strategy_version_id: UUID | None = Field(
         default=None,
         description=(
-            "code_v1에서 실행할 소유 전략의 불변 버전 ID입니다. "
+            "코드 전략에서 실행할 소유 전략의 불변 버전 ID입니다. "
             "생략하면 현재 버전을 사용하며 기존 Pine 경로에서는 허용하지 않습니다."
         ),
     )
-    execution_policy: Literal["code_v1"] | None = Field(
+    execution_policy: CodeExecutionPolicy | None = Field(
         default=None,
-        description="code_v1은 명시적 opt-in이며 1h/4h/1d 신호 주기, next_bar_open, 1X만 지원합니다.",
+        description="코드 실행은 명시적 정책·불변 버전의 opt-in이며 1h/4h/1d, next_bar_open, 1X만 지원합니다.",
     )
     symbol: str = Field(min_length=3, max_length=32)
     timeframe: Literal["1m", "5m", "15m", "1h", "4h", "1d"]
@@ -65,6 +74,14 @@ class CreateBacktestRequest(BaseModel):
         le=Decimal("0.01"),
         max_digits=6,
         decimal_places=5,
+    )
+    maker_fee_pct: Decimal | None = Field(
+        default=None,
+        ge=Decimal("0"),
+        le=Decimal("0.01"),
+        max_digits=6,
+        decimal_places=5,
+        description="코드 전략의 maker 수수료 비율. 생략 시 연구 정책 0.00010, 기존 코드 정책 0.00020입니다.",
     )
     # 슬리피지 0 ~ 1%. ★기본값은 매칭쌍 34건의 진입가 잔차 **중앙 0.014%** 실측이다
     # (BL-603) — 종전 표기 「호가창 평균 0.05%」는 실측으로 반증됐다.
@@ -474,14 +491,16 @@ class BacktestConfigOut(BaseModel):
     설명 가능.
     """
 
-    # None은 기존 Pine 실행이다. code_v1은 저장된 엔진 식별자로 판정한다.
-    execution_policy: Literal["code_v1"] | None = None
+    # None은 기존 Pine 실행이다. 코드 정책은 저장된 엔진 식별자로 판정한다.
+    execution_policy: CodeExecutionPolicy | None = None
+    research_execution: ResearchExecution | None = None
     default_qty_type: (
         Literal["strategy.percent_of_equity", "strategy.cash", "strategy.fixed"] | None
     ) = None
     default_qty_value: float | None = None
     leverage: float
     fees: float
+    maker_fee: float | None = None
     slippage: float
     include_funding: bool
     # TV parity — 시장가 체결 타이밍 (구 row = bar_close fallback).
@@ -494,6 +513,8 @@ class BacktestDetail(BacktestSummary):
     Sprint 31 BL-156: `config` 필드 활성화 (PRD 5 가정). FE AssumptionsCard
     가 default 표시 graceful degrade → 실제값 응답 으로 graceful upgrade.
     """
+
+    strategy_version_id: UUID | None = None
 
     initial_capital: Decimal
     config: BacktestConfigOut | None = None

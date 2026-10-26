@@ -10,6 +10,7 @@
 import { AlertTriangle } from "lucide-react";
 
 import { InfoIcon } from "@/components/info-icon";
+import { researchPolicyLabel } from "@/features/strategy/research-contract";
 import type { BacktestConfig, DataCoverage } from "@/features/backtest/schemas";
 import { formatDate, formatDateTime, formatPercent } from "@/features/backtest/utils";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
@@ -98,6 +99,29 @@ export function AssumptionsCard({
   // 실행 가정 열 (variant-c 좌열).
   const execRows: readonly AssumptionRow[] = [
     { label: "엔진", value: ENGINE_LABEL, isDefault: false },
+    ...(config?.execution_policy === "code_research_v1" && config.research_execution
+      ? [
+          {
+            label: "연구 청산",
+            value: researchPolicyLabel(config.research_execution),
+            isDefault: false,
+          },
+          {
+            label: "maker 수수료",
+            value: config.maker_fee == null ? "미확인" : formatPercent(config.maker_fee, 3),
+            isDefault: false,
+          },
+          { label: "재진입", value: "새 진입 신호마다 잔량 청산 후 재진입", isDefault: false },
+          {
+            label: "신호 비교",
+            value:
+              config.research_execution.signal_mode === "shared_events"
+                ? "A/B 공통 신호"
+                : "포지션 반영 신호",
+            isDefault: false,
+          },
+        ]
+      : []),
     {
       label: "포지션 모델",
       value: hasMarginModel ? `${leverage}x · 롱/숏 · 격리마진` : "1x · 롱/숏",
@@ -122,13 +146,19 @@ export function AssumptionsCard({
       label: "수수료",
       // ★소수 2자리로는 0.055% 가 "0.06%" 로 반올림돼 실측값이 화면에서 사라진다.
       value: formatPercent(fees, 3),
-      title: "Bybit demo 원장 실측 taker 수수료 (leg 당 0.055%) 가정",
+      title:
+        config?.execution_policy === "code_research_v1"
+          ? `이번 연구의 taker 수수료 가정 ${formatPercent(fees, 3)}`
+          : "Bybit demo 원장 실측 taker 수수료 (leg 당 0.055%) 가정",
       isDefault: config?.fees == null,
     },
     {
       label: "슬리피지",
       value: formatPercent(slippage, 3),
-      title: "체결 진입가 잔차 실측 (매칭쌍 중앙 0.014%) 가정",
+      title:
+        config?.execution_policy === "code_research_v1"
+          ? `이번 연구의 슬리피지 가정 ${formatPercent(slippage, 3)}`
+          : "체결 진입가 잔차 실측 (매칭쌍 중앙 0.014%) 가정",
       isDefault: config?.slippage == null,
     },
   ];

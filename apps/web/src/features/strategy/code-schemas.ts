@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
 import { StrategySettingsSchema } from "./schemas";
+import { CodeExecutionPolicySchema, ResearchExecutionSchema } from "./research-contract";
 
 export const CodeLanguageSchema = z.enum(["python", "typescript", "pine"]);
 export type CodeLanguage = z.infer<typeof CodeLanguageSchema>;
@@ -12,19 +13,32 @@ export const CODE_LANGUAGE_LABELS: Record<CodeLanguage, string> = {
 export const CodeTimeframeSchema = z.enum(["1h", "4h", "1d"]);
 const JsonObjectSchema = z.record(z.string(), z.json());
 
-export const CodeSnapshotSchema = z.object({
-  schema_version: z.literal(1),
-  execution_policy: z.literal("code_v1"),
-  language: CodeLanguageSchema,
-  source_code: z
-    .string()
-    .min(1)
-    .max(131072)
-    .refine((value) => value.trim().length > 0),
-  warmup_bars: z.number().int().min(1).max(10000),
-  params: JsonObjectSchema,
-  provenance: JsonObjectSchema,
-});
+export const CodeSnapshotSchema = z
+  .object({
+    schema_version: z.literal(1),
+    execution_policy: CodeExecutionPolicySchema,
+    language: CodeLanguageSchema,
+    source_code: z
+      .string()
+      .min(1)
+      .max(131072)
+      .refine((value) => value.trim().length > 0),
+    warmup_bars: z.number().int().min(1).max(10000),
+    params: JsonObjectSchema,
+    provenance: JsonObjectSchema,
+  })
+  .superRefine((code, context) => {
+    if (
+      code.execution_policy === "code_research_v1" &&
+      !ResearchExecutionSchema.safeParse(code.provenance.research_execution).success
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["provenance", "research_execution"],
+        message: "엄격한 연구 실행 계약이 필요합니다.",
+      });
+    }
+  });
 export type CodeSnapshot = z.infer<typeof CodeSnapshotSchema>;
 export const GenerateCodeStrategyRequestSchema = z.object({
   prompt: z.string().trim().min(10).max(2000),
@@ -35,7 +49,7 @@ export type GenerateCodeStrategyRequest = z.infer<typeof GenerateCodeStrategyReq
 const ReportedTokensSchema = z.number().int().nonnegative().nullable();
 export const GenerateCodeStrategyResponseSchema = z.object({
   status: z.literal("preview"),
-  code: CodeSnapshotSchema.extend({ language: z.literal("python") }),
+  code: CodeSnapshotSchema.safeExtend({ language: z.literal("python") }),
   assumptions: z.array(z.string()),
   provider: z.literal("gemini"),
   requested_model: z.string().min(1),
@@ -75,7 +89,7 @@ export const CodeStrategySchema = z.object({
   timeframe: z.string().nullable(),
   is_archived: z.boolean(),
   settings: StrategySettingsSchema.nullable(),
-  version: CodeSnapshotSchema.extend({
+  version: CodeSnapshotSchema.safeExtend({
     id: z.uuid(),
     source_hash: z.string().regex(/^[a-f0-9]{64}$/),
     execution_hash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -101,4 +115,8 @@ export const CodePeriodSchema = z
 
 export const codeStrategyKeys = {
   list: (userId: string) => ["code-strategies", userId, "list"] as const,
+  page: (userId: string, offset: number, selectedId?: string) =>
+    offset === 0 && !selectedId
+      ? codeStrategyKeys.list(userId)
+      : ([...codeStrategyKeys.list(userId), offset, selectedId ?? null] as const),
 };

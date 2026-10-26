@@ -160,7 +160,10 @@ function setup(
       return item;
     }
     if (path === "/api/v1/strategies/code") await listGate;
-    return { items: stored, total: stored.length };
+    const selectedId = path.match(/^\/api\/v1\/strategies\/code\/([^/?]+)$/)?.[1];
+    if (selectedId) return stored.find((item) => item.id === selectedId);
+    const offset = Number(new URL(path, "http://localhost").searchParams.get("offset") ?? 0);
+    return { items: stored.slice(offset, offset + 20), total: stored.length };
   });
   const client = new QueryClient({
     defaultOptions: {
@@ -208,9 +211,10 @@ describe("코드 전략 작업 공간", () => {
   it.each([false, true])(
     "선택 여부 %s에서 미저장 상태의 action을 직접 호출해도 화면 판정과 같은 이유로 거부한다",
     async (hasSelection) => {
-      const { client } = setup(hasSelection ? [saved()] : [], [], STRATEGY_ID);
+      const initial = hasSelection ? STRATEGY_ID : undefined;
+      const { client } = setup(hasSelection ? [saved()] : [], [], initial);
       await ready();
-      const { result } = renderWorkspaceHook(client, STRATEGY_ID);
+      const { result } = renderWorkspaceHook(client, initial);
       if (hasSelection) {
         expect(result.current.canBacktest).toBe(true);
         act(() => result.current.change({ source: "unsaved source" }));
@@ -779,6 +783,74 @@ describe("코드 전략 작업 공간", () => {
           }),
         }),
       }),
+    );
+  });
+});
+
+describe("연구 코드와 대량 목록", () => {
+  const policy = {
+    contract_version: 1,
+    exit_policy: "signal_only_v1",
+    reentry_policy: "close_then_reenter_v1",
+    signal_mode: "shared_events",
+    signal_mapping_hash: "a".repeat(64),
+  } as const;
+  function researchSaved(): CodeStrategy {
+    const item = saved("연구 A");
+    item.version.execution_policy = "code_research_v1";
+    item.version.provenance = { research_execution: policy };
+    return item;
+  }
+
+  it("연구 정책을 표시하고 동일 버전으로 백테스트하되 Demo를 차단한다", async () => {
+    const item = researchSaved();
+    setup([item], [demoAccount], item.id);
+    await ready();
+    expect(screen.getAllByText(/A · 신호 청산/).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText("Bybit Demo 계정"), { target: { value: ACCOUNT_ID } });
+    expect(screen.getByRole("button", { name: "데모 자동매매 시작" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "백테스트 실행" }));
+    await waitFor(() =>
+      expect(mocks.apiFetch).toHaveBeenCalledWith(
+        "/api/v1/backtests",
+        expect.objectContaining({
+          body: expect.objectContaining({
+            execution_policy: "code_research_v1",
+            strategy_version_id: item.version.id,
+          }),
+        }),
+      ),
+    );
+  });
+
+  it("연구 원문 변경을 과거 통과 근거와 함께 새로 저장하지 않는다", async () => {
+    setup([researchSaved()], [], STRATEGY_ID);
+    await ready();
+    fireEvent.change(screen.getByLabelText("소스 코드"), { target: { value: "changed research" } });
+    expect(screen.getByRole("button", { name: "새 버전 저장" })).toBeDisabled();
+    expect(screen.getByText(/연구 원문·입력 변경은 새 코드에서/)).toBeInTheDocument();
+  });
+
+  it("20개 밖 정의도 다음 페이지와 직접 선택 링크로 열 수 있다", async () => {
+    const items = Array.from({ length: 21 }, (_, index) =>
+      saved(
+        `목록 ${index}`,
+        `${(index + 1).toString().padStart(8, "0")}-1111-4111-8111-111111111111`,
+      ),
+    );
+    const { unmount } = setup(items);
+    await ready();
+    expect(screen.getByText(/전체 21개 중 1–20개 표시/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "다음 페이지" }));
+    await screen.findByRole("button", { name: "목록 20 · Python" });
+    expect(screen.getByText(/전체 21개 중 21–21개 표시/)).toBeInTheDocument();
+    unmount();
+    setup(items, [], items[20]!.id);
+    await ready();
+    expect(screen.getByLabelText("전략 이름")).toHaveValue("목록 20");
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      `/api/v1/strategies/code/${items[20]!.id}`,
+      expect.objectContaining({ token: expect.anything() }),
     );
   });
 });

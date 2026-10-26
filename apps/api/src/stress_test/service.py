@@ -27,7 +27,7 @@ from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.models import OptimizationKind
 from src.optimizer.schemas import ParamSpace
-from src.strategy.code_contract import legacy_pine_source
+from src.strategy.code_contract import CODE_EXECUTION_POLICIES, legacy_pine_source
 from src.strategy.exceptions import CodeStrategyPolicyError
 from src.strategy.repository import StrategyRepository
 from src.stress_test.dispatcher import StressTaskDispatcher
@@ -128,7 +128,7 @@ class StressTestService:
     ) -> StressTestCreatedResponse:
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
-        if bt.engine_version == "code_v1":
+        if bt.engine_version in CODE_EXECUTION_POLICIES:
             raise CodeStrategyPolicyError()
         return await self._submit(
             user_id=user_id,
@@ -148,7 +148,7 @@ class StressTestService:
     ) -> StressTestCreatedResponse:
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
-        if bt.engine_version == "code_v1":
+        if bt.engine_version in CODE_EXECUTION_POLICIES:
             raise CodeStrategyPolicyError()
         return await self._submit(
             user_id=user_id,
@@ -186,7 +186,7 @@ class StressTestService:
         """Sprint 50 — fees x slippage 9-cell grid sweep submit."""
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
-        if bt.engine_version == "code_v1":
+        if bt.engine_version in CODE_EXECUTION_POLICIES:
             raise CodeStrategyPolicyError()
         return await self._submit(
             user_id=user_id,
@@ -207,7 +207,7 @@ class StressTestService:
         """Sprint 51 BL-220 — pine_v2 input override 9-cell grid sweep submit."""
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
-        if bt.engine_version == "code_v1":
+        if bt.engine_version in CODE_EXECUTION_POLICIES:
             raise CodeStrategyPolicyError()
         return await self._submit(
             user_id=user_id,

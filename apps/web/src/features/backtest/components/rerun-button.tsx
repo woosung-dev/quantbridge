@@ -46,18 +46,25 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
     // backtest 와 동일 결과 기대). bt.config null (legacy) 시 BE 기본값과 같은 값으로
     // 떨어진다 — ★BL-603 이후 그 기본값은 거래소 공시 표준가가 아니라 **라이브 원장 실측**이다.
     const cfg = backtest.config ?? null;
-    if (
-      cfg?.execution_policy === "code_v1" &&
-      (cfg.default_qty_type == null || cfg.default_qty_value == null)
-    ) {
+    const isCode =
+      cfg?.execution_policy === "code_v1" || cfg?.execution_policy === "code_research_v1";
+    if (cfg?.execution_policy === "code_research_v1" && !backtest.strategy_version_id) {
+      toast.error("재실행 실패: 연구 실행의 불변 버전을 확인할 수 없습니다.");
+      return;
+    }
+    if (isCode && (cfg.default_qty_type == null || cfg.default_qty_value == null)) {
       toast.error("재실행 실패: 저장된 코드 실행 수량을 확인할 수 없습니다.");
       return;
     }
     create.mutate({
       strategy_id: backtest.strategy_id,
-      ...(cfg?.execution_policy === "code_v1"
+      ...(isCode
         ? {
-            execution_policy: "code_v1" as const,
+            execution_policy: cfg!.execution_policy!,
+            ...(cfg.execution_policy === "code_research_v1" && backtest.strategy_version_id
+              ? { strategy_version_id: backtest.strategy_version_id }
+              : {}),
+            ...(cfg.maker_fee != null ? { maker_fee_pct: cfg.maker_fee } : {}),
             default_qty_type: cfg.default_qty_type!,
             default_qty_value: cfg.default_qty_value!,
           }

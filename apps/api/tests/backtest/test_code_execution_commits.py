@@ -20,7 +20,7 @@ class ExecutionCase:
     """Repository·시세·격리 transport의 실제 관찰점만 대역 처리한다."""
 
     def __init__(
-        self, monkeypatch, *, cancel=None, failure=None, lose_terminal=False, funding=False
+        self, monkeypatch, *, cancel=None, failure=None, lose_terminal=False, funding=False, research=None
     ):
         self.events = []
         self.cancel = cancel
@@ -28,11 +28,11 @@ class ExecutionCase:
         self.lose_terminal = lose_terminal
         self.reads = 0
         code = CodeSnapshot(
-            execution_policy="code_v1",
+            execution_policy="code_research_v1" if research else "code_v1",
             language="python",
             source_code="transport fake only",
             warmup_bars=2,
-            provenance={"kind": "manual"},
+            provenance={"research_execution": research} if research else {"kind": "manual"},
         )
         strategy_id = uuid4()
         version = StrategyVersion(
@@ -41,7 +41,7 @@ class ExecutionCase:
             source_hash=code.source_hash,
             language="python",
             source_code=code.source_code,
-            execution_policy="code_v1",
+            execution_policy=code.execution_policy,
             warmup_bars=code.warmup_bars,
             params=code.params,
             provenance=code.provenance,
@@ -52,7 +52,7 @@ class ExecutionCase:
             user_id=uuid4(),
             strategy_id=strategy_id,
             strategy_version_id=version.id,
-            engine_version="code_v1",
+            engine_version=code.execution_policy,
             symbol="BTC/USDT",
             timeframe="1h",
             period_start=start,
@@ -69,6 +69,9 @@ class ExecutionCase:
                 "fill_timing": "next_bar_open",
             },
         )
+        if research:
+            self.bt.config["research_execution"] = research
+            self.bt.config["risk_policy"] = research["exit_policy"]
         self.parent = self._frame(pd.date_range(start - timedelta(hours=2), periods=5, freq="h"))
         self.minutes = self._frame(pd.date_range(start, periods=180, freq="min"))
         self.repo = AsyncMock()
@@ -286,3 +289,47 @@ async def test_funding_failure_stays_outside_execution_failure_handler(monkeypat
     case.repo.fail.assert_not_awaited()
     case.repo.complete.assert_not_awaited()
     case.push.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("exit_policy", ["signal_only_v1", "swing_two_bar_v1"])
+async def test_research_policy_reaches_actual_engine_and_keeps_terminal_commit(monkeypatch, exit_policy):
+    from src.strategy.code_runtime.backtest import run_code_backtest
+    from src.strategy.research_contract import ResearchExecution
+
+    policy = {
+        "contract_version": 1,
+        "exit_policy": exit_policy,
+        "reentry_policy": "close_then_reenter_v1",
+        "signal_mode": "shared_events",
+        "signal_mapping_hash": "a" * 64,
+    }
+    case = ExecutionCase(monkeypatch, research=policy)
+    engine = Mock(wraps=run_code_backtest)
+    monkeypatch.setattr("src.strategy.product_execution.run_code_backtest", engine)
+    await case.service.run(case.bt.id)
+    assert case.bt.status == BacktestStatus.COMPLETED
+    assert engine.call_args.kwargs["research_policy"] == ResearchExecution.model_validate(policy)
+    assert case.bt.config["research_execution"] == policy
+    assert case.repo.commit.await_count == 2
+    assert exit_policy in case.repo.complete.call_args.kwargs["warnings"][0]
+    case.legacy.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("engine_policy", ["code_v1", "pine_v2"])
+async def test_research_version_cannot_enter_another_engine_policy(monkeypatch, engine_policy):
+    policy = {
+        "contract_version": 1,
+        "exit_policy": "signal_only_v1",
+        "reentry_policy": "close_then_reenter_v1",
+        "signal_mode": "shared_events",
+        "signal_mapping_hash": "a" * 64,
+    }
+    case = ExecutionCase(monkeypatch, research=policy)
+    case.bt.engine_version = engine_policy
+    await case.service.run(case.bt.id)
+    assert case.bt.status == BacktestStatus.FAILED
+    assert case.bt.error == "Strategy version execution policy mismatch"
+    assert case.events == ["fail", "commit"]
+    case.legacy.assert_not_called()

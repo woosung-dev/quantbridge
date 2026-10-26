@@ -1,4 +1,4 @@
-"""명시적인 code_v1 저장·검토 API. 기존 Pine DTO에 사용자 코드를 끼워 넣지 않는다."""
+"""명시적인 코드 정책의 저장·검토 API. 기존 Pine DTO에 사용자 코드를 끼워 넣지 않는다."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, JsonValue, model_validator
 
-from src.strategy.code_contract import CodeSnapshot
+from src.strategy.code_contract import CodeExecutionPolicy, CodeSnapshot
 from src.strategy.code_runtime.models import CodeLanguage
 from src.strategy.python_runtime.protocol import validate_source_and_params
 from src.strategy.schemas import StrategySettings
@@ -25,7 +25,7 @@ class SaveCodeStrategyRequest(BaseModel):
 
 class CodeVersionResponse(BaseModel):
     schema_version: Literal[1] = 1
-    execution_policy: Literal["code_v1"]
+    execution_policy: CodeExecutionPolicy
     language: CodeLanguage
     source_code: str
     warmup_bars: int

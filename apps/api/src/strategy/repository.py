@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import sharpe_sort_criteria
-from src.strategy.code_contract import CodeSnapshot
+from src.strategy.code_contract import CODE_EXECUTION_POLICIES, CodeSnapshot
 from src.strategy.models import PINE_V2_PARSER_VERSION, ParseStatus, Strategy, StrategyVersion
 
 
@@ -153,7 +153,7 @@ class StrategyRepository:
             strategy_id=strategy_id,
             pine_source=None,
             source_hash=code.source_hash,
-            parser_version="code_v1",
+            parser_version=code.execution_policy,
             language=code.language.value,
             source_code=code.source_code,
             execution_policy=code.execution_policy,
@@ -171,7 +171,7 @@ class StrategyRepository:
     ) -> tuple[list[tuple[Strategy, StrategyVersion]], int]:
         filters = and_(
             Strategy.user_id == owner_id,  # type: ignore[arg-type]
-            Strategy.execution_policy == "code_v1",  # type: ignore[arg-type]
+            Strategy.execution_policy.in_(CODE_EXECUTION_POLICIES),  # type: ignore[union-attr]
             Strategy.is_archived.is_(False),  # type: ignore[attr-defined]
         )
         total = (

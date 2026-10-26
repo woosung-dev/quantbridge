@@ -139,6 +139,74 @@ describe("RerunButton", () => {
     expect(mockPush).toHaveBeenCalledWith("/backtests/new-backtest-id");
   });
 
+  it("연구 결과 재실행은 정책과 실행 당시 불변 버전을 보존한다", () => {
+    const version = "22222222-2222-4222-8222-222222222222";
+    render(
+      <RerunButton
+        backtest={{
+          ...BACKTEST,
+          strategy_version_id: version,
+          config: {
+            execution_policy: "code_research_v1",
+            default_qty_type: "strategy.fixed",
+            default_qty_value: 2,
+            maker_fee: 0.0001,
+            fill_timing: "next_bar_open",
+          },
+        }}
+        isEnabled
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /재실행/ }));
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        execution_policy: "code_research_v1",
+        strategy_version_id: version,
+        maker_fee_pct: 0.0001,
+        default_qty_type: "strategy.fixed",
+        default_qty_value: 2,
+      }),
+    );
+  });
+
+  it("연구 결과의 불변 버전이 없으면 현재 버전으로 대체하지 않는다", () => {
+    render(
+      <RerunButton
+        backtest={{
+          ...BACKTEST,
+          config: {
+            execution_policy: "code_research_v1",
+            default_qty_type: "strategy.fixed",
+            default_qty_value: 2,
+          },
+        }}
+        isEnabled
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /재실행/ }));
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining("불변 버전"));
+  });
+
+  it("기존 코드 결과는 과거 버전이 있어도 현재 저장 버전으로 재실행한다", () => {
+    render(
+      <RerunButton
+        backtest={{
+          ...BACKTEST,
+          strategy_version_id: "22222222-2222-4222-8222-222222222222",
+          config: {
+            execution_policy: "code_v1",
+            default_qty_type: "strategy.fixed",
+            default_qty_value: 2,
+          },
+        }}
+        isEnabled
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /재실행/ }));
+    expect(mockMutate.mock.calls[0]?.[0]).not.toHaveProperty("strategy_version_id");
+  });
+
   it("수량이 없는 코드 결과는 임의 기본값으로 재실행하지 않는다", () => {
     render(
       <RerunButton backtest={{ ...BACKTEST, config: { execution_policy: "code_v1" } }} isEnabled />,

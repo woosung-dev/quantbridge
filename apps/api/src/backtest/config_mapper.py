@@ -97,6 +97,7 @@ def build_engine_config_from_db(bt: Backtest) -> BacktestConfig:
     return BacktestConfig(
         init_cash=bt.initial_capital,
         fees=float(cfg_dict.get("fees", default.fees)),
+        maker_fee=float(cfg_dict.get("maker_fee", default.maker_fee)),
         slippage=float(cfg_dict.get("slippage", default.slippage)),
         freq=timeframe_to_freq(bt.timeframe),
         trading_sessions=trading_sessions_tuple,

@@ -1,4 +1,4 @@
-"""제품 code_v1의 두 단계 입력 준비와 격리 실행을 소유한다."""
+"""제품 코드 전략의 두 단계 입력 준비와 격리 실행을 소유한다."""
 
 from __future__ import annotations
 
@@ -95,4 +95,5 @@ class CodeBacktestExecution:
             params=snapshot.params,
             warmup_bars=snapshot.warmup_bars,
             execution_ohlcv=execution_ohlcv,
+            research_policy=snapshot.research_execution,
         )

@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
+import { ResearchExecutionSchema } from "./research-contract";
+import { getCodeResultStrategy } from "./code-result-api";
 import { useExchangeAccounts } from "@/features/trading/hooks";
 import { listExchangeAccounts } from "@/features/trading/api";
 import { tradingKeys } from "@/features/trading/query-keys";
@@ -105,11 +107,19 @@ export function useCodeWorkspace(initialStrategyId?: string) {
     queryFn: async () => listExchangeAccounts(await getToken()),
     retry: 1,
   });
+  const [offset, setOffset] = useState(0);
   const listing = useSuspenseQuery({
-    queryKey: codeStrategyKeys.list(uid),
-    queryFn: async () => listCodeStrategies(await getToken()),
+    queryKey: codeStrategyKeys.page(uid, offset, initialStrategyId),
+    queryFn: async () => {
+      const token = await getToken();
+      const page = await listCodeStrategies(token, offset);
+      const selection =
+        page.items.find((item) => item.id === initialStrategyId) ??
+        (initialStrategyId ? await getCodeResultStrategy(initialStrategyId, token) : null);
+      return { ...page, ...(initialStrategyId ? { selection } : {}) };
+    },
   });
-  const initial = listing.data.items.find((item) => item.id === initialStrategyId) ?? null;
+  const initial = listing.data.selection ?? null;
   const [draft, setDraft] = useState(() => (initial ? fromSaved(initial) : newDraft()));
   const [selected, setSelected] = useState<CodeStrategy | null>(initial);
   const savedDraft = useMemo(() => (selected ? fromSaved(selected) : null), [selected]);
@@ -163,9 +173,23 @@ export function useCodeWorkspace(initialStrategyId?: string) {
     draft.allocation !== savedDraft.allocation;
   // 화면과 action이 같은 검토 대상·거부 이유를 사용한다. 목록 갱신으로 버전을 교체하지 않는다.
   const reviewed = dirty ? null : selected;
+  const researchExecution =
+    selected?.version.execution_policy === "code_research_v1"
+      ? ResearchExecutionSchema.parse(selected.version.provenance.research_execution)
+      : null;
+  const saveBlockReason =
+    researchExecution &&
+    savedDraft &&
+    (draft.source !== savedDraft.source ||
+      draft.language !== savedDraft.language ||
+      draft.params !== savedDraft.params ||
+      draft.warmup !== savedDraft.warmup)
+      ? "연구 원문·입력 변경은 새 코드에서 작성하세요. 기존 검증 근거는 재사용하지 않습니다."
+      : null;
   const backtestBlockReason = reviewed ? null : "변경한 코드를 먼저 저장하세요.";
-  const demoBlockReason =
-    !reviewed || draft.timeframe !== "1h"
+  const demoBlockReason = researchExecution
+    ? "연구 실행 정책은 데모 자동매매를 지원하지 않습니다."
+    : !reviewed || draft.timeframe !== "1h"
       ? "저장한 1시간 전략을 선택하세요."
       : !demoAccounts.some((account) => account.id === accountId)
         ? "주문 권한이 확인된 Bybit Demo 계정을 선택하세요."
@@ -174,13 +198,14 @@ export function useCodeWorkspace(initialStrategyId?: string) {
   const canDemo = demoBlockReason === null;
   const save = useMutation({
     mutationFn: async () => {
+      if (saveBlockReason) throw new Error(saveBlockReason);
       const body = SaveCodeStrategySchema.parse({
         name: draft.name,
         symbol: draft.symbol,
         timeframe: draft.timeframe,
         code: {
           schema_version: 1,
-          execution_policy: "code_v1",
+          execution_policy: selected?.version.execution_policy ?? "code_v1",
           language: draft.language,
           source_code: draft.source,
           warmup_bars: draft.warmup,
@@ -218,6 +243,7 @@ export function useCodeWorkspace(initialStrategyId?: string) {
         {
           strategy_id: reviewed!.id,
           strategy_version_id: reviewed!.version.id,
+          execution_policy: reviewed!.version.execution_policy,
           symbol: draft.symbol,
           timeframe: draft.timeframe,
           period_start: `${dates.start}T00:00:00Z`,
@@ -259,6 +285,8 @@ export function useCodeWorkspace(initialStrategyId?: string) {
     busy,
     canBacktest,
     canDemo,
+    researchExecution,
+    saveBlockReason,
     backtestBlockReason,
     demoBlockReason,
     preview,
@@ -300,6 +328,9 @@ export function useCodeWorkspace(initialStrategyId?: string) {
     accountId,
     setAccountId,
     items: listing.data.items,
+    total: listing.data.total,
+    offset,
+    setOffset,
     change: (patch: Partial<Draft>) => setDraft((previous) => ({ ...previous, ...patch })),
     changePeriod: (patch: Partial<typeof period>) =>
       setPeriod((previous) => ({ ...previous, ...patch })),

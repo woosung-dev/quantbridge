@@ -8,6 +8,10 @@ import { z } from "zod/v4";
 import { OptimizationKindSchema } from "@/features/optimizer/schemas";
 import type { ParamSpace } from "@/features/optimizer/schemas";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "./cost-defaults";
+import {
+  CodeExecutionPolicySchema,
+  ResearchExecutionSchema,
+} from "@/features/strategy/research-contract";
 
 // --- Decimal 문자열 → finite number 변환 ----------------------------------
 
@@ -62,7 +66,8 @@ export type TradingSession = z.infer<typeof TradingSessionSchema>;
 export const CreateBacktestRequestSchema = z
   .object({
     strategy_id: z.uuid(),
-    execution_policy: z.literal("code_v1").optional(),
+    execution_policy: CodeExecutionPolicySchema.optional(),
+    strategy_version_id: z.uuid().optional(),
     symbol: z.string().min(3).max(32),
     timeframe: TimeframeSchema,
     period_start: z.iso.datetime({ offset: true }),
@@ -82,6 +87,7 @@ export const CreateBacktestRequestSchema = z
       .max(0.01)
       .refine(Number.isFinite, { message: "fees_pct must be finite" })
       .default(DEFAULT_FEES_PCT),
+    maker_fee_pct: z.number().min(0).max(0.01).refine(Number.isFinite).optional(),
     slippage_pct: z
       .number()
       .min(0)
@@ -317,7 +323,8 @@ export type EquityPoint = z.infer<typeof EquityPointSchema>;
 // 포함하지 않을 수 있어 모두 nullable + optional. Sprint 30-γ-BE 에서 BE
 // 응답 추가 후 graceful upgrade.
 export const BacktestConfigSchema = z.object({
-  execution_policy: z.literal("code_v1").nullable().optional(),
+  execution_policy: CodeExecutionPolicySchema.nullable().optional(),
+  research_execution: ResearchExecutionSchema.nullable().optional(),
   default_qty_type: z
     .enum(["strategy.percent_of_equity", "strategy.cash", "strategy.fixed"])
     .nullable()
@@ -325,6 +332,7 @@ export const BacktestConfigSchema = z.object({
   default_qty_value: z.number().positive().nullable().optional(),
   leverage: z.number().nullable().optional(),
   fees: z.number().nullable().optional(),
+  maker_fee: z.number().nonnegative().nullable().optional(),
   slippage: z.number().nullable().optional(),
   include_funding: z.boolean().nullable().optional(),
   // TV parity — 체결 타이밍 (구 row = null → bar_close 취급).
@@ -342,6 +350,7 @@ export const DataCoverageSchema = z.object({
 export type DataCoverage = z.infer<typeof DataCoverageSchema>;
 
 export const BacktestDetailSchema = BacktestSummarySchema.extend({
+  strategy_version_id: z.uuid().nullable().optional(),
   initial_capital: decimalString,
   config: BacktestConfigSchema.nullable().optional(),
   metrics: BacktestMetricsOutSchema.nullable().optional(),
