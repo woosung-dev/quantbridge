@@ -16,6 +16,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'feat/research-actions-arm64-20261027' &&
       contains(github.event.pull_request.labels.*.name, 'research-arm64-pilot-v1') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'research-arm64-pilot-v1') &&
       github.run_attempt == 1
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
