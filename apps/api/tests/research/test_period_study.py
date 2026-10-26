@@ -268,3 +268,50 @@ def test_pine_does_not_treat_fixed_symbol_metadata_as_actual_bybit_metadata(tmp_
     write(tmp_path / "reviews/Abcd1234.json", review)
     with pytest.raises(ValueError, match="reviewed_pine_executable_missing"):
         controller.artifact(tmp_path, tmp_path, item, "pine")
+
+
+@pytest.mark.parametrize("corruption", ("missing", "modified"))
+def test_declared_market_context_is_checked_instead_of_trusting_the_review_text(tmp_path, corruption):
+    item = reviewed(tmp_path)
+    original, original_hash, review = generation.reviewed_source(tmp_path, item)
+    folder = tmp_path / "generation/Abcd1234/0"
+    folder.mkdir(parents=True)
+    code = "def on_bar(ctx, state):\n return {'action': 'hold'}\n"
+    (folder / "source.py").write_text(code)
+    generated_hash = sha(code.encode())
+    write(tmp_path / "generation/Abcd1234/status.json", {
+        "status": "completed", "attempt": 0, "source_sha256": original_hash,
+        "generated_file": "generation/Abcd1234/0/source.py", "generated_sha256": generated_hash,
+        "input_hash": identity({"source": original, "signal_bindings": review["signal_bindings"],
+                                "inputs": {}, "signal_mode": "shared_events"}),
+    })
+    market = tmp_path / "market-context.json"
+    write(market, {"tick_size": "0.10", "historical_rule_invariance_verified": False})
+    market_hash = sha(market.read_bytes())
+    write(folder / "code-review.json", {
+        "status": "reviewed_for_isolated_execution", "reviewer": "independent-review",
+        "original_source_sha256": original_hash, "generated_sha256": generated_hash,
+        "market_context_file": "market-context.json", "market_context_sha256": market_hash,
+    })
+    _, _, execution_review = controller.artifact(tmp_path, tmp_path, item, "python")
+    assert execution_review["market_context_proof"] == {"file": "market-context.json", "sha256": market_hash}
+    if corruption == "missing":
+        market.unlink()
+    else:
+        write(market, {"tick_size": "0.01"})
+    with pytest.raises(ValueError, match="원자료"):
+        controller.artifact(tmp_path, tmp_path, item, "python")
+
+
+def test_pine_executable_keeps_the_exact_crlf_bytes_pinned_by_its_hash(tmp_path):
+    item = reviewed(tmp_path)
+    code = b"//@version=5\r\nstrategy('example')\r\nplot(close)\r\n"
+    path = tmp_path / "adapted/Abcd1234.pine"
+    path.parent.mkdir()
+    path.write_bytes(code)
+    review = read(tmp_path / "reviews/Abcd1234.json")
+    review.update(adapted_file="adapted/Abcd1234.pine", adapted_sha256=sha(code))
+    write(tmp_path / "reviews/Abcd1234.json", review)
+    source, expected, _ = controller.artifact(tmp_path, tmp_path, item, "pine")
+    assert source.encode() == code
+    assert sha(source.encode()) == expected

@@ -200,13 +200,27 @@ def compare_path(
                 "references": references,
             }
     source, source_hash, review = artifact(root, root, item, path)
+    provenance: dict[str, Any] = {"source_hash": source_hash}
+    if approval_hash := review.get("generated_code_review_sha256"):
+        status = read(root / "generation" / item["id"] / "status.json")
+        approval = proof(
+            root, root / "generation" / item["id"] / str(status["attempt"]) / "code-review.json"
+        )
+        if approval["sha256"] != approval_hash:
+            raise ValueError("generated_code_review_changed_before_native_execution")
+        provenance.update(
+            generated_code_review_sha256=approval_hash,
+            generated_code_review_evidence=approval,
+        )
     before = image_identity(path)
     frame = native.ohlcv
     prefix_size = max(warmup + 1, len(frame) // 2)
     if prefix_size >= len(frame):
         raise ValueError("insufficient_history_for_nontrivial_prefix")
     completed: dict[str, list[str]] = {}
+    passes = {}
     for phase in ("full", "repeat", "prefix"):
+        started = time.monotonic()
         try:
             completed[phase] = collect(
                 source,
@@ -215,14 +229,21 @@ def compare_path(
                 review.get("inputs", {}),
                 phase,
             )
+            passes[phase] = {
+                "bars": len(completed[phase]),
+                "action_hash": identity(completed[phase]),
+                "elapsed_seconds": time.monotonic() - started,
+            }
         except Exception as error:
             return {
                 "status": "failed",
                 "execution_attempted": True,
-                "source_hash": source_hash,
+                **provenance,
                 "image_id": before,
                 "failed_phase": phase,
+                "failed_phase_elapsed_seconds": time.monotonic() - started,
                 "completed_passes": list(completed),
+                "passes": passes,
                 "reason": f"{type(error).__name__}:{error}",
             }
     full, repeat, prefix = (completed[phase] for phase in ("full", "repeat", "prefix"))
@@ -231,9 +252,10 @@ def compare_path(
         return {
             "status": "failed",
             "execution_attempted": True,
-            "source_hash": source_hash,
+            **provenance,
             "image_id": before,
             "final_image_id": after,
+            "passes": passes,
             "reason": "runner_image_changed_during_validation",
         }
     actual = action_events(full, frame, warmup)
@@ -241,7 +263,7 @@ def compare_path(
     both_directions = {event[1] for event in native_events} >= {"long", "short"}
     return {
         "status": "passed" if exact and repeated and causal and both_directions else "mismatch",
-        "source_hash": source_hash,
+        **provenance,
         "execution_attempted": True,
         "image_id": before,
         "signal_hash": identity(actual),
@@ -249,6 +271,7 @@ def compare_path(
         "repeat": repeated,
         "prefix": causal,
         "prefix_bars": prefix_size,
+        "passes": passes,
         "native_events": len(native_events),
         "code_events": len(actual),
         "both_directions": both_directions,
@@ -287,11 +310,21 @@ def verify(root: Path, pid: str, timeframe: str, probe_path: Path | None) -> dic
             "TradingView Strategy Tester의 수익률·체결 재현 판정이 아닙니다",
         ],
     }
+    review_sha256 = None
     try:
+        review_proof = proof(root, root / item["review_file"])
+        review_sha256 = review_proof["sha256"]
         _, source_hash, review = reviewed_source(root, item)
+        if read(checked(root, review_proof["path"], review_sha256)) != review:
+            raise ValueError("source_review_changed_during_native_preparation")
         source_bytes = checked(root, item["source_file"], source_hash).read_bytes()
-        result.update(source_sha256=source_hash, signal_mode=review.get("signal_mode"))
+        result.update(
+            source_sha256=source_hash,
+            signal_mode=review.get("signal_mode"),
+            source_review_sha256=review_sha256,
+        )
         result["evidence"].append(proof(root, capture_path))
+        result["evidence"].append(review_proof)
         payload = read(capture_path)
         native = parse(payload, source_bytes, review, pid, timeframe)
         result.update(raw_capture_verified=True, native_metadata=native.metadata)
@@ -327,6 +360,8 @@ def verify(root: Path, pid: str, timeframe: str, probe_path: Path | None) -> dic
         for path in ("pine", "python"):
             try:
                 result["paths"][path] = compare_path(root, item, path, native, events, warmup)
+                if approval := result["paths"][path].get("generated_code_review_evidence"):
+                    result["evidence"].append(approval)
             except Exception as error:
                 result["paths"][path] = {
                     "status": "not_run",
@@ -350,10 +385,13 @@ def verify(root: Path, pid: str, timeframe: str, probe_path: Path | None) -> dic
         "timeframe": timeframe,
         "evidence": result["evidence"],
         "source_sha256": result.get("source_sha256"),
+        "generated_code_reviews": {
+            path: value["generated_code_review_sha256"]
+            for path, value in result["paths"].items()
+            if value.get("generated_code_review_sha256")
+        },
         "implementation": code_hashes,
-        "review_sha256": sha((root / item["review_file"]).read_bytes())
-        if (root / item["review_file"]).exists()
-        else None,
+        "review_sha256": review_sha256,
         "generation_status_sha256": sha((root / "generation" / pid / "status.json").read_bytes())
         if (root / "generation" / pid / "status.json").exists()
         else None,

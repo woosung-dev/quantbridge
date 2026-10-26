@@ -80,7 +80,7 @@ def artifact(run: Path, source_root: Path, item: dict, code_path: str) -> tuple[
         expected = review.get("adapted_sha256", review.get("executable_sha256"))
         if not relative or not expected:
             raise ValueError("reviewed_pine_executable_missing")
-        return checked(source_root, relative, expected).read_text(), expected, review
+        return checked(source_root, relative, expected).read_bytes().decode(), expected, review
     status_file = run / "generation" / publication_id(item) / "status.json"
     if not status_file.exists():
         raise ValueError("sol_generation_missing")
@@ -101,8 +101,17 @@ def artifact(run: Path, source_root: Path, item: dict, code_path: str) -> tuple[
         raise ValueError("sol_generated_code_review_hash_mismatch")
     if generated_review.get("status") != "reviewed_for_isolated_execution":
         raise ValueError("sol_generated_code_review_rejected:" + str(generated_review.get("reason", generated_review.get("status"))))
-    review = {**review, "generated_code_review_sha256": sha(review_file.read_bytes())}
-    return checked(run, status["generated_file"], status["generated_sha256"]).read_text(), status["generated_sha256"], review
+    market_context_proof = None
+    if "market_context_file" in generated_review or "market_context_sha256" in generated_review:
+        relative = generated_review.get("market_context_file")
+        expected = generated_review.get("market_context_sha256")
+        if not isinstance(relative, str) or not relative or not isinstance(expected, str) or not expected:
+            raise ValueError("sol_generated_market_context_proof_missing")
+        actual = checked(run, relative, expected)
+        market_context_proof = {"file": relative, "sha256": sha(actual.read_bytes())}
+    review = {**review, "generated_code_review_sha256": sha(review_file.read_bytes()),
+              "market_context_proof": market_context_proof}
+    return checked(run, status["generated_file"], status["generated_sha256"]).read_bytes().decode(), status["generated_sha256"], review
 
 
 def cell_key(cell: dict) -> str:
@@ -168,7 +177,8 @@ def run_group(run: Path, source_root: Path, item: dict, path: str, timeframe: st
     base.update(source_sha256=source_hash, mapping_hash=mapping_hash,
                 parameters=review.get("inputs", {}), signal_mode=mode, warmup_bars=warmup,
                 dataset_sha256=identity(dataset), image_ids=images,
-                generated_code_review_sha256=review.get("generated_code_review_sha256"))
+                generated_code_review_sha256=review.get("generated_code_review_sha256"),
+                market_context_proof=review.get("market_context_proof"))
     config = BacktestConfig(
         init_cash=Decimal("10000"), fees=Decimal(COSTS["taker"]),
         maker_fee=Decimal(COSTS["maker"]), slippage=Decimal(COSTS["slippage"]),

@@ -106,6 +106,40 @@ def _payload(*, price_method: str = "du") -> dict:
         "wire": [
             {"direction": "sent", "data": _frame(create)},
             {"direction": "received", "data": _frame(complete) + _frame(study) + _frame(prices)},
+            {
+                "direction": "sent",
+                "m": "resolve_symbol",
+                "p": [
+                    "cs",
+                    "symbol",
+                    "="
+                    + json.dumps(
+                        {
+                            "adjustment": "splits",
+                            "currency-id": "XTVCUSDT",
+                            "metric": "price",
+                            "symbol": "BYBIT:BTCUSDT.P",
+                        }
+                    ),
+                ],
+            },
+            {
+                "direction": "sent",
+                "m": "create_series",
+                "p": ["cs", "chart", "s1", "symbol", "60", 300, ""],
+            },
+            {
+                "direction": "received",
+                "m": "symbol_resolved",
+                "p": [
+                    "cs",
+                    "symbol",
+                    {
+                        "full_name": "BYBIT:BTCUSDT.P",
+                        "pro_name": "BYBIT:BTCUSDT.P",
+                    },
+                ],
+            },
         ],
     }
 
@@ -273,7 +307,7 @@ def test_psar_fill_colorer_requires_matching_global_fill_call() -> None:
             ),
             "유형",
         ),
-        (lambda p: p["wire"].pop(), "cohort 완료"),
+        (lambda p: p["wire"].pop(1), "cohort 완료"),
     ],
 )
 def test_unverified_capture_does_not_produce_events(change, pattern: str) -> None:
@@ -440,3 +474,50 @@ def test_observed_dynamic_line_and_three_fill_columns_preserve_signal_column():
     result = _parse(payload, source=source)
     assert result.observations.columns.tolist() == [f"plot_{i}" for i in range(7)]
     assert [event.bar_time.timestamp() for event in result.events] == [T0]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "request_symbol",
+        "response_symbol",
+        "interval",
+        "symbol_reference",
+        "chart_reference",
+        "session",
+        "missing_resolve",
+        "duplicate_resolve",
+        "missing_response",
+        "modify_series",
+        "price_context",
+    ],
+)
+def test_wire_market_identity_cannot_be_replaced_by_payload_labels(change: str):
+    payload = _payload()
+    resolve, create, resolved = payload["wire"][2:]
+    if change in {"request_symbol", "price_context"}:
+        value = json.loads(resolve["p"][2][1:])
+        value["symbol" if change == "request_symbol" else "metric"] = (
+            "BYBIT:ETHUSDT.P" if change == "request_symbol" else "volume"
+        )
+        resolve["p"][2] = "=" + json.dumps(value)
+    elif change == "response_symbol":
+        resolved["p"][2]["full_name"] = "BYBIT:ETHUSDT.P"
+    elif change == "interval":
+        create["p"][4] = "240"
+    elif change == "symbol_reference":
+        create["p"][3] = "other-symbol"
+    elif change == "chart_reference":
+        create["p"][1] = "other-chart"
+    elif change == "session":
+        resolved["p"][0] = "other-session"
+    elif change == "missing_resolve":
+        payload["wire"].remove(resolve)
+    elif change == "duplicate_resolve":
+        payload["wire"].append(copy.deepcopy(resolve))
+    elif change == "missing_response":
+        payload["wire"].remove(resolved)
+    elif change == "modify_series":
+        payload["wire"].append({"direction": "sent", "m": "modify_series", "p": create["p"]})
+    with pytest.raises(ValueError, match=r"series|symbol"):
+        _parse(payload)

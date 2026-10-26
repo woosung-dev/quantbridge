@@ -124,6 +124,9 @@ Pine·Python 각각의 gVisor 실행과 대조한다. 첫 지원 범위는 전�
 | `wire` | 실제 WebSocket 송수신 `{direction, data}`. `~m~길이~m~` 프레이밍 보존. 손실 없이 해독한 `{direction, m, p}`도 허용 |
 
 같은 chart session의 `create_study`로 study·chart·IL·입력을 결박한다.
+그 chart의 단일 `create_series`에서 시간봉과 symbol reference를 확인하고, 동일 reference의
+`resolve_symbol` 가격·USDT 요청과 `symbol_resolved` 실제 심볼명을 함께 대조한다.
+`modify_series`가 있으면 활성 series를 추측하지 않고 새 session 캡처를 요구한다.
 `study_completed`, study의 `du.st`, chart의 `du.s` 또는 `timescale_update.s`가 필요하다.
 행의 `v[0]`는 Unix 초이며 OHLCV 행은 `[시각, O, H, L, C, V]`다. 다른 study나 차트의
 값을 합치지 않으며 미확정 봉·충돌하는 확정 중복·공통 확정봉 누락은 거절한다.
@@ -155,7 +158,8 @@ uv run --no-sync python ../../tools/research/period_native.py \
 실행 전 기존 격리 VM의 Docker endpoint와 gVisor 이미지를 사용한다. CLI는 호스트에서
 전략을 실행하지 않는다. 전체 이력·동일 입력 반복·짧은 접두 이력을 각 코드 경로에서 실제
 실행하고, 검토된 준비 봉 이후 양방향 사건의 시각·방향이 native와 정확히 같아야 한다.
-이미지 ID와 원시 증거 SHA도 실행 전후 확인한다.
+원문 매핑 리뷰는 시작 SHA를 동결한다. 이미지 ID와 원시 증거·매핑 리뷰·생성 코드 승인 파일
+SHA를 실행 전후 확인하고 요청 해시에 결박한다. 수행 중 리뷰가 바뀌면 통과를 철회한다.
 
 결과는 `native-verification/<publication_id>-<timeframe>.json`과 삭제하지 않는
 `native-attempts/`에 기록한다. `paths.pine`·`paths.python`을 독립 판정하고, 전체
@@ -170,3 +174,26 @@ uv run --no-sync python ../../tools/research/period_native.py \
 근거를 전량 GET해 대조한다. 기존 정의는 보존한다. 서버가 지원하지 않으면 등록 payload와
 검증 PR을 준비해 `validated_registration_pending_deployment`로 남긴다.
 등록은 배포·Demo 활성화·주문을 허용하지 않으며 연구 정의의 Demo 활성화는 차단한다.
+
+`tools/research/period_registration.py --run <연구 루트> --id <게시물 ID> --timeframe <시간봉>`은
+서버 쓰기 없이 Pine/Python × A/B 각각의 등록 후보를 만든다. 해당 경로의 native 통과와
+원시 증거·입력·매핑·승인·이미지를 대조하고, P1~P5의 완료 요청·결과·데이터 SHA를 검증한
+뒤 `encoding.restore`로 equity·drawdown·buy-and-hold 곡선을 전량 복원한다. 실패한 기간이나
+다른 코드 경로의 native 통과로 후보를 채우지 않는다. 수익률·거래 수 필터는 적용하지 않는다.
+
+계산 엔진·runner 및 기간·데이터·곡선 복원·생성·상태 모듈은 현재와 실행 당시 SHA가 같아야
+한다. controller만 수집·감사 차이를 따로 검토하며 native와 금융 실행의 실제 원문을 각각
+보존한다. 두 controller가 다르면 `run_group`의 시장 증거 메타데이터 한 필드를 제외한 계산
+AST와 나머지 모듈 AST의 동일성을 요구하고 실제 diff를 남긴다. 입력·실행 코드 bytes·승인·
+이미지는 여전히 같아야 하며, 시장 문맥 추가나 계산 차이는 이 예외로 허용하지 않는다.
+현재와 다른 파일을 명시하며 과거 계산이 새 감사 게이트를 거쳤다고 표현하지 않는다.
+코드는 줄바꿈·공백 정규화 없이 UTF-8로 보존한다. 실행 bytes SHA·제품 snapshot source SHA를
+별도 기록·대조하고 제품의 전체 계약 `execution_hash`와 구분한다.
+
+`registration-candidates/<ID>-<시간봉>.json`에는 네 정의의 판정과 개별
+`save-request.json` 경로·SHA, `POST /api/v1/strategies/code` 및 후속 GET 계획을 남긴다.
+본문은 현재 `SaveCodeStrategyRequest`로 검증하고 provenance는 32 KiB 이하다.
+`registration/<정의>.json`의 `validated_registration_pending_deployment`는 후보 검증이며
+실제 저장 성공이 아니다. `get_verified`는 false로 유지한다. 후속 쓰기가 허용된 환경에서도
+`verify_saved_definition`으로 POST/GET의 정의·정책·원문 전체·입력·provenance·두 해시·불변
+version UUID를 전량 대조해야 한다. 이 CLI에는 서버 POST·배포·Demo 활성화 동작이 없다.

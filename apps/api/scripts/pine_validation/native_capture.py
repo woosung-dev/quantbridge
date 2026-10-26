@@ -232,6 +232,64 @@ def _wire_color(value: str) -> int:
     return (255 << 24) | (blue << 16) | (green << 8) | red
 
 
+def _chart_identity(
+    sent: Sequence[Mapping[str, Any]],
+    received: Sequence[Mapping[str, Any]],
+    session: str,
+    chart_id: str,
+    symbol: str,
+    timeframe: str,
+) -> dict[str, str]:
+    """관측한 새 가격 series의 심볼 요청·해석 결과·시간봉을 study chart에 결박한다."""
+
+    def matching(messages, method, reference):
+        return [
+            message
+            for message in messages
+            if message.get("m") == method
+            and isinstance(message.get("p"), list)
+            and message["p"][:2] == [session, reference]
+        ]
+
+    creates = matching(sent, "create_series", chart_id)
+    if len(creates) != 1 or len(creates[0]["p"]) < 5:
+        raise ValueError("해당 study chart의 create_series 관측 하나가 필요합니다")
+    if matching(sent, "modify_series", chart_id):
+        raise ValueError("modify_series 뒤의 활성 심볼·시간봉은 아직 검증하지 않습니다")
+    symbol_id, interval = creates[0]["p"][3:5]
+    if not isinstance(symbol_id, str) or not symbol_id:
+        raise ValueError("create_series의 symbol reference가 없습니다")
+    if interval != {"1h": "60", "4h": "240", "1d": "D"}[timeframe]:
+        raise ValueError("실제 create_series 시간봉이 기대값과 다릅니다")
+    resolves = matching(sent, "resolve_symbol", symbol_id)
+    if len(resolves) != 1 or len(resolves[0]["p"]) != 3:
+        raise ValueError("가격 series의 resolve_symbol 관측 하나가 필요합니다")
+    encoded = resolves[0]["p"][2]
+    if not isinstance(encoded, str) or not encoded.startswith("="):
+        raise ValueError("관측한 resolve_symbol 요청 형식이 아닙니다")
+    try:
+        request = json.loads(encoded[1:])
+    except json.JSONDecodeError as error:
+        raise ValueError("resolve_symbol 요청 JSON이 잘못됐습니다") from error
+    if request != {
+        "adjustment": "splits",
+        "currency-id": "XTVCUSDT",
+        "metric": "price",
+        "symbol": symbol,
+    }:
+        raise ValueError("실제 resolve_symbol의 심볼·가격 문맥이 기대값과 다릅니다")
+    resolved = matching(received, "symbol_resolved", symbol_id)
+    if (
+        len(resolved) != 1
+        or len(resolved[0]["p"]) != 3
+        or not isinstance(resolved[0]["p"][2], dict)
+        or resolved[0]["p"][2].get("full_name") != symbol
+        or resolved[0]["p"][2].get("pro_name") != symbol
+    ):
+        raise ValueError("실제 symbol_resolved 결과가 가격 series의 기대 심볼과 다릅니다")
+    return {"symbol_id": symbol_id, "symbol": symbol, "interval": interval}
+
+
 def _plot_bindings(
     calls: list[tuple[str, A.Call]],
     plots: Any,
@@ -426,6 +484,9 @@ def parse_native_capture(
         isinstance(value, str) and value for value in (session, study_id, chart_id)
     ) or not isinstance(study_inputs, dict):
         raise ValueError("study cohort가 잘못됐습니다")
+    chart_identity = _chart_identity(
+        sent, received, session, chart_id, expected_symbol, expected_timeframe
+    )
     if study_inputs.get("text") != meta["inputs"][0].get("defval") or study_inputs.get(
         "text"
     ) != responses[0]["data"]["result"].get("ilTemplate"):
@@ -554,6 +615,7 @@ def parse_native_capture(
             "source_sha256": digest,
             "study_id": study_id,
             "chart_id": chart_id,
+            "chart_identity": chart_identity,
             "symbol": expected_symbol,
             "timeframe": expected_timeframe,
             "inputs": overrides,

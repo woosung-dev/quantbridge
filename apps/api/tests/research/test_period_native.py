@@ -208,6 +208,10 @@ def test_native_exact_is_insufficient_when_repeat_or_prefix_changes(study, monke
     assert result["native_exact"] is True
     assert result["status"] == "mismatch"
     assert result[bad_phase] is False
+    assert set(result["passes"]) == {"full", "repeat", "prefix"}
+    assert result["passes"]["full"]["bars"] == 4
+    assert result["passes"]["prefix"]["bars"] == 2
+    assert all(value["elapsed_seconds"] >= 0 for value in result["passes"].values())
 
 
 def test_one_direction_match_cannot_claim_native_pass(study, monkeypatch):
@@ -278,7 +282,7 @@ def test_success_in_one_code_path_never_promotes_the_other(study, monkeypatch):
     assert result["evidence_verified"] is True
     assert result["passed_paths"] == ["python"]
     assert result["paths"]["pine"]["status"] == "not_run"
-    assert len(result["evidence"]) == 2
+    assert len(result["evidence"]) == 3
 
 
 def test_unobserved_position_feedback_never_enters_strict_native_comparison(study, monkeypatch):
@@ -309,4 +313,107 @@ def test_evidence_changed_during_execution_revokes_all_path_passes(study, monkey
     assert all(
         value["reason"] == "native_evidence_chain_changed" for value in result["paths"].values()
     )
+    assert "SHA" in result["reason"]
+
+
+def test_native_request_binds_the_exact_generated_code_approval(study, monkeypatch):
+    root, _, _ = prepared(study, monkeypatch)
+    review_path = root / "generation/example/0/code-review.json"
+    write(root / "generation/example/status.json", {"attempt": 0})
+    write(review_path, {"reviewer": "first"})
+    monkeypatch.setattr(
+        native,
+        "artifact",
+        lambda *args: (
+            "never executed",
+            "a" * 64,
+            {"generated_code_review_sha256": sha(review_path.read_bytes())},
+        ),
+    )
+    monkeypatch.setattr(native, "image_identity", lambda path: "sha256:" + "b" * 64)
+    monkeypatch.setattr(
+        native,
+        "collect",
+        lambda source, path, frame, params, phase: ["hold", "long", "short", "hold"][: len(frame)],
+    )
+    real_compare = native.compare_path
+
+    def compare(root, item, path, *args):
+        return real_compare(root, item, path, *args) if path == "python" else {"status": "not_run"}
+
+    monkeypatch.setattr(native, "compare_path", compare)
+    first = native.verify(root, "example", "1h", None)
+    assert first["status"] == "passed"
+    assert first["evidence"][-1] == {
+        "path": "generation/example/0/code-review.json",
+        "sha256": sha(review_path.read_bytes()),
+    }
+    write(review_path, {"reviewer": "second"})
+    second = native.verify(root, "example", "1h", None)
+    assert first["request_hash"] != second["request_hash"]
+    assert first["paths"]["python"]["source_hash"] == second["paths"]["python"]["source_hash"]
+    assert (
+        first["paths"]["python"]["generated_code_review_sha256"]
+        != second["paths"]["python"]["generated_code_review_sha256"]
+    )
+
+
+def test_generated_code_approval_changed_during_execution_revokes_native_pass(study, monkeypatch):
+    root, _, _ = prepared(study, monkeypatch)
+    review_path = root / "generation/example/0/code-review.json"
+    write(root / "generation/example/status.json", {"attempt": 0})
+    write(review_path, {"reviewer": "first"})
+    digest = sha(review_path.read_bytes())
+    monkeypatch.setattr(
+        native,
+        "artifact",
+        lambda *args: (
+            "never executed",
+            "a" * 64,
+            {"generated_code_review_sha256": digest},
+        ),
+    )
+    monkeypatch.setattr(native, "image_identity", lambda path: "sha256:" + "b" * 64)
+
+    def actions(source, path, frame, params, phase):
+        write(review_path, {"reviewer": "changed during execution"})
+        return ["hold", "long", "short", "hold"][: len(frame)]
+
+    monkeypatch.setattr(native, "collect", actions)
+    real_compare = native.compare_path
+    monkeypatch.setattr(
+        native,
+        "compare_path",
+        lambda root, item, path, *args: (
+            real_compare(root, item, path, *args) if path == "python" else {"status": "not_run"}
+        ),
+    )
+    result = native.verify(root, "example", "1h", None)
+    assert result["status"] == "unverified"
+    assert result["evidence_verified"] is False
+    assert result["paths"]["python"]["status"] == "unverified"
+    assert "SHA" in result["reason"]
+
+
+def test_source_review_changed_during_execution_cannot_relabel_native_pass(study, monkeypatch):
+    root, item, _ = prepared(study, monkeypatch)
+    file = root / item["review_file"]
+    start_hash = sha(file.read_bytes())
+
+    def changed(*args):
+        review = read(file)
+        review["inputs"] = {"length": 3}
+        write(file, review)
+        return {"status": "passed"}
+
+    monkeypatch.setattr(native, "compare_path", changed)
+    result = native.verify(root, "example", "1h", None)
+    assert result["status"] == "unverified"
+    assert result["evidence_verified"] is False
+    assert result["source_review_sha256"] == start_hash
+    assert any(
+        value == {"path": item["review_file"], "sha256": start_hash} for value in result["evidence"]
+    )
+    assert result["passed_paths"] == []
+    assert all(value["status"] == "unverified" for value in result["paths"].values())
     assert "SHA" in result["reason"]

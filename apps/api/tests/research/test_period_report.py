@@ -218,6 +218,71 @@ class PeriodReportTests(unittest.TestCase):
             self.assertEqual(result["progress"]["financial_pending"], 60)
             self.assertEqual(result["progress"]["registration_target_max"], 12)
 
+    def test_static_classification_and_generation_are_not_review_approval(self):
+        with tempfile.TemporaryDirectory() as name:
+            run, output = self.fixture(Path(name))
+            for folder in ["sources", "source_receipts", "reviews", "generation/one/0"]:
+                (run / folder).mkdir(parents=True)
+            source_hash = hashlib.sha256(b"source").hexdigest()
+            generated_hash = hashlib.sha256(b"generated").hexdigest()
+            (run / "sources/one.pine").write_bytes(b"source")
+            (run / "generation/one/0/source.py").write_bytes(b"generated")
+            (run / "source_receipts/one.json").write_text(
+                json.dumps(
+                    {
+                        "id": "one",
+                        "status": "captured",
+                        "source_file": "sources/one.pine",
+                        "source_sha256": source_hash,
+                    }
+                )
+            )
+            review = {
+                "id": "one",
+                "status": "pending_review",
+                "source_sha256": source_hash,
+                "reviewer": "reviewer",
+                "basis": "원문 대조",
+                "signal_bindings": [],
+            }
+            (run / "reviews/one.json").write_text(json.dumps(review))
+            (run / "generation/one/status.json").write_text(
+                json.dumps(
+                    {
+                        "publication_id": "one",
+                        "status": "completed",
+                        "generated_file": "generation/one/0/source.py",
+                        "generated_sha256": generated_hash,
+                    }
+                )
+            )
+            result = generate(run, output)["progress"]
+            self.assertEqual(result["review_records"], 1)
+            self.assertEqual(result["review_completed"], 0)
+            self.assertEqual(result["review_pending"], 1)
+            self.assertEqual(result["generation_verified"], 1)
+            self.assertEqual(result["generation_review_approved"], 0)
+            review.update(status="reviewed", signal_bindings=[{"direction": "long"}])
+            (run / "reviews/one.json").write_text(json.dumps(review))
+            code_review = {
+                "status": "reviewed_for_isolated_execution",
+                "generated_sha256": generated_hash,
+                "original_source_sha256": source_hash,
+                "reviewer": "reviewer",
+                "checks": ["원문 대조"],
+            }
+            (run / "generation/one/0/code-review.json").write_text(json.dumps(code_review))
+            result = generate(run, output)["progress"]
+            self.assertEqual(result["review_completed"], 1)
+            self.assertEqual(result["generation_review_approved"], 1)
+            code_review["generated_sha256"] = "0" * 64
+            (run / "generation/one/0/code-review.json").write_text(json.dumps(code_review))
+            self.assertEqual(generate(run, output)["progress"]["generation_review_approved"], 0)
+            document = (output / "report.html").read_text()
+            self.assertIn("정적 분류 기록 1", document)
+            self.assertIn("매핑 확정 1", document)
+            self.assertNotIn("방향 매핑 검토", document)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -309,6 +309,10 @@ def prepare(run: Path, output: Path) -> dict:
     receipts = records(run, "source_receipts/*.json")
     reviews = records(run, "reviews/*.json")
     generations = records(run, "generation/*/status.json")
+    source_audit = read_json(run / "source-capture-audit.json", {})
+    audited_failures = {
+        item["publication_id"]: item for item in source_audit.get("failed_sources", [])
+    }
     rows = exported.get("cells", [])
     source_target = manifest.get("source_count", len(catalogue["items"]))
     if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
@@ -325,6 +329,7 @@ def prepare(run: Path, output: Path) -> dict:
         pid = item.get("publication_id", item.get("id"))
         source = sources.get(pid, {})
         review = review_by_id.get(pid, {})
+        audited = audited_failures.get(pid, {})
         source_rows.append(
             {
                 "publication_id": pid,
@@ -336,7 +341,9 @@ def prepare(run: Path, output: Path) -> dict:
                 "source_sha256": source.get("source_sha256"),
                 "source_reason": source.get("error", source.get("reason")),
                 "source_attempts": len(source.get("attempts", [])),
-                "review_status": review.get("status", "reviewed" if review else "pending"),
+                "source_audit_classification": audited.get("classification"),
+                "source_audit_reason": audited.get("reason"),
+                "review_status": review.get("status", "UNKNOWN" if review else "pending"),
                 "signal_mode": review.get("signal_mode"),
                 "native_verification": "reported_separately",
             }
@@ -354,6 +361,29 @@ def prepare(run: Path, output: Path) -> dict:
         row["author"] = source.get("author")
         row["signal_mode"] = row.get("signal_mode") or source.get("signal_mode")
     counts = Counter(row.get("status", "UNKNOWN") for row in rows)
+    review_statuses = Counter(item.get("status", "UNKNOWN") for item in reviews)
+    generation_reviews = Counter()
+    for item in generations:
+        path = local_file(run, item.get("generated_file"), item.get("generated_sha256"))
+        if item.get("status") != "completed" or not item.get("generated_sha256") or path is None:
+            continue
+        reviewed = read_json(path.parent / "code-review.json", {})
+        source = sources.get(item.get("publication_id", item.get("id")), {})
+        approved = (
+            reviewed.get("status") == "reviewed_for_isolated_execution"
+            and reviewed.get("generated_sha256") == item["generated_sha256"]
+            and reviewed.get("original_source_sha256") == source.get("source_sha256")
+            and bool(source.get("source_sha256"))
+            and bool(reviewed.get("reviewer"))
+            and bool(reviewed.get("checks"))
+        )
+        generation_reviews[
+            "approved"
+            if approved
+            else "rejected"
+            if reviewed.get("status") == "rejected"
+            else "pending"
+        ] += 1
     pending = max(0, plan_count - len(rows))
     generated_at = datetime.now(UTC).isoformat()
     progress = {
@@ -365,19 +395,24 @@ def prepare(run: Path, output: Path) -> dict:
         "source_receipts": len(receipts),
         "review_records": len(reviews),
         "review_completed": sum(
-            item.get("status", "reviewed") in {"reviewed", "ready", "supported", "ok"}
+            item.get("status") in {"reviewed", "ready", "supported", "ok"}
             and bool(item.get("reviewer", item.get("reviewed_by")))
             and bool(item.get("basis"))
             and isinstance(item.get("signal_bindings"), list)
+            and bool(item["signal_bindings"])
             and item.get("source_sha256")
             == sources.get(item.get("id", item.get("publication_id")), {}).get("source_sha256")
             for item in reviews
         ),
-        "review_statuses": dict(Counter(item.get("status", "reviewed") for item in reviews)),
+        "review_statuses": dict(review_statuses),
+        "review_pending": review_statuses["pending_review"],
+        "review_not_comparable": review_statuses["not_comparable"],
         "generation_verified": file_stage(
             run, generations, "completed", "generated_file", "generated_sha256"
         ),
         "generation_statuses": dict(Counter(item.get("status", "UNKNOWN") for item in generations)),
+        "generation_review_statuses": dict(generation_reviews),
+        "generation_review_approved": generation_reviews["approved"],
         "reported_models": dict(
             Counter(item.get("provider_reported_model") or "UNKNOWN" for item in generations)
         ),
@@ -413,6 +448,7 @@ def prepare(run: Path, output: Path) -> dict:
             "exposure_pct": "percent_0_100",
         },
         "source_summary": catalogue.get("summary", {}),
+        "source_audit": source_audit.get("summary", {}),
         "costs": manifest.get("costs", {}),
         "ledger": ledger,
         "dataset": {
@@ -479,6 +515,7 @@ def prepare(run: Path, output: Path) -> dict:
                         "manifest.json",
                         "report-input.json",
                         "data/dataset.json",
+                        "source-capture-audit.json",
                     )
                 )
                 if path.exists()
@@ -488,6 +525,8 @@ def prepare(run: Path, output: Path) -> dict:
             "units": summary["units"],
         },
     )
+    if source_audit:
+        write_json(output / "source-capture-audit.json", source_audit)
     return summary
 
 
@@ -586,7 +625,7 @@ def render(summary: dict) -> str:
             "2. Python 생성",
             p["generation_verified"],
             p["source_target"],
-            "실제 생성 파일·SHA 일치. 응답 모델 미보고는 UNKNOWN",
+            f"생성 파일·SHA 일치. 명시 리뷰 승인 {p['generation_review_approved']:,}개 · native 통과와 별개",
         ),
         (
             "3. 원본 신호 대조",
@@ -678,16 +717,32 @@ def render(summary: dict) -> str:
         + "</li>"
         for period, files in dataset_files.items()
     )
+    audit = summary["source_audit"]
+    failures = audit.get("failure_classifications", {})
+    source_failure_note = (
+        f"소스 미확보 {audit.get('capture_failed', 0):,}건: 최초 수집은 Source code 버튼 8초 대기 실패입니다. "
+        f"현재 공개 페이지·ID 기본 URL의 404 확인 {failures.get('current_publication_not_found_404', 0):,}건, "
+        f"소스 탭 확인 {failures.get('current_source_tab_available', 0):,}건, "
+        f"미확인 {failures.get('unconfirmed', 0):,}건입니다. 보호 스크립트 실증 {audit.get('protected_proven', 0):,}건. "
+        "404만으로 삭제·비공개·일시 상태를 구분할 수 없습니다."
+        if audit
+        else "소스 미확보 사유의 독립 감사는 아직 없습니다. 수집 실패를 보호 스크립트로 판정하지 않습니다."
+    )
+    audit_link = (
+        '<a href="source-capture-audit.json" download>소스 미확보·전량 SHA 감사 JSON</a>'
+        if audit
+        else ""
+    )
     return f'''<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'"><link rel="icon" href="data:,"><title>QuantBridge 기간별 A/B 비교 연구 · 진행 보고서</title><style>{CSS}</style></head>
 <body><header><div class="eyebrow">QUANTBRIDGE / RESEARCH NOTE 2026.10.26</div><h1>기간별 Pine · Python,<br>두 청산 정책 비교</h1><span class="status">진행 보고서 · 연구 미완료</span><p>작성 UTC {esc(summary["generated_at_utc"])}<br>KST {esc(summary["generated_at_kst"])}</p><p>작성 시점 스냅샷입니다. 실행 중인 작업의 완료를 뜻하지 않으며 이 파일은 자동 갱신되지 않습니다.</p></header>
 <main><section class="stages" aria-label="단계별 완료 분모">{cards}</section>
-<section class="notice"><strong>금융 실행 성공 ≠ TradingView 원본 일치 ≠ 수익성 검증 ≠ 실서버 등록</strong><br>방향 매핑 검토 {p["review_records"]:,} / {p["source_target"]:,}원본 · native 판정 파일 {p["native_records"]:,}건 · 기술 통과 {p["native_passed"]:,}건. 기존 native 파일을 가지고 있다는 사실만으로 통과를 세지 않습니다. 실서버 새 정책은 검토·배포 대기이며 데모 활성화·주문은 포함하지 않습니다.</section>
+<section class="notice"><strong>금융 실행 성공 ≠ TradingView 원본 일치 ≠ 수익성 검증 ≠ 실서버 등록</strong><br>정적 분류 기록 {p["review_records"]:,} / {p["source_target"]:,}원본: 매핑 확정 {p["review_completed"]:,} · 검토 대기 {p["review_pending"]:,} · 비교 불가 {p["review_not_comparable"]:,}. Python 생성물 명시 리뷰 승인 {p["generation_review_approved"]:,}개 (생성 파일 확보와 별도).<br>native 판정 파일 {p["native_records"]:,}건 · 기술 통과 {p["native_passed"]:,}건. 기존 native 파일을 가지고 있다는 사실만으로 통과를 세지 않습니다. 실서버 새 정책은 검토·배포 대기이며 데모 활성화·주문은 포함하지 않습니다.</section>
 <section class="panel"><h2>고정된 평가 기간</h2><div class="periods">{periods}</div><p class="meta">UTC 시작 포함·종료 미포함. 준비 이력은 거래 금지이며 기간 말 미청산 손익은 평가액에 포함합니다. 가상 종료 청산으로 비용을 추가하지 않습니다. 신호 주기 1h/4h/1d와 체결 계산 1분봉을 구분합니다.</p></section>
 <section class="panel"><h2>결과 탐색</h2><form id="filters"><div class="filters"><div class="field search"><label for="query">원본 제목·작성자·publication ID</label><input id="query" type="search" placeholder="원본 검색" autocomplete="off"></div>{controls}<div class="field"><label for="metric">수치 필터 항목</label><select id="metric"><option value="total_return">총수익률 (%)</option><option value="max_drawdown">최대 낙폭 (%)</option><option value="closed_episode_win_rate_pct">완료 episode 승률 (%)</option><option value="episode_count">episode 수</option><option value="fill_count">fill 수</option></select></div><div class="field search"><label for="min">수치 범위 · 미산출은 범위 필터에서 제외</label><div class="range"><input id="min" type="number" step="any" placeholder="최소" aria-label="최솟값"><input id="max" type="number" step="any" placeholder="최대" aria-label="최댓값"></div></div><button id="reset-filters" type="button">필터·정렬 초기화</button></div><p id="filter-error" class="error" role="alert" hidden></p></form><p class="meta">A/B는 동일 원본·코드 경로·시간봉·평가 기간·신호 모드를 나란히 비교합니다. 정책 필터는 해당 정책 기록이 있는 비교행을 고릅니다. 공통 신호는 청산 효과, 포지션 반영 신호는 진입까지 달라지는 전체 전략 비교입니다.</p></section>
 <section aria-label="A/B 성과 비교"><div class="toolbar"><p id="count" role="status" aria-live="polite"></p><p id="sort-state" class="meta" role="status"></p></div><div class="table-region" role="region" aria-label="가로 스크롤 가능한 A/B 성과 표" tabindex="0"><table><caption>표 제목을 누르면 정렬합니다. 단위가 없거나 실패·미실행인 셀은 미산출입니다.</caption><thead><tr><th rowspan="2" scope="col">원본 / 경로</th><th rowspan="2" scope="col">기간 / 신호 주기</th><th rowspan="2" scope="col">비교 해석</th><th colspan="5" scope="colgroup">A · 신호 청산</th><th colspan="5" scope="colgroup">B · 손절·반익절·추적</th></tr><tr id="metric-head"></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden><strong>표시할 금융 결과가 없습니다.</strong><p>아직 실행되지 않았거나 현재 필터에 맞는 기록이 없습니다. 미실행을 수익률 0%로 표시하지 않습니다.</p><button id="empty-reset" type="button">조건 초기화</button></div></div><nav class="pager" aria-label="결과 페이지"><button id="prev" type="button">이전 50개</button><span id="page-info" role="status"></span><button id="next" type="button">다음 50개</button></nav></section>
-<section class="panel"><h2>원장·근거 다운로드</h2><div class="links"><a href="financial-cells.csv" download>전체 금융 셀 CSV</a><a href="financial-cells.json" download>금융 셀·단위 JSON</a><a href="ledgers/episodes.csv" download>전체 episode CSV</a><a href="ledgers/episodes.json" download>episode JSON</a><a href="ledgers/fills.csv" download>전체 체결 fill CSV</a><a href="ledgers/fills.json" download>fill JSON</a><a href="ledgers/trace.jsonl.gz" download>SL·신호·펀딩 이벤트 원장</a><a href="sources-status.csv" download>원본별 진행 CSV</a><a href="sources-status.json" download>원본별 진행 JSON</a><a href="provenance.json" download>입력 SHA256·단위 근거</a><a href="study-summary.json" download>연구 진행 JSON</a><a href="{quote("선정목록.html")}">최초 선정 목록</a></div><p class="meta">episode {summary["ledger"]["episodes"]:,}행 · fill {summary["ledger"]["fills"]:,}행. 비어 있는 CSV는 데이터가 없다는 뜻입니다. 개별 완료 셀의 전체 결과 JSON.GZ는 표의 근거에서 내려받습니다. HTML과 상대 폴더를 함께 보관하세요. 결과의 곡선은 원시 저장 또는 검증된 원장 재현 recipe이며 각 셀에 구분 표시합니다. recipe 전량 복원에는 해당 SHA의 연구 데이터와 encoding.restore가 필요합니다.</p></section>
-<section class="panel limits"><div><h2>읽을 때 필요한 가정</h2><p>Bybit BTCUSDT 무기한 선물 · 초기 자본 10,000 USDT · 1배 · 자본 배분 100%. taker {esc(summary["costs"].get("taker", "UNKNOWN"))}, maker {esc(summary["costs"].get("maker", "UNKNOWN"))}, 슬리피지 {esc(summary["costs"].get("slippage", "UNKNOWN"))}는 비율 단위이며 이번 연구의 고정 가정입니다.</p><p>A는 원문 신호 청산만, B는 고정 2봉 swing 손절·1.5R 절반 익절·2R 본절/추적입니다. 둘 다 새로운 같은 방향 신호에서도 잔량 청산 후 다시 진입합니다. B의 반익절 fill은 독립 승리 episode가 아닙니다.</p><p>완료 episode가 0개면 승률은 미산출입니다. A의 R 통계는 해당 없음입니다. 승률은 예측 정확도가 아니며 native precision/recall 미산출을 100%로 표시하지 않습니다. 샤프는 평가곡선의 월간·표본 부족 시 일간 리샘플 관례이며 연율화하지 않습니다. 셀별 관례를 근거에서 확인하세요. 거래 빈도는 완료 episode / UTC 평가 일수 곱하기 30입니다. 보유 시간 노출은 전체 1분봉 중 포지션 보유 분봉의 합집합 비율입니다. 시가 청산 분봉은 제외하고 봉 내부 청산 분봉은 포함하며, 실제 틱 체결 시각이 아닌 분봉 포함 가정입니다.</p></div><div><h2>자료 범위와 미확인</h2><p>제공된 지표 12,000개·전략 3,360개 안에서 현재 로켓/댓글 상위를 선정한 회고 분석입니다. TradingView 전체 상위나 과거 당시 선정 가능성을 뜻하지 않습니다. 전략 목록의 표시 총수 5,760개 중 일부만 수집됐으며 인기 선정 편향이 있습니다.</p><p>펀딩 상태: {esc(summary["dataset"]["funding_status"])}. 과거 정산 일정의 독립 검증: {"확인" if summary["dataset"]["historical_schedule_independently_verified"] else "UNKNOWN"}. 관측 정산 데이터와 완전성 보증을 구분합니다. 실제 틱 순서를 재현하지 않으며 1분 OHLC의 불리한 경로 가정을 사용합니다.</p><details><summary>기간별 데이터 수집 범위</summary><ul>{data_ranges or "<li>동결 데이터 미확보</li>"}</ul></details><p>요청 모델은 gpt-6.1-sol/high입니다. 실제 응답 모델 보고: {esc(summary["progress"]["reported_models"] or "UNKNOWN · 생성 기록 없음")}. 코드 생성 성공과 원문 의미 일치는 별도 판정입니다.</p></div></section><footer>인터넷 없이 필터·정렬·페이지 이동·상대 파일 다운로드가 동작합니다. TradingView 원문 링크를 열 때만 인터넷이 필요합니다. 외부 폰트·CDN·추적 요청을 사용하지 않습니다.</footer></main><script id="report-data" type="application/json">{json_script(summary)}</script><script>{CORE_JS}\n{UI_JS}</script></body></html>'''
+<section class="panel"><h2>원장·근거 다운로드</h2><div class="links"><a href="financial-cells.csv" download>전체 금융 셀 CSV</a><a href="financial-cells.json" download>금융 셀·단위 JSON</a><a href="ledgers/episodes.csv" download>전체 episode CSV</a><a href="ledgers/episodes.json" download>episode JSON</a><a href="ledgers/fills.csv" download>전체 체결 fill CSV</a><a href="ledgers/fills.json" download>fill JSON</a><a href="ledgers/trace.jsonl.gz" download>SL·신호·펀딩 이벤트 원장</a><a href="sources-status.csv" download>원본별 진행 CSV</a><a href="sources-status.json" download>원본별 진행 JSON</a><a href="provenance.json" download>입력 SHA256·단위 근거</a><a href="study-summary.json" download>연구 진행 JSON</a>{audit_link}<a href="{quote("선정목록.html")}">최초 선정 목록</a></div><p class="meta">episode {summary["ledger"]["episodes"]:,}행 · fill {summary["ledger"]["fills"]:,}행. 비어 있는 CSV는 데이터가 없다는 뜻입니다. 개별 완료 셀의 전체 결과 JSON.GZ는 표의 근거에서 내려받습니다. HTML과 상대 폴더를 함께 보관하세요. 결과의 곡선은 원시 저장 또는 검증된 원장 재현 recipe이며 각 셀에 구분 표시합니다. recipe 전량 복원에는 해당 SHA의 연구 데이터와 encoding.restore가 필요합니다.</p></section>
+<section class="panel limits"><div><h2>읽을 때 필요한 가정</h2><p>Bybit BTCUSDT 무기한 선물 · 초기 자본 10,000 USDT · 1배 · 자본 배분 100%. taker {esc(summary["costs"].get("taker", "UNKNOWN"))}, maker {esc(summary["costs"].get("maker", "UNKNOWN"))}, 슬리피지 {esc(summary["costs"].get("slippage", "UNKNOWN"))}는 비율 단위이며 이번 연구의 고정 가정입니다.</p><p>A는 원문 신호 청산만, B는 고정 2봉 swing 손절·1.5R 절반 익절·2R 본절/추적입니다. 둘 다 새로운 같은 방향 신호에서도 잔량 청산 후 다시 진입합니다. B의 반익절 fill은 독립 승리 episode가 아닙니다.</p><p>완료 episode가 0개면 승률은 미산출입니다. A의 R 통계는 해당 없음입니다. 승률은 예측 정확도가 아니며 native precision/recall 미산출을 100%로 표시하지 않습니다. 샤프는 평가곡선의 월간·표본 부족 시 일간 리샘플 관례이며 연율화하지 않습니다. 셀별 관례를 근거에서 확인하세요. 거래 빈도는 완료 episode / UTC 평가 일수 곱하기 30입니다. 보유 시간 노출은 전체 1분봉 중 포지션 보유 분봉의 합집합 비율입니다. 시가 청산 분봉은 제외하고 봉 내부 청산 분봉은 포함하며, 실제 틱 체결 시각이 아닌 분봉 포함 가정입니다.</p></div><div><h2>자료 범위와 미확인</h2><p>{esc(source_failure_note)}</p><p>제공된 지표 12,000개·전략 3,360개 안에서 현재 로켓/댓글 상위를 선정한 회고 분석입니다. TradingView 전체 상위나 과거 당시 선정 가능성을 뜻하지 않습니다. 전략 목록의 표시 총수 5,760개 중 일부만 수집됐으며 인기 선정 편향이 있습니다.</p><p>펀딩 상태: {esc(summary["dataset"]["funding_status"])}. 과거 정산 일정의 독립 검증: {"확인" if summary["dataset"]["historical_schedule_independently_verified"] else "UNKNOWN"}. 관측 정산 데이터와 완전성 보증을 구분합니다. 실제 틱 순서를 재현하지 않으며 1분 OHLC의 불리한 경로 가정을 사용합니다.</p><details><summary>기간별 데이터 수집 범위</summary><ul>{data_ranges or "<li>동결 데이터 미확보</li>"}</ul></details><p>요청 모델은 gpt-6.1-sol/high입니다. 실제 응답 모델 보고: {esc(summary["progress"]["reported_models"] or "UNKNOWN · 생성 기록 없음")}. 코드 생성 성공과 원문 의미 일치는 별도 판정입니다.</p></div></section><footer>인터넷 없이 필터·정렬·페이지 이동·상대 파일 다운로드가 동작합니다. TradingView 원문 링크를 열 때만 인터넷이 필요합니다. 외부 폰트·CDN·추적 요청을 사용하지 않습니다.</footer></main><script id="report-data" type="application/json">{json_script(summary)}</script><script>{CORE_JS}\n{UI_JS}</script></body></html>'''
 
 
 def generate(run: Path, output: Path) -> dict:
