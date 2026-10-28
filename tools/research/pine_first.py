@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -13,6 +14,9 @@ from tools.research.period_study.state import checked, identity, read, sha
 POLICY = "pine_first_v1"
 IDENTITY = ("publication_id", "timeframe", "period", "policy")
 LANGUAGE_FAILURES = {"unsupported_syntax", "unsupported_api", "pine_runtime_language"}
+MARKET_CONTEXT_REASON = (
+    "pine_market_context_unavailable:fixed_interpreter_metadata_is_not_Bybit_symbol_metadata"
+)
 EVIDENCE_ROLES = {"source", "review", "data", "pine_failure", "checkpoint", "policy"}
 STATUSES = ("completed", "failed", "not_run", "pending")
 _VERIFIED = object()
@@ -176,8 +180,17 @@ def classify_pine_failure(pine_record: dict | None, review: dict) -> dict:
         and review.get("signal_mode") == "shared_events"
         and proof.get("requires_python_A_signal_tape") is True
     )
+    # syminfo 주입은 정확한 Pine 사유(또는 검증된 승계)일 때만 비언어 판정을 건너뛴다.
+    injection = (
+        proof.get("failure_kind") == "market_context_injection"
+        and proof.get("failure_stage") == "source_market_context"
+        and (
+            str(pine.get("reason", "")) == MARKET_CONTEXT_REASON
+            or proof.get("_inherited_market_context") is _VERIFIED
+        )
+    )
     # 지원 문법 목록은 실행 파일 부재만으로 생긴 실패와 구별한다.
-    if not dependency and (
+    if not dependency and not injection and (
         any(
             fragment in reason
             for fragment in NON_LANGUAGE_REASONS
@@ -195,11 +208,12 @@ def classify_pine_failure(pine_record: dict | None, review: dict) -> dict:
         and review.get("signal_mode") == "shared_events"
     ):
         return {**result, "reason": "shared_events_B_does_not_execute_source"}
-    if proof.get("failure_kind") not in LANGUAGE_FAILURES and not dependency:
+    if proof.get("failure_kind") not in LANGUAGE_FAILURES and not dependency and not injection:
         return {**result, "reason": "not_a_language_failure"}
     if (
         proof.get("failure_stage") not in {"source_compilation", "source_evaluation"}
         and not dependency
+        and not injection
     ):
         return {**result, "reason": "failure_stage_not_language_execution"}
     if (
@@ -425,6 +439,51 @@ class _Evidence:
                     or evidence["parent_eligibility"]["sha256"] != approved["proof_sha256"]
                 ):
                     raise ValueError("dependency_A_language_failure_not_verified")
+            elif proof.get("failure_kind") == "market_context_injection":
+                if cell.get("status") != "not_run":
+                    raise ValueError("market_context_injection_requires_not_run_pine")
+                if cell.get("reason") != MARKET_CONTEXT_REASON:
+                    # 재개 기록은 정확한 사유의 직전 checkpoint를 SHA로 가리켜야 한다.
+                    origin = read(files["checkpoint"]).get("reopened_from_checkpoint")
+                    if not (
+                        isinstance(origin, dict)
+                        and str(cell.get("reason", "")).startswith(
+                            "reviewed_pine_executable_missing:"
+                        )
+                        and origin.get("path") == str(files["checkpoint"].relative_to(self.root))
+                    ):
+                        raise ValueError("market_context_reason_not_inherited")
+                    previous = [
+                        read(item)
+                        for item in sorted(files["checkpoint"].parent.glob("attempt-*.json"))
+                        if sha(item.read_bytes()) == origin.get("sha256")
+                    ]
+                    if not previous or not all(
+                        _key(item) == _key(cell)
+                        and item.get("code_path") == "pine"
+                        and item.get("status") == "not_run"
+                        and item.get("reason") == MARKET_CONTEXT_REASON
+                        for item in previous
+                    ):
+                        raise ValueError("market_context_inherited_checkpoint_mismatch")
+                    proof["_inherited_market_context"] = _VERIFIED
+                if files["market_context"] != self.root / "market-context.json":
+                    raise ValueError("market_context_snapshot_mismatch")
+                if not any(
+                    isinstance(item, dict)
+                    and item.get("publication_id") == pid
+                    and item.get("market_context") is True
+                    for item in read(files["root_decision"]).get("decisions", [])
+                ):
+                    raise ValueError("market_context_root_decision_missing")
+                # 외부 시세(request.*)는 주입할 수 없으므로 이 종류로 받지 않는다.
+                executable = re.sub(
+                    r'//[^\n]*|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'',
+                    "",
+                    files["source"].read_text(),
+                )
+                if re.search(r"\brequest\s*\.", executable):
+                    raise ValueError("market_context_injection_rejects_request_source")
             request_hashes = proof.get("python_request_hashes", {})
             proof.update(
                 python_request_hash=request_hashes.get(
@@ -621,6 +680,12 @@ class _Evidence:
                 or request.get("market_context_proof") != current_review.get("market_context_proof")
             ):
                 raise ValueError("current_executable_or_approval_mismatch")
+            if (
+                language == "python"
+                and proof.get("reason") == "market_context_injection"
+                and request.get("market_context_proof") is None
+            ):
+                raise ValueError("market_context_injection_requires_bound_context")
             expected_files = dict(dataset["files"][period])
             if review.get("warmup_bars", 1000) > dataset["warmup_bars"]:
                 expected_files[tf] = read(

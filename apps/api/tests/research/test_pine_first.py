@@ -420,67 +420,110 @@ class PineFirstTests(unittest.TestCase):
             invalid = policy.build_pine_first_view(self.root, [self.pine, row])
             self.assertEqual(invalid["progress"]["python_fallback_completed"], 0)
 
-    def completion_fixture(self, *, request_change=None, status="completed", execution_attempt=1,
-                           failure_reason="PythonRuntimeError: isolated financial execution failed"):
+    def completion_fixture(
+        self,
+        *,
+        request_change=None,
+        status="completed",
+        execution_attempt=1,
+        failure_reason="PythonRuntimeError: isolated financial execution failed",
+    ):
         self.python_completed_fixture(pinned=False)
         self.request.update(request_change or {})
         row = self.save_completed({**self.cell, "code_path": "python"})
         folder = "cells/one/python/1h/P1/A"
         result_file = f"{folder}/result-{row['request_hash']}.json.gz"
         write(self.root / result_file, read(self.root / row["result_file"]))
-        record = {
-            key: value for key, value in row.items() if key not in row["metrics"]
-        }
-        record.update(attempt=execution_attempt, result_file=result_file,
-                      result_sha256=sha((self.root / result_file).read_bytes()))
+        record = {key: value for key, value in row.items() if key not in row["metrics"]}
+        record.update(
+            attempt=execution_attempt,
+            result_file=result_file,
+            result_sha256=sha((self.root / result_file).read_bytes()),
+        )
         if status == "failed":
             for key in ("result_file", "result_sha256", "metrics"):
                 record.pop(key)
-            record.update(status="failed", execution_attempt=execution_attempt,
-                          reason=failure_reason)
+            record.update(
+                status="failed", execution_attempt=execution_attempt, reason=failure_reason
+            )
         attempt_file = f"{folder}/attempt-{record['attempt']:03}.json"
         write(self.root / folder / "latest.json", record)
         write(self.root / attempt_file, record)
         self.completion_row = {**record, **record.get("metrics", {})}
         eligibility = self.ref("pine-first/eligibility/one.json")
         job = {
-            "publication_id": "one", "code_path": "python", "timeframe": "1h", "period": "P1",
-            "policies": ["A"], "eligibility_proofs": [eligibility],
+            "publication_id": "one",
+            "code_path": "python",
+            "timeframe": "1h",
+            "period": "P1",
+            "policies": ["A"],
+            "eligibility_proofs": [eligibility],
             "policy_sha256": self.ref("pine-first/policy.json")["sha256"],
-            "input_evidence": [self.ref(name) for name in (
-                "sources/one.pine", "reviews/one.json", "data/dataset.json", "runtime-smoke.json",
-                "generation/one/status.json", "generation/one/0/code-review.json", "adapted/one.python",
-                "data/P1/1h.csv", "data/P1/1min.csv", "data/P1/funding.csv",
-            )],
+            "input_evidence": [
+                self.ref(name)
+                for name in (
+                    "sources/one.pine",
+                    "reviews/one.json",
+                    "data/dataset.json",
+                    "runtime-smoke.json",
+                    "generation/one/status.json",
+                    "generation/one/0/code-review.json",
+                    "adapted/one.python",
+                    "data/P1/1h.csv",
+                    "data/P1/1min.csv",
+                    "data/P1/funding.csv",
+                )
+            ],
         }
         job["job_hash"] = identity(job)
         job_file = f"pine-first/jobs/{job['job_hash']}.json"
         write(self.root / job_file, job)
         worker_file = f"pine-first/jobs/{job['job_hash']}/worker-status.json"
-        write(self.root / worker_file, {
-            "job_hash": job["job_hash"], "status": "completed", "phase": "common_engine_dispatch",
-            "run_group_calls": 1, "dispatched_policies": ["A"], "results": [record],
-            "selection_evidence": [{"policy": "A", "proof_file": eligibility["path"],
-                                    "proof_sha256": eligibility["sha256"]}],
-        })
+        write(
+            self.root / worker_file,
+            {
+                "job_hash": job["job_hash"],
+                "status": "completed",
+                "phase": "common_engine_dispatch",
+                "run_group_calls": 1,
+                "dispatched_policies": ["A"],
+                "results": [record],
+                "selection_evidence": [
+                    {
+                        "policy": "A",
+                        "proof_file": eligibility["path"],
+                        "proof_sha256": eligibility["sha256"],
+                    }
+                ],
+            },
+        )
         self.completion = {
-            "schema_version": 1, "cell": {**self.cell, "code_path": "python"},
-            "request_hash": row["request_hash"], "eligibility": eligibility,
-            "job": self.ref(job_file), "worker_status": self.ref(worker_file),
+            "schema_version": 1,
+            "cell": {**self.cell, "code_path": "python"},
+            "request_hash": row["request_hash"],
+            "eligibility": eligibility,
+            "job": self.ref(job_file),
+            "worker_status": self.ref(worker_file),
             "checkpoint": self.ref(attempt_file),
             "request": self.ref(f"{folder}/request-{row['request_hash']}.json"),
             **({"result": self.ref(result_file)} if status == "completed" else {}),
         }
         self.completion_path = (
-            self.root / "pine-first/completions/one/1h/P1/A"
+            self.root
+            / "pine-first/completions/one/1h/P1/A"
             / f"{row['request_hash']}-attempt-{record['attempt']:03}.json"
         )
         write(self.completion_path, self.completion)
         return self.completion_row
 
     def completion_count(self, row):
-        with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
-            return policy.build_pine_first_view(self.root, [self.pine, row])["progress"]["python_fallback_completed"]
+        with patch(
+            "tools.research.period_study.controller.implementation",
+            return_value={"fixture": "same"},
+        ):
+            return policy.build_pine_first_view(self.root, [self.pine, row])["progress"][
+                "python_fallback_completed"
+            ]
 
     def rewrite_completion_job(self, changes):
         job = read(self.root / self.completion["job"]["path"])
@@ -512,7 +555,10 @@ class PineFirstTests(unittest.TestCase):
         self.assertEqual(self.completion_count(row), 0)
         row = self.completion_fixture(status="failed", execution_attempt=2)
         self.completion_path.replace(legacy)
-        with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+        with patch(
+            "tools.research.period_study.controller.implementation",
+            return_value={"fixture": "same"},
+        ):
             view = policy.build_pine_first_view(self.root, [self.pine, row])
         self.assertEqual(view["progress"]["financial_failed_terminal"], 0)
 
@@ -521,26 +567,48 @@ class PineFirstTests(unittest.TestCase):
             with self.subTest(execution_attempt=execution_attempt):
                 row = self.completion_fixture(status="failed", execution_attempt=execution_attempt)
                 proof_before = (self.root / "pine-first/eligibility/one.json").read_bytes()
-                with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+                with patch(
+                    "tools.research.period_study.controller.implementation",
+                    return_value={"fixture": "same"},
+                ):
                     view = policy.build_pine_first_view(self.root, [self.pine, row])
                 self.assertEqual(view["rows"][0]["code_path"], "python")
-                self.assertEqual(view["rows"][0]["status"], "pending" if execution_attempt == 1 else "failed")
-                self.assertEqual(view["progress"]["financial_failed_terminal"], 0 if execution_attempt == 1 else 1)
-                self.assertEqual(view["progress"]["financial_recovery_pending"], 1 if execution_attempt == 1 else 0)
-                self.assertEqual((self.root / "pine-first/eligibility/one.json").read_bytes(), proof_before)
+                self.assertEqual(
+                    view["rows"][0]["status"], "pending" if execution_attempt == 1 else "failed"
+                )
+                self.assertEqual(
+                    view["progress"]["financial_failed_terminal"],
+                    0 if execution_attempt == 1 else 1,
+                )
+                self.assertEqual(
+                    view["progress"]["financial_recovery_pending"],
+                    1 if execution_attempt == 1 else 0,
+                )
+                self.assertEqual(
+                    (self.root / "pine-first/eligibility/one.json").read_bytes(), proof_before
+                )
 
     def test_previous_completion_attempt_cannot_substitute_current_execution(self):
         row = self.completion_fixture(status="failed", execution_attempt=2)
         previous = self.completion_path.with_name(f"{row['request_hash']}-attempt-001.json")
         self.completion_path.rename(previous)
-        with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+        with patch(
+            "tools.research.period_study.controller.implementation",
+            return_value={"fixture": "same"},
+        ):
             view = policy.build_pine_first_view(self.root, [self.pine, row])
         self.assertEqual(view["progress"]["financial_failed_terminal"], 0)
 
     def test_runner_unavailable_is_recovery_after_two_attempts_and_reason_is_not_forgeable(self):
-        row = self.completion_fixture(status="failed", execution_attempt=2,
-                                      failure_reason="PythonRunnerUnavailable:격리 실행기를 시작할 수 없습니다")
-        with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+        row = self.completion_fixture(
+            status="failed",
+            execution_attempt=2,
+            failure_reason="PythonRunnerUnavailable:격리 실행기를 시작할 수 없습니다",
+        )
+        with patch(
+            "tools.research.period_study.controller.implementation",
+            return_value={"fixture": "same"},
+        ):
             view = policy.build_pine_first_view(self.root, [self.pine, row])
             selected = view["rows"][0]
             self.assertEqual(selected["code_path"], "python")
@@ -577,7 +645,10 @@ class PineFirstTests(unittest.TestCase):
                 else:
                     value["result"] = self.ref(original["request"]["path"])
                 write(self.completion_path, value)
-                with patch("tools.research.period_study.controller.implementation", return_value={"fixture": "same"}):
+                with patch(
+                    "tools.research.period_study.controller.implementation",
+                    return_value={"fixture": "same"},
+                ):
                     view = policy.build_pine_first_view(self.root, [self.pine, row])
                 self.assertEqual(view["progress"]["financial_failed_terminal"], 0)
                 worker_path.write_bytes(worker_before)
@@ -615,7 +686,11 @@ class PineFirstTests(unittest.TestCase):
         job_path.write_bytes(original)
         worker_path = self.root / self.completion["worker_status"]["path"]
         original_worker = worker_path.read_bytes()
-        for fields in ({"status": "failed"}, {"phase": "no_new_calculation"}, {"run_group_calls": 0}):
+        for fields in (
+            {"status": "failed"},
+            {"phase": "no_new_calculation"},
+            {"run_group_calls": 0},
+        ):
             with self.subTest(fields=fields):
                 worker = read(worker_path)
                 worker.update(fields)
@@ -635,7 +710,11 @@ class PineFirstTests(unittest.TestCase):
         write(self.root / "pine-first/policy.json", {"policy": policy.POLICY, "source_count": 1})
         self.proof["python_request_hash"] = "f" * 64
         self.eligibility()
-        with patch.object(policy._Evidence, "completion_binding", side_effect=AssertionError("명시 pin에는 진입 금지")) as fallback:
+        with patch.object(
+            policy._Evidence,
+            "completion_binding",
+            side_effect=AssertionError("명시 pin에는 진입 금지"),
+        ) as fallback:
             self.assertEqual(self.completion_count(row), 0)
             fallback.assert_not_called()
 
@@ -643,8 +722,12 @@ class PineFirstTests(unittest.TestCase):
         row = self.completion_fixture()
         original = copy.deepcopy(self.completion)
         for changes in (
-            {"period": "P2"}, {"code_path": "pine"}, {"policies": ["B"]},
-            {"eligibility_proofs": []}, {"policy_sha256": "0" * 64}, {"input_evidence": []},
+            {"period": "P2"},
+            {"code_path": "pine"},
+            {"policies": ["B"]},
+            {"eligibility_proofs": []},
+            {"policy_sha256": "0" * 64},
+            {"input_evidence": []},
             {"input_evidence": [{"path": "data/P1/1min.csv", "sha256": "0" * 64}]},
         ):
             with self.subTest(changes=changes):
@@ -712,6 +795,150 @@ class PineFirstTests(unittest.TestCase):
         proof["evidence"]["parent_checkpoint"] = self.ref(self.checkpoint)
         write(path, proof)
         self.assertFalse(policy._Evidence(self.root).eligibility(b, self.review)["eligible"])
+
+    def market_context_fixture(self, source="//@version=6\nstrategy('one')\nx = syminfo.mintick\n"):
+        (self.root / "sources/one.pine").write_text(source)
+        self.review["source_sha256"] = sha((self.root / "sources/one.pine").read_bytes())
+        write(self.root / "reviews/one.json", self.review)
+        self.pine.update(reason=policy.MARKET_CONTEXT_REASON)
+        write(self.root / self.checkpoint, self.pine)
+        write(self.root / "market-context.json", {"symbol": "BTCUSDT", "syminfo.mintick": "0.10"})
+        self.decision = "handoff/root-decisions-syminfo.json"
+        write(
+            self.root / self.decision,
+            {"decisions": [{"publication_id": "one", "market_context": True}]},
+        )
+        self.proof.update(
+            failure_kind="market_context_injection", failure_stage="source_market_context"
+        )
+        self.proof["evidence"].update(
+            source=self.ref("sources/one.pine"),
+            review=self.ref("reviews/one.json"),
+            pine_failure=self.ref(self.checkpoint),
+            checkpoint=self.ref(self.checkpoint),
+            root_decision=self.ref(self.decision),
+            market_context=self.ref("market-context.json"),
+        )
+
+    def test_market_context_injection_accepts_exact_and_verified_inherited_reason(self):
+        self.market_context_fixture()
+        result = self.eligibility()
+        self.assertTrue(result["eligible"], result)
+        self.assertEqual(result["reason"], "market_context_injection")
+        # 재개 기록은 정확한 사유의 attempt 를 SHA 로 가리킬 때만 승계로 인정한다.
+        folder = self.root / "cells/one/pine/1h/P1/A"
+        write(folder / "attempt-001.json", self.pine)
+        reopened = {
+            **self.pine,
+            "reason": "reviewed_pine_executable_missing:syminfo_bybit_market_context_pilot",
+            "reopened_from_checkpoint": self.ref(self.checkpoint),
+        }
+        write(self.root / self.checkpoint, reopened)
+        self.proof["evidence"]["checkpoint"] = self.ref(self.checkpoint)
+        self.proof["evidence"]["pine_failure"] = self.ref(self.checkpoint)
+        self.pine = reopened
+        self.assertTrue(self.eligibility()["eligible"])
+        reopened["reopened_from_checkpoint"]["sha256"] = "0" * 64
+        write(self.root / self.checkpoint, reopened)
+        self.proof["evidence"]["checkpoint"] = self.ref(self.checkpoint)
+        self.proof["evidence"]["pine_failure"] = self.ref(self.checkpoint)
+        self.assertFalse(self.eligibility()["eligible"])
+
+    def test_market_context_injection_requires_root_decision_for_this_source(self):
+        self.market_context_fixture()
+        for decisions in (
+            [{"publication_id": "other", "market_context": True}],
+            [{"publication_id": "one", "market_context": False}],
+            [{"publication_id": "one"}],
+        ):
+            with self.subTest(decisions=decisions):
+                write(self.root / self.decision, {"decisions": decisions})
+                self.proof["evidence"]["root_decision"] = self.ref(self.decision)
+                self.assertFalse(self.eligibility()["eligible"])
+        del self.proof["evidence"]["root_decision"]
+        self.assertFalse(self.eligibility()["eligible"])
+
+    def test_market_context_injection_rejects_snapshot_sha_or_path_mismatch(self):
+        self.market_context_fixture()
+        (self.root / "market-context.json").write_text('{"syminfo.mintick": "0.01"}')
+        self.assertFalse(self.eligibility()["eligible"])
+        write(self.root / "other-context.json", {"syminfo.mintick": "0.10"})
+        self.proof["evidence"]["market_context"] = self.ref("other-context.json")
+        self.assertFalse(self.eligibility()["eligible"])
+
+    def test_market_context_injection_rejects_request_sources_outside_comments(self):
+        self.market_context_fixture(
+            "//@version=6\nstrategy('one')\n// request.security is mentioned\n"
+            "t = 'request.security'\nx = syminfo.mintick\n"
+        )
+        self.assertTrue(self.eligibility()["eligible"])
+        self.market_context_fixture(
+            "//@version=6\nstrategy('one')\nh = request .security(syminfo.tickerid, 'D', close)\n"
+        )
+        result = self.eligibility()
+        self.assertFalse(result["eligible"])
+        self.assertIn("request_source", result["reason"])
+
+    def test_market_context_kind_does_not_change_language_or_non_language_verdicts(self):
+        # 기존 언어 실패 경로는 그대로 적격이다.
+        self.assertTrue(self.eligibility()["eligible"])
+        self.market_context_fixture()
+        # 같은 증거라도 언어 실패 종류로 선언하면 기존 비언어 판정 그대로다.
+        self.proof.update(failure_kind="unsupported_api", failure_stage="source_compilation")
+        self.proof["evidence"]["pine_failure"] = self.ref("reviews/one.json")
+        self.assertEqual(self.eligibility()["reason"], "non_language_failure")
+        # 정확한 사유가 아니면(예외명 접두) 주입 종류로도 받지 않는다.
+        self.proof.update(
+            failure_kind="market_context_injection", failure_stage="source_market_context"
+        )
+        for reason in ("ValueError:" + policy.MARKET_CONTEXT_REASON, "RuntimeError:docker_missing"):
+            with self.subTest(reason=reason):
+                self.pine["reason"] = reason
+                write(self.root / self.checkpoint, self.pine)
+                self.proof["evidence"]["checkpoint"] = self.ref(self.checkpoint)
+                self.proof["evidence"]["pine_failure"] = self.ref(self.checkpoint)
+                self.assertFalse(self.eligibility()["eligible"])
+
+    def test_market_context_python_completion_requires_bound_context_proof(self):
+        row, approval = self.python_completed_fixture()
+        proof = {
+            "eligible": True,
+            "reason": "market_context_injection",
+            "python_request_hash": row["request_hash"],
+        }
+        evidence = policy._Evidence(self.root)
+        with patch(
+            "tools.research.period_study.controller.implementation",
+            return_value={"fixture": "same"},
+        ):
+            unbound = evidence.verified_row(row, proof, self.review)
+            self.assertNotIn("_same_input_verified", unbound)
+            language = {**proof, "reason": "unsupported_api"}
+            self.assertIs(
+                evidence.verified_row(row, language, self.review)["_same_input_verified"],
+                policy._VERIFIED,
+            )
+            write(self.root / "market-context.json", {"syminfo.mintick": "0.10"})
+            context = self.ref("market-context.json")
+            write(
+                self.root / "generation/one/0/code-review.json",
+                {
+                    **approval,
+                    "market_context_file": context["path"],
+                    "market_context_sha256": context["sha256"],
+                },
+            )
+            self.request.update(
+                generated_code_review_sha256=sha(
+                    (self.root / "generation/one/0/code-review.json").read_bytes()
+                ),
+                market_context_proof={"file": context["path"], "sha256": context["sha256"]},
+            )
+            bound = self.save_completed({**self.cell, "code_path": "python"})
+            result = policy._Evidence(self.root).verified_row(
+                bound, {**proof, "python_request_hash": bound["request_hash"]}, self.review
+            )
+            self.assertIs(result["_same_input_verified"], policy._VERIFIED)
 
     def test_orchestration_compatibility_rejects_numeric_or_unarchived_change(self):
         controller = "tools/research/period_study/controller.py"
