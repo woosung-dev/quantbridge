@@ -1,17 +1,22 @@
 # 고정 코호트·5기간 A/B 연구
 
 `catalogue.json`의 publication ID를 먼저 동결한다. 원문 확보·방향 매핑 검토·Sol 생성·금융 실행·
-TradingView native 대조·운영 등록은 서로 다른 분모다. 1,400원본은 84,000 금융 셀이며 실패와
-미실행도 계획에서 제거하지 않는다. DB·Celery·주문·유료 API·모델 대체를 사용하지 않는다.
+TradingView native 대조·운영 등록은 서로 다른 분모다. 현재 `pine_first_v1`의 목표는
+1,400원본 × A/B × 3시간봉 × 5기간 = 42,000개 결과다. Pine 성공 범위에는 Python을
+생성·중복 실행하지 않으며, 검토한 언어 변환으로 해결 가능한 Pine 실패 범위만 Python으로
+대체한다. 원문·데이터 누락, 거래 0건, 낮은 수익률은 전환 사유가 아니다. 기존 84,000개
+언어별 manifest·시도·결과는 감사 자료로 보존한다. 실패와 미실행도 현재 계획에서 제거하지
+않는다. DB·Celery·주문·유료 API·모델 대체를 사용하지 않는다.
 
 ## 입력과 실행
 
 1. `plan`: `--catalogue`의 선정 목록·SHA와 Pine/Python × A/B × 1h/4h/1d × P1~P5를 고정한다.
 2. `freeze-data --seed-dir <이전 data>`: 기존 파일 SHA 검증 후 실제 Bybit 누락 구간만 보충한다.
    각 기간의 부모봉 준비 이력·정확한 1분봉·관측 펀딩을 25개 파일로 나눠 보존한다. 페이지별 캐시로 재개한다.
-3. `generate --id <publication ID>`: 검토 원문을 Codex 구독 `gpt-6.1-sol/high`로 생성한다.
+3. 적격 Pine 실패 범위만 `generate --id <publication ID>`: 검토 원문을 Codex 구독 `gpt-6.1-sol/high`로 생성한다.
    최대 두 번·호출당180초·대체 모델 없음. 기본3 worker이며 동일 인증·쿼터 원인의 연속 실패는 배치 뒤 멈춘다.
-4. `execute --id <publication ID>`: 고정 gVisor Pine/Python 이미지에서만 실행한다. 기본 순차,
+4. `execute --id <publication ID>`: 고정 gVisor 이미지에서 Pine 우선으로 실행하고 검토된
+   실패 대체 범위에만 Python을 실행한다. 아래 저수준 CLI의 경로 선택은 정책 큐가 제한한다. 기본 순차,
    `--shard N --shards M`은 서로 다른 원본을 분배한다. 같은 입력의 성공은 파일 SHA 검증 후 재사용하며
    같은 입력의 금융 실행은 최대 두 번이다. `--limit`은 원본×코드×주기×기간 그룹 수다(A/B 두 셀).
 5. `status`와 `export`: 예정·성공·실패·미실행·대기를 구분한다. JSON/CSV 단위를 보존하고

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -102,6 +103,56 @@ def test_missing_native_evidence_never_starts_code_or_passes(study, monkeypatch)
     assert result["passed_paths"] == []
     assert all(value["status"] == "not_run" for value in result["paths"].values())
     assert read(root / "native-verification/example-1h.json") == result
+
+
+@pytest.mark.parametrize("entrypoint", ["verify", "cli"])
+def test_deferred_native_policy_preserves_all_existing_evidence(
+    study, monkeypatch, capsys, entrypoint
+):
+    root, _, _ = prepared(study, monkeypatch)
+    write(root / "native-verification/example-1h.json", {"status": "passed", "old_gate": True})
+    write(root / "native-attempts/example/1h/001-existing.json", {"status": "passed"})
+    write(
+        root / "pine-first/policy.json",
+        {
+            "policy": "pine_first_v1",
+            "native_verification": "deferred_until_after_financial_research",
+        },
+    )
+    snapshot = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+    def forbidden(*args):
+        pytest.fail("연기 정책에서 native 준비·비교·증거 쓰기를 실행함")
+
+    for name in ("implementation", "parse", "compare_path", "write"):
+        monkeypatch.setattr(native, name, forbidden)
+    if entrypoint == "verify":
+        result = native.verify(root, "example", "1h", None)
+        assert result["execution_attempted"] is False
+        assert result["evidence_verified"] is False
+        assert result["passed_paths"] == []
+    else:
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["period_native", "--run", str(root), "--id", "example", "--timeframe", "1h"],
+        )
+        native.main()
+        result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "deferred"
+    assert result["reason"] == "native_verification_deferred_until_after_financial_research"
+    assert all(
+        (value["status"] if isinstance(value, dict) else value) == "not_run"
+        for value in result["paths"].values()
+    )
+    assert all((path.read_bytes(), path.stat().st_mtime_ns) == value for path, value in snapshot.items())
+    assert sorted((root / "native-attempts/example/1h").glob("*.json")) == [
+        root / "native-attempts/example/1h/001-existing.json"
+    ]
 
 
 @pytest.mark.parametrize(
@@ -283,6 +334,29 @@ def test_success_in_one_code_path_never_promotes_the_other(study, monkeypatch):
     assert result["passed_paths"] == ["python"]
     assert result["paths"]["pine"]["status"] == "not_run"
     assert len(result["evidence"]) == 3
+
+
+@pytest.mark.parametrize("selected", [("pine",), ("python",)])
+def test_policy_selection_never_executes_an_unneeded_native_path(study, monkeypatch, selected):
+    root, _, _ = prepared(study, monkeypatch)
+    called = []
+    monkeypatch.setattr(native, "native_code_paths", lambda *args: selected)
+
+    def compare(root, item, path, *args):
+        called.append(path)
+        return {"status": "passed"}
+
+    monkeypatch.setattr(native, "compare_path", compare)
+    result = native.verify(root, "example", "1h", None)
+
+    assert called == list(selected)
+    assert result["passed_paths"] == list(selected)
+    omitted = "python" if selected == ("pine",) else "pine"
+    assert result["paths"][omitted] == {
+        "status": "not_run",
+        "reason": "pine_first_policy_path_not_required",
+        "execution_attempted": False,
+    }
 
 
 def test_unobserved_position_feedback_never_enters_strict_native_comparison(study, monkeypatch):

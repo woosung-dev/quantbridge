@@ -120,6 +120,49 @@ def test_insufficient_warmup_is_not_run_for_both_policies_instead_of_stopping_co
     assert all("warmup_extension_missing" in row["reason"] for row in records)
 
 
+@pytest.mark.parametrize(
+    "policies,mode,tape",
+    [(("A",), "shared_events", None),
+     (("B",), "position_feedback", None),
+     (("B",), "shared_events", [{"action": "hold"}])],
+)
+def test_selected_policy_scope_never_backtests_the_successful_other_policy(
+    tmp_path, monkeypatch, policies, mode, tape,
+):
+    from types import SimpleNamespace
+
+    from src.strategy.code_runtime import backtest
+    from src.strategy.python_runtime import serialization
+
+    review = {"source_sha256": "a" * 64, "signal_mode": mode,
+              "signal_bindings": [{"direction": "long", "condition": "original"}]}
+    write(tmp_path / "data/dataset.json", {})
+    monkeypatch.setattr(controller, "artifact", lambda *args: ("source", "b" * 64, review))
+    monkeypatch.setattr(controller, "runtime", lambda: {"python": "image"})
+    monkeypatch.setattr(controller, "load_period", lambda *args: (None, None, None, {}))
+    monkeypatch.setattr(controller, "compact", lambda payload, *args: payload)
+    monkeypatch.setattr(serialization, "result_payload", lambda result: {"metrics": {}, "trades": []})
+    calls = []
+
+    def execute(*args, **kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(equity_curve=[])
+
+    monkeypatch.setattr(backtest, "run_code_backtest", execute)
+    rows = controller.run_group(tmp_path, tmp_path, {"id": "Abcd1234"}, "python", "1h", "P1",
+                                policies=policies, signal_tape=tape)
+
+    assert len(calls) == 1
+    assert [row["policy"] for row in rows] == list(policies)
+    assert rows[0]["status"] == "completed"
+    assert calls[0]["research_policy"].exit_policy == (
+        "signal_only_v1" if policies == ("A",) else "swing_two_bar_v1"
+    )
+    assert calls[0]["signal_tape"] == tape
+    other = "B" if policies == ("A",) else "A"
+    assert not (tmp_path / "cells/Abcd1234/python/1h/P1" / other).exists()
+
+
 def test_warmup_extension_preserves_base_manifest_and_existing_data(tmp_path, monkeypatch):
     from tools.research.period_study.schema import Period
 
