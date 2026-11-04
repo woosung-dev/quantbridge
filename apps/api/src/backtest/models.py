@@ -159,7 +159,7 @@ class Backtest(SQLModel, table=True):
     )
 
     # Relations — Backtest가 BacktestTrade보다 먼저 정의되므로 문자열 forward ref 필수
-    trades: list["BacktestTrade"] = Relationship(
+    trades: list[BacktestTrade] = Relationship(
         back_populates="backtest",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -220,6 +220,6 @@ class BacktestTrade(SQLModel, table=True):
     exit_kind: str | None = Field(default=None, max_length=16)
     comment: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
-    backtest: "Backtest" = Relationship(back_populates="trades")
+    backtest: Backtest = Relationship(back_populates="trades")
 
     __table_args__ = (Index("ix_backtest_trades_backtest_idx", "backtest_id", "trade_index"),)

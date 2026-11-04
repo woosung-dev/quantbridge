@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from fastapi import APIRouter, Header, Query, Request, Response
 
-from src.auth.dependencies import get_current_user
-from src.auth.schemas import CurrentUser
-from src.backtest.dependencies import get_backtest_service
+from src.auth.dependencies import CurrentUserDep
+from src.backtest.dependencies import BacktestServiceDep
 from src.backtest.schemas import (
     BacktestCancelResponse,
     BacktestCreatedResponse,
@@ -21,22 +20,21 @@ from src.backtest.schemas import (
     TradeItem,
     TradeOhlcvResponse,
 )
-from src.backtest.service import BacktestService
 from src.common.pagination import Page
 from src.common.rate_limit import limiter
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
 
 
-@router.post("", response_model=BacktestCreatedResponse, status_code=202)
+@router.post("", status_code=202)
 @limiter.limit("10/minute")
 async def submit_backtest(
     request: Request,  # slowapi 가 IP/key 추출에 사용 (첫 번째 위치)
     data: CreateBacktestRequest,
     response: Response,
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
-    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> BacktestCreatedResponse:
     """POST /backtests.
 
@@ -50,16 +48,16 @@ async def submit_backtest(
     return result
 
 
-@router.get("", response_model=Page[BacktestSummary])
+@router.get("")
 async def list_backtests(
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    order_by: Literal[
-        "created_at", "total_return", "max_drawdown", "sharpe_ratio", "num_trades"
-    ] = Query("created_at"),
-    order: Literal["asc", "desc"] = Query("desc"),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    order_by: Annotated[
+        Literal["created_at", "total_return", "max_drawdown", "sharpe_ratio", "num_trades"], Query()
+    ] = "created_at",
+    order: Annotated[Literal["asc", "desc"], Query()] = "desc",
 ) -> Page[BacktestSummary]:
     return await service.list(
         user_id=user.id,
@@ -70,54 +68,53 @@ async def list_backtests(
     )
 
 
-@router.get("/{backtest_id}", response_model=BacktestDetail)
+@router.get("/{backtest_id}")
 async def get_backtest(
     backtest_id: UUID,
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
 ) -> BacktestDetail:
     return await service.get(backtest_id, user_id=user.id)
 
 
-@router.get("/{backtest_id}/trades", response_model=Page[TradeItem])
+@router.get("/{backtest_id}/trades")
 async def list_backtest_trades(
     backtest_id: UUID,
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
-    limit: int = Query(100, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[TradeItem]:
     return await service.list_trades(backtest_id, user_id=user.id, limit=limit, offset=offset)
 
 
-@router.get("/{backtest_id}/trades/{trade_index}/ohlcv", response_model=TradeOhlcvResponse)
+@router.get("/{backtest_id}/trades/{trade_index}/ohlcv")
 async def get_trade_ohlcv(
     backtest_id: UUID,
     trade_index: int,
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
 ) -> TradeOhlcvResponse:
     return await service.trade_ohlcv(backtest_id, trade_index, user_id=user.id)
 
 
-@router.get("/{backtest_id}/progress", response_model=BacktestProgressResponse)
+@router.get("/{backtest_id}/progress")
 async def get_backtest_progress(
     backtest_id: UUID,
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
 ) -> BacktestProgressResponse:
     return await service.progress(backtest_id, user_id=user.id)
 
 
 @router.post(
     "/{backtest_id}/cancel",
-    response_model=BacktestCancelResponse,
     status_code=202,
 )
 async def cancel_backtest(
     backtest_id: UUID,
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
 ) -> BacktestCancelResponse:
     return await service.cancel(backtest_id, user_id=user.id)
 
@@ -125,8 +122,8 @@ async def cancel_backtest(
 @router.delete("/{backtest_id}", status_code=204)
 async def delete_backtest(
     backtest_id: UUID,
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
 ) -> None:
     await service.delete(backtest_id, user_id=user.id)
 
@@ -134,11 +131,11 @@ async def delete_backtest(
 # Sprint 41 Worker H — share read-only public link (revoke 가능). PDF P1 deferral.
 
 
-@router.post("/{backtest_id}/share", response_model=ShareTokenResponse)
+@router.post("/{backtest_id}/share")
 async def create_share(
     backtest_id: UUID,
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
 ) -> ShareTokenResponse:
     """Owner 가 share_token 생성. 멱등 — active token 있으면 그대로 반환.
 
@@ -150,8 +147,8 @@ async def create_share(
 @router.delete("/{backtest_id}/share", status_code=204)
 async def revoke_share(
     backtest_id: UUID,
-    user: CurrentUser = Depends(get_current_user),
-    service: BacktestService = Depends(get_backtest_service),
+    user: CurrentUserDep,
+    service: BacktestServiceDep,
 ) -> None:
     """Owner 가 share_token 비활성화. 토큰 자체는 유지 — 재활성화 불가.
 
@@ -160,10 +157,10 @@ async def revoke_share(
     await service.revoke_share(backtest_id, user_id=user.id)
 
 
-@router.get("/share/{token}", response_model=BacktestDetail)
+@router.get("/share/{token}")
 async def view_share(
     token: str,
-    service: BacktestService = Depends(get_backtest_service),
+    service: BacktestServiceDep,
 ) -> BacktestDetail:
     """Public read-only — 인증 미사용 (`get_current_user` 의존성 X).
 

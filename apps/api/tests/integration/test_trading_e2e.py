@@ -119,7 +119,7 @@ async def e2e_webhook_secret(db_session: AsyncSession, e2e_strategy):
 
 
 @pytest_asyncio.fixture
-async def e2e_client(app, e2e_webhook_secret) -> AsyncGenerator[AsyncClient, None]:
+async def e2e_client(app, e2e_webhook_secret) -> AsyncGenerator[AsyncClient]:
     """HTTPX client with Celery dispatcher overridden to noop."""
     app.dependency_overrides[get_order_dispatcher] = lambda: _NoopDispatcher()
     from httpx import ASGITransport

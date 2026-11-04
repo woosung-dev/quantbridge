@@ -4,12 +4,11 @@ from __future__ import annotations
 import asyncio
 from typing import cast
 
-from fastapi import APIRouter, Depends, Response, WebSocket
+from fastapi import APIRouter, Response, WebSocket
 from starlette.websockets import WebSocketDisconnect
 
-from src.auth.dependencies import get_user_service
+from src.auth.dependencies import UserServiceDep
 from src.auth.exceptions import AuthError
-from src.auth.service import UserService
 from src.core.config import settings
 from src.realtime.auth import authenticate_token
 from src.realtime.manager import ConnectionManager
@@ -30,7 +29,7 @@ def _manager(websocket: WebSocket) -> ConnectionManager:
 @router.websocket("/realtime/ws")
 async def realtime_websocket(
     websocket: WebSocket,
-    service: UserService = Depends(get_user_service),
+    service: UserServiceDep,
 ) -> None:
     """Origin 확인 후 첫 auth 메시지로 사용자를 인증하고 이벤트를 전달한다."""
     if websocket.headers.get("origin") != settings.frontend_url:
@@ -50,7 +49,7 @@ async def realtime_websocket(
         user = await authenticate_token(auth.token, service)
     except WebSocketDisconnect:
         return
-    except (TimeoutError, ValueError, AuthError):
+    except TimeoutError, ValueError, AuthError:
         await websocket.close(code=WS_CLOSE_AUTH_FAILED)
         return
 

@@ -42,15 +42,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Coroutine
-from typing import Any, TypeVar
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Worker child 의 영속 event loop. `worker_process_init` 에서 생성되어
 # `worker_process_shutdown` 까지 모든 task 가 공유.
 _WORKER_LOOP: asyncio.AbstractEventLoop | None = None
-
-_T = TypeVar("_T")
 
 
 def init_worker_loop() -> None:
@@ -117,7 +115,7 @@ def shutdown_worker_loop() -> None:
             _WORKER_LOOP = None
 
 
-def run_in_worker_loop(coro: Coroutine[Any, Any, _T]) -> _T:
+def run_in_worker_loop[T](coro: Coroutine[Any, Any, T]) -> T:
     """`asyncio.run()` 대체. Celery task entry point 에서 호출.
 
     동작 순서:

@@ -13,6 +13,7 @@
 본 sprint 는 in-process 만 (BL-110a). real Celery prefork SIGTERM (BL-110b) 은 Sprint 26+
 (pytest-celery 또는 subprocess.Popen 으로 worker 부팅 후 SIGTERM 검증).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -40,7 +41,7 @@ def _unique_account_id() -> str:
 
 
 @pytest.fixture(autouse=True)
-def _reset_pool_each_test() -> Generator[None, None, None]:
+def _reset_pool_each_test() -> Generator[None]:
     """매 test 진입 전 pool reset — pytest-asyncio 의 per-test event loop 와
     redis-py asyncio connection bound 충돌 회피.
     """
@@ -50,7 +51,7 @@ def _reset_pool_each_test() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-async def cleanup_lease_keys() -> AsyncGenerator[list[str], None]:
+async def cleanup_lease_keys() -> AsyncGenerator[list[str]]:
     """test 종료 후 사용한 모든 lease key 삭제 (다른 test fixture 영향 차단)."""
     used_keys: list[str] = []
     yield used_keys

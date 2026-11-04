@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.dependencies import get_current_user
+from src.auth.dependencies import CurrentUserDep
 from src.auth.schemas import CurrentUser
 from src.common.database import get_async_session
 from src.core.config import settings
@@ -17,7 +19,7 @@ from src.waitlist.token_service import InviteTokenService
 
 
 async def get_waitlist_repository(
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> WaitlistRepository:
     return WaitlistRepository(session)
 
@@ -43,9 +45,9 @@ def get_email_service() -> EmailService:
 
 
 async def get_waitlist_service(
-    repo: WaitlistRepository = Depends(get_waitlist_repository),
-    email_service: EmailService = Depends(get_email_service),
-    token_service: InviteTokenService = Depends(get_token_service),
+    repo: Annotated[WaitlistRepository, Depends(get_waitlist_repository)],
+    email_service: Annotated[EmailService, Depends(get_email_service)],
+    token_service: Annotated[InviteTokenService, Depends(get_token_service)],
 ) -> WaitlistService:
     return WaitlistService(
         repo=repo,
@@ -55,8 +57,12 @@ async def get_waitlist_service(
     )
 
 
+# 라우터에서 반복되는 서비스 주입 별칭.
+WaitlistServiceDep = Annotated[WaitlistService, Depends(get_waitlist_service)]
+
+
 async def require_admin(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUserDep,
 ) -> CurrentUser:
     """Admin 권한 검증 — settings.waitlist_admin_emails 화이트리스트.
 

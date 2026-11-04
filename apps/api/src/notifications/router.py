@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Response, status
 
-from src.auth.dependencies import get_current_user
-from src.auth.schemas import CurrentUser
-from src.notifications.dependencies import get_push_service
+from src.auth.dependencies import CurrentUserDep
+from src.notifications.dependencies import PushServiceDep
 from src.notifications.schemas import (
     CreatePushSubscriptionRequest,
     DeletePushSubscriptionRequest,
@@ -14,15 +13,14 @@ from src.notifications.schemas import (
     PushSubscriptionResponse,
     PushTestResponse,
 )
-from src.notifications.service import PushNotificationService
 
 router = APIRouter(prefix="/push", tags=["push"])
 
 
-@router.get("/config", response_model=PushConfigResponse)
+@router.get("/config")
 async def get_push_config(
-    _user: CurrentUser = Depends(get_current_user),
-    service: PushNotificationService = Depends(get_push_service),
+    _user: CurrentUserDep,
+    service: PushServiceDep,
 ) -> PushConfigResponse:
     return service.get_config()
 
@@ -30,14 +28,13 @@ async def get_push_config(
 @router.post(
     "/subscriptions",
     status_code=status.HTTP_201_CREATED,
-    response_model=PushSubscriptionResponse,
     responses={200: {"model": PushSubscriptionResponse, "description": "기존 구독 갱신(upsert)"}},
 )
 async def subscribe(
     data: CreatePushSubscriptionRequest,
     response: Response,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: PushNotificationService = Depends(get_push_service),
+    current_user: CurrentUserDep,
+    service: PushServiceDep,
 ) -> PushSubscriptionResponse:
     subscription, created = await service.subscribe(current_user.id, data)
     if not created:
@@ -48,16 +45,16 @@ async def subscribe(
 @router.delete("/subscriptions", status_code=status.HTTP_204_NO_CONTENT)
 async def unsubscribe(
     data: DeletePushSubscriptionRequest,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: PushNotificationService = Depends(get_push_service),
+    current_user: CurrentUserDep,
+    service: PushServiceDep,
 ) -> Response:
     await service.unsubscribe(current_user.id, data.endpoint)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/test", response_model=PushTestResponse)
+@router.post("/test")
 async def send_test_push(
-    current_user: CurrentUser = Depends(get_current_user),
-    service: PushNotificationService = Depends(get_push_service),
+    current_user: CurrentUserDep,
+    service: PushServiceDep,
 ) -> PushTestResponse:
     return await service.send_test(current_user.id)

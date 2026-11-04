@@ -58,7 +58,7 @@ async def _acquire_advisory_lock(
     import asyncpg as _asyncpg
 
     pg_url = _normalize_url_for_asyncpg(database_url)
-    deadline = asyncio.get_event_loop().time() + timeout_s
+    deadline = asyncio.get_running_loop().time() + timeout_s
     conn = await _asyncpg.connect(pg_url)
     try:
         while True:
@@ -66,7 +66,7 @@ async def _acquire_advisory_lock(
             if acquired:
                 logger.info("alembic_advisory_lock_acquired key=%d", lock_key)
                 return conn
-            remaining = deadline - asyncio.get_event_loop().time()
+            remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
                 raise RuntimeError(f"Advisory lock {lock_key} not acquired within {timeout_s}s")
             logger.info(

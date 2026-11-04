@@ -54,8 +54,12 @@ class CCXTProvider:
         이전 loop 에 bound 된 exchange 는 close() 호출이 불가능하므로 그대로 폐기.
         aiohttp 가 "Unclosed client session" 경고를 낼 수 있으나 loop 가 이미 닫힌
         상태라 session cleanup 자체가 무의미.
+
+        ★호출자는 전부 coroutine 안(`_fetch_page`)이다 — running loop 로 판정한다.
+        Python 3.14 의 `get_event_loop()` 는 current loop 가 없으면 새로 만들지 않고
+        RuntimeError 를 내므로, 의도(「지금 돌고 있는 loop」)를 `get_running_loop()` 로 명시한다.
         """
-        current_loop = asyncio.get_event_loop()
+        current_loop = asyncio.get_running_loop()
         if self._exchange is None or self._loop is not current_loop:
             self._exchange = self._build_exchange()
             self._loop = current_loop
@@ -69,10 +73,9 @@ class CCXTProvider:
         """
         if self._exchange is None:
             return
-        try:
-            current_loop = asyncio.get_event_loop()
-        except RuntimeError:
-            return
+        # async def 안이므로 running loop 가 항상 있다 — 옛 `get_event_loop()` + RuntimeError
+        # 폴백은 도달 불가였다(loop 없는 상태에서는 이 coroutine 자체를 실행할 수 없다).
+        current_loop = asyncio.get_running_loop()
         if self._loop is current_loop:
             await self._exchange.close()
         self._exchange = None
@@ -138,9 +141,7 @@ class CCXTProvider:
             until = now
 
         if since is None or until is None:
-            raise ValueError(
-                "fetch_ohlcv: 'since'+'until' 또는 'limit_bars' 중 하나는 필수"
-            )
+            raise ValueError("fetch_ohlcv: 'since'+'until' 또는 'limit_bars' 중 하나는 필수")
 
         now_ts = int(datetime.now(UTC).timestamp())
         last_closed_ts = (now_ts // tf_sec) * tf_sec - tf_sec

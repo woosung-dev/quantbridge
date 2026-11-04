@@ -6,6 +6,8 @@ stress_test/dependencies.py 패턴 1:1 mirror. Sprint 18 BL-080 prefork-safe wor
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,8 +26,8 @@ from src.strategy.repository import StrategyRepository
 
 
 async def get_optimizer_service(
-    ohlcv_provider: OHLCVProvider = Depends(get_ohlcv_provider),
-    session: AsyncSession = Depends(get_async_session),
+    ohlcv_provider: Annotated[OHLCVProvider, Depends(get_ohlcv_provider)],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> OptimizerService:
     """HTTP 경로 — Celery dispatcher 주입."""
     return OptimizerService(
@@ -35,6 +37,10 @@ async def get_optimizer_service(
         ohlcv_provider=ohlcv_provider,
         dispatcher=CeleryOptimizationTaskDispatcher(),
     )
+
+
+# 라우터 공용 별칭 — `get_optimizer_service` 주입을 한 줄로.
+OptimizerServiceDep = Annotated[OptimizerService, Depends(get_optimizer_service)]
 
 
 def build_optimizer_service_for_worker(

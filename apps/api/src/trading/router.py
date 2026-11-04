@@ -8,25 +8,25 @@ T20: Orders (list/get/cancel) + KillSwitch (events/resolve) REST endpoints.
 from __future__ import annotations
 
 import hashlib
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
 
-from src.auth.dependencies import get_current_user
-from src.auth.schemas import CurrentUser
+from src.auth.dependencies import CurrentUserDep
 from src.common.metrics import qb_active_orders
 from src.common.metrics_multiproc import record_metric_safely
 from src.trading.dependencies import (
-    get_alert_rule_service,
+    AlertRuleServiceDep,
+    ExchangeAccountServiceDep,
+    LiveSignalSessionServiceDep,
+    OrderServiceDep,
     get_balance_service,
     get_close_service,
-    get_exchange_account_service,
     get_kill_switch_service,
     get_liquidation_service,
     get_live_session_query_service,
-    get_live_signal_session_service,
-    get_order_service,
     get_outcome_parity_service,
     get_position_service,
     get_webhook_service,
@@ -62,14 +62,10 @@ from src.trading.schemas import (
     RegisterAccountRequest,
     RegisterLiveSessionRequest,
 )
-from src.trading.services.account_service import ExchangeAccountService
-from src.trading.services.alert_rule_service import AlertRuleService
 from src.trading.services.balance_service import AccountBalanceService
 from src.trading.services.close_service import ClosePositionService
 from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_query_service import LiveSessionQueryService
-from src.trading.services.live_session_service import LiveSignalSessionService
-from src.trading.services.order_service import OrderService
 from src.trading.services.position_service import PositionService
 from src.trading.webhook import WebhookService, parse_tv_payload
 
@@ -89,11 +85,11 @@ MAX_WEBHOOK_BODY = 64 * 1024
 )
 async def receive_webhook(
     request: Request,
-    strategy_id: UUID = Path(...),
-    token: str = Query(..., description="HMAC-SHA256 hex digest"),
-    idempotency_key: str | None = Query(None, alias="Idempotency-Key"),
-    webhook_svc: WebhookService = Depends(get_webhook_service),
-    order_svc: OrderService = Depends(get_order_service),
+    strategy_id: Annotated[UUID, Path()],
+    token: Annotated[str, Query(description="HMAC-SHA256 hex digest")],
+    webhook_svc: Annotated[WebhookService, Depends(get_webhook_service)],
+    order_svc: OrderServiceDep,
+    idempotency_key: Annotated[str | None, Query(alias="Idempotency-Key")] = None,
 ) -> OrderResponse | JSONResponse:
     """TradingView webhook receiver.
 
@@ -180,12 +176,11 @@ async def receive_webhook(
 @router.post(
     "/exchange-accounts",
     status_code=201,
-    response_model=ExchangeAccountResponse,
 )
 async def register_exchange_account(
     body: RegisterAccountRequest,
-    current_user: CurrentUser = Depends(get_current_user),
-    svc: ExchangeAccountService = Depends(get_exchange_account_service),
+    current_user: CurrentUserDep,
+    svc: ExchangeAccountServiceDep,
 ) -> ExchangeAccountResponse:
     account = await svc.register(user_id=current_user.id, req=body)
     # ★[BL-762] 종전 여기에 `await svc._repo.commit()` 이 있었다 — `register()` 가
@@ -205,11 +200,10 @@ async def register_exchange_account(
 
 @router.get(
     "/exchange-accounts",
-    response_model=PaginatedExchangeAccounts,
 )
 async def list_exchange_accounts(
-    current_user: CurrentUser = Depends(get_current_user),
-    svc: ExchangeAccountService = Depends(get_exchange_account_service),
+    current_user: CurrentUserDep,
+    svc: ExchangeAccountServiceDep,
 ) -> PaginatedExchangeAccounts:
     accounts = await svc.list_for_user(current_user.id)
     items: list[ExchangeAccountResponse] = []
@@ -231,12 +225,11 @@ async def list_exchange_accounts(
 
 @router.get(
     "/exchange-accounts/{account_id}/balance",
-    response_model=AccountBalanceResponse,
 )
 async def get_exchange_account_balance(
-    account_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: AccountBalanceService = Depends(get_balance_service),
+    account_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: Annotated[AccountBalanceService, Depends(get_balance_service)],
 ) -> AccountBalanceResponse:
     try:
         return await service.get_balance(current_user.id, account_id)
@@ -246,12 +239,11 @@ async def get_exchange_account_balance(
 
 @router.get(
     "/exchange-accounts/{account_id}/positions",
-    response_model=AccountPositionsResponse,
 )
 async def get_exchange_account_positions(
-    account_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: PositionService = Depends(get_position_service),
+    account_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: Annotated[PositionService, Depends(get_position_service)],
 ) -> AccountPositionsResponse:
     """BL-498 — 활성 세션이 없어도 계정에 남은 거래소 포지션을 보여준다."""
     try:
@@ -265,9 +257,9 @@ async def get_exchange_account_positions(
     status_code=204,
 )
 async def delete_exchange_account(
-    account_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    svc: ExchangeAccountService = Depends(get_exchange_account_service),
+    account_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    svc: ExchangeAccountServiceDep,
 ) -> None:
     # 소유권 검사·삭제·커밋은 서비스가 한 경계 안에서 소유한다 ([BL-762]).
     await svc.delete_for_user(account_id, current_user.id)
@@ -278,11 +270,11 @@ async def delete_exchange_account(
 
 @router.get("/orders")
 async def list_orders(
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    state: list[OrderState] | None = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: OrderService = Depends(get_order_service),
+    current_user: CurrentUserDep,
+    service: OrderServiceDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    state: Annotated[list[OrderState] | None, Query()] = None,
 ) -> dict[str, object]:
     items, total = await service.list_for_user(
         current_user.id, limit=limit, offset=offset, states=state
@@ -295,11 +287,11 @@ async def list_orders(
     }
 
 
-@router.get("/orders/{order_id}", response_model=OrderResponse)
+@router.get("/orders/{order_id}")
 async def get_order(
-    order_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: OrderService = Depends(get_order_service),
+    order_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: OrderServiceDep,
 ) -> OrderResponse:
     order = await service.get_for_user(order_id, current_user.id)
     if order is None:
@@ -309,9 +301,9 @@ async def get_order(
 
 @router.post("/orders/{order_id}/cancel", response_model=OrderResponse)
 async def cancel_order(
-    order_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: OrderService = Depends(get_order_service),
+    order_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: OrderServiceDep,
 ) -> OrderResponse | JSONResponse:
     """CF4: pending(거래소 미발주)은 즉시 DB cancel. submitted(거래소 live)은 DB-only flip
     금지 — cancel_order_task 가 거래소 취소 성공 시에만 cancelled 전이 (orphan position 방지)."""
@@ -340,11 +332,11 @@ async def cancel_order(
 
 
 # ── Liquidation preview (demo-only calc+display, 주문 차단 없음) ───────
-@router.post("/liquidation/preview", response_model=LiquidationInfoResponse)
+@router.post("/liquidation/preview")
 async def preview_liquidation(
     data: LiquidationPreviewRequest,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: LiquidationService = Depends(get_liquidation_service),
+    current_user: CurrentUserDep,
+    service: Annotated[LiquidationService, Depends(get_liquidation_service)],
 ) -> LiquidationInfoResponse:
     """청산가 미리보기 — on-the-fly 순수 계산. 소유 리소스 fetch 없음(인증만 게이트)."""
     return service.preview(data)
@@ -355,10 +347,10 @@ async def preview_liquidation(
 
 @router.get("/kill-switch/events")
 async def list_kill_switch_events(
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: KillSwitchService = Depends(get_kill_switch_service),
+    current_user: CurrentUserDep,
+    service: Annotated[KillSwitchService, Depends(get_kill_switch_service)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, object]:
     """CF1: 호출자 소유(strategy/account) kill-switch 이벤트만 반환 (cross-tenant IDOR 차단)."""
     events = await service.list_events_for_user(current_user.id, limit=limit, offset=offset)
@@ -374,13 +366,14 @@ async def list_kill_switch_events(
 
 @router.post(
     "/kill-switch/events/{event_id}/resolve",
-    response_model=KillSwitchEventResponse,
 )
 async def resolve_kill_switch(
-    event_id: UUID = Path(...),
-    body: dict[str, object] = Body(default={}),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: KillSwitchService = Depends(get_kill_switch_service),
+    event_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: Annotated[KillSwitchService, Depends(get_kill_switch_service)],
+    # B006 예외 — FastAPI 는 누락된 body 에 기본값을 deepcopy 해 넣으므로 요청 간 공유되지 않고,
+    # 이 핸들러는 body 를 읽기만 한다. OpenAPI 의 `"default": {}` 도 종전과 같다.
+    body: Annotated[dict[str, object], Body()] = {},  # noqa: B006
 ) -> KillSwitchEventResponse:
     raw_note = body.get("note")
     note = str(raw_note) if raw_note is not None else None
@@ -404,11 +397,11 @@ async def resolve_kill_switch(
 # ── Sprint 26: Live Signal Auto-Trading ────────────────────────────────────
 
 
-@router.post("/live-sessions", status_code=201, response_model=LiveSessionResponse)
+@router.post("/live-sessions", status_code=201)
 async def create_live_session(
     data: RegisterLiveSessionRequest,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: LiveSignalSessionService = Depends(get_live_signal_session_service),
+    current_user: CurrentUserDep,
+    service: LiveSignalSessionServiceDep,
 ) -> LiveSessionResponse:
     """Sprint 26 — Live Session 등록.
 
@@ -419,11 +412,11 @@ async def create_live_session(
     return LiveSessionResponse.model_validate(sess)
 
 
-@router.get("/live-sessions", response_model=LiveSessionListResponse)
+@router.get("/live-sessions")
 async def list_live_sessions(
+    current_user: CurrentUserDep,
+    service: LiveSignalSessionServiceDep,
     include_inactive: bool = False,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: LiveSignalSessionService = Depends(get_live_signal_session_service),
 ) -> LiveSessionListResponse:
     sessions = (
         await service.list_active_with_recent_inactive(current_user.id)
@@ -436,21 +429,20 @@ async def list_live_sessions(
 
 @router.delete("/live-sessions/{session_id}", status_code=204)
 async def delete_live_session(
-    session_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: LiveSignalSessionService = Depends(get_live_signal_session_service),
+    session_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: LiveSignalSessionServiceDep,
 ) -> None:
     await service.deactivate(current_user.id, session_id)
 
 
 @router.get(
     "/live-sessions/{session_id}/outcome-parity",
-    response_model=OutcomeParityResponse,
 )
 async def get_live_session_outcome_parity(
-    session_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: OutcomeParityService = Depends(get_outcome_parity_service),
+    session_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: Annotated[OutcomeParityService, Depends(get_outcome_parity_service)],
 ) -> OutcomeParityResponse:
     """화면 진입 시 한 번 읽는 세션 및 전략 누적 parity 요약이다."""
     return await service.get_parity(current_user.id, session_id)
@@ -458,12 +450,11 @@ async def get_live_session_outcome_parity(
 
 @router.get(
     "/live-sessions/{session_id}/state",
-    response_model=LiveSignalStateResponse,
 )
 async def get_live_session_state(
-    session_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: LiveSessionQueryService = Depends(get_live_session_query_service),
+    session_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: Annotated[LiveSessionQueryService, Depends(get_live_session_query_service)],
 ) -> LiveSignalStateResponse:
     """Sprint 26 — Live Session 의 last strategy_state_report + 누적 PnL.
 
@@ -484,12 +475,11 @@ async def get_live_session_state(
 
 @router.get(
     "/live-sessions/{session_id}/positions",
-    response_model=LiveSessionPositionsResponse,
 )
 async def get_live_session_positions(
-    session_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: PositionService = Depends(get_position_service),
+    session_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: Annotated[PositionService, Depends(get_position_service)],
 ) -> LiveSessionPositionsResponse:
     try:
         return await service.get_reconciliation(current_user.id, session_id)
@@ -500,7 +490,6 @@ async def get_live_session_positions(
 @router.post(
     "/live-sessions/{session_id}/positions/close",
     status_code=202,
-    response_model=ClosePositionResponse,
     responses={
         409: {
             "description": "포지션이 없거나 미체결 진입 주문이 남아 청산할 수 없습니다.",
@@ -509,9 +498,9 @@ async def get_live_session_positions(
     },
 )
 async def close_live_session_position(
-    session_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: ClosePositionService = Depends(get_close_service),
+    session_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: Annotated[ClosePositionService, Depends(get_close_service)],
 ) -> ClosePositionResponse:
     try:
         return await service.close_position(current_user.id, session_id)
@@ -521,13 +510,12 @@ async def close_live_session_position(
 
 @router.get(
     "/live-sessions/{session_id}/events",
-    response_model=LiveSignalEventListResponse,
 )
 async def list_live_session_events(
-    session_id: UUID = Path(...),
-    limit: int = Query(100, ge=1, le=500),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: LiveSessionQueryService = Depends(get_live_session_query_service),
+    session_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: Annotated[LiveSessionQueryService, Depends(get_live_session_query_service)],
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> LiveSignalEventListResponse:
     """Sprint 26 — Live Session 의 outbox event log (debug + Detail UI 용)."""
     events = await service.list_events_for_user(session_id, current_user.id, limit=limit)
@@ -538,12 +526,11 @@ async def list_live_session_events(
 
 @router.get(
     "/live-sessions/{session_id}/alert-rules",
-    response_model=AlertRuleListResponse,
 )
 async def list_alert_rules(
-    session_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: AlertRuleService = Depends(get_alert_rule_service),
+    session_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: AlertRuleServiceDep,
 ) -> AlertRuleListResponse:
     rules = await service.list_active(current_user.id, session_id)
     items = [AlertRuleResponse.model_validate(rule) for rule in rules]
@@ -553,13 +540,12 @@ async def list_alert_rules(
 @router.post(
     "/live-sessions/{session_id}/alert-rules",
     status_code=201,
-    response_model=AlertRuleResponse,
 )
 async def create_alert_rule(
     data: AlertRuleCreateRequest,
-    session_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: AlertRuleService = Depends(get_alert_rule_service),
+    session_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: AlertRuleServiceDep,
 ) -> AlertRuleResponse:
     return AlertRuleResponse.model_validate(await service.create(current_user.id, session_id, data))
 
@@ -569,9 +555,9 @@ async def create_alert_rule(
     status_code=204,
 )
 async def delete_alert_rule(
-    session_id: UUID = Path(...),
-    rule_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: AlertRuleService = Depends(get_alert_rule_service),
+    session_id: Annotated[UUID, Path()],
+    rule_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: AlertRuleServiceDep,
 ) -> None:
     await service.deactivate(current_user.id, session_id, rule_id)

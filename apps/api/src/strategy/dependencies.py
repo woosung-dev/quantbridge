@@ -6,6 +6,8 @@ create 시 atomic auto-issue 를 위해 cross-repo transaction 확장.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,13 +20,13 @@ from src.strategy.service import StrategyService
 
 
 async def get_strategy_repository(
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> StrategyRepository:
     return StrategyRepository(session)
 
 
 async def get_strategy_service(
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> StrategyService:
     """동일 session에 strategy + backtest + webhook_secret repo 주입 (cross-repo transaction)."""
     # 지연 import — circular 방지
@@ -53,10 +55,15 @@ async def get_strategy_service(
 
 
 async def get_code_strategy_service(
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> CodeStrategyService:
     return CodeStrategyService(StrategyRepository(session))
 
 
 def get_code_generate_service() -> CodeGenerateService:
     return CodeGenerateService(get_settings())
+
+
+# 라우터 공용 의존성 별칭 — 3회 이상 쓰이는 service 주입만 둔다.
+StrategyServiceDep = Annotated[StrategyService, Depends(get_strategy_service)]
+CodeStrategyServiceDep = Annotated[CodeStrategyService, Depends(get_code_strategy_service)]

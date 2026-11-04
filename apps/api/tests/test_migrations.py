@@ -8,7 +8,7 @@ import warnings
 from collections import Counter
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -53,13 +53,13 @@ from tests import _db_guard
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 _SQL_STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
 
-TypeDrift: TypeAlias = tuple[str, str, str, str, str]
-NullableDrift: TypeAlias = tuple[str, str, str, bool, bool]
-DefaultValue: TypeAlias = str | None
-DefaultDrift: TypeAlias = tuple[str, str, str, str, DefaultValue, DefaultValue]
-IndexSignature: TypeAlias = tuple[tuple[str, ...], bool, str]
-IndexDrift: TypeAlias = tuple[str, str, str, tuple[str, ...], bool, str, int]
-CheckConstraintDrift: TypeAlias = tuple[str, str, str, str]
+type TypeDrift = tuple[str, str, str, str, str]
+type NullableDrift = tuple[str, str, str, bool, bool]
+type DefaultValue = str | None
+type DefaultDrift = tuple[str, str, str, str, DefaultValue, DefaultValue]
+type IndexSignature = tuple[tuple[str, ...], bool, str]
+type IndexDrift = tuple[str, str, str, tuple[str, ...], bool, str, int]
+type CheckConstraintDrift = tuple[str, str, str, str]
 
 # BL-749: 실제 alembic schema와 metadata가 이미 다른 타입은 여기 동결한다. 항목은
 # (schema, table, column, db_type, metadata_type) 순서이며, 새 drift만 test failure로 만든다.

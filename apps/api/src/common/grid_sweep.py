@@ -7,9 +7,6 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from itertools import product
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
 
 
 class GridSweepCellError(ValueError):
@@ -20,7 +17,7 @@ class GridSweepCellError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
-class GridSweepCell(Generic[T]):
+class GridSweepCell[T]:
     """단일 grid 셀 결과. param_values dict = N-dim 호환."""
 
     param_values: Mapping[str, Decimal]
@@ -28,7 +25,7 @@ class GridSweepCell(Generic[T]):
 
 
 @dataclass(frozen=True, slots=True)
-class GridSweepResult(Generic[T]):
+class GridSweepResult[T]:
     """전체 sweep 결과. cells = row-major flatten. tuple lock — caller mutation 차단."""
 
     param_names: tuple[str, ...]
@@ -36,7 +33,7 @@ class GridSweepResult(Generic[T]):
     cells: tuple[GridSweepCell[T], ...]
 
 
-def run_grid_sweep(
+def run_grid_sweep[T](
     *,
     param_grid: dict[str, list[Decimal]],
     cell_runner: Callable[[Mapping[str, Decimal]], T],

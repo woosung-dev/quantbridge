@@ -29,7 +29,7 @@ async_session_factory = async_sessionmaker(
 )
 
 
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_session() -> AsyncGenerator[AsyncSession]:
     """Yield an AsyncSession. Lifetime is one request. Commit is the Service's responsibility."""
     async with async_session_factory() as session:
         try:

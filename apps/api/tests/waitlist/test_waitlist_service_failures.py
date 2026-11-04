@@ -35,7 +35,7 @@ OTHER_TOKEN_SECRET = "other-waitlist-test-secret-987654"
 
 
 @pytest.fixture(autouse=True)
-def _reset_rate_limiter() -> Generator[None, None, None]:
+def _reset_rate_limiter() -> Generator[None]:
     """상위 conftest의 Redis limiter reset을 이 순수 단위 테스트에서는 비활성화한다."""
     yield
 

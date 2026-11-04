@@ -2,9 +2,10 @@
 
 service.py / repository.py에서 Depends import 금지 (3-Layer 규칙).
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +24,7 @@ async def get_ccxt_provider(request: Request) -> CCXTProvider | None:
 
 async def get_ohlcv_provider(
     request: Request,
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> Any:
     """OHLCVProvider 구현체 반환 — config flag로 분기.
 
@@ -45,6 +46,4 @@ async def get_ohlcv_provider(
             "lifespan이 init되지 않았거나 test 환경에서 override 필요."
         )
     repo = OHLCVRepository(session)
-    return TimescaleProvider(
-        repo, ccxt, exchange_name=settings.default_exchange
-    )
+    return TimescaleProvider(repo, ccxt, exchange_name=settings.default_exchange)
