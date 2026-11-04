@@ -1,4 +1,6 @@
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 // 라이브 세션 등록 폼 — C 디자인 언어 이식(W3-F, screen-01 §05 세션 관리).
 // shadcn Form/Select + SelectWithDisplayName(BL-164 UUID 은닉)은 기능·접근성 때문에 유지하고,

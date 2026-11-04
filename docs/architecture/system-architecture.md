@@ -78,8 +78,8 @@ flowchart TB
 
 | 컨테이너 | 책임                                                                                                                      | 이미지/런타임                       | 포트 |
 | -------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ---- |
-| Frontend | Next.js 16 SSR/CSR, Better Auth 서버, React Query, Zustand                                                                | `node:22`                           | 3000 |
-| API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch                                                                  | `python:3.12-slim` + `uv`           | 8000 |
+| Frontend | Next.js 16 SSR/CSR, Better Auth 서버, React Query, Zustand                                                                | `node:26-alpine`                    | 3000 |
+| API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch                                                                  | `python:3.14-slim` + `uv`           | 8000 |
 | Worker   | Celery prefork, pine_v2 AST 인터프리터 백테스트 실행, OHLCV 수집 (지표도 pine_v2 직접 계산 — vectorbt 는 2026-08-06 제거) | API와 동일 이미지                   | —    |
 | Beat     | Celery beat scheduler (stale reclaim, market_data sync)                                                                   | API와 동일 이미지                   | —    |
 | DB       | PostgreSQL 15 + TimescaleDB 확장                                                                                          | `timescale/timescaledb:2.14.2-pg15` | 5432 |

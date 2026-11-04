@@ -1,5 +1,7 @@
 // 백테스트 폼의 주문 크기 방식 필드 (Sprint 38 BL-188 v3) — C 디자인 언어 이식(W3-A). 로직·testid 보존.
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import {
   useWatch,

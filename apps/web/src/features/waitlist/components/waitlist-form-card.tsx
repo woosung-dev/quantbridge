@@ -1,4 +1,6 @@
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 // 웨이트리스트 등록 폼 (.hero-form) — C 디자인 언어. screen-17-waitlist.html 구조 이식.
 // 시각 정본은 프로토타입이지만 폼 필드는 실 백엔드 스키마(features/waitlist/schemas.ts)를 따른다.

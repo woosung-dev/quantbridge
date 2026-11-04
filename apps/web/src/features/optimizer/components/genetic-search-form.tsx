@@ -1,5 +1,7 @@
 // Sprint 56 BL-233 — Genetic Search 제출 폼. 공유 조각 조합 + 하이퍼파라미터 4종 + budget 검증.
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";

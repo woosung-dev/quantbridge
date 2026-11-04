@@ -1,5 +1,7 @@
 // 백테스트 폼의 거래 세션 필드 (asia/london/ny) — C 디자인 언어 이식(W3-A).
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import { useWatch, type Control, type UseFormSetValue } from "react-hook-form";
 

@@ -35,7 +35,7 @@ FE 컨테이너 ─(SSR 헤어핀)─→ qb-api.woosung.dev ┘
 
 **⑴ 빌드는 맥, 서버는 실행만.** 서버는 2 OCPU 를 다른 프로젝트와 공유하고 그 위에서 데모 트레이딩 워커가 돈다.
 서버 빌드는 워커를 굶긴다(그래서 빌드는 CI 다 — `release.yml`). 서버에 Node 는 **설치돼 있지 않다** — 그래서 `next start` 가 아니라
-`output: "standalone"` + `node:22-alpine` 이미지다. 맥(darwin/arm64)과 서버(aarch64)가 같은
+`output: "standalone"` + `node:26-alpine` 이미지다. 맥(darwin/arm64)과 서버(aarch64)가 같은
 아키텍처라 `--platform linux/arm64` 는 에뮬레이션 없이 네이티브다.
 
 **⑵ 전용 터널이고 `network_mode: host` 다.** 서버에 이미 `cloudflared` 가 있지만 그건 다른

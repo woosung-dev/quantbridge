@@ -1,6 +1,8 @@
 // 거래소 계정 등록 다이얼로그. 제품 정책이 Bybit Demo를 고정하므로 API key/secret과 레이블만
 // 입력받아 RegisterAccountRequestSchema(zodV4Resolver)로 검증한 뒤 mutation으로 등록한다.
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";

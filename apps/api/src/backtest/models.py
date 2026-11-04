@@ -1,7 +1,9 @@
 """Backtest 도메인 SQLModel 테이블. Sprint 4에서 채움. 변경 시 Alembic 마이그레이션 필수."""
 # NOTE: from __future__ import annotations 제거 —
 #       SQLAlchemy Relationship forward ref 해석이 PEP 563 lazy eval과 충돌.
-#       대신 Relationship에만 문자열 forward ref 사용.
+#       ~~대신 Relationship에만 문자열 forward ref 사용.~~ → 2026-11-04 Python 3.14 에서 ruff UP037 이
+#       따옴표를 걷었다. 따옴표 없는 forward ref 는 PEP 649 지연 평가(3.14+) 덕에 동작한다
+#       (`requires-python = ">=3.14"` · `configure_mappers()` 로 관계 해석 실측).
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -158,7 +160,7 @@ class Backtest(SQLModel, table=True):
         sa_column=Column(AwareDateTime(), nullable=True),
     )
 
-    # Relations — Backtest가 BacktestTrade보다 먼저 정의되므로 문자열 forward ref 필수
+    # Relations — Backtest가 BacktestTrade보다 먼저 정의된다. 3.14 의 PEP 649 지연 평가가 이름을 늦게 푼다
     trades: list[BacktestTrade] = Relationship(
         back_populates="backtest",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},

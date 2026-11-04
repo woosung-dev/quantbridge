@@ -1,5 +1,7 @@
 // 백테스트 레버리지와 격리마진 가정을 입력·고지하는 필드셋.
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import { useWatch, type Control, type FieldErrors, type UseFormRegister } from "react-hook-form";
 

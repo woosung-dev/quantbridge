@@ -1,5 +1,7 @@
 // 백테스트 폼의 form state machine + 비즈니스 로직 훅 (Sprint 59 PR-E split).
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
