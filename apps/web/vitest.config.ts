@@ -13,6 +13,11 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}", "tests/**/*.{test,spec}.{ts,tsx}"],
     css: true,
+    // ★2026-11-04 Node 26 — Node 25+ 는 전역 Web Storage(`localStorage`)를 기본으로 켠다.
+    //   `--localstorage-file` 없이 켜진 그것은 메서드가 없는 객체라 jsdom 의 `window.localStorage` 를
+    //   가려 `removeItem` 이 undefined 로 죽었다(6파일 69건 실측). 워커에서 Node 쪽을 끈다.
+    //   vitest 2 의 기본 pool 은 forks 다.
+    poolOptions: { forks: { execArgv: ["--no-webstorage"] } },
     // ★2026-08-11 — FE 커버리지는 여기 배선되기 전까지 **측정 자체가 없었다**(BE 는 CI 90%
     //   래칫이 있다). 이 회차는 **측정만** 한다.
     //

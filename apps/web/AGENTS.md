@@ -77,7 +77,7 @@ RHF `watch()` · Zod `.parse()` 결과. **이유:** Fast Refresh / StrictMode �
 timeout 콜백에서 `ref.current` 읽기. 실물 = `features/strategy/draft.ts:157` · `features/realtime/realtime-bridge.tsx:35`.
 
 - ⚠️**기계 방어선 0** — Biome 대체분 `nursery/useReactCompiler` 는 **한글 파일에서 panic** 한다.
-  ★이 항목은 「지금의 버그 방지」가 아니라 **나중에 켤 때를 위한 대비**다 — React Compiler 는 `next.config.ts` 에 꺼져 있다
+  ★**2026-11-04 React Compiler 를 켰다**(`next.config.ts` `reactCompiler: true`) — 이 규칙을 어긴 컴포넌트는 컴파일러가 **조용히 건너뛴다**(오동작은 아니고 자동 메모이제이션만 빠진다)
 
 ## 4. Directory Structure (FSD Lite)
 

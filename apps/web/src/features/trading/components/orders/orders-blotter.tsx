@@ -212,9 +212,11 @@ export function OrdersBlotter() {
   // H-1 정합 — React Query data.items 참조 자체를 memoize 해 아래 파생 useMemo 의 dep 를 안정화한다.
   const allOrders = useMemo<readonly Order[]>(() => {
     const items = orderItems ?? [];
-    return [...items].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
+    // 5초 polling 마다 다시 돈다 — comparator 안에서 Date 를 n log n 번 만들지 않고 행마다 한 번만
+    // 파싱한다. ISO 문자열 사전순 비교는 소수 초 자릿수가 섞이면 틀리므로 쓰지 않는다.
+    const createdAtMs = new Map(items.map((o) => [o, Date.parse(o.created_at)] as const));
+    // `toSorted` 는 Next 16 기본 browserslist(Firefox 111+)에 없어 복사 후 sort 를 유지한다.
+    return [...items].sort((a, b) => (createdAtMs.get(b) ?? 0) - (createdAtMs.get(a) ?? 0));
   }, [orderItems]);
 
   const total = data?.total ?? allOrders.length;
