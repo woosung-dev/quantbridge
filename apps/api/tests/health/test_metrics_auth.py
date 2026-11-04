@@ -31,7 +31,7 @@ from pydantic import SecretStr
 
 
 @pytest_asyncio.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
+async def client() -> AsyncGenerator[AsyncClient]:
     """`/metrics` 가 실제로 달린 full app client.
 
     ★`tests/health/conftest.py` 의 `client` 를 **다시** 덮는다. 그쪽은 DB 를 피하려고

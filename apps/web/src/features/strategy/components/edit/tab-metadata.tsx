@@ -1,4 +1,6 @@
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 // 메타데이터 편집 — C 디자인 언어 이식 (screen-08 보존 기능). 프로토타입 screen-08 은 메타데이터
 // 편집을 그리지 않지만, 이름/심볼/주기/태그/세션과 trading settings 는 실기능이라 C 카드로 보존한다.

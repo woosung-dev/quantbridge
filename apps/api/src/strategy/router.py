@@ -7,13 +7,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 
-from src.auth.dependencies import get_current_user
-from src.auth.schemas import CurrentUser
+from src.auth.dependencies import CurrentUserDep
 from src.common.rate_limit import limiter
 from src.core.config import settings
 from src.strategy.code_generate_service import CodeGenerateService
@@ -24,11 +23,10 @@ from src.strategy.code_schemas import (
     GenerateCodeStrategyResponse,
     SaveCodeStrategyRequest,
 )
-from src.strategy.code_service import CodeStrategyService
 from src.strategy.dependencies import (
+    CodeStrategyServiceDep,
+    StrategyServiceDep,
     get_code_generate_service,
-    get_code_strategy_service,
-    get_strategy_service,
 )
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import ParseStatus
@@ -53,7 +51,6 @@ from src.strategy.schemas import (
     UpdateStrategyRequest,
     UpdateStrategySettingsRequest,
 )
-from src.strategy.service import StrategyService
 from src.trading.dependencies import get_webhook_secret_service
 from src.trading.schemas import WebhookRotateResponse
 from src.trading.services.webhook_secret_service import WebhookSecretService
@@ -77,23 +74,23 @@ def _opaque(status_code: int, code: str, message: str, exc: Exception) -> HTTPEx
     )
 
 
-@router.post("/parse", response_model=ParsePreviewResponse)
+@router.post("/parse")
 async def parse_preview(
     data: ParseRequest,
-    _current_user: CurrentUser = Depends(get_current_user),
-    service: StrategyService = Depends(get_strategy_service),
+    _current_user: CurrentUserDep,
+    service: StrategyServiceDep,
 ) -> ParsePreviewResponse:
     return await service.parse_preview(data.pine_source)
 
 
-@router.post("", status_code=201, response_model=StrategyCreateResponse)
+@router.post("", status_code=201)
 @limiter.limit("30/minute")
 async def create_strategy(
     request: Request,  # slowapi 가 IP/key 추출에 사용
     data: CreateStrategyRequest,
     response: Response,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: StrategyService = Depends(get_strategy_service),
+    current_user: CurrentUserDep,
+    service: StrategyServiceDep,
 ) -> StrategyCreateResponse:
     """Sprint 13 Phase A.1.4: response 에 webhook_secret plaintext 1회 포함.
 
@@ -103,22 +100,26 @@ async def create_strategy(
     return await service.create(data, owner_id=current_user.id)
 
 
-@router.get("", response_model=StrategyListResponse)
+@router.get("")
 async def list_strategies(
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    page: int | None = Query(
-        None,
-        ge=1,
-        deprecated=True,
-        description="Deprecated: use offset (= (page-1)*limit). Sprint 6+ 제거 예정.",
-    ),
-    parse_status: ParseStatus | None = Query(None),
-    is_archived: bool = Query(False),
-    order_by: Literal["updated_at", "name", "total_return", "sharpe_ratio"] = Query("updated_at"),
-    order: Literal["asc", "desc"] = Query("desc"),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: StrategyService = Depends(get_strategy_service),
+    current_user: CurrentUserDep,
+    service: StrategyServiceDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    page: Annotated[
+        int | None,
+        Query(
+            ge=1,
+            deprecated=True,
+            description="Deprecated: use offset (= (page-1)*limit). Sprint 6+ 제거 예정.",
+        ),
+    ] = None,
+    parse_status: Annotated[ParseStatus | None, Query()] = None,
+    is_archived: Annotated[bool, Query()] = False,
+    order_by: Annotated[
+        Literal["updated_at", "name", "total_return", "sharpe_ratio"], Query()
+    ] = "updated_at",
+    order: Annotated[Literal["asc", "desc"], Query()] = "desc",
 ) -> StrategyListResponse:
     # legacy 호환: page가 들어오면 offset으로 변환
     effective_offset = (page - 1) * limit if page is not None else offset
@@ -133,14 +134,14 @@ async def list_strategies(
     )
 
 
-@router.post("/generate", response_model=GenerateStrategyResponse)
+@router.post("/generate")
 @limiter.limit("5/minute")
 async def generate_strategy(
     request: Request,
     response: Response,
     req: GenerateStrategyRequest,
-    _: CurrentUser = Depends(get_current_user),
-    svc: GenerateService = Depends(get_generate_service),
+    _: CurrentUserDep,
+    svc: Annotated[GenerateService, Depends(get_generate_service)],
 ) -> GenerateStrategyResponse:
     """[ADR-041] 자연어 → 전략 생성. **저장하지 않는다.**
 
@@ -166,14 +167,14 @@ async def generate_strategy(
         ) from exc
 
 
-@router.post("/code/generate", response_model=GenerateCodeStrategyResponse)
+@router.post("/code/generate")
 @limiter.limit("4/minute")
 async def generate_code_strategy(
     request: Request,
     response: Response,
     data: GenerateCodeStrategyRequest,
-    _: CurrentUser = Depends(get_current_user),
-    service: CodeGenerateService = Depends(get_code_generate_service),
+    _: CurrentUserDep,
+    service: Annotated[CodeGenerateService, Depends(get_code_generate_service)],
 ) -> GenerateCodeStrategyResponse:
     """Python preview만 반환한다. 검토·저장·백테스트는 별도 사용자 동작이다."""
     try:
@@ -190,73 +191,73 @@ async def generate_code_strategy(
         ) from None
 
 
-@router.post("/code", status_code=201, response_model=CodeStrategyResponse)
+@router.post("/code", status_code=201)
 async def create_code_strategy(
     data: SaveCodeStrategyRequest,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: CodeStrategyService = Depends(get_code_strategy_service),
+    current_user: CurrentUserDep,
+    service: CodeStrategyServiceDep,
 ) -> CodeStrategyResponse:
     return await service.create(data, owner_id=current_user.id)
 
 
-@router.get("/code", response_model=CodeStrategyListResponse)
+@router.get("/code")
 async def list_code_strategies(
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: CodeStrategyService = Depends(get_code_strategy_service),
+    current_user: CurrentUserDep,
+    service: CodeStrategyServiceDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> CodeStrategyListResponse:
     return await service.list(owner_id=current_user.id, limit=limit, offset=offset)
 
 
-@router.get("/code/{strategy_id}", response_model=CodeStrategyResponse)
+@router.get("/code/{strategy_id}")
 async def get_code_strategy(
     strategy_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: CodeStrategyService = Depends(get_code_strategy_service),
+    current_user: CurrentUserDep,
+    service: CodeStrategyServiceDep,
 ) -> CodeStrategyResponse:
     return await service.get(strategy_id, owner_id=current_user.id)
 
 
-@router.put("/code/{strategy_id}", response_model=CodeStrategyResponse)
+@router.put("/code/{strategy_id}")
 async def update_code_strategy(
     strategy_id: UUID,
     data: SaveCodeStrategyRequest,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: CodeStrategyService = Depends(get_code_strategy_service),
+    current_user: CurrentUserDep,
+    service: CodeStrategyServiceDep,
 ) -> CodeStrategyResponse:
     return await service.update(strategy_id, data, owner_id=current_user.id)
 
 
-@router.get("/{strategy_id}", response_model=StrategyResponse)
+@router.get("/{strategy_id}")
 async def get_strategy(
-    strategy_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: StrategyService = Depends(get_strategy_service),
+    strategy_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: StrategyServiceDep,
 ) -> StrategyResponse:
     return await service.get(strategy_id=strategy_id, owner_id=current_user.id)
 
 
-@router.get("/{strategy_id}/brief", response_model=StrategyBriefResponse)
+@router.get("/{strategy_id}/brief")
 async def get_strategy_brief(
-    strategy_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: StrategyService = Depends(get_strategy_service),
+    strategy_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: StrategyServiceDep,
 ) -> StrategyBriefResponse:
     """[ADR-040] 백테스트 제출 전 결정론 브리핑 — LLM 이 만든 값이 하나도 없다."""
     return await service.brief(strategy_id=strategy_id, owner_id=current_user.id)
 
 
-@router.get("/{strategy_id}/brief/narrative", response_model=StrategyNarrativeResponse)
+@router.get("/{strategy_id}/brief/narrative")
 @limiter.limit("10/minute")
 async def get_strategy_brief_narrative(
     request: Request,
     response: Response,
-    strategy_id: UUID = Path(...),
-    provider: str | None = Query(default=None, max_length=32),
-    model: str | None = Query(default=None, max_length=128),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: StrategyService = Depends(get_strategy_service),
+    strategy_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: StrategyServiceDep,
+    provider: Annotated[str | None, Query(max_length=32)] = None,
+    model: Annotated[str | None, Query(max_length=128)] = None,
 ) -> StrategyNarrativeResponse:
     """[ADR-040] 해설 층 — **판정하지 않는다.** 실패해도 `/brief` 로 화면이 완결된다.
 
@@ -296,31 +297,31 @@ async def get_strategy_brief_narrative(
         ) from exc
 
 
-@router.put("/{strategy_id}", response_model=StrategyResponse)
+@router.put("/{strategy_id}")
 async def update_strategy(
     data: UpdateStrategyRequest,
-    strategy_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: StrategyService = Depends(get_strategy_service),
+    strategy_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: StrategyServiceDep,
 ) -> StrategyResponse:
     return await service.update(strategy_id=strategy_id, owner_id=current_user.id, data=data)
 
 
 @router.delete("/{strategy_id}", status_code=204)
 async def delete_strategy(
-    strategy_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: StrategyService = Depends(get_strategy_service),
+    strategy_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: StrategyServiceDep,
 ) -> None:
     await service.delete(strategy_id=strategy_id, owner_id=current_user.id)
 
 
-@router.put("/{strategy_id}/settings", response_model=StrategyResponse)
+@router.put("/{strategy_id}/settings")
 async def update_strategy_settings(
     data: UpdateStrategySettingsRequest,
-    strategy_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    service: StrategyService = Depends(get_strategy_service),
+    strategy_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    service: StrategyServiceDep,
 ) -> StrategyResponse:
     """Sprint 26 — Live Signal Auto-Trading prereq.
 
@@ -336,15 +337,12 @@ async def update_strategy_settings(
 # ── Webhook Secret Rotation (T19) ────────────────────────────────────
 
 
-@router.post(
-    "/{strategy_id}/rotate-webhook-secret",
-    response_model=WebhookRotateResponse,
-)
+@router.post("/{strategy_id}/rotate-webhook-secret")
 async def rotate_webhook_secret(
-    strategy_id: UUID = Path(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    strategy_svc: StrategyService = Depends(get_strategy_service),
-    secret_svc: WebhookSecretService = Depends(get_webhook_secret_service),
+    strategy_id: Annotated[UUID, Path()],
+    current_user: CurrentUserDep,
+    strategy_svc: StrategyServiceDep,
+    secret_svc: Annotated[WebhookSecretService, Depends(get_webhook_secret_service)],
 ) -> WebhookRotateResponse:
     """Rotate the webhook secret for a strategy.
 

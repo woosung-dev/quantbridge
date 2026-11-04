@@ -4,10 +4,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Request, Response
 
-from src.auth.dependencies import get_current_user
-from src.auth.schemas import CurrentUser
+from src.auth.dependencies import CurrentUserDep
 from src.common.rate_limit import limiter
 from src.core.config import settings
 from src.strategy.narrative import catalog as catalog_mod
@@ -23,12 +22,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/llm", tags=["llm"])
 
 
-@router.get("/models", response_model=LlmModelsResponse)
+@router.get("/models")
 @limiter.limit("20/minute")
 async def list_llm_models(
     request: Request,
     response: Response,
-    _: CurrentUser = Depends(get_current_user),
+    _: CurrentUserDep,
 ) -> LlmModelsResponse:
     """provider 3종의 모델 목록을 **물어서** 돌려준다.
 

@@ -1,4 +1,6 @@
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 // 세션에 적용할 알림 규칙을 인라인으로 생성한다.
 import { useState } from "react";

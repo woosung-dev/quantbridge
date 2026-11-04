@@ -33,7 +33,10 @@ def test_init_creates_loop_and_sets_as_thread_default() -> None:
     loop = _worker_loop._WORKER_LOOP  # type: ignore[attr-defined]
     assert loop is not None
     assert not loop.is_closed()
-    # set_event_loop 호출 검증 — get_event_loop 가 동일 loop 반환
+    # set_event_loop 호출 검증 — thread 의 current loop 가 동일 loop.
+    # 여기서는 running loop 가 없으므로 get_running_loop() 로 바꿀 수 없다(그것은 RuntimeError).
+    # Python 3.14 의 get_event_loop() 는 current loop 가 set 돼 있으면 그것을 반환하므로
+    # 이 단언은 정확히 set_event_loop 호출 여부를 잰다.
     assert asyncio.get_event_loop() is loop
 
 

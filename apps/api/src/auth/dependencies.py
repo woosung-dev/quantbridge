@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,14 +15,14 @@ from src.realtime.auth import authenticate_request
 
 
 async def get_user_repository(
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> UserRepository:
     return UserRepository(session)
 
 
 async def get_user_service(
-    user_repo: UserRepository = Depends(get_user_repository),
-    session: AsyncSession = Depends(get_async_session),
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> UserService:
     # Strategy archive를 위해 StrategyRepository를 동일 session으로 주입.
     # ★2026-08-15 surface-truth (S3) — 탈퇴가 **돈을 멈추려면** 라이브 세션·웹훅 시크릿
@@ -40,9 +42,16 @@ async def get_user_service(
     )
 
 
+# 라우터·의존성에서 반복되는 주입을 한 줄로 쓰기 위한 별칭.
+UserServiceDep = Annotated[UserService, Depends(get_user_service)]
+
+
 async def get_current_user(
     request: Request,
-    service: UserService = Depends(get_user_service),
+    service: UserServiceDep,
 ) -> CurrentUser:
     """Bearer JWT 검증 + lazy-create — 검증기는 `realtime/auth.py` 하나뿐이다(ADR-034)."""
     return await authenticate_request(request, service)
+
+
+CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]

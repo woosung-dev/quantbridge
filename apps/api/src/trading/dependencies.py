@@ -6,6 +6,7 @@ CSO-1: WebhookSecretService, WebhookService에 crypto 주입 (감사 보정).
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends
@@ -72,9 +73,9 @@ def get_liquidation_service() -> LiquidationService:
 
 # ── ExchangeAccount ──────────────────────────────────────────────────
 async def get_exchange_account_service(
-    session: AsyncSession = Depends(get_async_session),
-    crypto: EncryptionService = Depends(get_encryption_service),
-    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    crypto: Annotated[EncryptionService, Depends(get_encryption_service)],
+    bybit_futures_provider: Annotated[BybitFuturesProvider, Depends(get_bybit_futures_provider)],
 ) -> ExchangeAccountService:
     repo = ExchangeAccountRepository(session)
     return ExchangeAccountService(
@@ -84,10 +85,14 @@ async def get_exchange_account_service(
     )
 
 
+# 라우터·조립 함수에서 반복되는 주입 선언을 한 곳에 둔다.
+ExchangeAccountServiceDep = Annotated[ExchangeAccountService, Depends(get_exchange_account_service)]
+
+
 # ── WebhookSecret ────────────────────────────────────────────────────
 async def get_webhook_secret_service(
-    session: AsyncSession = Depends(get_async_session),
-    crypto: EncryptionService = Depends(get_encryption_service),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    crypto: Annotated[EncryptionService, Depends(get_encryption_service)],
 ) -> WebhookSecretService:
     repo = WebhookSecretRepository(session)
     return WebhookSecretService(repo=repo, crypto=crypto)  # CSO-1 correction
@@ -95,8 +100,8 @@ async def get_webhook_secret_service(
 
 # ── Webhook (HMAC verify + TV parse) ─────────────────────────────────
 async def get_webhook_service(
-    session: AsyncSession = Depends(get_async_session),
-    crypto: EncryptionService = Depends(get_encryption_service),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    crypto: Annotated[EncryptionService, Depends(get_encryption_service)],
 ) -> WebhookService:
     repo = WebhookSecretRepository(session)
     return WebhookService(
@@ -111,8 +116,8 @@ async def get_webhook_service(
 
 # ── KillSwitch ───────────────────────────────────────────────────────
 async def get_kill_switch_service(
-    session: AsyncSession = Depends(get_async_session),
-    exchange_service: ExchangeAccountService = Depends(get_exchange_account_service),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    exchange_service: ExchangeAccountServiceDep,
 ) -> KillSwitchService:
     order_repo = OrderRepository(session)
     events_repo = KillSwitchEventRepository(session)
@@ -177,10 +182,10 @@ class _StrategySessionsAdapter:
 
 # ── OrderService ─────────────────────────────────────────────────────
 async def get_order_service(
-    session: AsyncSession = Depends(get_async_session),
-    kill_switch: KillSwitchService = Depends(get_kill_switch_service),
-    dispatcher: OrderDispatcher = Depends(get_order_dispatcher),
-    exchange_service: ExchangeAccountService = Depends(get_exchange_account_service),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    kill_switch: Annotated[KillSwitchService, Depends(get_kill_switch_service)],
+    dispatcher: Annotated[OrderDispatcher, Depends(get_order_dispatcher)],
+    exchange_service: ExchangeAccountServiceDep,
 ) -> OrderService:
     repo = OrderRepository(session)
     return OrderService(
@@ -197,11 +202,14 @@ async def get_order_service(
     )
 
 
+OrderServiceDep = Annotated[OrderService, Depends(get_order_service)]
+
+
 # ── AccountBalance ───────────────────────────────────────────────────
 async def get_balance_service(
-    session: AsyncSession = Depends(get_async_session),
-    account_service: ExchangeAccountService = Depends(get_exchange_account_service),
-    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    account_service: ExchangeAccountServiceDep,
+    bybit_futures_provider: Annotated[BybitFuturesProvider, Depends(get_bybit_futures_provider)],
 ) -> AccountBalanceService:
     return AccountBalanceService(
         account_repo=ExchangeAccountRepository(session),
@@ -213,10 +221,10 @@ async def get_balance_service(
 
 # ── Sprint 26: LiveSignalSessionService ──────────────────────────────
 async def get_live_signal_session_service(
-    session: AsyncSession = Depends(get_async_session),
-    balance_service: AccountBalanceService = Depends(get_balance_service),
-    account_service: ExchangeAccountService = Depends(get_exchange_account_service),
-    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    balance_service: Annotated[AccountBalanceService, Depends(get_balance_service)],
+    account_service: ExchangeAccountServiceDep,
+    bybit_futures_provider: Annotated[BybitFuturesProvider, Depends(get_bybit_futures_provider)],
 ) -> LiveSignalSessionService:
     """Sprint 26 — Live Signal Auto-Trading session 등록/조회/종료.
 
@@ -243,8 +251,13 @@ async def get_live_signal_session_service(
     )
 
 
+LiveSignalSessionServiceDep = Annotated[
+    LiveSignalSessionService, Depends(get_live_signal_session_service)
+]
+
+
 async def get_live_session_query_service(
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> LiveSessionQueryService:
     return LiveSessionQueryService(
         session_repo=LiveSignalSessionRepository(session),
@@ -256,7 +269,7 @@ async def get_live_session_query_service(
 
 
 async def get_outcome_parity_service(
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> OutcomeParityService:
     """같은 DB 세션의 parity 조회 repository를 읽기 전용으로 조립한다."""
     return OutcomeParityService(
@@ -267,7 +280,7 @@ async def get_outcome_parity_service(
 
 
 async def get_alert_rule_service(
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> AlertRuleService:
     return AlertRuleService(
         repo=AlertRuleRepository(session),
@@ -275,10 +288,13 @@ async def get_alert_rule_service(
     )
 
 
+AlertRuleServiceDep = Annotated[AlertRuleService, Depends(get_alert_rule_service)]
+
+
 async def get_position_service(
-    session: AsyncSession = Depends(get_async_session),
-    account_service: ExchangeAccountService = Depends(get_exchange_account_service),
-    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    account_service: ExchangeAccountServiceDep,
+    bybit_futures_provider: Annotated[BybitFuturesProvider, Depends(get_bybit_futures_provider)],
 ) -> PositionService:
     return PositionService(
         session_repo=LiveSignalSessionRepository(session),
@@ -290,10 +306,10 @@ async def get_position_service(
 
 
 async def get_close_service(
-    session: AsyncSession = Depends(get_async_session),
-    account_service: ExchangeAccountService = Depends(get_exchange_account_service),
-    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
-    order_service: OrderService = Depends(get_order_service),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    account_service: ExchangeAccountServiceDep,
+    bybit_futures_provider: Annotated[BybitFuturesProvider, Depends(get_bybit_futures_provider)],
+    order_service: OrderServiceDep,
 ) -> ClosePositionService:
     return ClosePositionService(
         session_repo=LiveSignalSessionRepository(session),

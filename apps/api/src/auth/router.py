@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 
-from src.auth.dependencies import get_current_user, get_user_service
-from src.auth.schemas import CurrentUser, UserResponse
-from src.auth.service import UserService
+from src.auth.dependencies import CurrentUserDep, UserServiceDep
+from src.auth.schemas import UserResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 async def get_me(
-    current_user: CurrentUser = Depends(get_current_user),
-    service: UserService = Depends(get_user_service),
+    current_user: CurrentUserDep,
+    service: UserServiceDep,
 ) -> UserResponse:
     user = await service.user_repo.find_by_id(current_user.id)
     assert user is not None  # dependency가 보장
@@ -23,8 +22,8 @@ async def get_me(
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_me(
-    current_user: CurrentUser = Depends(get_current_user),
-    service: UserService = Depends(get_user_service),
+    current_user: CurrentUserDep,
+    service: UserServiceDep,
 ) -> None:
     """탈퇴 — 계정을 잠그고 전략 archive · 라이브 세션 정지 · 웹훅 시크릿 revoke 를 한 번에.
 

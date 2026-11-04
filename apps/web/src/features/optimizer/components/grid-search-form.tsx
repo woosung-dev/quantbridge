@@ -1,5 +1,7 @@
 // 그리드 탐색 제출 폼 — 공유 조각(form-schemas/optimizer-form-fields/param-rows-fieldset) 조합.
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";

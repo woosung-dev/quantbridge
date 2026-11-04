@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,8 +20,8 @@ from src.trading.repositories.funding_rate_repository import FundingRateReposito
 
 
 async def get_backtest_service(
-    ohlcv_provider: OHLCVProvider = Depends(get_ohlcv_provider),
-    session: AsyncSession = Depends(get_async_session),
+    ohlcv_provider: Annotated[OHLCVProvider, Depends(get_ohlcv_provider)],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> BacktestService:
     """HTTP 경로용 — CeleryTaskDispatcher + config flag 기반 OHLCVProvider 주입."""
     return BacktestService(
@@ -30,6 +32,10 @@ async def get_backtest_service(
         dispatcher=CeleryTaskDispatcher(),
         funding_repo=FundingRateRepository(session),
     )
+
+
+# 라우터 공용 별칭 — `get_backtest_service` 주입을 한 줄로.
+BacktestServiceDep = Annotated[BacktestService, Depends(get_backtest_service)]
 
 
 def build_backtest_service_for_worker(session: AsyncSession) -> BacktestService:

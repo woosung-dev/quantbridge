@@ -133,8 +133,11 @@ async def test_acquire_advisory_lock_retries_once_before_success(
         clock.now += seconds
 
     monkeypatch.setattr(asyncpg, "connect", AsyncMock(return_value=conn))
-    monkeypatch.setattr(alembic_lock.asyncio, "get_event_loop", lambda: clock)
-    monkeypatch.setattr(alembic_lock.asyncio, "sleep", _sleep)
+    # ★전역 `asyncio` 모듈을 패치하지 않고 대상 모듈의 `asyncio` 참조만 바꾼다 — 소스가
+    #   `get_running_loop()` 를 쓰는데(3.14), 그 함수는 asyncio 내부도 부르므로 전역 패치는 위험하다.
+    monkeypatch.setattr(
+        alembic_lock, "asyncio", SimpleNamespace(get_running_loop=lambda: clock, sleep=_sleep)
+    )
 
     result = await alembic_lock._acquire_advisory_lock("postgresql://db/quantbridge", 7, 30)
 
@@ -156,8 +159,11 @@ async def test_acquire_advisory_lock_closes_connection_after_timeout(
         clock.now += seconds
 
     monkeypatch.setattr(asyncpg, "connect", AsyncMock(return_value=conn))
-    monkeypatch.setattr(alembic_lock.asyncio, "get_event_loop", lambda: clock)
-    monkeypatch.setattr(alembic_lock.asyncio, "sleep", _sleep)
+    # ★전역 `asyncio` 모듈을 패치하지 않고 대상 모듈의 `asyncio` 참조만 바꾼다 — 소스가
+    #   `get_running_loop()` 를 쓰는데(3.14), 그 함수는 asyncio 내부도 부르므로 전역 패치는 위험하다.
+    monkeypatch.setattr(
+        alembic_lock, "asyncio", SimpleNamespace(get_running_loop=lambda: clock, sleep=_sleep)
+    )
 
     with pytest.raises(RuntimeError, match="not acquired within 1s"):
         await alembic_lock._acquire_advisory_lock("postgresql://db/quantbridge", 7, 1)

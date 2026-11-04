@@ -2,6 +2,8 @@
 // 폼 검증·제출·훅(useBacktestForm)과 fieldset 로직은 그대로 보존하고 프레젠테이션만 재스킨한다.
 // 스키마가 받치지 않는 값(예상 소요 시간·결측 봉 점검)은 그리지 않는다(§4.9). 거래소는 Bybit 고정.
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import { useState } from "react";
 import Link from "next/link";

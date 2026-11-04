@@ -86,7 +86,7 @@ OpenAPI 계약(`contracts/openapi/openapi.json`)이 레포에 커밋돼 있고, 
 
 | 영역              | 기술 / 버전                                                          |
 | ----------------- | -------------------------------------------------------------------- |
-| 언어              | Python `>=3.12,<3.13` (상한은 의도적 — 없으면 uv 가 3.13 을 고른다)  |
+| 언어              | Python `>=3.14,<3.15` (상한은 의도적 — 정본 = 루트 `mise.toml`)      |
 | 프레임워크        | FastAPI `>=0.115` · uvicorn `>=0.32` (100% async)                    |
 | ORM               | SQLModel `>=0.0.22` + SQLAlchemy `2.0` (asyncpg)                     |
 | 검증 · 설정       | Pydantic `v2` · pydantic-settings                                    |

@@ -32,7 +32,11 @@ export default async function StrategiesPage({
   //
   // URL 정렬은 배열 파라미터의 첫 값만 사용한 뒤 resolveStrategySort로 정규화한다.
   // 이 결과를 query와 queryKey에 함께 사용해 client의 URL 스칼라 query와 키를 맞춘다.
-  const params = await searchParams;
+  //
+  // proxy.ts가 이 라우트를 보호하므로 익명 접근은 여기까지 오지 않음.
+  // queryKey factory가 userId를 요구 — client hook과 동일한 uid 사용.
+  // searchParams 와 세션 조회는 서로 독립이라 함께 기다린다(async-parallel).
+  const [params, { userId, token }] = await Promise.all([searchParams, getServerAuth()]);
   const orderByParam = Array.isArray(params.order_by) ? params.order_by[0] : params.order_by;
   const orderParam = Array.isArray(params.order) ? params.order[0] : params.order;
   const sort = resolveStrategySort(orderByParam, orderParam);
@@ -45,10 +49,6 @@ export default async function StrategiesPage({
   };
 
   const queryClient = new QueryClient();
-
-  // proxy.ts가 이 라우트를 보호하므로 익명 접근은 여기까지 오지 않음.
-  // queryKey factory가 userId를 요구 — client hook과 동일한 uid 사용.
-  const { userId, token } = await getServerAuth();
   const uid = userId ?? "anon";
 
   if (token) {

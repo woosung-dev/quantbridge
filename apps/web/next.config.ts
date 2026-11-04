@@ -39,7 +39,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // 2026-08-07 fe-oracle-deploy — 오라클 A1(aarch64) 배포용 최소 런타임 산출물.
   // 서버에 Node 가 없어 `next start` 를 쓸 수 없다 — standalone 의 `server.js` 를
-  // node:22-alpine 이미지에 얹는다 (빌드는 맥, 서버는 실행만).
+  // node:26-alpine 이미지에 얹는다 (빌드는 맥, 서버는 실행만).
   output: "standalone",
   // ★루트에 husky/prettier 용 `pnpm-lock.yaml` 이 있어 Next 가 workspace root 를
   // 레포 루트로 추론한다. 그대로 두면 file tracing 이 루트 `node_modules` 까지 훑는다.
@@ -54,6 +54,14 @@ const nextConfig: NextConfig = {
   // 진범은 `.next/dev` Turbopack 영속 캐시(1.99GB)였고 그것을 치우자 417% → **0.1%** 였다.
   // 두 결함을 한 줄로 묶어 적지 마라 — 이 주석의 초안이 정확히 그 실수를 했다.
   turbopack: { root: __dirname },
+  // 2026-11-04 — React Compiler 활성화. Next 가 JSX·훅이 있는 파일에만 Babel 플러그인을 건다
+  // (`node_modules/next/dist/docs/.../reactCompiler.md`). 규칙을 어긴 컴포넌트는 컴파일러가
+  // 조용히 건너뛴다 — 동작은 그대로이고 자동 메모이제이션만 빠진다. H-3(`apps/web/AGENTS.md`)이 그 대비다.
+  reactCompiler: true,
+  experimental: {
+    // lucide-react·recharts 는 Next 기본 목록에 이미 있다. 여기는 기본 목록 밖의 배럴 패키지만 적는다.
+    optimizePackageImports: ["radix-ui", "@base-ui/react"],
+  },
   async headers() {
     return [
       {

@@ -66,7 +66,7 @@ Next.js 16 App Router 로 만든 대시보드이자, **이 레포의 인증 서�
 | 차트            | `lightweight-charts` `^4.2` (에쿼티·드로다운) · `recharts` `^3.8` (분포·이력) |
 | 테스트          | Vitest `^2.1` · Testing Library · Playwright `^1.59`                          |
 | 품질            | Biome `2.5.9` — 린트·포맷 **단독** ([ADR-039](../../docs/adr/039-frontend-biome.md), ESLint·Prettier 제거) |
-| Node            | `>=22`                                                                        |
+| Node            | `>=26` (정본 = 루트 `mise.toml`)                                              |
 
 ---
 

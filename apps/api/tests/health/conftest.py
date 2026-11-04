@@ -21,7 +21,7 @@ from httpx import ASGITransport, AsyncClient
 
 
 @pytest_asyncio.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
+async def client() -> AsyncGenerator[AsyncClient]:
     """Health-only client — DB / Redis / Celery 의존 없는 minimal app.
 
     상위 conftest 의 ``client`` 를 fixture name shadowing 으로 대체.

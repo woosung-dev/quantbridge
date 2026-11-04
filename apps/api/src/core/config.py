@@ -524,7 +524,7 @@ class Settings(BaseSettings):
         return self.app_env == Environment.STAGING.value
 
     @model_validator(mode="after")
-    def _enforce_production_safety(self) -> "Settings":
+    def _enforce_production_safety(self) -> Settings:
         """production 환경 진입 시 SecretStr 정합 + debug 강제.
 
         - ``app_env=production``: ``debug=False`` 강제.

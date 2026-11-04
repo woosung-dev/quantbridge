@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, TypeVar
+from typing import Protocol
 
 __all__ = ["dedupe_accounts_by_exchange_uid"]
 
@@ -17,10 +17,7 @@ class _AccountLike(Protocol):
     def read_only(self) -> bool | None: ...
 
 
-_A = TypeVar("_A", bound=_AccountLike)
-
-
-def dedupe_accounts_by_exchange_uid(accounts: list[_A]) -> list[_A]:
+def dedupe_accounts_by_exchange_uid[A: _AccountLike](accounts: list[A]) -> list[A]:
     """같은 실제 거래소 계정을 가리키는 행들 중 **대표 1행**만 남긴다.
 
     ## 왜 필요한가
@@ -54,7 +51,7 @@ def dedupe_accounts_by_exchange_uid(accounts: list[_A]) -> list[_A]:
     자리는 앞에 남으므로 호출부의 순서 가정이 흔들리지 않는다.
     """
     chosen_index: dict[str, int] = {}
-    result: list[_A] = []
+    result: list[A] = []
     for account in accounts:
         uid = account.exchange_uid
         if uid is None:

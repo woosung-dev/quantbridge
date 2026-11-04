@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
-from src.auth.dependencies import get_current_user
-from src.auth.schemas import CurrentUser
+from src.auth.dependencies import CurrentUserDep
 from src.common.rate_limit import limiter
 from src.strategy.convert.dependencies import get_convert_service
 from src.strategy.convert.schemas import ConvertIndicatorRequest, ConvertIndicatorResponse
@@ -32,14 +32,14 @@ def _opaque(status_code: int, code: str, message: str, exc: Exception) -> HTTPEx
     )
 
 
-@router.post("/convert-indicator", response_model=ConvertIndicatorResponse)
+@router.post("/convert-indicator")
 @limiter.limit("5/minute")
 def convert_indicator(
     request: Request,
     req: ConvertIndicatorRequest,
     response: Response,
-    _: CurrentUser = Depends(get_current_user),
-    svc: ConvertService = Depends(get_convert_service),
+    _: CurrentUserDep,
+    svc: Annotated[ConvertService, Depends(get_convert_service)],
 ) -> ConvertIndicatorResponse:
     try:
         return svc.convert(req)

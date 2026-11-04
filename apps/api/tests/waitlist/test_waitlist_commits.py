@@ -18,7 +18,7 @@ from src.waitlist.schemas import CreateWaitlistApplicationRequest
 
 
 @pytest.fixture(autouse=True)
-def _reset_rate_limiter() -> Generator[None, None, None]:
+def _reset_rate_limiter() -> Generator[None]:
     """Override waitlist/conftest.py — Redis 우회 (spy test 는 limiter 안 거침).
 
     autouse fixture 동일 이름으로 module-level override. conftest 의
@@ -28,9 +28,7 @@ def _reset_rate_limiter() -> Generator[None, None, None]:
     yield
 
 
-def _make_application(
-    *, status: WaitlistStatus = WaitlistStatus.pending
-) -> WaitlistApplication:
+def _make_application(*, status: WaitlistStatus = WaitlistStatus.pending) -> WaitlistApplication:
     return WaitlistApplication(
         id=uuid4(),
         email="user@test.local",

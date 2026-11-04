@@ -49,6 +49,12 @@
 `apps/web/Dockerfile:15` 의 `FROM node:22-alpine` 과 `apps/api/Dockerfile:13,38` 의
 `FROM python:3.12-slim` 은 `mise.toml` 을 읽을 수 없다. **6곳 → 3곳**이 도달 가능한 최소이고,
 `ARG` + build-arg 주입으로 더 줄이는 것은 얻는 것보다 배선이 비싸다. 버전을 올릴 때 이 둘을 같이 봐라.
+★**2026-11-04** — node 22→26 · python 3.12→3.14 로 올렸다(현재 값은 `mise.toml` 이 정본). 함께 바꾼 곳 =
+두 Dockerfile · `apps/api/pyproject.toml` `requires-python` 상한 · `mypy.ini` · `ruff.toml` `target-version` ·
+`apps/web/package.json` `engines`/`@types/node` · `infra/python-runner`(numpy·pandas 를 `uv.lock` 에서 읽게 바꿈).
+★**서버 호스트 API 는 이 표 밖이다** — `deploy.sh` ⑦ 의 `uv sync` 가 호스트 venv 를 새 python 으로 **재생성**한다.
+python 메이저·마이너를 올리는 PR 은 머지(= 자동 배포) **전에** 서버에서 그 python 을 설치하고
+`uv sync` + import probe 를 손으로 한 번 돌려라. 안 하면 옛 API 가 도는 중에 venv 가 바뀐다.
 
 ## Consequences
 

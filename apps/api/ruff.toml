@@ -1,5 +1,5 @@
 line-length = 100
-target-version = "py311"
+target-version = "py314"
 extend-exclude = ["alembic/versions"]
 
 [lint]
@@ -13,11 +13,12 @@ select = [
     "ASYNC",         # flake8-async
     "S",             # bandit
     "RUF",
+    "FAST",          # FastAPI — Annotated 의존성 · 중복 response_model (2026-11-04)
+    "DTZ",           # naive datetime 금지 (ADR-005, 2026-11-04)
 ]
 ignore = [
     "E501",   # line length handled by formatter
     "S101",   # assert in tests
-    "B008",   # FastAPI Depends() in defaults
 ]
 
 [lint.per-file-ignores]
@@ -26,7 +27,7 @@ ignore = [
 # alembic/versions/: extend-exclude 대상이지만 lint-staged 훅이 파일을 명시 경로로
 #   넘기면 exclude 가 우회됨(ruff 기본 동작) — DDL f-string(S608)·한국어 docstring 허용을
 #   ignores 로도 미러해 훅 경로에서 동일 판정 보장 (2026-07-23 실측).
-"tests/**/*.py" = ["S", "B", "RUF001", "RUF002", "RUF003"]
+"tests/**/*.py" = ["S", "B", "RUF001", "RUF002", "RUF003", "DTZ"]
 "scripts/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 "alembic/versions/*.py" = ["S", "RUF001", "RUF002", "RUF003"]
 

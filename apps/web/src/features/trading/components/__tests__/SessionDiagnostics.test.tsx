@@ -1,5 +1,5 @@
 // 코크핏 §08 진단 카드의 실제 API·스토어 상태 매핑을 검증한다.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AlertTriangleIcon } from "lucide-react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -245,5 +245,22 @@ describe("SessionDiagnostics", () => {
     realtime = { status: "authed", lastEventTs: Date.now() - ageMs };
     render(<SessionDiagnostics session={session} />);
     expect(screen.getByText(new RegExp(label))).toBeInTheDocument();
+  });
+
+  // ★스트림이 멈추면 store 가 안 바뀌어 재렌더가 없다. 카드 자체 시계가 없으면 문구가 「방금 전」에
+  //   언다(React Compiler 가 부모 재렌더도 막는다 — 2026-11-04 리뷰). store 를 건드리지 않고 시간만 흘린다.
+  test("이벤트가 끊긴 채 시간이 흐르면 재렌더 없이도 문구가 늙는다", () => {
+    vi.useFakeTimers();
+    try {
+      realtime = { status: "authed", lastEventTs: Date.now() };
+      render(<SessionDiagnostics session={session} />);
+      expect(screen.getByText(/방금 전 이벤트/)).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(2 * 60_000);
+      });
+      expect(screen.getByText(/2분 전 이벤트/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

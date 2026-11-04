@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +19,7 @@ from src.notifications.webpush_client import (
 
 
 async def get_push_subscription_repository(
-    session: AsyncSession = Depends(get_async_session),
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> PushSubscriptionRepository:
     return PushSubscriptionRepository(session)
 
@@ -32,11 +34,15 @@ def get_push_sender() -> PushSender:
 
 
 async def get_push_service(
-    repo: PushSubscriptionRepository = Depends(get_push_subscription_repository),
-    vapid: VapidConfig | None = Depends(get_vapid_config),
-    sender: PushSender = Depends(get_push_sender),
+    repo: Annotated[PushSubscriptionRepository, Depends(get_push_subscription_repository)],
+    vapid: Annotated[VapidConfig | None, Depends(get_vapid_config)],
+    sender: Annotated[PushSender, Depends(get_push_sender)],
 ) -> PushNotificationService:
     return PushNotificationService(repo=repo, vapid=vapid, sender=sender)
+
+
+# 라우터에서 반복되는 서비스 주입 별칭.
+PushServiceDep = Annotated[PushNotificationService, Depends(get_push_service)]
 
 
 def build_push_service_for_worker(session: AsyncSession) -> PushNotificationService:

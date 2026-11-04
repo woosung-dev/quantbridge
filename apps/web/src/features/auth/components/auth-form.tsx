@@ -1,4 +1,6 @@
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 // 로그인/가입 폼 — Better Auth 는 프리빌트 UI 를 제공하지 않으므로 우리가 짓는다(ADR-034).
 // 마크업 어휘(.field/.input/.field-error/.btn)는 `waitlist-form-card.tsx` 와 같은 C 디자인

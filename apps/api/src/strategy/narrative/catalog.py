@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, datetime
 from typing import Any
 
 from src.core.config import Settings
@@ -87,7 +87,8 @@ def _fetch_openai(settings: Settings) -> tuple[list[ModelInfo], int]:
     #   (2026-08-28 gemini 에서 실제로 밟았다 — 세 provider 가 같은 모양이라 셋 다 붙잡는다).
     client = OpenAI(api_key=secret(settings.openai_api_key))
     raw = list(client.models.list())
-    today = date.today().isoformat()
+    # ADR-005: tz-aware UTC. [가정] `shutdown_date` 는 UTC 기준 날짜(YYYY-MM-DD)라 UTC 오늘과 비교한다.
+    today = datetime.now(UTC).date().isoformat()
     out: list[ModelInfo] = []
     for m in raw:
         if not _openai_is_chat(m.id):

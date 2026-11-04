@@ -3,6 +3,8 @@
 // 스키마는 test-order-schema.ts, HMAC 서명·발송 money-path 는 test-order-webhook.ts 가 맡는다.
 // 422/400 등 오류 시 setError("root.serverError")로 form 안에 인라인 표시한다.
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";

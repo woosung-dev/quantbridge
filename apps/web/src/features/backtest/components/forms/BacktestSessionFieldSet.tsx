@@ -1,5 +1,7 @@
 // 백테스트 폼의 시장과 기간 필드 (심볼 + 타임프레임 + 기간 프리셋 + 시작/종료일) — C 디자인 언어 이식(W3-A).
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import type { Control, UseFormRegister, UseFormSetValue, FieldErrors } from "react-hook-form";
 

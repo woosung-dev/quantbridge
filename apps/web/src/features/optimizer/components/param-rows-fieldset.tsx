@@ -1,4 +1,6 @@
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 // Optimizer 3폼 공통 파라미터 row fieldset — var_name 셀 + append/remove(1~4 상한).
 // 알고리즘별 나머지 셀(kind/step vs prior/log_scale)은 renderRowCells 로 주입받는다.

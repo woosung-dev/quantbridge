@@ -137,7 +137,7 @@ backend 로 오분류 ⑷ `tools/*` 를 BE 전용으로 축소) 전부 red 이�
 
 > ~~CI Node 버전은 20, 로컬 권장은 22+. 향후 일치시킬지 검토 (Sprint 5+).~~
 > → **2026-08-16 일치시켰다** ([ADR-036](../adr/036-tool-version-ssot-mise.md)). CI·로컬·프로덕션
-> 이미지가 모두 루트 [`mise.toml`](../../mise.toml) 의 `node = "22"` 를 따른다. 그전까지 3면 중
+> 이미지가 모두 루트 [`mise.toml`](../../mise.toml) 의 `node` 를 따른다(2026-11-04 22 → 26). 그전까지 3면 중
 > **CI 만 20** 이었고, node 20 은 2026-04-30 EOL 이었다. 워크플로에서 버전 숫자는 전부 사라졌다 —
 > 확인 = `grep -rE 'node-version:|python-version:' .github/workflows/` 가 0건.
 >
@@ -248,8 +248,8 @@ top-10 에 **아예 안 보였다.**
 > 로컬에서는 `.env.local` 이 전부 localhost 로 채워서 이 드리프트가 **구조적으로 안 보인다.**
 
 > ~~CI Python 버전은 3.12, 로컬 권장은 3.11+.~~ → **2026-08-16** ([ADR-036](../adr/036-tool-version-ssot-mise.md)):
-> CI·로컬이 모두 `mise.toml` 의 `python = "3.12"` 를 따른다. 「로컬 3.11+」는 이제 거짓이다 —
-> `pyproject.toml` 의 `requires-python` 이 `>=3.12,<3.13` 으로 **상한까지** 묶는다.
+> CI·로컬이 모두 `mise.toml` 의 `python` 을 따른다(2026-11-04 3.12 → 3.14). 「로컬 3.11+」는 거짓이다 —
+> `pyproject.toml` 의 `requires-python` 이 `>=3.14,<3.15` 로 **상한까지** 묶는다.
 
 ---
 

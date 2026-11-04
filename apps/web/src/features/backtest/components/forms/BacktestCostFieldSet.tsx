@@ -1,6 +1,8 @@
 // 백테스트 폼의 자본과 체결 필드 (초기 자본 + 테이커 수수료 + 슬리피지 + 체결 시점 + 펀딩 안내) — C 디자인 언어 이식(W3-A).
 // 프로토타입 screen-05:1504는 disabled이나 funding 배선(C6 Slice 4) 이후 활성화한다.
 "use client";
+// React Compiler 제외 — RHF v7 의 `watch`/`formState` 는 참조가 고정돼 컴파일러가 낡은 값을 캐시한다(RHF 공식 안내).
+"use no memo";
 
 import type { UseFormRegister, FieldErrors } from "react-hook-form";
 

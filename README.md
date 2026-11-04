@@ -256,7 +256,7 @@ FK 가 없는 테이블 4개는 그림 밖이다 — `ts.ohlcv`(TimescaleDB hype
 
 | 영역          | 기술                                                            |
 | ------------- | --------------------------------------------------------------- |
-| 프레임워크    | FastAPI `0.115+` (100% async) · Python `3.12`                   |
+| 프레임워크    | FastAPI `0.115+` (100% async) · Python `3.14`                   |
 | ORM · 검증    | SQLModel · SQLAlchemy `2.0` (asyncpg) · Pydantic `v2`           |
 | 데이터베이스  | PostgreSQL 15 + TimescaleDB `2.14` (OHLCV hypertable) · Alembic |
 | 비동기 작업   | Celery `5.4` + Redis (prefork · 큐 3종 · 영속 `_WORKER_LOOP`)   |

@@ -428,7 +428,7 @@ async def _test_engine():
 
 
 @pytest_asyncio.fixture
-async def db_session(_test_engine) -> AsyncGenerator[AsyncSession, None]:
+async def db_session(_test_engine) -> AsyncGenerator[AsyncSession]:
     """Savepoint 격리 fixture — 매 테스트마다 깨끗한 상태."""
     connection = await _test_engine.connect()
     trans = await connection.begin()
@@ -456,11 +456,11 @@ async def db_session(_test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture
-async def app(db_session: AsyncSession) -> AsyncGenerator[FastAPI, None]:
+async def app(db_session: AsyncSession) -> AsyncGenerator[FastAPI]:
     """FastAPI app + get_async_session override."""
     application = create_app()
 
-    async def _override_session() -> AsyncGenerator[AsyncSession, None]:
+    async def _override_session() -> AsyncGenerator[AsyncSession]:
         yield db_session
 
     application.dependency_overrides[get_async_session] = _override_session
@@ -469,7 +469,7 @@ async def app(db_session: AsyncSession) -> AsyncGenerator[FastAPI, None]:
 
 
 @pytest_asyncio.fixture
-async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
+async def client(app: FastAPI) -> AsyncGenerator[AsyncClient]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

@@ -1,7 +1,10 @@
 ARG PYTHON_BASE
 FROM ${PYTHON_BASE}
 
-RUN pip install --no-cache-dir numpy==2.2.6 pandas==2.3.3 \
+# 2026-11-04 — numpy·pandas 버전은 build.sh 가 `apps/api/uv.lock` 에서 읽어 넘긴다(pine-runner 와 같은 방식).
+#   종전 하드코딩 `numpy==2.2.6` 은 cp314 휠이 없어 python 3.14 베이스에서 빌드가 깨졌다.
+ARG RUNNER_REQUIREMENTS
+RUN pip install --no-cache-dir ${RUNNER_REQUIREMENTS} \
     && groupadd --gid 10001 strategy \
     && useradd --uid 10001 --gid 10001 --no-create-home strategy
 WORKDIR /runner

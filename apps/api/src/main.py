@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.encoders import jsonable_encoder
@@ -161,7 +162,7 @@ def _metrics_auth_token() -> str | None:
 
 
 def _verify_prometheus_bearer(
-    authorization: str | None = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ) -> None:
     """Prometheus 스크래퍼 용 bearer token 검증 (Sprint 9 Phase D).
 
