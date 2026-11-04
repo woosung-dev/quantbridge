@@ -69,7 +69,7 @@
 
 1. **FastAPI 프로젝트 초기화** (uv)
    - `pyproject.toml`: 전체 의존성
-   - Python 3.11+
+   - Python 3.11+ (2026-11-04 현재 3.14 — 정본은 `mise.toml`)
 2. **디렉토리 구조** (3-Layer)
    ```
    backend/src/

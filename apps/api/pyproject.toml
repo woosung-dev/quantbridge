@@ -6,8 +6,8 @@ readme = "README.md"
 # ★상한은 장식이 아니다 — 버전 SSOT 는 루트 `mise.toml` 이고 종전의 `.python-version` 은
 # 그리로 옮기며 삭제했다. mise 없이 uv 만 도는 환경에서 상한이 없으면 uv 는 `>=3.12` 를
 # 만족하는 **가장 높은** 것을 고른다(실측 2026-08-16: 3.13.12). 그러면 venv·CI·Dockerfile
-# 셋이 3.12 인데 로컬만 조용히 3.13 으로 갈린다.
-requires-python = ">=3.12,<3.13"
+# 셋이 3.12 인데 로컬만 조용히 3.13 으로 갈린다. (2026-11-04 3.14 로 상향 — `mise.toml` 참조)
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
@@ -26,8 +26,9 @@ dependencies = [
     "python-multipart>=0.0.12",
     # ★pandas/numpy 는 직접 의존이다 — `pine_v2/stdlib.py` 가 `ta.*` 지표를 직접 계산한다.
     #   (2026-08-06 vectorbt/pandas-ta 제거 후에도 유지되는 이유)
-    "pandas>=2.2.0",
-    "numpy>=1.26.0",
+    # ★`<3` — pandas 3 은 Copy-on-Write·string dtype 기본값을 바꾼다. 이행은 별도 결정(2026-11-04).
+    "pandas>=2.3.3,<3",
+    "numpy>=2.3.0",
     "ccxt>=4.0.0",
     # Sprint 12 Phase C — Bybit V5 Private WebSocket (raw lib, 명시 dep)
     "websockets>=12,<17",

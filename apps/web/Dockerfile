@@ -12,7 +12,7 @@
 #   cd apps/web && pnpm build
 #   docker build --platform linux/arm64 -t quantbridge-frontend:<tag> .
 #   docker save quantbridge-frontend:<tag> | gzip | ssh <서버> 'gunzip | docker load'
-FROM node:22-alpine
+FROM node:26-alpine
 
 WORKDIR /app
 

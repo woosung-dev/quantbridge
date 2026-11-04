@@ -54,7 +54,7 @@
     "@tailwindcss/postcss": "^4.0.0",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.0.0",
     "@types/pg": "^8.21.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -68,6 +68,6 @@
     "vitest": "^2.1.0"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=26.0.0"
   }
 }

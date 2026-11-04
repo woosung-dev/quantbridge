@@ -43,6 +43,7 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
 - ★★**`COVERAGE_CORE=sysmon` 은 이 레포에서 못 쓴다.** `coverage/env.py` 의
   `branch_right_left = pep669 and PYVERSION > (3,14,0,a5)` 때문에 **Python 3.12 + `branch = true`** 조합은
   `core.py` 가 sysmon 을 거부하고 ctrace 로 폴백한다. 계측 배율 실측 **1.770배**(무계측 298.97s vs 계측 529.16s).
+  ★2026-11-04 Python 3.14 로 올라가 이 조건이 풀렸다 — sysmon 채택은 **재측정 후** 별도로 판단한다.
 - ★★★**커버리지 수치는 샤드 누락을 못 본다.** 샤드 a·b 의 데이터 파일은 **내용이 동일**해서
   `coverage combine` 이 `Skipping duplicate data` 를 찍는다 — 즉 **그 아티팩트가 통째로 사라져도 최종
   수치가 안 움직인다.** 그래서 `backend_coverage` 는 조각 **개수**를 `shards.json` 키 개수와 대조한다.
