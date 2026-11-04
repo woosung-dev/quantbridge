@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { AlertTriangleIcon, BellIcon, ClockIcon, RefreshCwIcon, WifiIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
+import { useNowTick } from "@/hooks/use-now-tick";
 import { AlertRuleForm } from "@/features/alert-rules/components/alert-rule-form";
 import { formatThresholdPercent } from "@/features/alert-rules/format";
 import { useAlertRules, useDeactivateAlertRule } from "@/features/alert-rules/hooks";
@@ -223,11 +224,14 @@ function AlertRulesDiagnostic({ session }: { session: LiveSession | null }) {
   );
 }
 
-function relativeEventTime(lastEventTs: number | null): string {
+// 문구 해상도가 분 단위라 30초면 최대 30초 늦게 바뀐다.
+const EVENT_LABEL_TICK_MS = 30_000;
+
+function relativeEventTime(lastEventTs: number | null, now: number): string {
   if (lastEventTs === null) return "이벤트 대기 중";
   // ★`lastEventTs` 는 WS envelope 의 epoch-**ms** 다(BE `realtime/schemas.py`). 종전에는 초로 빼서
   //   언제나 음수 → 0 → 「방금 전 이벤트」였다 — 스트림이 멈춰도 카드가 신선해 보였다.
-  const seconds = Math.max(0, Math.floor((Date.now() - lastEventTs) / 1000));
+  const seconds = Math.max(0, Math.floor((now - lastEventTs) / 1000));
   if (seconds < 60) return "방금 전 이벤트";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}분 전 이벤트`;
   return `${Math.floor(seconds / 3600)}시간 전 이벤트`;
@@ -238,8 +242,11 @@ function RealtimeDiagnostic() {
   // `lastEventTs` 는 ticker 를 포함한 **모든** WS 이벤트마다 바뀐다. 원값을 구독하면 이 카드가
   // 틱마다 재렌더되지만 화면에 나가는 것은 분 단위 문구뿐이다 — 문구(string)를 구독해
   // 문구가 바뀔 때만 재렌더한다.
+  // ★`now` 는 이 카드의 자체 시계다 — 스트림이 멈추면 store 가 안 바뀌어 재렌더가 없고, 컴파일러가
+  //   부모 재렌더도 막는다. 시계가 없으면 문구가 「방금 전」에 얼어 멈춘 스트림이 신선해 보인다.
+  const now = useNowTick(EVENT_LABEL_TICK_MS);
   const eventLabel = useRealtimeStore((state) =>
-    relativeEventTime(selectLastRealtimeEventTs(state)),
+    relativeEventTime(selectLastRealtimeEventTs(state), now),
   );
   const pollingNote = "폴링 스냅샷이 정합성 기준이며 스트림은 갱신 힌트입니다.";
 

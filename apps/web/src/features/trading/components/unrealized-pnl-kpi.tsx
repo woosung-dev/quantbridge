@@ -19,23 +19,11 @@
 //   부르므로 §08 은 WS 이벤트마다 계속 재렌더된다. 그것은 §08 자신의 구독이지 코크핏 경유가
 //   아니므로 범위가 이미 격리돼 있고, 이 회차의 표적도 아니다.
 
-import { useEffect, useState } from "react";
-
+import { useNowTick } from "@/hooks/use-now-tick";
 import { useUnrealizedPnlEstimate } from "@/features/live-sessions/unrealized";
 import type { LiveSession } from "@/features/live-sessions/schemas";
 
 const TICKER_STALE_MS = 15_000;
-
-function useNowTick(intervalMs: number): number {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs]);
-
-  return now;
-}
 
 // 손익 톤 — 옵티마이저 pnlTone 과 같은 0-중립 규약(양수 pos / 음수 neg / 0 중립).
 // 프로토타입 screen-01:1188 은 kpi-value mono pos 로 물들인다.
