@@ -191,11 +191,11 @@ observer v17·inventory v15가 새 guard를 인식하며, host fixture는 기존
 총813개다. namespace 집계 v8의 fixture는74개다. 앞선 guard와 네 원본의 v2 승인 해석을
 그대로 유지한다. 실제 격리 protocol 통과와 별도 승인 전에는 금융 실행을 허용하지 않는다.
 
-`1ulzceoX`의 `fixed_input_shared_event_policy_invariance`는 scoped14와 normalizer10을 사용한다. 기본 Long 최종사건의 8개 수치·피벗 후보를 15개 입력 전체에서 대조해 1h/P4와 4h·1d 전기간 22셀만 허용하고 1h/P1·P2·P3·P5의 8셀은 실행하지 않는다. 원격 feed는 비어 있으며 내부 점수·수치 상태 전체 동일은 주장하지 않는다. root가 851개 host fixture·74개 namespace fixture와 실제 43,334행의 정규화 계약을 확인했다. scoped13 이전 위임과 기존 4개 v2의 scoped10 resolver는 보존한다. BP/K4의 기존 scoped3 연결 오류는 별도 보충승인 수리 대상이며 이 fixture 통과로 그 승인까지 유효하다고 판단하지 않는다.
+`1ulzceoX`의 `fixed_input_shared_event_policy_invariance`는 scoped14와 normalizer10을 사용한다. 기본 Long 최종사건의 8개 수치·피벗 후보를 15개 입력 전체에서 대조해 1h/P4와 4h·1d 전기간 22셀만 허용하고 1h/P1·P2·P3·P5의 8셀은 실행하지 않는다. 원격 feed는 비어 있으며 내부 점수·수치 상태 전체 동일은 주장하지 않는다. 검증 범위는 851개 host fixture·74개 namespace fixture와 고정15의 43,334행 정규화 계약이다. scoped13 이전 위임과 기존 4개 v2의 scoped10 resolver는 보존한다. BP/K4의 기존 scoped3 연결 오류는 별도 보충승인 수리 대상이며 이 fixture 통과로 그 승인까지 유효하다고 판단하지 않는다.
 
-BP/K4의 기존 scoped3 연결은 소비 후 수정하지 않는다. root가 정확 두 원본의 보충 승인 v2와 적용 영수증을 봉인하고 scoped15로 검증한다. BP의 24/6·K4의 16/14 범위 및 worker가 읽는 원래 context·code-review 바이트는 유지한다. BP의 원래 독립산술 helper·공통 CSV reader·재심 증거 3핀만 qualification 검증용 복사본에 추가한다. worker에는 원래 runtime proof를 반환한다. 기존 4개 v2는 scoped10 resolver에 그대로 위임하며, namespace10은 inventory17과 scoped15를 정확 SHA로 고른다(CLI 산출물 이름의 v8 접두사는 구형 호환 표기다). 추가 모델 요청·전략 재실행·금융 실행 없이 새 교정 57개와 namespace 74개 검사를 root가 다시 통과시켰다.
+BP/K4의 기존 scoped3 연결은 소비 후 수정하지 않는다. root가 정확 두 원본의 보충 승인 v2와 적용 영수증을 봉인하고 scoped15로 검증한다. BP의 24/6·K4의 16/14 범위 및 worker가 읽는 원래 context·code-review 바이트는 유지한다. BP의 원래 독립산술 helper·공통 CSV reader·재심 증거 3핀만 qualification 검증용 복사본에 추가한다. worker에는 원래 runtime proof를 반환한다. 기존 4개 v2는 scoped10 resolver에 그대로 위임하며, namespace10은 inventory17과 scoped15를 정확 SHA로 고른다(CLI 산출물 이름의 v8 접두사는 구형 호환 표기다). 승인 연결은 새 교정 57개와 namespace 74개 검사로 검증하며 추가 모델 요청·전략 재실행·금융 실행을 만들지 않는다.
 
-root가 독립 host fixture 119개를 통과시켜 채택한 scoped16은 `biSRGk4f`에만
+독립 host fixture 119개를 검증하는 scoped16은 `biSRGk4f`에만
 `fixed_input_recursive_private_cost_feedback_invariance`를 적용한다. 허용 범위는
 1h P3/P4, 4h P1/P2/P5, 1d P1–P5의 20셀이다. 보류 10셀 중 P3/4h의 2셀은
 명시한 동일 SDK 일정에서 사설 비용 비교의 수치 후보에 따라 close/hold가 갈리고,
