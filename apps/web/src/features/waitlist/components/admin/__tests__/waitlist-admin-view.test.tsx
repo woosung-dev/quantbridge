@@ -169,6 +169,19 @@ describe("WaitlistAdminView", () => {
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 
+  it("승인 실패 ApiError 422 + detail — `API 422 …` 대신 서버 사유를 toast 로 보낸다", () => {
+    listState = { data: { items: [APPLICATION], total: 1 }, isPending: false, error: null };
+    render(<WaitlistAdminView />);
+
+    approveCallbacks.onError?.(
+      new ApiError(422, "invalid_status", "API 422 /api/v1/waitlist/1/approve", {
+        detail: "이미 승인된 신청입니다.",
+      }),
+    );
+
+    expect(toastError).toHaveBeenCalledWith("이미 승인된 신청입니다.");
+  });
+
   it("데이터 0건 — 빈 상태를 렌더하고 던지지 않는다", () => {
     listState = { data: { items: [], total: 0 }, isPending: false, error: null };
 

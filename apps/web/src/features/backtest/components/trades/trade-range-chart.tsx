@@ -13,6 +13,7 @@ import { formatCurrency, formatDateTime } from "@/features/backtest/utils";
 import { resolveChartTokens } from "@/lib/chart-tokens";
 
 import { deriveTradeMarkers } from "@/features/backtest/components/charts/marker-layer";
+import { describeApiError } from "@/lib/api-client";
 
 interface TradeRangeChartProps {
   backtestId: string;
@@ -56,7 +57,7 @@ export function TradeRangeChart({ backtestId, tradeIndex, trade }: TradeRangeCha
             testId="trade-range-chart-error"
             icon={<AlertTriangleIcon />}
             title="거래 구간 가격을 불러오지 못했습니다."
-            body={ohlcv.error.message}
+            body={describeApiError(ohlcv.error)}
             code={`GET /api/v1/backtests/${backtestId}/trades/${tradeIndex}/ohlcv`}
           />
         </div>

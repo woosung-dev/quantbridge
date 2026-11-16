@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useRegisterExchangeAccount } from "../hooks";
 import { RegisterAccountRequestSchema, type RegisterAccountRequest } from "../schemas";
+import { describeApiError } from "@/lib/api-client";
 
 export function RegisterExchangeAccountDialog() {
   const [open, setOpen] = useState(false);
@@ -47,7 +48,7 @@ export function RegisterExchangeAccountDialog() {
       setOpen(false);
       form.reset();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "계정 등록 실패";
+      const message = describeApiError(err, "계정 등록 실패");
       form.setError("root.serverError", { type: "manual", message });
     }
   };

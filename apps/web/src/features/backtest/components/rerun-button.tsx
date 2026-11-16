@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useCreateBacktest } from "@/features/backtest/hooks";
 import type { BacktestDetail } from "@/features/backtest/schemas";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
+import { describeApiError } from "@/lib/api-client";
 
 interface RerunButtonProps {
   backtest: BacktestDetail;
@@ -27,7 +28,7 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
       router.push(`/backtests/${created.backtest_id}`);
     },
     onError: (err) => {
-      toast.error(`재실행 실패: ${err.message}`);
+      toast.error(`재실행 실패: ${describeApiError(err)}`);
     },
   });
 

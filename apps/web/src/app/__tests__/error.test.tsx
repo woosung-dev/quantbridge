@@ -18,6 +18,7 @@ vi.mock("sonner", () => ({
 }));
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   mockToastSuccess.mockReset();
   mockToastError.mockReset();
@@ -78,5 +79,19 @@ describe("GlobalError — 500 C 구조", () => {
     render(<GlobalError error={makeError()} reset={reset} />);
     fireEvent.click(screen.getByTestId("error-retry-button"));
     expect(reset).toHaveBeenCalledTimes(1);
+  });
+
+  it("발생 시각은 시스템 TZ 와 무관하게 실제 KST 로 표기한다", () => {
+    const prevTz = process.env.TZ;
+    process.env.TZ = "UTC";
+    try {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-11-16T15:30:45Z"));
+      const { container } = render(<GlobalError error={makeError()} reset={vi.fn()} />);
+      expect(container.textContent).toContain("2026-11-17 00:30:45 KST");
+    } finally {
+      if (prevTz === undefined) delete process.env.TZ;
+      else process.env.TZ = prevTz;
+    }
   });
 });

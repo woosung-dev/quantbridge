@@ -39,6 +39,7 @@ import { StateBox } from "@/components/state-box";
 import { StatValue } from "@/components/stat-value";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 import { TableScrollRegion } from "@/components/table-scroll-region";
+import { describeApiError } from "@/lib/api-client";
 
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/backtests";
@@ -287,7 +288,11 @@ export function BacktestList() {
                 testId="backtest-error"
                 icon={<AlertTriangleIcon />}
                 title="목록을 불러오지 못했습니다."
-                body={error ? error.message : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
+                body={
+                  error
+                    ? describeApiError(error)
+                    : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
+                }
                 code={LIST_ENDPOINT}
               >
                 <button className="btn btn-ghost" type="button" onClick={() => refetch()}>

@@ -10,6 +10,7 @@ import { AlertCircleIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { useCreateStrategy } from "@/features/strategy/hooks";
+import { describeApiError } from "@/lib/api-client";
 
 const SAMPLE_PINE_URL = "/samples/ema-crossover.pine";
 const SAMPLE_STRATEGY_NAME = "EMA Crossover Demo (Onboarding)";
@@ -66,14 +67,15 @@ export function Step2Strategy({
             onStrategyReady(data.id);
           },
           onError: (err) => {
-            setFetchError(err.message);
-            toast.error(`전략 등록 실패: ${err.message}`);
+            const message = describeApiError(err);
+            setFetchError(message);
+            toast.error(`전략 등록 실패: ${message}`);
           },
         },
       );
     } catch (err) {
       if (controller.signal.aborted) return; // unmount/재시도 abort — 상태 갱신 생략
-      const message = err instanceof Error ? err.message : "알 수 없는 오류";
+      const message = describeApiError(err, "알 수 없는 오류");
       setFetchError(message);
       toast.error(message);
     } finally {

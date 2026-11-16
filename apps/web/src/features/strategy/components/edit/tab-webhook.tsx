@@ -23,6 +23,7 @@ import {
   subscribeWebhookSecret,
 } from "@/features/strategy/webhook-secret-storage";
 import { getWebhookBaseUrl } from "@/lib/webhook-base";
+import { describeApiError } from "@/lib/api-client";
 
 type TabWebhookProps = {
   strategyId: string;
@@ -49,7 +50,7 @@ export function TabWebhook({ strategyId }: TabWebhookProps) {
       setConfirmOpen(false);
       toast.success("새 webhook secret 을 발급했습니다");
     },
-    onError: (err) => toast.error(`회전 실패: ${err.message}`),
+    onError: (err) => toast.error(`회전 실패: ${describeApiError(err)}`),
   });
 
   const handleCopy = async (text: string, field: "url" | "secret") => {

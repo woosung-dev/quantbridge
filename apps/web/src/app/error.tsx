@@ -182,9 +182,21 @@ export default function GlobalError({
   );
 }
 
-// 발생 시각 포맷 — KST 표기.
+// 발생 시각 포맷 — 브라우저 로컬 시각이 아니라 실제 KST(Asia/Seoul)로 계산한다.
+const KST_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
 function formatNowKst(): string {
-  const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())} KST`;
+  const p = Object.fromEntries(
+    KST_FORMATTER.formatToParts(new Date()).map((x) => [x.type, x.value]),
+  );
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second} KST`;
 }

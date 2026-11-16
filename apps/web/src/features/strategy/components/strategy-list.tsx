@@ -40,6 +40,7 @@ import { StateBox } from "@/components/state-box";
 import { StatValue } from "@/components/stat-value";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 import { TableScrollRegion } from "@/components/table-scroll-region";
+import { describeApiError } from "@/lib/api-client";
 
 const PAGE_SIZE = 20;
 const SKELETON_ROW_KEYS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
@@ -375,7 +376,11 @@ export function StrategyList() {
                 testId="strategy-error"
                 icon={<AlertTriangleIcon />}
                 title="목록을 불러오지 못했습니다."
-                body={error ? error.message : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
+                body={
+                  error
+                    ? describeApiError(error)
+                    : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
+                }
                 code={LIST_ENDPOINT}
               >
                 <button className="btn btn-ghost" type="button" onClick={() => refetch()}>

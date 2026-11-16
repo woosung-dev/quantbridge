@@ -151,8 +151,9 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     fireEvent.click(screen.getByRole("button", { name: /다음 단계로 진행/ }));
     expect(screen.getByTestId("onboarding-step-panel").getAttribute("data-step")).toBe("strategy");
 
-    // 뒤로 버튼 → welcome
-    fireEvent.click(screen.getByRole("button", { name: /← 이전/ }));
+    // 뒤로 버튼 → welcome. step 2 는 `next/dynamic` 이라 모듈 로드가 끝난 뒤에야 버튼이 나온다 —
+    // 동기 조회는 로드 시간에 기대는 경합이다(step 2 의 import 가 늘면 깨진다).
+    fireEvent.click(await screen.findByRole("button", { name: /← 이전/ }));
     expect(screen.getByTestId("onboarding-step-panel").getAttribute("data-step")).toBe("welcome");
   });
 

@@ -22,6 +22,7 @@ import { CHIP_TONE_CLASS } from "@/lib/labels";
 import { BacktestReportShell } from "@/features/backtest/components/report/backtest-report-shell";
 import { RerunButton } from "@/features/backtest/components/rerun-button";
 import { ShareButton } from "@/features/backtest/components/share-button";
+import { describeApiError } from "@/lib/api-client";
 
 const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
 
@@ -57,7 +58,7 @@ export function BacktestDetailView({ id }: { id: string }) {
               title="백테스트 정보를 불러오지 못했습니다."
               body={
                 detail.error
-                  ? detail.error.message
+                  ? describeApiError(detail.error)
                   : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
               }
               code={`GET /api/v1/backtests/${id}`}

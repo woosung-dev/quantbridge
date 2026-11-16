@@ -43,6 +43,7 @@ import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 import { WorkspaceEquityCard } from "./workspace-equity-card";
 import { TableScrollRegion } from "@/components/table-scroll-region";
+import { describeApiError } from "@/lib/api-client";
 
 const RECENT_RUNS_LIMIT = 8;
 const STRATEGY_FETCH_LIMIT = 100;
@@ -472,7 +473,7 @@ export function DashboardCockpit() {
                 title="전략 목록을 불러오지 못했습니다."
                 body={
                   strategyListQ.error
-                    ? strategyListQ.error.message
+                    ? describeApiError(strategyListQ.error)
                     : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
                 }
                 code="GET /api/v1/strategies"
