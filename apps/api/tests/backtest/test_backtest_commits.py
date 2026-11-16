@@ -114,6 +114,81 @@ async def test_cancel_winner_calls_repo_commit() -> None:
     repo.commit.assert_awaited_once()
 
 
+def _running_bt_with_task_id(task_id: str) -> Backtest:
+    return Backtest(
+        id=uuid4(),
+        user_id=uuid4(),
+        strategy_id=uuid4(),
+        symbol="BTC/USDT",
+        timeframe="1h",
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        period_end=datetime(2024, 1, 7, tzinfo=UTC),
+        initial_capital=Decimal("10000"),
+        status=BacktestStatus.RUNNING,
+        celery_task_id=task_id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_cancel_running_with_task_id_requests_revoke_once() -> None:
+    """celery_task_id 가 있는 running cancel 은 dispatcher 에 그 id 로 revoke 를 1회 요청한다."""
+    from src.backtest.dispatcher import FakeTaskDispatcher
+    from src.backtest.service import BacktestService
+
+    bt = _running_bt_with_task_id("celery-task-abc")
+    repo = AsyncMock()
+    repo.get_by_id = AsyncMock(return_value=bt)
+    repo.request_cancel = AsyncMock(return_value=1)
+    dispatcher = FakeTaskDispatcher()
+
+    svc = BacktestService(
+        repo=repo,
+        strategy_repo=AsyncMock(),
+        ohlcv_provider=AsyncMock(),
+        dispatcher=dispatcher,
+    )
+
+    resp = await svc.cancel(bt.id, user_id=bt.user_id)
+
+    assert dispatcher.revoked == ["celery-task-abc"]
+    assert dispatcher.dispatched == []
+    assert resp.status == BacktestStatus.CANCELLING
+    repo.request_cancel.assert_awaited_once()
+    repo.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_cancel_succeeds_when_revoke_raises() -> None:
+    """revoke 는 best-effort — dispatcher 가 던져도 cancel 은 CANCELLING 으로 commit 한다."""
+    from src.backtest.dispatcher import FakeTaskDispatcher
+    from src.backtest.service import BacktestService
+
+    class _RaisingRevokeDispatcher(FakeTaskDispatcher):
+        def revoke_backtest(self, celery_task_id: str) -> None:
+            self.revoked.append(celery_task_id)
+            raise RuntimeError("broker down")
+
+    bt = _running_bt_with_task_id("celery-task-boom")
+    repo = AsyncMock()
+    repo.get_by_id = AsyncMock(return_value=bt)
+    repo.request_cancel = AsyncMock(return_value=1)
+    dispatcher = _RaisingRevokeDispatcher()
+
+    svc = BacktestService(
+        repo=repo,
+        strategy_repo=AsyncMock(),
+        ohlcv_provider=AsyncMock(),
+        dispatcher=dispatcher,
+    )
+
+    resp = await svc.cancel(bt.id, user_id=bt.user_id)
+
+    assert dispatcher.revoked == ["celery-task-boom"]
+    assert resp.status == BacktestStatus.CANCELLING
+    repo.request_cancel.assert_awaited_once()
+    repo.commit.assert_awaited_once()
+
+
 @pytest.mark.asyncio
 async def test_delete_terminal_calls_repo_commit() -> None:
     """LESSON-019 spy: delete() (terminal status) 가 repo.commit() 호출 강제."""

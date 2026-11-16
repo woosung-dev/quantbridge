@@ -9,6 +9,10 @@ from uuid import UUID
 class OrderDispatcher(Protocol):
     async def dispatch_order_execution(self, order_id: UUID) -> None: ...
 
+    async def dispatch_order_cancel(self, order_id: UUID) -> None:
+        """submitted 주문의 거래소 취소 task를 예약한다(CF4)."""
+        ...
+
 
 class StrategySessionsPort(Protocol):
     """Sprint 7d. OrderService → strategy.trading_sessions 조회 어댑터.

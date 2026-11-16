@@ -145,6 +145,11 @@ class _CeleryOrderDispatcher:
 
         execute_order_task.delay(str(order_id))
 
+    async def dispatch_order_cancel(self, order_id: UUID) -> None:
+        from src.tasks.trading import cancel_order_task
+
+        cancel_order_task.delay(str(order_id))
+
 
 def get_order_dispatcher() -> OrderDispatcher:
     return _CeleryOrderDispatcher()

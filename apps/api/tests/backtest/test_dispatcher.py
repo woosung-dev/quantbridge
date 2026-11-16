@@ -1,4 +1,5 @@
 """TaskDispatcher 구현체 테스트."""
+
 from __future__ import annotations
 
 from uuid import uuid4
@@ -17,6 +18,11 @@ class TestNoopTaskDispatcher:
         with pytest.raises(RuntimeError, match="must not dispatch"):
             d.dispatch_backtest(uuid4())
 
+    def test_raises_on_revoke(self) -> None:
+        d = NoopTaskDispatcher()
+        with pytest.raises(RuntimeError, match="NoopTaskDispatcher must not revoke"):
+            d.revoke_backtest("task-1")
+
 
 class TestFakeTaskDispatcher:
     def test_returns_fixed_id(self) -> None:
@@ -29,3 +35,10 @@ class TestFakeTaskDispatcher:
         d.dispatch_backtest(id1)
         d.dispatch_backtest(id2)
         assert d.dispatched == [id1, id2]
+
+    def test_records_revokes(self) -> None:
+        d = FakeTaskDispatcher()
+        d.revoke_backtest("task-a")
+        d.revoke_backtest("task-b")
+        assert d.revoked == ["task-a", "task-b"]
+        assert d.dispatched == []

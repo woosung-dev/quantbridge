@@ -100,9 +100,7 @@ class OrderService:
             # 보호 주문은 전용 risk 경로에서 귀속·terminal을 확인하며 취소한다.
             return CancelOutcome("conflict")
         if order.state == OrderState.submitted:
-            from src.tasks.trading import cancel_order_task
-
-            cancel_order_task.delay(str(order_id))
+            await self._dispatcher.dispatch_order_cancel(order_id)
             return CancelOutcome("exchange_requested")
 
         rowcount = await self._repo.transition_pending_to_cancelled(
