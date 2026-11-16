@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from typing import Any
@@ -22,6 +21,7 @@ from unittest.mock import AsyncMock, MagicMock
 import ccxt.async_support as ccxt_async
 import pytest
 
+from src.trading import providers as providers_module
 from src.trading.exceptions import ProviderError
 from src.trading.models import OrderSide, OrderType
 from src.trading.providers import (
@@ -266,7 +266,6 @@ async def test_cancellation_is_not_wrapped(
 @pytest.mark.parametrize(("cls_name", "method", "call", "event"), _SITE_PARAMS)
 async def test_close_failure_keeps_original_error_and_logs_event(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
     cls_name: str,
     method: str,
     call: Call,
@@ -275,14 +274,15 @@ async def test_close_failure_keeps_original_error_and_logs_event(
     original = ccxt_async.NetworkError("venue down")
     exchange = _install_exchange(monkeypatch, cls_name, method, original)
     exchange.close = AsyncMock(side_effect=OSError("socket"))
+    # caplog 에 기대면 CI 전량 실행에서 레코드가 0건이었다(격리 실행은 초록 · 오염원 미특정).
+    # 레포 관례(`websocket/test_position_fanout.py`)대로 로거 호출을 직접 가로챈다.
+    warnings: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        providers_module.logger, "warning", lambda msg, *a, **k: warnings.append((str(msg), k))
+    )
 
-    with (
-        caplog.at_level(logging.WARNING, logger="src.trading.providers"),
-        pytest.raises(ProviderError) as info,
-    ):
+    with pytest.raises(ProviderError) as info:
         await call()
 
     assert str(info.value) == "NetworkError: venue down"
-    records = [r for r in caplog.records if r.getMessage() == event]
-    assert len(records) == 1
-    assert records[0].exc_info is not None
+    assert warnings == [(event, {"exc_info": True})]
