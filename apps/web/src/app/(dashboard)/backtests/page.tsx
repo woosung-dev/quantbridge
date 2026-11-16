@@ -27,13 +27,13 @@ export default async function BacktestsPage({
   //   종전에는 여기서 `{limit, offset}` 만 넣어 정렬 축이 빠졌고, 그래서 hydrate 된 캐시를
   //   클라이언트가 못 써서 같은 목록이 SSR 과 브라우저에서 각각 한 번씩 나갔다([BL-786]).
   //   두 곳이 같은 생성자를 부르게 해 다시 어긋날 수 없게 한다.
-  const params = await searchParams;
+  // searchParams 와 세션 조회는 서로 독립이라 함께 기다린다(async-parallel).
+  const [params, { userId, token }] = await Promise.all([searchParams, getServerAuth()]);
   const orderByParam = Array.isArray(params.order_by) ? params.order_by[0] : params.order_by;
   const orderParam = Array.isArray(params.order) ? params.order[0] : params.order;
   const query = buildBacktestListQuery(orderByParam, orderParam);
   const queryClient = new QueryClient();
 
-  const { userId, token } = await getServerAuth();
   const uid = userId ?? "anon";
 
   if (token) {

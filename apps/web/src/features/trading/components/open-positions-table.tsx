@@ -30,6 +30,7 @@ import {
   type LiveSessionPositionRow,
 } from "@/features/live-sessions/hooks";
 import type { LiveSession, LiveSessionPositions } from "@/features/live-sessions/schemas";
+import { EMPTY_CELL } from "@/lib/labels";
 
 export const POSITION_VERDICT_HEADING: Record<LiveSessionPositions["diff"]["verdict"], string> = {
   match: "거래소와 일치",
@@ -46,8 +47,6 @@ const POSITION_UNSUPPORTED_BODY: Record<string, string> = {
   spot_position_api_unsupported: "현물 세션의 포지션 대조는 아직 지원하지 않습니다.",
   settings_unset: "전략 레버리지 설정이 없어 포지션을 대조할 수 없습니다.",
 };
-
-export const EMPTY_CELL = "—";
 
 function formatPrices(prices: string[]): string {
   return prices.length > 0 ? prices.join(", ") : EMPTY_CELL;

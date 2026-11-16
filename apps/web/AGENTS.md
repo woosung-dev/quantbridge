@@ -74,7 +74,7 @@ RHF `watch()` · Zod `.parse()` 결과. **이유:** Fast Refresh / StrictMode �
 **H-3. render body 에서 `ref.current = value` 대입 금지** (React 공식 예시를 따라도 안 됨).
 **이유:** Compiler 의 재실행/메모이제이션 가정과 충돌한다. **대신 deps 배열 없는 sync `useEffect`** 로 옮긴다
 (매 commit 실행 — render 직후 commit phase 라 기능상 동일). Debouncer 표준 = `useRef` + 그 `useEffect` +
-timeout 콜백에서 `ref.current` 읽기. 실물 = `features/strategy/draft.ts:157` · `features/realtime/realtime-bridge.tsx:35`.
+timeout 콜백에서 `ref.current` 읽기. 실물 = `features/strategy/draft.ts:181` · `features/realtime/realtime-bridge.tsx:43`.
 
 - ⚠️**기계 방어선 0** — Biome 대체분 `nursery/useReactCompiler` 는 **한글 파일에서 panic** 한다.
   ★**2026-11-04 React Compiler 를 켰다**(`next.config.ts` `reactCompiler: true`) — 이 규칙을 어긴 컴포넌트는 컴파일러가 **조용히 건너뛴다**(오동작은 아니고 자동 메모이제이션만 빠진다)
@@ -95,7 +95,7 @@ src/
 │                 #   ★비즈니스 로직 금지. 화면을 그리는 컴포넌트도 여기 소유가 아니다
 ├── components/   # 도메인을 **모르는** 공통 UI 만 (ui/ layout/ legal/ charts/ monaco/ …)
 │                 #   ★ui/ = shadcn 이식분, 직접 수정 금지(§9) · lint·format 게이트 **밖**이다
-├── features/     # ★Business Layer: 도메인 단위 모듈 (현재 12종 — `ls src/features`)
+├── features/     # ★Business Layer: 도메인 단위 모듈 (현재 13종 — `ls src/features`)
 │                 #   <domain>/ = components/(★화면 컴포넌트의 기본 자리) api.ts query-keys.ts
 │                 #               hooks.ts schemas.ts store.ts types.ts — 필요한 것만
 ├── hooks/        # 도메인 무관 공통 훅 (use- 접두사 kebab-case)
@@ -122,7 +122,7 @@ src/
 `features/<domain>/` 소유로 옮긴다. 테스트는 예외다.
 
 **★컴포넌트를 옮길 때** — `src/__tests__/no-raw-enum-labels.test.ts` 는 스캔 대상을 디렉터리 목록
-(`SCOPE_MARKERS`)으로 정의하고 사라진 디렉터리를 만나면 **throw 한다**(`:213`). 목록을 함께 고쳐라.
+(`SCOPE_MARKERS`)으로 정의하고 사라진 디렉터리를 만나면 **throw 한다**(`:216`). 목록을 함께 고쳐라.
 이동 전후 대조 = `cd apps/web && node scripts/canon-scope-census.mjs`.
 
 ## 5. 반응형 — 본문은 §10
@@ -172,12 +172,12 @@ src/
 
 - **신규 Tailwind 컴포넌트 = mobile-first 필수.** 기본이 모바일(320px~)이고 `sm:`/`md:`/`lg:` 로 확장한다
 - ★CSS 정본 파일은 **`src/styles/globals.css`** 다(`app/globals.css` 는 없다). 그 안의 **KITPORT
-  (`KITPORT-START:966`~`KITPORT-END:1876`)·화면 전용 CSS** 는 **desktop-first 관례**(폭 미디어 31곳 중 30곳이
+  (`KITPORT-START:978`~`KITPORT-END:1888`)·화면 전용 CSS** 는 **desktop-first 관례**(폭 미디어 31곳 중 31곳이
   `max-width`)를 따른다 — 한 파일에 두 방향을 섞으면 사람이 못 읽는다. 전면 전환은 [BL-647]
 - ★**KITPORT 구간엔 주석 한 줄도 넣지 마라** — `src/__tests__/design-canon-kit-port.test.ts` 가 `_kit.html` 과
   **주석까지 포함해** 대조한다. §10 에서 **유일하게 CI 가 집행하는 축**이다
 
-**브레이크포인트 — ★Tailwind v4 기본값이 아니다.** `globals.css:204-211` 의 `@theme` 이 재정의한다:
+**브레이크포인트 — ★Tailwind v4 기본값이 아니다.** `globals.css:215-222` 의 `@theme` 이 재정의한다:
 `sm:` **375**(기본 640) · `md:` 768(**앱 셸 사이드바 숨김 경계**) · `lg:` 1024(**앱 셸 아이콘 레일 경계**) ·
 `xl:` **1200**(기본 1280 · 콘텐츠 그리드 2열화) · `2xl:` **1440**(기본 1536 · 실사용 0건).
 
@@ -185,7 +185,7 @@ src/
 숫자(768px 등)에서는 둘 다 참**이라 같은 요소를 양쪽에서 숨기면 **데드심**이 난다(2026-08-18 실발화 —
 햄버거는 보이는데 드로어가 `md:hidden`). ★Tailwind v4 의 `max-[1024px]:` 는 `width < 1024`(**경계 미포함**)로
 컴파일돼 KITPORT `max-width:1024`(포함)와 어긋난다. ⇒ 셸 정합은 **`min-[769px]:` / `min-[1025px]:`** 로 잡는다
-(`dashboard-shell.tsx:54` · `mobile-nav.tsx:42`, 회귀 = `layout/__tests__/dashboard-shell.test.tsx:159`).
+(`dashboard-header.tsx:64` · `mobile-nav.tsx:47`, 회귀 = `features/dashboard/components/__tests__/dashboard-shell.test.tsx:159`).
 유틸로 경계 포함이 안 되면 `globals.css` 에 평범한 raw 규칙을 써라(`:4017` 선례).
 
 **앱 셸 · 900px · 완료 체크리스트의 정본은 [`DESIGN.md`](../../DESIGN.md) 다** — 앱 셸 값(`--sidebar-w` 232/64/0 ·

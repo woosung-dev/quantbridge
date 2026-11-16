@@ -78,19 +78,7 @@ function formatUtcDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/**
- * ISO → YYYY-MM-DD HH:mm (UTC).
- */
-export function formatDateTime(iso: string | number | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  // 이미 파싱한 Date 를 넘긴다 — 종전엔 formatDate(iso) 가 같은 문자열을 한 번 더 파싱했다.
-  const base = formatUtcDate(d);
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mm = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${base} ${hh}:${mm}`;
-}
+export { formatDateTime } from "@/lib/format";
 
 /**
  * ISO → HH:mm:ss (UTC). 주문 시각처럼 초 단위가 필요한 표에서 쓴다. 날짜는 formatDate 로
