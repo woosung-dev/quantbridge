@@ -54,11 +54,6 @@ def build_ohlcv_provider_for_worker(session: AsyncSession) -> OHLCVProvider:
     return build_ohlcv_provider(session, _worker_ccxt)
 
 
-async def get_ccxt_provider(request: Request) -> CCXTProvider | None:
-    """FastAPI lifespan에서 init된 singleton (ohlcv_provider=timescale일 때만 non-None)."""
-    return request.app.state.ccxt_provider  # type: ignore[no-any-return]
-
-
 async def get_ohlcv_provider(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_async_session)],

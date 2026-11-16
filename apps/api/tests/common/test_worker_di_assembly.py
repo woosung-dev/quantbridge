@@ -15,7 +15,7 @@ from src.backtest.dependencies import (
 )
 from src.backtest.dispatcher import CeleryTaskDispatcher, NoopTaskDispatcher
 from src.core.config import settings
-from src.market_data.dependencies import get_ccxt_provider, get_ohlcv_provider
+from src.market_data.dependencies import get_ohlcv_provider
 from src.market_data.providers.fixture import FixtureProvider
 from src.market_data.providers.timescale import TimescaleProvider
 from src.optimizer.dependencies import (
@@ -189,17 +189,6 @@ def test_worker_builder_reads_provider_setting_at_call_time(
     assert isinstance(fixture_service.provider, FixtureProvider)
     assert isinstance(timescale_service.provider, TimescaleProvider)
     assert timescale_service.provider.ccxt is ccxt_provider
-
-
-@pytest.mark.asyncio
-async def test_get_ccxt_provider_returns_request_app_state_identity() -> None:
-    """HTTP DI는 lifespan가 보관한 CCXT singleton을 변형 없이 넘긴다."""
-    ccxt_provider = object()
-    request = _request_with_ccxt(ccxt_provider)
-
-    result = await get_ccxt_provider(request)
-
-    assert result is ccxt_provider
 
 
 @pytest.mark.asyncio
