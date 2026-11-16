@@ -96,6 +96,17 @@ printf '%s %s\n' "$(basename "$0")" "$*" >> "$FAKE_LOG"
 exit 0
 """
 
+# 처음 FAKE_CURL_FAILS 번은 「연결 거부」(rc 7), 그 뒤로는 성공. 기본 0 = 항상 성공.
+FAKE_CURL = r"""#!/usr/bin/env bash
+printf 'curl %s\n' "$*" >> "$FAKE_LOG"
+seen="$(grep -c '^curl ' "$FAKE_LOG")"
+if [ "${seen}" -le "${FAKE_CURL_FAILS:-0}" ]; then
+  echo "curl: (7) Failed to connect to 127.0.0.1 port 8100" >&2
+  exit 7
+fi
+exit 0
+"""
+
 FAKE_API_PYTHON = r"""#!/usr/bin/env bash
 printf 'api-python %s\n' "$*" >> "$FAKE_LOG"
 exit "${FAKE_PROBE_RC:-0}"
@@ -131,8 +142,9 @@ def run(
     bin_dir.mkdir(exist_ok=True)
     _write_exec(bin_dir / "docker", FAKE_DOCKER)
     _write_exec(bin_dir / "git", FAKE_GIT)
-    for name in ("uv", "systemctl", "curl", "sleep"):
+    for name in ("uv", "systemctl", "sleep"):
         _write_exec(bin_dir / name, FAKE_LOGGER)
+    _write_exec(bin_dir / "curl", FAKE_CURL)
     api_python = _write_exec(tmp_path / "api-python", FAKE_API_PYTHON)
     notify = _write_exec(tmp_path / "notify", FAKE_NOTIFY)
 
@@ -364,6 +376,33 @@ def test_concurrent_deploy_is_refused_with_rc75_and_changes_nothing(tmp_path: Pa
     assert not any(c.startswith("git ") and "pull" in c for c in calls)
     assert not any(c.startswith("pull ") for c in calls)
     assert not (root / ".env").exists()
+
+
+def _health_calls(calls: list[str]) -> list[str]:
+    return [c for c in calls if c.startswith("curl ") and c.endswith("/health")]
+
+
+def test_health_is_retried_until_the_api_answers(tmp_path: Path) -> None:
+    """재시작 직후의 `Connection refused` 는 실패가 아니다 — 뜰 때까지 다시 묻는다.
+
+    2026-11-16 실측: API 가 재시작 8초 만에 떴는데(평소 5초) 고정 `sleep 8` 뒤 **한 번만** 물어
+    배포가 red 였다. API 는 그 직후 정상이었고 재시작도 0회였다.
+    """
+    proc, calls, body, _ = run(tmp_path, "0123456789abcdef", env_extra={"FAKE_CURL_FAILS": "3"})
+    assert proc.returncode == 0, proc.stderr
+    assert len(_health_calls(calls)) == 4, "3번 거부당한 뒤 4번째에 통과"
+    assert "✅ deploy sha-0123456 완료" in body
+    assert "🔴" not in body
+
+
+def test_health_that_never_answers_fails_after_a_bounded_wait(tmp_path: Path) -> None:
+    """끝내 안 뜨면 rc 1 — 재시도는 유한하고 실패를 숨기지 않는다."""
+    proc, calls, body, _ = run(tmp_path, "0123456789abcdef", env_extra={"FAKE_CURL_FAILS": "999"})
+    assert proc.returncode == 1
+    assert len(_health_calls(calls)) == 15, "2초 간격 15회 = 약 30초에서 포기한다"
+    assert "⑦ /health" in body
+    assert "✅" not in body
+    assert "Failed to connect" in proc.stderr, "마지막 curl 의 사유를 버리지 않는다"
 
 
 def test_import_probe_failure_does_not_restart_api(tmp_path: Path) -> None:
