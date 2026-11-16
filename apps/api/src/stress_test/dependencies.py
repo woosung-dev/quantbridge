@@ -9,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backtest.repository import BacktestRepository
 from src.common.database import get_async_session
-from src.core.config import settings
-from src.market_data.dependencies import get_ohlcv_provider
+from src.market_data.dependencies import (
+    build_ohlcv_provider_for_worker,
+    get_ohlcv_provider,
+)
 from src.market_data.providers import OHLCVProvider
 from src.strategy.repository import StrategyRepository
 from src.stress_test.dispatcher import (
@@ -43,21 +45,7 @@ def build_stress_test_service_for_worker(
     session: AsyncSession,
 ) -> StressTestService:
     """Worker 경로 — Noop dispatcher + config flag 기반 provider 조립."""
-    ohlcv_provider: OHLCVProvider
-    if settings.ohlcv_provider == "fixture":
-        from src.market_data.providers.fixture import FixtureProvider
-
-        ohlcv_provider = FixtureProvider(root=settings.ohlcv_fixture_root)
-    else:
-        from src.market_data.providers.timescale import TimescaleProvider
-        from src.market_data.repository import OHLCVRepository
-        from src.tasks.celery_app import get_ccxt_provider_for_worker
-
-        ohlcv_provider = TimescaleProvider(
-            OHLCVRepository(session),
-            get_ccxt_provider_for_worker(),
-            exchange_name=settings.default_exchange,
-        )
+    ohlcv_provider = build_ohlcv_provider_for_worker(session)
 
     return StressTestService(
         repo=StressTestRepository(session),

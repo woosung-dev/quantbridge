@@ -11,7 +11,7 @@ fire-and-forget 발송 task 는 module-level ``_PENDING_ALERTS`` set 이 strong 
 
 설계 원칙:
 - per-call ``httpx.AsyncClient`` (``email_service.py`` 의 ``owns_client`` 패턴):
-  Celery prefork + asyncio.run() loop 변경 양쪽에서 fork-safe.
+  Celery prefork(`run_in_worker_loop` 영속 loop) 와 loop 가 바뀌는 호출자 양쪽에서 fork-safe.
 - module-level ``BoundedSemaphore(8)``: burst 시 fan-in 방지. 동시 Nxworker
   프로세스에 대해 worker 별 8 이 상한.
 - ``asyncio.wait_for(timeout=15s)``: Slack stuck 방지.

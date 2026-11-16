@@ -10,6 +10,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.trading.models import LiveSignalEvent, LiveSignalEventStatus, Order
 
@@ -29,7 +30,7 @@ class LiveSignalEventRepository:
 
     async def get_by_id(self, event_id: UUID) -> LiveSignalEvent | None:
         result = await self.session.execute(
-            select(LiveSignalEvent).where(LiveSignalEvent.id == event_id)  # type: ignore[arg-type]
+            select(LiveSignalEvent).where(col(LiveSignalEvent.id) == event_id)
         )
         return result.scalar_one_or_none()
 
@@ -74,14 +75,10 @@ class LiveSignalEventRepository:
                 ),
                 # Phase 3 — entry signal 의 exit 레벨 (bracket placement + trailing).
                 "take_profit": (
-                    Decimal(str(sig["take_profit"]))
-                    if sig.get("take_profit") is not None
-                    else None
+                    Decimal(str(sig["take_profit"])) if sig.get("take_profit") is not None else None
                 ),
                 "stop_loss": (
-                    Decimal(str(sig["stop_loss"]))
-                    if sig.get("stop_loss") is not None
-                    else None
+                    Decimal(str(sig["stop_loss"])) if sig.get("stop_loss") is not None else None
                 ),
                 "trailing_stop": (
                     Decimal(str(sig["trailing_stop"]))
@@ -100,12 +97,10 @@ class LiveSignalEventRepository:
         await self.session.flush()
         # 최종 상태 조회 (이미 존재하던 + 신규 모두 반환). catch-up은 여러 bar를 한 번에
         # 넣으므로 signal별 bar_time 전체를 조회한다.
-        event_bar_times = list(
-            dict.fromkeys(cast(datetime, row["bar_time"]) for row in rows)
-        )
+        event_bar_times = list(dict.fromkeys(cast(datetime, row["bar_time"]) for row in rows))
         result = await self.session.execute(
             select(LiveSignalEvent)
-            .where(LiveSignalEvent.session_id == session_id)  # type: ignore[arg-type]
+            .where(col(LiveSignalEvent.session_id) == session_id)
             .where(cast(Any, LiveSignalEvent.bar_time).in_(event_bar_times))
             .order_by(
                 cast(Any, LiveSignalEvent.bar_time).asc(),
@@ -118,8 +113,8 @@ class LiveSignalEventRepository:
         """status=pending 만 — partial pending index 활용. dispatch worker 가 폴링용."""
         result = await self.session.execute(
             select(LiveSignalEvent)
-            .where(LiveSignalEvent.status == LiveSignalEventStatus.pending)  # type: ignore[arg-type]
-            .order_by(LiveSignalEvent.created_at.asc())  # type: ignore[attr-defined]
+            .where(col(LiveSignalEvent.status) == LiveSignalEventStatus.pending)
+            .order_by(col(LiveSignalEvent.created_at).asc())
             .limit(limit)
         )
         return result.scalars().all()
@@ -130,8 +125,8 @@ class LiveSignalEventRepository:
         """UI 용 event log 조회 — 최신 순."""
         result = await self.session.execute(
             select(LiveSignalEvent)
-            .where(LiveSignalEvent.session_id == session_id)  # type: ignore[arg-type]
-            .order_by(LiveSignalEvent.created_at.desc())  # type: ignore[attr-defined]
+            .where(col(LiveSignalEvent.session_id) == session_id)
+            .order_by(col(LiveSignalEvent.created_at).desc())
             .limit(limit)
         )
         return result.scalars().all()
@@ -147,7 +142,7 @@ class LiveSignalEventRepository:
                 cast(Any, LiveSignalEvent.order_id) == Order.id,
             )
             .where(cast(Any, LiveSignalEvent.session_id) == session_id)
-            .order_by(LiveSignalEvent.created_at.desc())  # type: ignore[attr-defined]
+            .order_by(col(LiveSignalEvent.created_at).desc())
             .limit(limit)
         )
         return [
@@ -178,13 +173,13 @@ class LiveSignalEventRepository:
         stmt = (
             select(
                 func.sum(LiveSignalEvent.realized_pnl),
-                func.count(LiveSignalEvent.id),  # type: ignore[arg-type]
+                func.count(col(LiveSignalEvent.id)),
             )
-            .where(LiveSignalEvent.session_id == session_id)  # type: ignore[arg-type]
-            .where(LiveSignalEvent.realized_pnl.is_not(None))  # type: ignore[union-attr]
+            .where(col(LiveSignalEvent.session_id) == session_id)
+            .where(col(LiveSignalEvent.realized_pnl).is_not(None))
         )
         if before is not None:
-            stmt = stmt.where(LiveSignalEvent.bar_time < before)  # type: ignore[arg-type]
+            stmt = stmt.where(col(LiveSignalEvent.bar_time) < before)
         result = await self.session.execute(stmt)
         total_pnl, closed_count = result.one()
         return Decimal(str(total_pnl)) if total_pnl is not None else Decimal("0"), int(
@@ -195,8 +190,8 @@ class LiveSignalEventRepository:
         """dispatch_task 가 broker 발주 성공 시 호출. status=dispatched + order_id."""
         result = await self.session.execute(
             update(LiveSignalEvent)
-            .where(LiveSignalEvent.id == event_id)  # type: ignore[arg-type]
-            .where(LiveSignalEvent.status == LiveSignalEventStatus.pending)  # type: ignore[arg-type]
+            .where(col(LiveSignalEvent.id) == event_id)
+            .where(col(LiveSignalEvent.status) == LiveSignalEventStatus.pending)
             .values(
                 status=LiveSignalEventStatus.dispatched,
                 order_id=order_id,
@@ -209,8 +204,8 @@ class LiveSignalEventRepository:
         """KillSwitch / NotionalCap / 기타 실패 시 status=failed + retry_count+1."""
         result = await self.session.execute(
             update(LiveSignalEvent)
-            .where(LiveSignalEvent.id == event_id)  # type: ignore[arg-type]
-            .where(LiveSignalEvent.status == LiveSignalEventStatus.pending)  # type: ignore[arg-type]
+            .where(col(LiveSignalEvent.id) == event_id)
+            .where(col(LiveSignalEvent.status) == LiveSignalEventStatus.pending)
             .values(
                 status=LiveSignalEventStatus.failed,
                 error_message=error[:2000],

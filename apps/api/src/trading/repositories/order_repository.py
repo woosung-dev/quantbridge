@@ -71,8 +71,8 @@ _HAS_EXCHANGE_EXIT_ROW = (
 #   `.where()` 인자에서 걸린다(SQLModel 속성이 인스턴스 타입으로 추론된다). 그래서 `arg-type` 이다.
 _EXCHANGE_EXIT_PNL_SUM = (
     select(func.sum(ExchangeExit.closed_pnl))
-    .where(ExchangeExit.exchange_account_id == Order.exchange_account_id)  # type: ignore[arg-type]
-    .where(ExchangeExit.exchange_order_id == Order.exchange_order_id)  # type: ignore[arg-type]
+    .where(col(ExchangeExit.exchange_account_id) == col(Order.exchange_account_id))
+    .where(col(ExchangeExit.exchange_order_id) == col(Order.exchange_order_id))
     .correlate(Order)
     .scalar_subquery()
 )
@@ -296,10 +296,10 @@ def _session_scope_where(
         predicates.append(
             _RECORDED_ORDER_FILL
             if tuple(states) == (OrderState.filled,)
-            else Order.state.in_(states)  # type: ignore[attr-defined]
+            else col(Order.state).in_(states)
         )
     if window == "terminal":
-        predicates.append(Order.filled_at.is_not(None))  # type: ignore[union-attr]
+        predicates.append(col(Order.filled_at).is_not(None))
     if scope.session_id is not None:
         # 코드 주문은 정확한 귀속이 있어 종료 뒤 recovery 청산도 원래 세션에 남긴다.
         predicates.append(col(Order.risk_context)["session_id"].astext == str(scope.session_id))
@@ -348,8 +348,8 @@ class OrderRepository:
 
         stmt = (
             select(User)
-            .join(Strategy, Strategy.user_id == User.id)  # type: ignore[arg-type]
-            .where(Strategy.id == strategy_id)  # type: ignore[arg-type]
+            .join(Strategy, col(Strategy.user_id) == col(User.id))
+            .where(col(Strategy.id) == strategy_id)
         )
         result = await self.session.execute(stmt)
         owner = result.scalars().first()
@@ -383,9 +383,7 @@ class OrderRepository:
         return (row[0], row[1], row[2], row[3]) if row is not None else None
 
     async def get_by_id(self, order_id: UUID) -> Order | None:
-        result = await self.session.execute(
-            select(Order).where(Order.id == order_id)  # type: ignore[arg-type]
-        )
+        result = await self.session.execute(select(Order).where(col(Order.id) == order_id))
         return result.scalar_one_or_none()
 
     async def get_by_id_for_user(self, order_id: UUID, user_id: UUID) -> Order | None:
@@ -395,9 +393,9 @@ class OrderRepository:
         """
         result = await self.session.execute(
             select(Order)
-            .join(ExchangeAccount, Order.exchange_account_id == ExchangeAccount.id)  # type: ignore[arg-type]
-            .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(ExchangeAccount.user_id == user_id)  # type: ignore[arg-type]
+            .join(ExchangeAccount, col(Order.exchange_account_id) == col(ExchangeAccount.id))
+            .where(col(Order.id) == order_id)
+            .where(col(ExchangeAccount.user_id) == user_id)
         )
         return result.scalar_one_or_none()
 
@@ -413,7 +411,7 @@ class OrderRepository:
         """
         result = await self.session.execute(
             select(cast(Any, Order.state), cast(Any, Order.exchange_order_id)).where(
-                Order.id == order_id  # type: ignore[arg-type]
+                col(Order.id) == order_id
             )
         )
         row = result.one_or_none()
@@ -422,9 +420,7 @@ class OrderRepository:
         return row[0], row[1]
 
     async def get_by_idempotency_key(self, key: str) -> Order | None:
-        result = await self.session.execute(
-            select(Order).where(Order.idempotency_key == key)  # type: ignore[arg-type]
-        )
+        result = await self.session.execute(select(Order).where(col(Order.idempotency_key) == key))
         return result.scalar_one_or_none()
 
     async def get_by_exchange_order_id(
@@ -433,7 +429,7 @@ class OrderRepository:
         result = await self.session.execute(
             select(Order)
             .where(
-                Order.exchange_order_id == exchange_order_id,  # type: ignore[arg-type]
+                col(Order.exchange_order_id) == exchange_order_id,
                 col(Order.exchange_account_id) == account_id,
             )
             .execution_options(populate_existing=True)
@@ -444,7 +440,7 @@ class OrderRepository:
         """전략의 filled 주문 실현 손익 합계를 항상 Decimal로 반환한다."""
         stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
             and_(
-                Order.strategy_id == strategy_id,  # type: ignore[arg-type]
+                col(Order.strategy_id) == strategy_id,
                 _RECORDED_ORDER_FILL,
             )
         )
@@ -461,10 +457,10 @@ class OrderRepository:
         """계정의 시간 창 안 filled 주문 실현 손익 합계를 항상 Decimal로 반환한다."""
         stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
             and_(
-                Order.exchange_account_id == account_id,  # type: ignore[arg-type]
+                col(Order.exchange_account_id) == account_id,
                 _RECORDED_ORDER_FILL,
-                Order.filled_at >= started_at,  # type: ignore[arg-type,operator]
-                Order.filled_at < ended_at,  # type: ignore[arg-type,operator]
+                col(Order.filled_at) >= started_at,
+                col(Order.filled_at) < ended_at,
             )
         )
         raw = (await self.session.execute(stmt)).scalar_one()
@@ -473,10 +469,8 @@ class OrderRepository:
     async def list_active_by_exchange_account(self, account_id: UUID) -> list[Order]:
         """계정의 pending / submitted 주문을 반환한다."""
         stmt = select(Order).where(
-            Order.exchange_account_id == account_id,  # type: ignore[arg-type]
-            Order.state.in_(  # type: ignore[attr-defined]
-                [OrderState.pending, OrderState.submitted]
-            ),
+            col(Order.exchange_account_id) == account_id,
+            col(Order.state).in_([OrderState.pending, OrderState.submitted]),
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -487,12 +481,12 @@ class OrderRepository:
         """한 전략·계정의 미체결 조건부 진입 주문만 최대 100건 조회한다."""
         stmt = (
             select(Order)
-            .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
-            .where(Order.trigger_price.is_not(None))  # type: ignore[union-attr]
-            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
-            .where(Order.strategy_id == strategy_id)  # type: ignore[arg-type]
-            .where(Order.exchange_account_id == exchange_account_id)  # type: ignore[arg-type]
-            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+            .where(col(Order.state).in_([OrderState.pending, OrderState.submitted]))
+            .where(col(Order.trigger_price).is_not(None))
+            .where(col(Order.reduce_only).is_(False))
+            .where(col(Order.strategy_id) == strategy_id)
+            .where(col(Order.exchange_account_id) == exchange_account_id)
+            .order_by(col(Order.submitted_at).asc())
             .limit(100)
         )
         return (await self.session.execute(stmt)).scalars().all()
@@ -538,10 +532,10 @@ class OrderRepository:
                 cast(Any, Order.idempotency_key),
                 cast(Any, Order.created_at),
             )
-            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
-            .where(Order.idempotency_key.like(f"{LIVE_ENTRY_KEY_PREFIX}%"))  # type: ignore[union-attr]
-            .where(Order.created_at >= since)  # type: ignore[arg-type]
-            .where(Order.created_at < until)  # type: ignore[arg-type]
+            .where(col(Order.reduce_only).is_(False))
+            .where(col(Order.idempotency_key).like(f"{LIVE_ENTRY_KEY_PREFIX}%"))
+            .where(col(Order.created_at) >= since)
+            .where(col(Order.created_at) < until)
             .order_by(
                 cast(Any, Order.created_at).asc(),
                 cast(Any, Order.id).asc(),
@@ -566,9 +560,9 @@ class OrderRepository:
                 cast(Any, Order.created_at),
                 cast(Any, Order.filled_at),
             )
-            .where(Order.trigger_price.is_not(None))  # type: ignore[union-attr]
-            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
-            .where(Order.created_at < until)  # type: ignore[arg-type]
+            .where(col(Order.trigger_price).is_not(None))
+            .where(col(Order.reduce_only).is_(False))
+            .where(col(Order.created_at) < until)
             .where(func.coalesce(Order.filled_at, func.now()) >= since)
             .order_by(
                 cast(Any, Order.created_at).asc(),
@@ -598,10 +592,10 @@ class OrderRepository:
                 cast(Any, Order.error_message),
                 cast(Any, Order.created_at),
             )
-            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
-            .where(Order.state == OrderState.rejected)  # type: ignore[arg-type]
-            .where(Order.created_at >= since)  # type: ignore[arg-type]
-            .where(Order.created_at < until)  # type: ignore[arg-type]
+            .where(col(Order.reduce_only).is_(False))
+            .where(col(Order.state) == OrderState.rejected)
+            .where(col(Order.created_at) >= since)
+            .where(col(Order.created_at) < until)
             .order_by(
                 cast(Any, Order.created_at).asc(),
                 cast(Any, Order.id).asc(),
@@ -625,10 +619,10 @@ class OrderRepository:
 
         stmt = (
             select(Order)
-            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
-            .where(Order.trigger_price.is_not(None))  # type: ignore[union-attr]
-            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
-            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+            .where(col(Order.state) == OrderState.submitted)
+            .where(col(Order.trigger_price).is_not(None))
+            .where(col(Order.reduce_only).is_(False))
+            .order_by(col(Order.submitted_at).asc())
         )
         candidates = (await self.session.execute(stmt)).scalars().all()
         parsed_orders = [
@@ -657,11 +651,11 @@ class OrderRepository:
         """활성 여부와 무관하게 오래된 submitted 조건부 진입을 최대 100건 찾는다."""
         stmt = (
             select(Order)
-            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
-            .where(Order.trigger_price.is_not(None))  # type: ignore[union-attr]
-            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
-            .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
-            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+            .where(col(Order.state) == OrderState.submitted)
+            .where(col(Order.trigger_price).is_not(None))
+            .where(col(Order.reduce_only).is_(False))
+            .where(col(Order.submitted_at) < cutoff)
+            .order_by(col(Order.submitted_at).asc())
             .limit(100)
         )
         return (await self.session.execute(stmt)).scalars().all()
@@ -676,24 +670,24 @@ class OrderRepository:
     ) -> tuple[Sequence[Order], int]:
         """Join ExchangeAccount → user_id 매칭. Sprint 5 M4 pagination 스타일."""
         total_stmt = (
-            select(func.count(Order.id))  # type: ignore[arg-type]
-            .join(ExchangeAccount, Order.exchange_account_id == ExchangeAccount.id)  # type: ignore[arg-type]
-            .where(ExchangeAccount.user_id == user_id)  # type: ignore[arg-type]
+            select(func.count(col(Order.id)))
+            .join(ExchangeAccount, col(Order.exchange_account_id) == col(ExchangeAccount.id))
+            .where(col(ExchangeAccount.user_id) == user_id)
         )
         if states:
-            total_stmt = total_stmt.where(Order.state.in_(states))  # type: ignore[attr-defined]
+            total_stmt = total_stmt.where(col(Order.state).in_(states))
         total = (await self.session.execute(total_stmt)).scalar_one()
 
         stmt = (
             select(Order)
-            .join(ExchangeAccount, Order.exchange_account_id == ExchangeAccount.id)  # type: ignore[arg-type]
-            .where(ExchangeAccount.user_id == user_id)  # type: ignore[arg-type]
-            .order_by(Order.created_at.desc())  # type: ignore[attr-defined]
+            .join(ExchangeAccount, col(Order.exchange_account_id) == col(ExchangeAccount.id))
+            .where(col(ExchangeAccount.user_id) == user_id)
+            .order_by(col(Order.created_at).desc())
             .limit(limit)
             .offset(offset)
         )
         if states:
-            stmt = stmt.where(Order.state.in_(states))  # type: ignore[attr-defined]
+            stmt = stmt.where(col(Order.state).in_(states))
         return (await self.session.execute(stmt)).scalars().all(), total
 
     async def count_unpriced_exit_fills_for_session(self, scope: SessionScope) -> int:
@@ -731,8 +725,8 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(*_session_scope_where(scope))
-            .where(Order.realized_pnl.is_not(None))  # type: ignore[union-attr]
-            .order_by(Order.filled_at.asc())  # type: ignore[union-attr]
+            .where(col(Order.realized_pnl).is_not(None))
+            .order_by(col(Order.filled_at).asc())
         )
         return (await self.session.execute(stmt)).scalars().all()
 
@@ -781,16 +775,16 @@ class OrderRepository:
             .where(*_session_scope_where(scope, states=_STATES_THAT_CAN_CARRY_FILLS))
             .where(
                 or_(
-                    Order.state == OrderState.filled,  # type: ignore[arg-type]
+                    col(Order.state) == OrderState.filled,
                     and_(
-                        Order.filled_quantity.is_not(None),  # type: ignore[union-attr]
-                        Order.filled_quantity != 0,  # type: ignore[arg-type]
+                        col(Order.filled_quantity).is_not(None),
+                        col(Order.filled_quantity) != 0,
                     ),
                 )
             )
-            .where(Order.filled_at >= since)  # type: ignore[operator, arg-type]
+            .where(col(Order.filled_at) >= since)
             .order_by(
-                Order.filled_at.asc(),  # type: ignore[union-attr]
+                col(Order.filled_at).asc(),
                 cast(Any, Order.id).asc(),
             )
             .limit(limit + 1)
@@ -849,11 +843,11 @@ class OrderRepository:
                 cast(Any, Order.error_message),
             )
             .where(*_session_scope_where(scope, states=None, window="created"))
-            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
-            .where(Order.created_at >= since)  # type: ignore[arg-type]
+            .where(col(Order.reduce_only).is_(False))
+            .where(col(Order.created_at) >= since)
         )
         if until is not None:
-            stmt = stmt.where(Order.created_at < until)  # type: ignore[arg-type]
+            stmt = stmt.where(col(Order.created_at) < until)
         stmt = stmt.order_by(
             cast(Any, Order.created_at).asc(),
             cast(Any, Order.id).asc(),
@@ -916,8 +910,8 @@ class OrderRepository:
     async def transition_to_submitted(self, order_id: UUID, *, submitted_at: datetime) -> int:
         result = await self.session.execute(
             update(Order)
-            .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.pending)  # type: ignore[arg-type]
+            .where(col(Order.id) == order_id)
+            .where(col(Order.state) == OrderState.pending)
             .values(state=OrderState.submitted, submitted_at=submitted_at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -1102,11 +1096,11 @@ class OrderRepository:
             )
         result = await self.session.execute(
             update(Order)
-            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(col(Order.id) == order_id)
             .where(_RECORDED_ORDER_FILL)
             .where(_NON_NATIVE_PNL)
             .where(predicate)
-            .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
+            .where(col(Order.realized_pnl_synced_at).is_(None))
             .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -1119,8 +1113,8 @@ class OrderRepository:
             return []
         stmt = (
             select(Order)
-            .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
-            .where(Order.exchange_order_id.in_(exchange_order_ids))  # type: ignore[union-attr]
+            .where(col(Order.exchange_account_id) == account_id)
+            .where(col(Order.exchange_order_id).in_(exchange_order_ids))
             .where(_RECORDED_ORDER_FILL)
         )
         return (await self.session.execute(stmt)).scalars().all()
@@ -1149,7 +1143,7 @@ class OrderRepository:
         stmt = (
             select(Order.id)  # type: ignore[call-overload]
             .where(Order.exchange_account_id == account_id)
-            .where(Order.id.in_(order_ids))  # type: ignore[attr-defined]
+            .where(col(Order.id).in_(order_ids))
         )
         return frozenset((await self.session.execute(stmt)).scalars().all())
 
@@ -1172,14 +1166,14 @@ class OrderRepository:
         """
         stmt = (
             select(Order)
-            .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
+            .where(col(Order.exchange_account_id) == account_id)
             .where(_RECORDED_ORDER_FILL)
             .where(_NON_NATIVE_PNL)
             .where(col(Order.risk_context).is_(None))
             .where(_HAS_EXCHANGE_EXIT_ROW)
-            .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
-            .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
-            .order_by(Order.filled_at.asc())  # type: ignore[union-attr]
+            .where(col(Order.exchange_order_id).is_not(None))
+            .where(col(Order.realized_pnl_synced_at).is_(None))
+            .order_by(col(Order.filled_at).asc())
             .limit(limit)
         )
         return (await self.session.execute(stmt)).scalars().all()
@@ -1211,15 +1205,15 @@ class OrderRepository:
         """
         stmt = (
             select(Order)
-            .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
+            .where(col(Order.exchange_account_id) == account_id)
             .where(_RECORDED_ORDER_FILL)
             .where(_NON_NATIVE_PNL)
             .where(col(Order.risk_context).is_(None))
             .where(_HAS_EXCHANGE_EXIT_ROW)
-            .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
-            .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
-            .where(Order.realized_pnl.is_distinct_from(_EXCHANGE_EXIT_PNL_SUM))  # type: ignore[union-attr]
-            .order_by(Order.filled_at.desc())  # type: ignore[union-attr]
+            .where(col(Order.exchange_order_id).is_not(None))
+            .where(col(Order.realized_pnl_synced_at).is_not(None))
+            .where(col(Order.realized_pnl).is_distinct_from(_EXCHANGE_EXIT_PNL_SUM))
+            .order_by(col(Order.filled_at).desc())
             .limit(limit)
         )
         return (await self.session.execute(stmt)).scalars().all()
@@ -1280,12 +1274,12 @@ class OrderRepository:
             )
         result = await self.session.execute(
             update(Order)
-            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(col(Order.id) == order_id)
             .where(_RECORDED_ORDER_FILL)
             .where(_NON_NATIVE_PNL)
             .where(predicate)
-            .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
-            .where(Order.realized_pnl.is_distinct_from(realized_pnl))  # type: ignore[union-attr]
+            .where(col(Order.realized_pnl_synced_at).is_not(None))
+            .where(col(Order.realized_pnl).is_distinct_from(realized_pnl))
             .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -1301,10 +1295,10 @@ class OrderRepository:
         """
         stmt = (
             select(Order)
-            .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
+            .where(col(Order.exchange_account_id) == account_id)
             .where(_RECORDED_ORDER_FILL)
-            .where(Order.filled_at.is_not(None))  # type: ignore[union-attr]
-            .order_by(Order.filled_at.desc())  # type: ignore[union-attr]
+            .where(col(Order.filled_at).is_not(None))
+            .order_by(col(Order.filled_at).desc())
             .limit(limit)
         )
         rows = (await self.session.execute(stmt)).scalars().all()
@@ -1337,8 +1331,8 @@ class OrderRepository:
             values["realized_pnl"] = realized_pnl
         result = await self.session.execute(
             update(Order)
-            .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
+            .where(col(Order.id) == order_id)
+            .where(col(Order.state) == OrderState.submitted)
             .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -1362,8 +1356,8 @@ class OrderRepository:
             values["filled_quantity"] = filled_quantity
         result = await self.session.execute(
             update(Order)
-            .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
+            .where(col(Order.id) == order_id)
+            .where(col(Order.state).in_([OrderState.pending, OrderState.submitted]))
             .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -1374,9 +1368,9 @@ class OrderRepository:
         """Janitor 전용 CAS. 늦은 attach 와 경합하면 DB 상태를 바꾸지 않는다."""
         result = await self.session.execute(
             update(Order)
-            .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
-            .where(Order.exchange_order_id.is_(None))  # type: ignore[union-attr]
+            .where(col(Order.id) == order_id)
+            .where(col(Order.state) == OrderState.submitted)
+            .where(col(Order.exchange_order_id).is_(None))
             .values(
                 state=OrderState.rejected,
                 error_message=error_message[:2000],
@@ -1402,8 +1396,8 @@ class OrderRepository:
             values["filled_quantity"] = filled_quantity
         result = await self.session.execute(
             update(Order)
-            .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
+            .where(col(Order.id) == order_id)
+            .where(col(Order.state).in_([OrderState.pending, OrderState.submitted]))
             .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -1419,8 +1413,8 @@ class OrderRepository:
         """
         result = await self.session.execute(
             update(Order)
-            .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.pending)  # type: ignore[arg-type]
+            .where(col(Order.id) == order_id)
+            .where(col(Order.state) == OrderState.pending)
             .values(state=OrderState.cancelled, filled_at=cancelled_at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -1434,8 +1428,8 @@ class OrderRepository:
         """
         result = await self.session.execute(
             update(Order)
-            .where(Order.id == order_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
+            .where(col(Order.id) == order_id)
+            .where(col(Order.state) == OrderState.submitted)
             .values(exchange_order_id=exchange_order_id)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -1450,9 +1444,9 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(cast(Any, Order.risk_context).is_(None))  # code_v1는 전용 복구기가 소유한다.
-            .where(Order.state == OrderState.pending)  # type: ignore[arg-type]
-            .where(Order.created_at < cutoff)  # type: ignore[arg-type]
-            .order_by(Order.created_at.asc())  # type: ignore[attr-defined]
+            .where(col(Order.state) == OrderState.pending)
+            .where(col(Order.created_at) < cutoff)
+            .order_by(col(Order.created_at).asc())
             .limit(100)
         )
         return (await self.session.execute(stmt)).scalars().all()
@@ -1466,11 +1460,11 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(cast(Any, Order.risk_context).is_(None))  # code_v1는 전용 복구기가 소유한다.
-            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
-            .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
-            .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
-            .where(Order.trigger_price.is_(None))  # type: ignore[union-attr]
-            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+            .where(col(Order.state) == OrderState.submitted)
+            .where(col(Order.submitted_at) < cutoff)
+            .where(col(Order.exchange_order_id).is_not(None))
+            .where(col(Order.trigger_price).is_(None))
+            .order_by(col(Order.submitted_at).asc())
             .limit(100)
         )
         return (await self.session.execute(stmt)).scalars().all()
@@ -1485,11 +1479,11 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(cast(Any, Order.risk_context).is_(None))  # code_v1는 전용 복구기가 소유한다.
-            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
-            .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
-            .where(Order.exchange_order_id.is_(None))  # type: ignore[union-attr]
-            .where(Order.trigger_price.is_(None))  # type: ignore[union-attr]
-            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+            .where(col(Order.state) == OrderState.submitted)
+            .where(col(Order.submitted_at) < cutoff)
+            .where(col(Order.exchange_order_id).is_(None))
+            .where(col(Order.trigger_price).is_(None))
+            .order_by(col(Order.submitted_at).asc())
             .limit(100)
         )
         return (await self.session.execute(stmt)).scalars().all()
@@ -1506,24 +1500,24 @@ class OrderRepository:
         pnl_result = await self.session.execute(
             select(func.coalesce(func.sum(Order.realized_pnl), 0))
             .where(_RECORDED_ORDER_FILL)
-            .where(Order.filled_at >= day_start)  # type: ignore[operator, arg-type]
-            .where(Order.filled_at < day_end)  # type: ignore[operator, arg-type]
+            .where(col(Order.filled_at) >= day_start)
+            .where(col(Order.filled_at) < day_end)
         )
         total_pnl = Decimal(str(pnl_result.scalar_one() or 0))
 
         filled_result = await self.session.execute(
-            select(func.count(Order.id))  # type: ignore[arg-type]
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
-            .where(Order.filled_at >= day_start)  # type: ignore[operator, arg-type]
-            .where(Order.filled_at < day_end)  # type: ignore[operator, arg-type]
+            select(func.count(col(Order.id)))
+            .where(col(Order.state) == OrderState.filled)
+            .where(col(Order.filled_at) >= day_start)
+            .where(col(Order.filled_at) < day_end)
         )
         filled_count = filled_result.scalar_one() or 0
 
         rejected_result = await self.session.execute(
-            select(func.count(Order.id))  # type: ignore[arg-type]
-            .where(Order.state == OrderState.rejected)  # type: ignore[arg-type]
-            .where(Order.created_at >= day_start)  # type: ignore[arg-type]
-            .where(Order.created_at < day_end)  # type: ignore[arg-type]
+            select(func.count(col(Order.id)))
+            .where(col(Order.state) == OrderState.rejected)
+            .where(col(Order.created_at) >= day_start)
+            .where(col(Order.created_at) < day_end)
         )
         rejected_count = rejected_result.scalar_one() or 0
 

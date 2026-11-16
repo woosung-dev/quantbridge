@@ -24,8 +24,8 @@ class CodeCheckpointRepository:
     async def history(self, session_id: UUID) -> list[LiveCodeBar]:
         result = await self.session.execute(
             select(LiveCodeBar)
-            .where(LiveCodeBar.session_id == session_id)  # type: ignore[arg-type]
-            .order_by(LiveCodeBar.sequence)  # type: ignore[arg-type]
+            .where(col(LiveCodeBar.session_id) == session_id)
+            .order_by(col(LiveCodeBar.sequence))
             .limit(50001)
         )
         return list(result.scalars().all())
@@ -46,15 +46,15 @@ class CodeCheckpointRepository:
     async def delivered(self, row_id: UUID) -> None:
         await self.session.execute(
             update(LiveCodeBar)
-            .where(LiveCodeBar.id == row_id)  # type: ignore[arg-type]
-            .where(LiveCodeBar.status == "prepared")  # type: ignore[arg-type]
+            .where(col(LiveCodeBar.id) == row_id)
+            .where(col(LiveCodeBar.status) == "prepared")
             .values(status="delivered")
         )
 
     async def record_evaluated(self, session_id: UUID, bar_time: datetime) -> None:
         await self.session.execute(
             update(LiveSignalSession)
-            .where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
+            .where(col(LiveSignalSession.id) == session_id)
             .where(
                 or_(
                     col(LiveSignalSession.last_evaluated_bar_time).is_(None),

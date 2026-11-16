@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.strategy.models import Strategy
 from src.trading.models import WebhookSecret
@@ -27,7 +28,7 @@ class WebhookSecretRepository:
 
     async def get_by_id(self, secret_id: UUID) -> WebhookSecret | None:
         result = await self.session.execute(
-            select(WebhookSecret).where(WebhookSecret.id == secret_id)  # type: ignore[arg-type]
+            select(WebhookSecret).where(col(WebhookSecret.id) == secret_id)
         )
         return result.scalar_one_or_none()
 
@@ -40,22 +41,22 @@ class WebhookSecretRepository:
         """
         result = await self.session.execute(
             select(WebhookSecret)
-            .where(WebhookSecret.strategy_id == strategy_id)  # type: ignore[arg-type]
+            .where(col(WebhookSecret.strategy_id) == strategy_id)
             .where(
                 or_(
-                    WebhookSecret.revoked_at.is_(None),  # type: ignore[union-attr]
-                    WebhookSecret.revoked_at > grace_cutoff,  # type: ignore[arg-type,operator]
+                    col(WebhookSecret.revoked_at).is_(None),
+                    col(WebhookSecret.revoked_at) > grace_cutoff,
                 )
             )
-            .order_by(WebhookSecret.created_at.desc())  # type: ignore[attr-defined]
+            .order_by(col(WebhookSecret.created_at).desc())
         )
         return result.scalars().all()
 
     async def mark_revoked(self, secret_id: UUID, *, at: datetime) -> int:
         result = await self.session.execute(
             update(WebhookSecret)
-            .where(WebhookSecret.id == secret_id)  # type: ignore[arg-type]
-            .where(WebhookSecret.revoked_at.is_(None))  # type: ignore[union-attr]
+            .where(col(WebhookSecret.id) == secret_id)
+            .where(col(WebhookSecret.revoked_at).is_(None))
             .values(revoked_at=at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -64,8 +65,8 @@ class WebhookSecretRepository:
         """rotate 시점에 해당 strategy의 모든 active secret을 일괄 revoke."""
         result = await self.session.execute(
             update(WebhookSecret)
-            .where(WebhookSecret.strategy_id == strategy_id)  # type: ignore[arg-type]
-            .where(WebhookSecret.revoked_at.is_(None))  # type: ignore[union-attr]
+            .where(col(WebhookSecret.strategy_id) == strategy_id)
+            .where(col(WebhookSecret.revoked_at).is_(None))
             .values(revoked_at=at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -91,8 +92,8 @@ class WebhookSecretRepository:
         owned = select(Strategy.id).where(Strategy.user_id == user_id)  # type: ignore[call-overload]
         result = await self.session.execute(
             update(WebhookSecret)
-            .where(WebhookSecret.strategy_id.in_(owned))  # type: ignore[attr-defined]
-            .where(WebhookSecret.revoked_at.is_(None))  # type: ignore[union-attr]
+            .where(col(WebhookSecret.strategy_id).in_(owned))
+            .where(col(WebhookSecret.revoked_at).is_(None))
             .values(revoked_at=at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]

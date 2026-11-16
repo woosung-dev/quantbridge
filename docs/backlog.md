@@ -377,21 +377,6 @@
 
 ---
 
-### BL-843
-
-**Title:** BL-084 prefork 가드가 `src/common/` 을 **하드코딩 2개 이름**으로 스코프해 `telegram_alert.py` 의 module-level Semaphore 를 못 본다
-**Category:** Backend / 가드 신선도
-**Priority:** P2
-**출처:** 2026-08-30 아키텍처 감사 gap sweep — `test-architecture` 축 (CONTROL 실측: module-level Semaphore 는 `common/alert.py:49` · `common/telegram_alert.py:48` **2건**)
-
-**증상:** `tests/tasks/test_no_module_level_loop_bound_state.py:58` 의 스캔 대상이 디렉터리가 아니라 **이름 목록**이라, 목록에 없는 `telegram_alert.py` 는 검사 밖이다. `apps/api/AGENTS.md` §9 는 allowlist 가 「현재 1건」이라고 적지만 실제 module-level Semaphore 는 **2건**이다.
-**권장 접근:** 스코프를 `src/common/**` 디렉터리로 바꾸고 allowlist 를 명시 2건으로 갱신 + 문서의 「1건」 정정. ★목록형 스코프는 **파일이 사라져도 조용히 통과**한다 — 이 레포에서 반복된 유형이다.
-
-**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
-**트리거 판정:** 도래
-
----
-
 ### BL-845
 
 **Title:** 핵심 전략 여정만 CI에 연결됐고 나머지 브라우저 검증 범위는 남아 있다

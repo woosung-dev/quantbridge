@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.trading.models import ExchangeExit
 
@@ -57,7 +58,7 @@ class ExchangeExitRepository:
         stmt = (
             select(ExchangeExit.exchange_order_id, func.sum(ExchangeExit.closed_pnl))  # type: ignore[call-overload]
             .where(ExchangeExit.exchange_account_id == account_id)
-            .where(ExchangeExit.exchange_order_id.in_(exchange_order_ids))  # type: ignore[attr-defined]
+            .where(col(ExchangeExit.exchange_order_id).in_(exchange_order_ids))
             .group_by(ExchangeExit.exchange_order_id)
         )
         result = await self.session.execute(stmt)
@@ -74,7 +75,7 @@ class ExchangeExitRepository:
             return []
         result = await self.session.execute(
             select(ExchangeExit)
-            .where(ExchangeExit.exchange_account_id == account_id)  # type: ignore[arg-type]
-            .where(ExchangeExit.row_hash.in_(row_hashes))  # type: ignore[attr-defined]
+            .where(col(ExchangeExit.exchange_account_id) == account_id)
+            .where(col(ExchangeExit.row_hash).in_(row_hashes))
         )
         return result.scalars().all()
