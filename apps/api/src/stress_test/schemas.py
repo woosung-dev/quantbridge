@@ -15,6 +15,7 @@ from pydantic import (
     model_validator,
 )
 
+from src.common.decimal_str import DecimalStr, DecimalStrOrNone
 from src.common.strict_decimal_input import StrictDecimalInput
 from src.optimizer.schemas import OptimizationKindOut, ParamSpace
 from src.stress_test.engine.grid_result import (
@@ -50,22 +51,12 @@ class MonteCarloResultOut(BaseModel):
     """
 
     samples: int
-    ci_lower_95: Decimal
-    ci_upper_95: Decimal
-    median_final_equity: Decimal
-    max_drawdown_mean: Decimal
-    max_drawdown_p95: Decimal
+    ci_lower_95: DecimalStr
+    ci_upper_95: DecimalStr
+    median_final_equity: DecimalStr
+    max_drawdown_mean: DecimalStr
+    max_drawdown_p95: DecimalStr
     equity_percentiles: dict[str, list[Decimal]]
-
-    @field_serializer(
-        "ci_lower_95",
-        "ci_upper_95",
-        "median_final_equity",
-        "max_drawdown_mean",
-        "max_drawdown_p95",
-    )
-    def _decimal_to_str(self, v: Decimal) -> str:
-        return str(v)
 
     @field_serializer("equity_percentiles")
     def _percentiles_to_str(self, v: dict[str, list[Decimal]]) -> dict[str, list[str]]:
@@ -136,7 +127,7 @@ class WalkForwardFoldOut(BaseModel):
     test_end: AwareDatetime
     in_sample_return: Decimal
     out_of_sample_return: Decimal
-    oos_sharpe: Decimal | None
+    oos_sharpe: DecimalStrOrNone
     num_trades_oos: int
     # 진짜 WFO 에서만 채움 — 해당 fold train 재최적화 파라미터 (str 값). 그 외 None.
     selected_params: dict[str, str] | None = None
@@ -144,7 +135,6 @@ class WalkForwardFoldOut(BaseModel):
     @field_serializer(
         "in_sample_return",
         "out_of_sample_return",
-        "oos_sharpe",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
@@ -159,7 +149,7 @@ class WalkForwardResultOut(BaseModel):
     """
 
     folds: list[WalkForwardFoldOut]
-    aggregate_oos_return: Decimal
+    aggregate_oos_return: DecimalStr
     degradation_ratio: str  # Decimal or "Infinity"
     valid_positive_regime: bool
     total_possible_folds: int
@@ -168,10 +158,6 @@ class WalkForwardResultOut(BaseModel):
     reoptimized_per_fold: bool = False
     # WFO 에서 train 무거래로 제외된 fold 수 (strategy fragility 신호). FE 노출 권장.
     degenerate_folds_skipped: int = 0
-
-    @field_serializer("aggregate_oos_return")
-    def _decimal_to_str(self, v: Decimal) -> str:
-        return str(v)
 
 
 # ---------------------------------------------------------------------------
