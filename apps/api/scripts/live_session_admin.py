@@ -53,6 +53,7 @@ sys.path.insert(0, str(REPO_ROOT / "apps" / "api"))
 
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
+from src.auth.repository import UserRepository  # noqa: E402
 from src.strategy.repository import StrategyRepository  # noqa: E402
 from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 from src.trading.account_identity import (  # noqa: E402
@@ -125,7 +126,12 @@ def _build_close_service(session: AsyncSession) -> ClosePositionService:
             evaluators=evaluators,
             events_repo=KillSwitchEventRepository(session),
         ),
-        sessions_port=_StrategySessionsAdapter(session),
+        # ★[BL-876] 어댑터는 세션이 아니라 repo 둘을 받는다 — 원본 = `dependencies.get_order_service`.
+        #   #803 이 `user_repo` 를 붙였을 때 이 사본만 안 따라가 `flatten` 이 조립에서 죽었다.
+        sessions_port=_StrategySessionsAdapter(
+            strategy_repo=StrategyRepository(session),
+            user_repo=UserRepository(session),
+        ),
         exchange_service=account_service,
     )
     return ClosePositionService(
@@ -373,7 +379,6 @@ def _build_session_service(session: AsyncSession) -> Any:
     ★`balance_service` 는 등재에 **필수**다 — 그게 `equity_baseline_usdt` 를 채운다.
     손 INSERT 로 세션 행을 만들면 이 값이 비어 **첫 tick 에 자동 비활성화**된다(데인 함정).
     """
-    from src.auth.repository import UserRepository
     from src.common.redis_client import get_redis_lock_pool
     from src.trading.services.balance_service import AccountBalanceService
     from src.trading.services.live_session_service import LiveSignalSessionService
@@ -431,7 +436,9 @@ async def _cmd_start(strategy_id: UUID, account_id: UUID, symbol: str, interval:
             created = await service.register(account.user_id, request)
             print(f"✓ 세션 등재: {created.id}")
             print(f"  T0={created.created_at}  equity_baseline={created.equity_baseline_usdt}")
-            print("  ★이 id 가 활성 라이브 세션이다 — 배포 전 24h 무실격 쿼리(`deploy.sh`)가 이 세션을 본다.")
+            print(
+                "  ★이 id 가 활성 라이브 세션이다 — 배포 전 24h 무실격 쿼리(`deploy.sh`)가 이 세션을 본다."
+            )
     finally:
         await engine.dispose()
 
