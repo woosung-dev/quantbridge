@@ -14,6 +14,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
+from types import TracebackType
 from typing import Any, Literal, NoReturn, Protocol
 from uuid import UUID
 
@@ -73,7 +74,7 @@ def _decimal_or_none(
     else:
         try:
             result = Decimal(str(value))
-        except (ValueError, TypeError, InvalidOperation):
+        except ValueError, TypeError, InvalidOperation:
             return None
     if (zero_as_none and result == 0) or (finite_only and not result.is_finite()):
         return None
@@ -92,7 +93,7 @@ def _int_or_none(value: Any, *, strict: bool = False) -> int | None:
         return None
     try:
         return int(Decimal(str(value)))
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         if strict:
             raise
         return None
@@ -349,7 +350,7 @@ def _parse_position_created_at(position: dict[str, Any]) -> datetime | None:
         return None
     try:
         ms = int(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if ms <= 0:
         return None
@@ -431,7 +432,7 @@ def _closed_pnl_snapshot_from_position(position: dict[str, Any]) -> ClosedPnlSna
         parsed_closed_size = _decimal_or_none(row.get("closedSize"), strict=True)
         parsed_avg_exit_price = _decimal_or_none(row.get("avgExitPrice"), strict=True)
         parsed_updated_at_ms = _int_or_none(row.get("updatedTime"), strict=True)
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         return None
     return ClosedPnlSnapshot(
         order_id=str(row["orderId"]),
@@ -474,6 +475,53 @@ async def _to_exchange_precision(
     amount = exchange.amount_to_precision(symbol, order.quantity)
     price = exchange.price_to_precision(symbol, order.price) if order.price is not None else None
     return amount, price
+
+
+class _CcxtCallGuard:
+    """ephemeral CCXT 호출 본문의 공통 예외 변환 + close.
+
+    예외 순서가 계약이다: 이미 포장된 `ProviderError` 는 그대로 통과 → ccxt `BaseError` 는
+    원인을 보존해 포장 → 그 밖은 메시지를 숨기고 체인을 끊는다. 메시지가 다른 변형
+    사다리(`... in fetch_order` 등)와 값을 삼키는 사다리는 이 헬퍼를 쓰지 않는다.
+    exchange 생성과 environment 적용은 호출자가 이 블록 **앞에서** 한다 — 그 단계의
+    실패는 close·포장 대상이 아니다.
+
+    ★`@asynccontextmanager` 로 쓰지 마라 — contextlib `__aexit__` 프레임이 원래 예외를
+    지역변수(`value`)로 쥔 채 `ProviderError` 의 traceback 에 남아, 지역변수를 수집하는
+    리포터에게 숨긴 message 가 다시 보인다(`test_provider_call_guard.py` 가 잰다).
+    """
+
+    __slots__ = ("_close_failed_event", "_exchange")
+
+    def __init__(self, exchange: Any, close_failed_event: str) -> None:
+        self._exchange = exchange
+        self._close_failed_event = close_failed_event
+
+    async def __aenter__(self) -> None:
+        return None
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        try:
+            if exc is None or isinstance(exc, ProviderError) or not isinstance(exc, Exception):
+                return  # already wrapped (또는 BaseException) — do not re-wrap
+            if isinstance(exc, ccxt_async.BaseError):
+                raise ProviderError(f"{type(exc).__name__}: {exc}") from exc
+            # SECURITY: non-CCXT 예외는 traceback에 ccxt 인스턴스 (apiKey/secret 보유) 노출 위험.
+            # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
+            # 이 프레임도 traceback 에 남으므로 원래 예외를 지역변수에서 지운다.
+            type_name = type(exc).__name__
+            del exc, tb
+            raise ProviderError(f"unexpected non-CCXT error: {type_name}") from None
+        finally:
+            try:
+                await self._exchange.close()
+            except Exception:
+                logger.warning(self._close_failed_event, exc_info=True)
 
 
 def _merge_exit_params(
@@ -673,7 +721,7 @@ class BybitDemoProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_close_failed"):
             async with ccxt_timer("bybit", "create_order"):
                 # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
                 amount, price = await _to_exchange_precision(exchange, order.symbol, order)
@@ -718,19 +766,6 @@ class BybitDemoProvider:
                 raw=dict(result),
                 filled_quantity=_decimal_or_none(result.get("filled")),
             )
-        except ProviderError:
-            raise  # already wrapped, do not re-wrap
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
-            # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_close_failed", exc_info=True)
 
     async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         # functional-parity 2026-07-23 — ccxt bybit cancelOrder() 는 symbol 필수
@@ -748,22 +783,11 @@ class BybitDemoProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
-            async with ccxt_timer("bybit", "cancel_order"):
-                await exchange.cancel_order(exchange_order_id, symbol)
-        except ProviderError:
-            raise  # already wrapped, do not re-wrap
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
-            # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_close_failed", exc_info=True)
+        async with (
+            _CcxtCallGuard(exchange, "bybit_close_failed"),
+            ccxt_timer("bybit", "cancel_order"),
+        ):
+            await exchange.cancel_order(exchange_order_id, symbol)
 
     async def fetch_order(
         self,
@@ -920,7 +944,7 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_futures_close_failed"):
             if not order.reduce_only:
                 # 마진 모드 먼저 → 레버리지 → 주문 순서 (Bybit v5 UTA 요구사항)
                 # BL-125 — Bybit v5 의 set_margin_mode/set_leverage 는 이미 같은 값이면
@@ -984,19 +1008,6 @@ class BybitFuturesProvider:
                 raw=dict(result),
                 filled_quantity=_decimal_or_none(result.get("filled")),
             )
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
-            # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def set_trading_stop(
         self,
@@ -1043,7 +1054,7 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_futures_close_failed"):
             async with ccxt_timer("bybit_futures", "set_trading_stop"):
                 # qty 는 ccxt 가 트레일링 경로에서 드롭하지만 시그니처/precision 충족용.
                 await exchange.load_markets()
@@ -1087,17 +1098,6 @@ class BybitFuturesProvider:
             #   발주 *전* fetch_position stale 가드만 수행(flat/flip/hedge 차단). 발주 *후*
             #   독립 재조회 검증은 없음.
             return dict(result) if isinstance(result, dict) else {}
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def get_code_market_rules(self, creds: Credentials, symbol: str) -> dict[str, Decimal]:
         """code_v1 주문의 실제 눈금·최소 수량. 사용자 코드로 넘기지 않는다."""
@@ -1276,7 +1276,7 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_futures_close_failed"):
             async with ccxt_timer("bybit_futures", "fetch_position"):
                 positions = await exchange.fetch_positions([linear_symbol])
             legs: list[PositionInfo] = []
@@ -1302,17 +1302,6 @@ class BybitFuturesProvider:
                     detail=f"{len(legs)} open legs for {symbol} — one-way mode required",
                 )
             return legs[0] if legs else None
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_api_identity(self, creds: Credentials) -> tuple[str, bool]:
         """Bybit API key가 가리키는 계정 UID와 read-only 권한을 읽는다."""
@@ -1326,7 +1315,7 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_futures_close_failed"):
             async with ccxt_timer("bybit_futures", "fetch_api_identity"):
                 response = await exchange.privateGetV5UserQueryApi()
             result = response.get("result") if isinstance(response, dict) else None
@@ -1341,17 +1330,6 @@ class BybitFuturesProvider:
             if isinstance(read_only, int) and read_only in (0, 1):
                 return str(user_id), bool(read_only)
             raise ProviderError("malformed Bybit query-api readOnly")
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_open_positions(self, creds: Credentials, symbol: str) -> list[PositionSnapshot]:
         """현재 linear 포지션 leg 전체를 대조용으로 반환한다.
@@ -1373,7 +1351,7 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_futures_close_failed"):
             async with ccxt_timer("bybit_futures", "fetch_open_positions"):
                 positions = await exchange.fetch_positions([linear_symbol])
             snapshots: list[PositionSnapshot] = []
@@ -1382,17 +1360,6 @@ class BybitFuturesProvider:
                 if snapshot is not None:
                     snapshots.append(snapshot)
             return snapshots
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_all_open_positions(
         self, creds: Credentials
@@ -1425,7 +1392,7 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_futures_close_failed"):
             async with ccxt_timer("bybit_futures", "fetch_all_open_positions"):
                 positions = await exchange.fetch_positions()
             rows: list[tuple[str, PositionSnapshot]] = []
@@ -1447,17 +1414,6 @@ class BybitFuturesProvider:
                     extra={"returned": len(positions)},
                 )
             return rows, truncated
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_open_conditional_orders(
         self, creds: Credentials, symbol: str, *, reduce_only: bool | None = True
@@ -1477,7 +1433,7 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_futures_close_failed"):
             async with ccxt_timer("bybit_futures", "fetch_open_conditional_orders"):
                 regular_orders = await exchange.fetch_open_orders(
                     linear_symbol, params={"category": "linear", "paginate": True}
@@ -1543,17 +1499,6 @@ class BybitFuturesProvider:
                     )
                 )
             return snapshots
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_code_closed_pnl(
         self,
@@ -1912,7 +1857,7 @@ class BybitFuturesProvider:
                                 if info.get("orderLinkId") not in (None, "")
                                 else None
                             )
-                        except (TypeError, ValueError):
+                        except TypeError, ValueError:
                             continue
                         meta_by_order_id.setdefault(
                             order_id,
@@ -1969,22 +1914,11 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
-            async with ccxt_timer("bybit_futures", "cancel_order"):
-                await exchange.cancel_order(exchange_order_id, _to_bybit_linear_symbol(symbol))
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
-            # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
+        async with (
+            _CcxtCallGuard(exchange, "bybit_futures_close_failed"),
+            ccxt_timer("bybit_futures", "cancel_order"),
+        ):
+            await exchange.cancel_order(exchange_order_id, _to_bybit_linear_symbol(symbol))
 
     async def fetch_order(
         self,
@@ -2121,7 +2055,7 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_futures_close_failed"):
             async with ccxt_timer("bybit_futures", "fetch_balance"):
                 raw = await exchange.fetch_balance()
             result: dict[str, Decimal] = {}
@@ -2133,21 +2067,9 @@ class BybitFuturesProvider:
                     continue
                 try:
                     result[asset] = Decimal(str(free))
-                except (ValueError, TypeError, InvalidOperation):
+                except ValueError, TypeError, InvalidOperation:
                     continue
             return result
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_usdt_balance_snapshot(self, creds: Credentials) -> BalanceSnapshot:
         """USDT wallet line의 total/free를 조회한다."""
@@ -2164,7 +2086,7 @@ class BybitFuturesProvider:
             }
         )
         _apply_bybit_env(exchange, creds.environment)
-        try:
+        async with _CcxtCallGuard(exchange, "bybit_futures_close_failed"):
             async with ccxt_timer("bybit_futures", "fetch_balance"):
                 raw = await exchange.fetch_balance()
             usdt = raw.get("USDT", {}) if isinstance(raw, dict) else {}
@@ -2175,17 +2097,6 @@ class BybitFuturesProvider:
                 total=_decimal_or_none(usdt.get("total"), finite_only=True),
                 free=_decimal_or_none(usdt.get("free"), finite_only=True),
             )
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def _fetch_ticker_price(
         self,
@@ -2228,12 +2139,12 @@ class BybitFuturesProvider:
                         continue
                     try:
                         price = Decimal(str(val))
-                    except (ValueError, TypeError, InvalidOperation):
+                    except ValueError, TypeError, InvalidOperation:
                         continue
                     if price.is_finite() and price > 0:
                         return price
             return None
-        except (ccxt_async.BaseError, ProviderError):
+        except ccxt_async.BaseError, ProviderError:
             return None
         except Exception:
             # SECURITY: non-CCXT 예외는 traceback에 ccxt 인스턴스 (apiKey 보유) 노출 위험.
@@ -2295,10 +2206,10 @@ class BybitFuturesProvider:
                 return None
             try:
                 value = Decimal(str(min_cost))
-            except (ValueError, TypeError, InvalidOperation):
+            except ValueError, TypeError, InvalidOperation:
                 return None
             return value if value > 0 else None
-        except (ccxt_async.BaseError, ProviderError):
+        except ccxt_async.BaseError, ProviderError:
             return None
         except Exception:
             # SECURITY: non-CCXT 예외는 traceback에 ccxt 인스턴스 (apiKey 보유) 노출 위험.
@@ -2336,7 +2247,7 @@ class OkxDemoProvider:
         )
         # OKX는 sandbox 라우팅을 전용 API로 전환. testnet 옵션은 무시됨.
         exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
-        try:
+        async with _CcxtCallGuard(exchange, "okx_close_failed"):
             async with ccxt_timer("okx", "create_order"):
                 # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
                 amount, price = await _to_exchange_precision(exchange, order.symbol, order)
@@ -2374,19 +2285,6 @@ class OkxDemoProvider:
                 raw=dict(result),
                 filled_quantity=_decimal_or_none(result.get("filled")),
             )
-        except ProviderError:
-            raise  # already wrapped, do not re-wrap
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            # SECURITY: non-CCXT 예외는 traceback에 ccxt.okx 인스턴스 (apiKey/secret/password
-            # 보유) 노출 위험. from None으로 chain 제거.
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("okx_close_failed", exc_info=True)
 
     async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         self._raise_product_policy_error()
@@ -2404,20 +2302,11 @@ class OkxDemoProvider:
             }
         )
         exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
-        try:
-            async with ccxt_timer("okx", "cancel_order"):
-                await exchange.cancel_order(exchange_order_id, symbol)
-        except ProviderError:
-            raise
-        except ccxt_async.BaseError as e:
-            raise ProviderError(f"{type(e).__name__}: {e}") from e
-        except Exception as e:
-            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
-        finally:
-            try:
-                await exchange.close()
-            except Exception:
-                logger.warning("okx_close_failed", exc_info=True)
+        async with (
+            _CcxtCallGuard(exchange, "okx_close_failed"),
+            ccxt_timer("okx", "cancel_order"),
+        ):
+            await exchange.cancel_order(exchange_order_id, symbol)
 
     async def fetch_order(
         self,
