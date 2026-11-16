@@ -26,10 +26,11 @@ class CCXTProvider:
     TimescaleProvider가 gap 구간을 채울 때 내부 호출. FastAPI lifespan 또는
     Celery worker_shutdown에서 close()로 리소스 해제.
 
-    Event loop 인식: Celery prefork worker 는 task 마다 `asyncio.run()` 으로 새 loop 를
-    만들기 때문에 한 번 생성된 exchange(aiohttp ClientSession)는 이전 loop 에 bound 되어
-    다음 task 에서 "Event loop is closed" 로 실패한다. 매 호출 시점에 현재 loop 을 확인해
-    loop 변경을 감지하면 exchange 를 투명하게 재생성한다 (Sprint 9-2 D1 후속 fix).
+    Event loop 인식: exchange(aiohttp ClientSession)는 생성 당시 loop 에 bound 된다.
+    Celery task 는 현재 `run_in_worker_loop` 영속 loop 에서 돌지만, `asyncio.run()` 등으로
+    loop 가 바뀌는 호출자가 이전 loop 의 exchange 를 재사용하면 "Event loop is closed" 로
+    실패한다. 매 호출 시점에 현재 loop 을 확인해 loop 변경을 감지하면 exchange 를
+    투명하게 재생성한다 (Sprint 9-2 D1 후속 fix).
     """
 
     def __init__(self, exchange_name: str = "bybit") -> None:
