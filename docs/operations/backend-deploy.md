@@ -30,7 +30,7 @@ main 머지 ──release.yml(arm64)──▶ GHCR :sha-<7>
                                        각 워커는 running 뒤 **자기 노드로** `celery inspect ping` 이 답해야 다음으로 간다(beat 제외 · 최대 약 90초)
       ⑥ FE up -d                       (`docker-compose.frontend.yml`, 같은 sha 태그)
       ⑦ 호스트 API                     uv sync → `import src.main` probe → systemctl --user restart quantbridge-api.service
-      ⑧ /health → docker-reclaim.sh --confirm → 텔레그램 요약
+      ⑧ /health (뜰 때까지 2초 간격 최대 약 30초 — 고정 대기 1회 조회는 기동 시간과 경합했다, 2026-11-16) → docker-reclaim.sh --confirm → 텔레그램 요약
 ```
 
 - 서버 compose 호출 = `docker compose --project-directory . -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.server.yml`

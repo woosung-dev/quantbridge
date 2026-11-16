@@ -35,7 +35,7 @@
 #                   각 워커는 `running` 뒤에 **자기 노드로** `celery inspect ping` 이 답해야 다음으로 간다(beat 제외).
 #   ⑥ FE up
 #   ⑦ 호스트 API  — uv sync → import probe(재시작 **전에** 잰다 — 살아 있는 API 를 죽이고 알면 늦다)
-#                   → systemctl restart → /health
+#                   → systemctl restart → /health (뜰 때까지 최대 약 30초 재시도)
 #   ⑧ 회수        — docker-reclaim.sh --confirm (실패해도 배포 실패는 아니다 — 경고만)
 #   ⑨ 텔레그램 요약
 #
@@ -206,6 +206,20 @@ _wait_celery() { # _wait_celery <container> — 이 컨테이너의 워커 노�
 }
 
 # ── 배포 ────────────────────────────────────────────────────────────────────────
+_wait_api_health() { # 재시작한 호스트 API 가 /health 에 답하는가 (2초 간격 15회 = 최대 약 30초)
+  # ★고정 `sleep 8` 뒤 **한 번만** 묻던 것을 바꿨다 — 2026-11-16 실측: 기동이 8초(평소 5초) 걸려
+  #   `Connection refused` 로 배포가 red 였고, API 는 그 직후 정상이었다(systemd 재시작 0회).
+  #   기동 시간은 호스트 부하에 따라 흔들린다. 뜰 때까지 다시 묻고, 끝내 안 뜨면 마지막 사유를 남긴다.
+  local i=0 err=""
+  while [ "${i}" -lt 15 ]; do
+    sleep 2
+    err="$(curl -fsS --max-time 5 "${API_HEALTH}" 2>&1 > /dev/null)" && return 0
+    i=$((i + 1))
+  done
+  [ -z "${err}" ] || echo "${err}" >&2
+  return 1
+}
+
 _deploy() { # _deploy <sha> <dry|run>
   local sha="$1" mode="$2" tag svc c
   _assert_sha "${sha}"
@@ -260,8 +274,7 @@ _deploy() { # _deploy <sha> <dry|run>
     && PYTHONPATH=. "${API_PYTHON}" -c "import src.main; src.main.create_app()") \
     || { _notify "🔴 deploy ${tag} 실패 ⑦ import probe — API 를 재시작하지 않았다(옛 API 가 살아 있다)"; die "import probe 실패 — 재시작 안 함" 1; }
   systemctl --user restart "${API_UNIT}" || { _notify "🔴 deploy ${tag} 실패 ⑦ systemctl restart"; die "API 재시작 실패" 1; }
-  sleep 8
-  curl -fsS --max-time 10 "${API_HEALTH}" > /dev/null || { _notify "🔴 deploy ${tag} 실패 ⑦ /health"; die "/health 실패 — journalctl --user -u ${API_UNIT}" 1; }
+  _wait_api_health || { _notify "🔴 deploy ${tag} 실패 ⑦ /health"; die "/health 실패 — journalctl --user -u ${API_UNIT}" 1; }
   echo "     ✓ /health"
 
   echo "  ⑧ 회수"
