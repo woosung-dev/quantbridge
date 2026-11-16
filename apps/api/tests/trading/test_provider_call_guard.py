@@ -1,16 +1,18 @@
 """거래소 호출 공통 예외 사다리의 특성화 테스트.
 
 `BybitDemoProvider`·`BybitFuturesProvider`·`OkxDemoProvider` 의 14개 메서드는 같은
-사다리를 갖는다. 메서드마다 아래 네 가지를 고정한다.
+사다리를 갖는다. 메서드마다 아래를 고정한다.
 
 - 본문이 던진 `ProviderError` 는 **같은 객체**로 통과한다(재포장 금지).
 - ccxt `BaseError` 는 `ProviderError("<Type>: <msg>")` 로 바뀌고 `__cause__` 가 원본이다.
 - 그 밖의 예외는 메시지를 숨기고 체인을 끊는다(`from None`) — SECURITY.
+- 작업 취소(`asyncio.CancelledError`)는 포장하지 않고 그대로 통과시킨다.
 - `close()` 실패는 결과를 바꾸지 않고 메서드별 이벤트명으로 warning 을 남긴다.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
@@ -244,6 +246,21 @@ async def test_non_ccxt_error_object_is_not_held_by_wrapper_traceback_frames(
             holders.append(f"{frame.f_code.co_filename}:{frame.f_code.co_name}")
         tb = tb.tb_next
     assert holders == []
+
+
+@pytest.mark.parametrize(("cls_name", "method", "call", "event"), _SITE_PARAMS)
+async def test_cancellation_is_not_wrapped(
+    monkeypatch: pytest.MonkeyPatch, cls_name: str, method: str, call: Call, event: str
+) -> None:
+    """작업 취소(`BaseException`)는 `ProviderError` 로 포장하지 않는다 — 포장하면 취소가 깨진다."""
+    original = asyncio.CancelledError()
+    exchange = _install_exchange(monkeypatch, cls_name, method, original)
+
+    with pytest.raises(asyncio.CancelledError) as info:
+        await call()
+
+    assert info.value is original
+    exchange.close.assert_awaited_once()
 
 
 @pytest.mark.parametrize(("cls_name", "method", "call", "event"), _SITE_PARAMS)
