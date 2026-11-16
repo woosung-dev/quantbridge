@@ -1,5 +1,6 @@
 # closedPnl 반영 작업의 조건부 커밋과 미조회 시 무갱신을 검증한다.
 """closedPnl backfill money-path 커밋 회귀 테스트."""
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -73,7 +74,10 @@ async def test_refresh_commits_only_when_conditional_update_wins(
     first.get = AsyncMock(return_value=_account())
     second.commit = AsyncMock()
     repo_load = MagicMock(get_by_id=AsyncMock(return_value=order))
-    repo_write = MagicMock(backfill_exchange_realized_pnl=AsyncMock(return_value=1))
+    # 단건 백필의 commit 은 LedgerPnlService 가 repo 로 요청한다 — 세션 spy 로 위임한다.
+    repo_write = MagicMock(
+        backfill_exchange_realized_pnl=AsyncMock(return_value=1), commit=second.commit
+    )
     repos = iter([repo_load, repo_write])
     monkeypatch.setattr(trading_mod, "OrderRepository", lambda _session: next(repos))
     _patch_crypto(monkeypatch)
@@ -104,7 +108,9 @@ async def test_refresh_does_not_commit_when_already_synced(monkeypatch: pytest.M
     repos = iter(
         [
             MagicMock(get_by_id=AsyncMock(return_value=order)),
-            MagicMock(backfill_exchange_realized_pnl=AsyncMock(return_value=0)),
+            MagicMock(
+                backfill_exchange_realized_pnl=AsyncMock(return_value=0), commit=second.commit
+            ),
         ]
     )
     monkeypatch.setattr(trading_mod, "OrderRepository", lambda _session: next(repos))

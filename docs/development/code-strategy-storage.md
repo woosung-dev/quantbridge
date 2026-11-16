@@ -112,6 +112,9 @@ non-native 코드 청산의 REST 손익 관측은 `CodePnlEvidenceService.apply`
 증거가 없는 관측도 충돌 사실을 보존하고 다른 주문의 유효한 관측을 버리지 않는다.
 단건의 증거 지연은 기존 지수 백오프·횟수 상한으로 재시도하며, 소진 시 코드 증거 지연
 원인으로 알리고 종료한다. sweep의 legacy 확정·계측은 코드 원격 조회보다 먼저 끝난다.
+legacy 확정 손익 적용도 같은 module의 `LedgerPnlService`가 소유한다. sweep은 원장 합계로
+백필·재동기화한 뒤 대상이 0건이어도 한 번 commit하고, 단건 refresh는 조건부 UPDATE가
+이긴 1행일 때만 commit한다. 원격 조회·metric·알림은 task에 남는다.
 native SL의 terminal WS 손익과 legacy의 페이지 합산·조회 완전성 계약은 별도다.
 
 라이브 코드는 `tasks/code_live_signal.py`에서 핀 버전·소유자·Bybit demo·동결 설정을 확인하고 전용 `CodeEvaluationService`로 보낸다. 기존 Pine replay·주문 이벤트 큐를 통과하지 않는다. 현재 제품 경계는 **1h·1X·next_bar_open**이며 실제 demo 시장가의 지연·슬리피지가 역사적 다음 시가와 같다고 보증하지 않는다. 수량 추정 가격과 손절 기준 2봉은 같은 완료 봉 집합을 사용한다. 실제 시장가 VWAP은 그 완료 종가 추정값과 다를 수 있다. 수량은 세션 등록 당시 고정 `equity_baseline_usdt` × 동결 `position_size_pct` / 가격을 Decimal로 계산해 `2×qty_step`에 내린다. 두 절반이 각각 최소 수량 이상이어야 하며 50% 익절을 생략하지 않는다. 백테스트의 current cash 복리 사이징과 다른 정책이므로 두 자본 경로가 동일하다는 주장을 하지 않는다.

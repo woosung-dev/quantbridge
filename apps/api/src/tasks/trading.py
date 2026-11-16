@@ -97,6 +97,7 @@ from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.code_pnl_evidence_service import (
     CodePnlEvidenceService,
     CodePnlObservation,
+    LedgerPnlService,
 )
 from src.trading.services.position_service import (
     account_position_snapshot_cache_key,
@@ -253,7 +254,7 @@ def _parse_order_dispatch_snapshot(
         if not isinstance(has_lev, bool):  # bool("false") == True 회피
             return None
         return (ExchangeName(exch_str), ExchangeMode(mode_str), has_lev)
-    except (KeyError, ValueError):
+    except KeyError, ValueError:
         return None
 
 
@@ -1666,13 +1667,11 @@ async def _refresh_closed_pnl_with_session(
         }
 
     async with sm() as session:
-        rows = await OrderRepository(session).backfill_exchange_realized_pnl(
+        if await LedgerPnlService(OrderRepository(session)).backfill_order(
             order_id,
             realized_pnl=snapshot.closed_pnl,
             synced_at=datetime.now(UTC),
-        )
-        if rows == 1:
-            await session.commit()
+        ):
             # ★BL-580 — commit 뒤다. 던지면 **확정된 손익 교체가 실패로 보고**된다.
             _count_safely(qb_closed_pnl_backfill_total, outcome="applied")
             return {"applied": True, "order_id": str(order_id)}
@@ -2316,43 +2315,15 @@ async def _sweep_closed_pnl_with_session(
                     ],
                 )
             # legacy 확정·계측은 코드 원격 조회를 기다리지 않고 먼저 커밋한다.
-            applied = already_synced = resynced = 0
             async with sm() as session:
-                order_repo = OrderRepository(session)
-                for order in unsynced_orders:
-                    if order.exchange_order_id is None:
-                        continue
-                    realized_pnl = sums.get(order.exchange_order_id)
-                    if realized_pnl is None:
-                        continue
-                    if (
-                        await order_repo.backfill_exchange_realized_pnl(
-                            order.id, realized_pnl=realized_pnl, synced_at=current
-                        )
-                        == 1
-                    ):
-                        applied += 1
-                    else:
-                        already_synced += 1
-                for order in synced_orders:
-                    if order.exchange_order_id is None:
-                        continue
-                    ledger_pnl = synced_sums.get(order.exchange_order_id)
-                    if ledger_pnl is None:
-                        continue
-                    if (
-                        await order_repo.resync_exchange_realized_pnl(
-                            order.id, realized_pnl=ledger_pnl, synced_at=current
-                        )
-                        == 1
-                    ):
-                        resynced += 1
-                await session.commit()
-            summary["backfilled"] += applied
-            summary["resynced"] += resynced
-            for _ in range(applied + resynced):
+                applied_legacy = await LedgerPnlService(OrderRepository(session)).apply_ledger_sums(
+                    unsynced_orders, sums, synced_orders, synced_sums, current
+                )
+            summary["backfilled"] += applied_legacy.applied
+            summary["resynced"] += applied_legacy.resynced
+            for _ in range(applied_legacy.applied + applied_legacy.resynced):
                 _count_safely(qb_closed_pnl_backfill_total, outcome="applied")
-            for _ in range(already_synced):
+            for _ in range(applied_legacy.already_synced):
                 _count_safely(qb_closed_pnl_backfill_total, outcome="already_synced")
 
             # 코드는 별도 공유 예산으로 조회한다. 모든 원격 IO는 mutation TX 밖이다.

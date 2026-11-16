@@ -216,7 +216,9 @@ async def test_applied_backfill_is_not_reported_as_failure(
     repos = iter(
         [
             MagicMock(get_by_id=AsyncMock(return_value=order)),
-            MagicMock(backfill_exchange_realized_pnl=AsyncMock(return_value=1)),
+            MagicMock(
+                backfill_exchange_realized_pnl=AsyncMock(return_value=1), commit=second.commit
+            ),
         ]
     )
     monkeypatch.setattr(trading_mod, "OrderRepository", lambda _s: next(repos))
@@ -252,7 +254,9 @@ async def test_already_synced_is_not_reported_as_failure(
     repos = iter(
         [
             MagicMock(get_by_id=AsyncMock(return_value=order)),
-            MagicMock(backfill_exchange_realized_pnl=AsyncMock(return_value=0)),
+            MagicMock(
+                backfill_exchange_realized_pnl=AsyncMock(return_value=0), commit=second.commit
+            ),
         ]
     )
     monkeypatch.setattr(trading_mod, "OrderRepository", lambda _s: next(repos))

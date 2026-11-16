@@ -233,6 +233,10 @@ def _install_repositories(monkeypatch: pytest.MonkeyPatch, state: _State) -> Non
             state.resyncs.append((order_id, realized_pnl))
             return 1
 
+        async def commit(self) -> None:
+            # 프로덕션 `OrderRepository.commit` 과 같이 세션에 위임해야 `state.commits` 가 센다.
+            await self.session.commit()
+
     monkeypatch.setattr(trading_mod, "ExchangeAccountRepository", AccountRepository)
     monkeypatch.setattr(trading_mod, "ExchangeExitRepository", ExitRepository)
     monkeypatch.setattr(trading_mod, "OrderRepository", OrderRepository)
