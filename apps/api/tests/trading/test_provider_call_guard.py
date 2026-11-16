@@ -224,6 +224,29 @@ async def test_non_ccxt_error_hides_message_and_breaks_chain(
 
 
 @pytest.mark.parametrize(("cls_name", "method", "call", "event"), _SITE_PARAMS)
+async def test_non_ccxt_error_object_is_not_held_by_wrapper_traceback_frames(
+    monkeypatch: pytest.MonkeyPatch, cls_name: str, method: str, call: Call, event: str
+) -> None:
+    """지역변수를 수집하는 리포터(Sentry 등)가 원래 예외 객체를 보지 못해야 한다."""
+    original = RuntimeError("apiKey=guard-key leaked")
+    _install_exchange(monkeypatch, cls_name, method, original)
+
+    with pytest.raises(ProviderError) as info:
+        await call()
+
+    holders = []
+    tb = info.value.__traceback__
+    while tb is not None:
+        frame = tb.tb_frame
+        if frame.f_code.co_filename != __file__ and any(
+            value is original for value in frame.f_locals.values()
+        ):
+            holders.append(f"{frame.f_code.co_filename}:{frame.f_code.co_name}")
+        tb = tb.tb_next
+    assert holders == []
+
+
+@pytest.mark.parametrize(("cls_name", "method", "call", "event"), _SITE_PARAMS)
 async def test_close_failure_keeps_original_error_and_logs_event(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
