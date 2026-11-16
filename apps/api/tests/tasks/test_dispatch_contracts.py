@@ -126,6 +126,32 @@ def test_celery_dispatchers_enqueue_own_task_with_string_uuid(
             delay.assert_not_called()
 
 
+def test_celery_backtest_dispatcher_revokes_with_terminate_and_enqueues_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """cancel revoke 는 그 task id 로 AsyncResult(app=celery_app).revoke(terminate=True) 1회뿐이다."""
+    import celery.result
+
+    from src.tasks.celery_app import celery_app
+
+    async_result_cls = MagicMock()
+    delay = MagicMock()
+    monkeypatch.setattr(celery.result, "AsyncResult", async_result_cls)
+    monkeypatch.setattr(backtest_module.run_backtest_task, "delay", delay)
+
+    CeleryTaskDispatcher().revoke_backtest("celery-task-xyz")
+
+    async_result_cls.assert_called_once_with("celery-task-xyz", app=celery_app)
+    async_result_cls.return_value.revoke.assert_called_once_with(terminate=True)
+    delay.assert_not_called()
+
+
+def test_noop_backtest_dispatcher_refuses_revoke() -> None:
+    """worker 방어 dispatcher 는 revoke 도 자신의 클래스명을 담아 거부한다."""
+    with pytest.raises(RuntimeError, match="NoopTaskDispatcher"):
+        NoopTaskDispatcher().revoke_backtest("celery-task-xyz")
+
+
 def test_run_backtest_task_observes_duration_once_when_worker_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

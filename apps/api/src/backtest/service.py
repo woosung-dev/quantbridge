@@ -867,13 +867,7 @@ class BacktestService:
         # Best-effort revoke
         if bt.celery_task_id:
             try:
-                from celery.result import (  # type: ignore[import-untyped]  # 지연 import (순환 방지)
-                    AsyncResult,
-                )
-
-                from src.tasks.celery_app import celery_app
-
-                AsyncResult(bt.celery_task_id, app=celery_app).revoke(terminate=True)
+                self.dispatcher.revoke_backtest(bt.celery_task_id)
             except Exception:
                 logger.exception("revoke_failed", extra={"bt_id": str(bt.id)})
 
