@@ -845,8 +845,8 @@ native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 305
 **Priority:** P3
 **출처:** 2026-11-16 PR #944~#953 빈 컨텍스트 리뷰 6건 — 전부 MERGE 판정에 붙은 메모
 
-**내용:** ⑴ 지워진 `type: ignore` 를 설명하는 낡은 주석 2곳(`trading/repositories/order_repository.py:69-71` · `webhook_secret_repository.py:90-91`) ⑵ `tasks/_worker_engine.py:7-11` docstring 이 loop 사유를 과거형으로만 적는다 — `celery_app.py:328` 은 지금도 master 에서 `asyncio.run(_reclaim())` 을 부르므로 「이제 캐시해도 된다」로 읽히면 깨진다 ⑶ prefork 가드의 「디렉터리 스코프」를 고정하는 테스트가 없다 — glob 을 이름 목록으로 되돌려도 초록이다 ⑷ `fetch_attached_sl_orders` 신규 테스트 2건이 빈 목록과 `ProviderError` 유지만 단언한다(비어 있지 않은 관측 · warning 미단언) ⑸ `backtest/dispatcher.py:30` docstring 「HTTP submit 경로에서만」은 cancel 도 지나므로 낡았다 ⑹ `apps/web/AGENTS.md:189` 의 `:4017` 선례는 지금 `globals.css:4044` 다.
-**권장 접근:** ★주석만 바꿔도 `apps/api/src/**` 는 `release.yml` 의 `paths-ignore` 밖이라 **운영 재배포가 돈다** — 단독 PR 로 내지 말고 다음 실제 코드 변경에 묶어라. ⑶⑷⑹ 은 테스트·문서라 배포 없이 머지된다.
+**내용:** ⑴ 지워진 `type: ignore` 를 설명하는 낡은 주석 2곳(`trading/repositories/order_repository.py:69-71` · `webhook_secret_repository.py:90-91`) ⑵ `tasks/_worker_engine.py:7-11` docstring 이 loop 사유를 과거형으로만 적는다 — `celery_app.py:328` 은 지금도 master 에서 `asyncio.run(_reclaim())` 을 부르므로 「이제 캐시해도 된다」로 읽히면 깨진다 ⑶ prefork 가드의 「디렉터리 스코프」를 고정하는 테스트가 없다 — glob 을 이름 목록으로 되돌려도 초록이다 ⑷ `fetch_attached_sl_orders` 신규 테스트 2건이 빈 목록과 `ProviderError` 유지만 단언한다(비어 있지 않은 관측 · warning 미단언) ⑸ `backtest/dispatcher.py:30` docstring 「HTTP submit 경로에서만」은 cancel 도 지나므로 낡았다 ⑹ `apps/web/AGENTS.md:189` 의 `:4017` 선례는 지금 `globals.css:4044` 다 ⑺ `deploy.sh` 의 `_wait_api_health`(PR #955): 조회 **간격**을 고정하는 단언이 없다 — `sleep 2` 를 지워도 `test_deploy.py` 전건 초록이고 그러면 15회 조회가 1초 안에 끝나 원래 경합이 되살아난다. 또 대기 창(약 30초)이 `RestartSec=5` + 기동보다 길어, 첫 기동이 죽고 systemd 재기동이 성공하면 초록이 된다 — 요약에 `NRestarts` 를 찍어라.
+**권장 접근:** ★주석만 바꿔도 `apps/api/src/**` 는 `release.yml` 의 `paths-ignore` 밖이라 **운영 재배포가 돈다** — 단독 PR 로 내지 말고 다음 실제 코드 변경에 묶어라. ⑶⑷⑹ 은 테스트·문서라 배포 없이 머지된다(⑺ 은 `tools/scripts/**` 라 배포가 돈다).
 
 **상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
 **트리거 판정:** 도래
