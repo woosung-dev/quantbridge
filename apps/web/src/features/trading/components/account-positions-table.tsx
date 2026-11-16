@@ -29,8 +29,9 @@ import {
   useClosePosition,
 } from "@/features/live-sessions/hooks";
 import type { AccountPositionRow } from "@/features/live-sessions/schemas";
+import { EMPTY_CELL } from "@/lib/labels";
 
-import { EMPTY_CELL, directionLabel, formatPositionReturn } from "./open-positions-table";
+import { directionLabel, formatPositionReturn } from "./open-positions-table";
 
 const UNSUPPORTED_BODY: Record<string, string> = {
   live_mode_stub: "라이브 모드 계정의 포지션 조회는 아직 제공되지 않습니다.",
