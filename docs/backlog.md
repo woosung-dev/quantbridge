@@ -774,3 +774,48 @@ native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 305
 **잔여:** legacy의 서로 다른 raw 합산과 불완전 조회 CAS는 남아 있다. 공식 cursor 완료를
 입증하지 못한 자료의 legacy 확정 경로를 별도로 막아야 한다.
 **출처:** [Bybit Closed PnL](https://bybit-exchange.github.io/docs/v5/position/close-pnl).
+
+---
+
+### BL-872
+
+**Title:** `backtest.run` 에만 **time limit 이 없다** — 형제 장기 작업 둘은 상한이 있다
+**Category:** Backend / Celery
+**Priority:** P2
+**출처:** 2026-11-16 BE 아키텍처 탐색(장기 작업 3종 공통 골격 검토 — 골격 통합은 기각, 이 차이만 남았다)
+
+**증상:** `tasks/optimizer_tasks.py:27-28` 은 `soft_time_limit=600`/`time_limit=660`, `tasks/stress_test_tasks.py:34-35` 는 1800/1860 인데 `tasks/backtest.py:20` 의 `backtest.run` 은 둘 다 없고 `celery_app.py` 에 전역 `task_time_limit` 도 없다. stress_test 쪽 주석이 적은 사고(「상한이 없으면 원장은 FAILED 인데 워커는 계속 돈다」)가 backtest 에는 그대로 열려 있다 — `reclaim_stale` 이 행을 FAILED 로 닫아도 자식 프로세스는 풀리지 않는다.
+**권장 접근:** ⑴ 의도인지 먼저 정해라 `[확인 필요]`(긴 백테스트를 일부러 허용했을 수 있다) ⑵ 상한을 건다면 `reclaim_stale` 임계와 **같은 숫자에서 파생**시켜라 — 두 숫자가 따로 놀면 「원장은 실패, 워커는 실행」 창이 다시 생긴다. 재집계 = `grep -n time_limit apps/api/src/tasks/*.py`.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-873
+
+**Title:** OpenAPI 가 **필수 Decimal 14필드를 nullable 로 광고**한다 — serializer 반환형이 `str | None`
+**Category:** Backend / API 계약
+**Priority:** P3
+**출처:** 2026-11-16 Decimal 직렬화 타입 통합(PR #947) — 옮기면 스키마가 바뀌는 필드라 남겼다
+
+**증상:** `backtest/schemas.py` 의 `SideMetricsOut`(3)·`BacktestMetricsOut`(4)·`TradeItem`(5), `stress_test/schemas.py` 의 `WalkForwardFoldOut`(2) — 필드 타입은 필수 `Decimal` 인데 `@field_serializer` 의 반환형이 `str | None` 이라 OpenAPI serialization 스키마가 `string | null` 이다. 값은 절대 null 이 아니다. FE 는 생성 타입을 따라 불필요한 null 분기를 쓰거나, 반대로 진짜 nullable 필드와 구분을 못 한다. ★#947 이후 **남아 있는 `_decimal_to_str` 데코레이터가 정확히 이 목록**이다(재집계 = `grep -n "_decimal_to_str" -B8 apps/api/src/{backtest,stress_test}/schemas.py`).
+**권장 접근:** 해당 필드를 `DecimalStr`(`src/common/decimal_str.py`)로 바꾸고 `export_openapi.py` 재생성 + FE 타입 재생성을 **같은 PR** 에. ★json 한정 serializer(`when_used="json"` — `BacktestMetricsSummary`·`OhlcvBar`·optimizer)는 python 모드가 Decimal 이라 **합치면 동작 변경**이다 — 건드리지 마라.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-874
+
+**Title:** 「체결 승자가 무엇을 예약하나」가 **6곳에 복제돼 있고 곳마다 조건이 다르다**
+**Category:** Backend / Trading (경계 재설계)
+**Priority:** P2
+**출처:** 2026-11-16 BE 아키텍처 탐색 — 삭제 테스트를 통과한 유일한 Strong 후보. **동작 변경이라 리팩토링 회차에서 손대지 않았다**
+
+**증상:** `transition_to_filled` 의 rowcount 승자 후속(trailing 부착 · closed-pnl refresh · reversal 계측 · gauge dec · 부분체결 계측 · 캐시 무효화)이 `tasks/trading.py`(REST 동기 체결 · watchdog) · `tasks/live_signal.py`(`_write_back_confirmed_terminal`) · `tasks/conditional_entry_janitor.py` · `trading/services/websocket_order_event_service.py` · `websocket_reconciliation_service.py` 에 각각 있다. 코드로 확인한 차이: ⑴ WS 이벤트만 trailing 을 `risk_context is None` 일 때만 건다(reconciler·watchdog 은 무조건) ⑵ 훅별 예외 격리는 live_signal 뿐(`[탐색 보고 — 미대조]`, ⑴⑶⑷ 는 코드 대조함) ⑶ watchdog 은 계정 스냅샷 키만 버리고 **세션 키는 안 버린다** — 바로 위 주석([BL-498])은 「terminal 을 확정하는 곳마다 같은 키를 버려야 보장이 성립한다」고 적는다 ⑷ `trading/services/websocket_*` 가 `src.tasks.trading` 의 **private** `_enqueue_*` 를 지연 import 한다(도메인 → task 역방향). [BL-557]·[BL-567]·[BL-868] 이 같은 뿌리의 증상을 따로 등재해 뒀다.
+**권장 접근:** ⑴ **먼저 6곳 × 술어 표를 만들고 각 차이를 「의도 / 결함」으로 판정**해라 — 그 전에 코드를 모으면 결함을 계약으로 굳힌다 ⑵ 1단계(동작 불변) = `_enqueue_*` 를 trading 쪽 module 로 옮기고 `tasks/trading.py` 가 옛 이름을 재수출 ⑶ 2단계 = 「종결 전이 승자」를 받는 한 곳이 후속을 결정. ★`_enqueue_*` 를 `src.tasks.trading` 이름으로 막는 테스트가 있어, 옮기면 그 patch 가 **조용히 무효**가 된다(`test_ws_state_handler_active_orders.py` · `test_code_risk_repository.py`) — 같은 PR 에서 표적을 옮겨라.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
