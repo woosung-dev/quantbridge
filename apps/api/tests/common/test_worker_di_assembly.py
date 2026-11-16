@@ -241,3 +241,23 @@ async def test_get_ohlcv_provider_uses_timescale_with_request_ccxt(
     assert provider.repo.session is session
     assert provider.ccxt is ccxt_provider
     assert provider.exchange_name == settings.default_exchange
+
+
+@pytest.mark.parametrize(("builder", "_dispatcher_type"), WORKER_BUILDERS)
+def test_worker_fixture_mode_never_resolves_worker_ccxt(
+    monkeypatch: pytest.MonkeyPatch,
+    builder,
+    _dispatcher_type,
+) -> None:
+    """fixture 모드에서는 worker CCXT singleton 을 만들지 않는다(timescale 갈래 전용)."""
+    monkeypatch.setattr(settings, "ohlcv_provider", "fixture")
+
+    def _boom() -> object:
+        raise AssertionError("fixture 모드에서 worker ccxt getter 가 호출됐다")
+
+    celery_module = import_module("src.tasks.celery_app")
+    monkeypatch.setattr(celery_module, "get_ccxt_provider_for_worker", _boom)
+
+    service = builder(object())
+
+    assert isinstance(service.provider, FixtureProvider)
