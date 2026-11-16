@@ -840,13 +840,13 @@ native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 305
 
 ### BL-878
 
-**Title:** 운영 CLI `live_session_admin.py` 의 `start`·`stop` 이 **코드 세션을 못 다룬다** — 리스크 실행기 미주입
+**Title:** 운영 CLI `live_session_admin.py` 의 `start`·`stop` 이 **코드 세션을 못 다룬다** — `stop` 은 막히는데 `flatten` 은 된다
 **Category:** Backend / 운영 도구
-**Priority:** P3
+**Priority:** P2
 **출처:** 2026-11-16 [BL-876] 수리 중 형제 조립 대조(HTTP 원본 `trading/dependencies.py:get_live_signal_session_service` ↔ 스크립트 사본)
 
-**증상:** HTTP 조립은 `build_code_risk_executor(...)` 로 `risk_service`·`risk_executor` 를 넘기는데 스크립트의 `_build_session_service`(`start`)와 `_cmd_stop` 의 인라인 조립은 둘 다 안 넘긴다(생성자 기본값 `None`). 그래서 코드 세션에서 `start`(`source_policy == "code_v1"`)는 「영속 리스크 실행기가 준비되지 않았습니다」, `stop`(`execution_snapshot is not None`)은 「코드 세션 종료에는 영속 리스크 실행기가 필요합니다」로 `InvalidStrategySettings` 를 낸다(`trading/services/live_session_service.py` 의 가드 2곳 — 코드 대조, 실행 미측정). **fail-closed 라 잘못된 주문은 안 나간다.** 다만 스크립트 docstring 이 적는 운영 순서 「`stop` → `flatten`」이 코드 세션에서는 첫 단계에서 멈춘다. Pine 세션은 영향 없다. ★`flatten` 은 이 조립을 안 쓴다(`_build_close_service` 만).
-**권장 접근:** ⑴ `[확인 필요]` 의도인지 먼저 정해라 — `_cmd_stop` 주석은 「안 쓰는 의존성을 억지로 만들지 않는다」고 적지만 그 주석은 코드 세션이 생기기 전 것이다 ⑵ 고친다면 HTTP 와 같은 `build_code_risk_executor(session, account_service, provider)` 를 쓰고, `tests/trading/test_live_session_admin_wiring.py` 에 「코드 세션 stop 이 가드를 지난다」 케이스를 **먼저** 써라 ⑶ ★`scripts/` 는 mypy 게이트 밖이다(`mypy src`) — [BL-876] 도 [BL-634] 때의 `stop` `TypeError` 도 그 사각에서 났다. 2026-11-16 단독 실행(`uv run mypy scripts/live_session_admin.py`) 잔여 2건은 타입 표기뿐이다(`:349` 변수 재사용 · `:434` `str` → `Literal`).
+**증상:** HTTP 조립은 `build_code_risk_executor(...)` 로 `risk_service`·`risk_executor` 를 넘기는데 스크립트의 `_build_session_service`(`start`)와 `_cmd_stop` 의 인라인 조립은 둘 다 안 넘긴다(생성자 기본값 `None`). ⑴ `stop` — 코드 세션(`execution_snapshot is not None`)에서 「코드 세션 종료에는 영속 리스크 실행기가 필요합니다」로 `InvalidStrategySettings` 를 낸다(`trading/services/live_session_service.py` `deactivate`). 가짜 repo 프로브에서 `repo.deactivate`·`commit` 호출 0회 — **명령 단위로는 fail-closed 다**(PR #956 리뷰 실측). ⑵ `start` — 리스크 가드까지 가지도 못한다. `_cmd_start` 가 `source_policy` 를 안 넘겨(스키마 기본값 `None`) 코드 전략은 그 앞의 「코드 전략은 code_v1 명시 opt-in이 필요합니다」에서 멈춘다. ⑶ ★**조합이 문제다** — [BL-876] 수리로 `flatten` 이 살아났으므로 코드 세션은 CLI 로 **`stop` 은 못 하고 `flatten` 만 된다.** 스크립트 docstring 의 순서 「`stop` → `flatten`」을 지킬 수 없어, 살아 있는 세션에 청산 주문이 나가고 다음 tick 에 엔진이 재진입할 수 있다(`[가정]` — 재진입·리스크 실행기의 divergence 반응은 실행 미측정). HTTP `POST /live-sessions/{id}/positions/close` 도 같은 서비스를 활성 여부 가드 없이 부르므로 CLI 만의 새 능력은 아니다. Pine 세션은 영향 없다.
+**권장 접근:** ⑴ `[확인 필요]` 의도인지 먼저 정해라 — `_cmd_stop` 주석은 「안 쓰는 의존성을 억지로 만들지 않는다」고 적지만 그 주석은 코드 세션이 생기기 전 것이다 ⑵ `stop` 을 고친다면 HTTP 와 같은 `build_code_risk_executor(session, account_service, provider)` 를 쓰고, `tests/trading/test_live_session_admin_wiring.py` 에 「코드 세션 stop 이 가드를 지난다」 케이스를 **먼저** 써라. `start` 는 그것만으로 안 열린다 — `source_policy`·`strategy_version_id` 를 받을 CLI 인자가 함께 필요하다. 그 전까지 코드 세션은 **웹 화면에서 먼저 종료한 뒤** `flatten` 해라 ⑶ ★`scripts/` 는 mypy 게이트 밖이다(`mypy src`) — [BL-876] 도 [BL-634] 때의 `stop` `TypeError` 도 그 사각에서 났다. 2026-11-16 단독 실행(`uv run mypy scripts/live_session_admin.py`) 잔여 2건은 타입 표기뿐이다(`:349` 변수 재사용 · `:434` `str` → `Literal`).
 
 **상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
 **트리거 판정:** 도래
