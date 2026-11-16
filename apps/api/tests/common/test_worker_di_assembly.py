@@ -15,7 +15,7 @@ from src.backtest.dependencies import (
 )
 from src.backtest.dispatcher import CeleryTaskDispatcher, NoopTaskDispatcher
 from src.core.config import settings
-from src.market_data.dependencies import get_ccxt_provider, get_ohlcv_provider
+from src.market_data.dependencies import get_ohlcv_provider
 from src.market_data.providers.fixture import FixtureProvider
 from src.market_data.providers.timescale import TimescaleProvider
 from src.optimizer.dependencies import (
@@ -192,17 +192,6 @@ def test_worker_builder_reads_provider_setting_at_call_time(
 
 
 @pytest.mark.asyncio
-async def test_get_ccxt_provider_returns_request_app_state_identity() -> None:
-    """HTTP DI는 lifespan가 보관한 CCXT singleton을 변형 없이 넘긴다."""
-    ccxt_provider = object()
-    request = _request_with_ccxt(ccxt_provider)
-
-    result = await get_ccxt_provider(request)
-
-    assert result is ccxt_provider
-
-
-@pytest.mark.asyncio
 async def test_get_ohlcv_provider_uses_fixture_with_configured_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -241,3 +230,23 @@ async def test_get_ohlcv_provider_uses_timescale_with_request_ccxt(
     assert provider.repo.session is session
     assert provider.ccxt is ccxt_provider
     assert provider.exchange_name == settings.default_exchange
+
+
+@pytest.mark.parametrize(("builder", "_dispatcher_type"), WORKER_BUILDERS)
+def test_worker_fixture_mode_never_resolves_worker_ccxt(
+    monkeypatch: pytest.MonkeyPatch,
+    builder,
+    _dispatcher_type,
+) -> None:
+    """fixture 모드에서는 worker CCXT singleton 을 만들지 않는다(timescale 갈래 전용)."""
+    monkeypatch.setattr(settings, "ohlcv_provider", "fixture")
+
+    def _boom() -> object:
+        raise AssertionError("fixture 모드에서 worker ccxt getter 가 호출됐다")
+
+    celery_module = import_module("src.tasks.celery_app")
+    monkeypatch.setattr(celery_module, "get_ccxt_provider_for_worker", _boom)
+
+    service = builder(object())
+
+    assert isinstance(service.provider, FixtureProvider)
