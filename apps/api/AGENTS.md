@@ -66,7 +66,7 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 
 ★**조립 지점은 `dependencies.py` 외에 하나 더 있다** — `trading/code_risk_composition.py` 의
 `build_code_risk_executor(session, accounts, provider)` 가 `AsyncSession` 으로 repository·service 를 조립한다.
-HTTP(`trading/dependencies.py:234`)·Celery(`tasks/code_live_signal.py`)·WS 워커(`tasks/websocket_task.py`)가
+HTTP(`trading/dependencies.py`)·Celery(`tasks/code_live_signal.py`)·WS 워커(`tasks/websocket_task.py`)가
 **같은 실행기를 조립**하려고 한 곳에 둔 것이다(파일 docstring 근거). service 가 세션을 쥐는 것이 아니라 조립 함수만 쥔다.
 
 ★**「AsyncSession 금지」의 등재된 예외는 하나뿐이다** — `trading/services/order_service.py` 가

@@ -2,11 +2,13 @@
 """Prefork-safe async engine + sessionmaker factory.
 
 Celery prefork 워커의 task entry 는 `run_in_worker_loop` 로 프로세스당 영속 loop
-(`_WORKER_LOOP`) 에서 돈다. 그래도 asyncpg connection pool 은 생성 당시 loop 에
-bind 되고, 전역 engine 을 캐시하면 pool stale 누수(fork 상속·loop 재생성 시
-"got Future attached to a different loop" → "another operation is in progress"
-연쇄)가 남는다. 따라서 engine / sessionmaker 는 _execute / reclaim 내부에서
-**매 호출마다 새로 만들고 dispose** 해야 한다.
+(`_WORKER_LOOP`) 에서 돈다. loop 통일과 별개로 connection pool stale 누수가
+남으므로(`apps/api/AGENTS.md` §9) engine / sessionmaker 는 _execute / reclaim
+내부에서 **매 호출마다 새로 만들고 dispose** 해야 한다. 이 규칙이 생긴 경위 —
+task 마다 `asyncio.run()` 으로 새 loop 를 만들던 시절, 전역 engine 을 캐시하면
+두 번째 task 부터 "got Future attached to a different loop" → 이후 pool 이 깨져
+"another operation is in progress" 가 연쇄됐다(asyncpg pool 은 생성 당시 loop 에
+bind 된다).
 
 Sprint 59 PR-A — 본 모듈 신설 이전에는 8 개 task 파일이 동일 함수를 각각
 정의 (Sprint 18 BL-080) 했으나, 사본 drift 위험 + LESSON-038 worker rebuild
