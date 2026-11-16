@@ -17,6 +17,7 @@ from pydantic import (
 
 from src.backtest.data_coverage import DataCoverage
 from src.backtest.models import BacktestStatus, TradeDirection, TradeStatus
+from src.common.decimal_str import DecimalStr, DecimalStrOrNone
 from src.strategy.code_contract import CodeExecutionPolicy
 from src.strategy.research_contract import ResearchExecution
 
@@ -258,15 +259,13 @@ class SideMetricsOut(BaseModel):
     net_profit_abs: Decimal
     gross_profit_abs: Decimal
     gross_loss_abs: Decimal
-    profit_factor: Decimal | None = None
-    avg_trade_abs: Decimal | None = None
+    profit_factor: DecimalStrOrNone = None
+    avg_trade_abs: DecimalStrOrNone = None
 
     @field_serializer(
         "net_profit_abs",
         "gross_profit_abs",
         "gross_loss_abs",
-        "profit_factor",
-        "avg_trade_abs",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
@@ -283,40 +282,21 @@ class ExcursionStatsOut(BaseModel):
     """engine.types.ExcursionStats → API 노출. `_intrabar` = bar high/low 근사
     (FE "(bar 근사)" 라벨 의무 — Surface Trust)."""
 
-    max_runup_abs: Decimal | None = None
-    max_runup_pct: Decimal | None = None
-    avg_runup_abs: Decimal | None = None
-    avg_runup_duration_bars: Decimal | None = None
-    avg_runup_duration_days: Decimal | None = None
-    avg_drawdown_abs: Decimal | None = None
-    avg_drawdown_duration_bars: Decimal | None = None
-    avg_drawdown_duration_days: Decimal | None = None
-    max_drawdown_abs: Decimal | None = None
+    max_runup_abs: DecimalStrOrNone = None
+    max_runup_pct: DecimalStrOrNone = None
+    avg_runup_abs: DecimalStrOrNone = None
+    avg_runup_duration_bars: DecimalStrOrNone = None
+    avg_runup_duration_days: DecimalStrOrNone = None
+    avg_drawdown_abs: DecimalStrOrNone = None
+    avg_drawdown_duration_bars: DecimalStrOrNone = None
+    avg_drawdown_duration_days: DecimalStrOrNone = None
+    max_drawdown_abs: DecimalStrOrNone = None
     max_drawdown_recovery_bars: int | None = None
-    max_drawdown_recovery_days: Decimal | None = None
-    max_runup_intrabar_abs: Decimal | None = None
-    max_runup_intrabar_pct: Decimal | None = None
-    max_drawdown_intrabar_abs: Decimal | None = None
-    max_drawdown_intrabar_pct: Decimal | None = None
-
-    @field_serializer(
-        "max_runup_abs",
-        "max_runup_pct",
-        "avg_runup_abs",
-        "avg_runup_duration_bars",
-        "avg_runup_duration_days",
-        "avg_drawdown_abs",
-        "avg_drawdown_duration_bars",
-        "avg_drawdown_duration_days",
-        "max_drawdown_abs",
-        "max_drawdown_recovery_days",
-        "max_runup_intrabar_abs",
-        "max_runup_intrabar_pct",
-        "max_drawdown_intrabar_abs",
-        "max_drawdown_intrabar_pct",
-    )
-    def _decimal_to_str(self, v: Decimal | None) -> str | None:
-        return None if v is None else str(v)
+    max_drawdown_recovery_days: DecimalStrOrNone = None
+    max_runup_intrabar_abs: DecimalStrOrNone = None
+    max_runup_intrabar_pct: DecimalStrOrNone = None
+    max_drawdown_intrabar_abs: DecimalStrOrNone = None
+    max_drawdown_intrabar_pct: DecimalStrOrNone = None
 
 
 class BacktestMetricsOut(BaseModel):
@@ -344,26 +324,26 @@ class BacktestMetricsOut(BaseModel):
     #   (override 경로) · num_trades == completed_trades (legacy fallback 경로).
     completed_trades: int | None = None
     # 확장 지표 — Optional (기존 완료 백테스트는 None 반환)
-    sortino_ratio: Decimal | None = None
-    calmar_ratio: Decimal | None = None
-    profit_factor: Decimal | None = None
-    avg_win: Decimal | None = None
-    avg_loss: Decimal | None = None
+    sortino_ratio: DecimalStrOrNone = None
+    calmar_ratio: DecimalStrOrNone = None
+    profit_factor: DecimalStrOrNone = None
+    avg_win: DecimalStrOrNone = None
+    avg_loss: DecimalStrOrNone = None
     long_count: int | None = None
     short_count: int | None = None
     # Sprint 30 gamma-BE 신규 12 필드 (PRD spec)
-    avg_holding_hours: Decimal | None = None
+    avg_holding_hours: DecimalStrOrNone = None
     consecutive_wins_max: int | None = None
     consecutive_losses_max: int | None = None
-    long_win_rate_pct: Decimal | None = None
-    short_win_rate_pct: Decimal | None = None
+    long_win_rate_pct: DecimalStrOrNone = None
+    short_win_rate_pct: DecimalStrOrNone = None
     monthly_returns: list[tuple[str, Decimal]] | None = None
     drawdown_duration: int | None = None
-    annual_return_pct: Decimal | None = None
+    annual_return_pct: DecimalStrOrNone = None
     total_trades: int | None = None
-    avg_trade_pct: Decimal | None = None
-    best_trade_pct: Decimal | None = None
-    worst_trade_pct: Decimal | None = None
+    avg_trade_pct: DecimalStrOrNone = None
+    best_trade_pct: DecimalStrOrNone = None
+    worst_trade_pct: DecimalStrOrNone = None
     drawdown_curve: list[tuple[str, Decimal]] | None = None
     # Sprint 32-D BL-156 — MDD 수학 정합 메타. mdd_unit = "equity_ratio" (현재
     # 유일 단위), mdd_exceeds_capital = MDD < -100% 여부 (자본 초과 손실).
@@ -375,27 +355,27 @@ class BacktestMetricsOut(BaseModel):
     # fail-closed: OHLCV close 1건이라도 NaN/<=0 시 None → FE BH series hide.
     buy_and_hold_curve: list[tuple[str, Decimal]] | None = None
     # C14 (정직성) — 총 수수료/슬리피지 (헤드라인 net 표시). 기존 backtest 호환 None.
-    total_fees: Decimal | None = None
-    total_slippage: Decimal | None = None
+    total_fees: DecimalStrOrNone = None
+    total_slippage: DecimalStrOrNone = None
     # True=관측 정산 미반영, False=펀딩 노출 없음, None=완전성 미검증 또는 미계산.
     # total_funding/config으로 실제 계산 여부를 구분한다. 과거 응답도 None을 허용한다.
     funding_data_incomplete: bool | None = None
-    total_funding: Decimal | None = None
+    total_funding: DecimalStrOrNone = None
     # --- TV parity 팩 (구 backtest = None, graceful upgrade) ---
-    net_profit_abs: Decimal | None = None
-    gross_profit_abs: Decimal | None = None
-    gross_loss_abs: Decimal | None = None
-    open_pnl: Decimal | None = None
-    largest_win_abs: Decimal | None = None
-    largest_loss_abs: Decimal | None = None
-    avg_trade_abs: Decimal | None = None
-    avg_win_abs: Decimal | None = None
-    avg_loss_abs: Decimal | None = None
-    ratio_avg_win_loss: Decimal | None = None
+    net_profit_abs: DecimalStrOrNone = None
+    gross_profit_abs: DecimalStrOrNone = None
+    gross_loss_abs: DecimalStrOrNone = None
+    open_pnl: DecimalStrOrNone = None
+    largest_win_abs: DecimalStrOrNone = None
+    largest_loss_abs: DecimalStrOrNone = None
+    avg_trade_abs: DecimalStrOrNone = None
+    avg_win_abs: DecimalStrOrNone = None
+    avg_loss_abs: DecimalStrOrNone = None
+    ratio_avg_win_loss: DecimalStrOrNone = None
     total_open_trades: int | None = None
-    avg_bars_in_trade: Decimal | None = None
-    avg_bars_in_winning_trades: Decimal | None = None
-    avg_bars_in_losing_trades: Decimal | None = None
+    avg_bars_in_trade: DecimalStrOrNone = None
+    avg_bars_in_winning_trades: DecimalStrOrNone = None
+    avg_bars_in_losing_trades: DecimalStrOrNone = None
     per_side: PerSideMetricsOut | None = None
     excursion_stats: ExcursionStatsOut | None = None
     # 격리 레버리지 모델 적용 결과. leverage<=1 이면 항상 None.
@@ -407,35 +387,6 @@ class BacktestMetricsOut(BaseModel):
         "sharpe_ratio",
         "max_drawdown",
         "win_rate",
-        "sortino_ratio",
-        "calmar_ratio",
-        "profit_factor",
-        "avg_win",
-        "avg_loss",
-        "avg_holding_hours",
-        "long_win_rate_pct",
-        "short_win_rate_pct",
-        "annual_return_pct",
-        "avg_trade_pct",
-        "best_trade_pct",
-        "worst_trade_pct",
-        "total_fees",
-        "total_slippage",
-        "total_funding",
-        # TV parity 팩 Decimal flat
-        "net_profit_abs",
-        "gross_profit_abs",
-        "gross_loss_abs",
-        "open_pnl",
-        "largest_win_abs",
-        "largest_loss_abs",
-        "avg_trade_abs",
-        "avg_win_abs",
-        "avg_loss_abs",
-        "ratio_avg_win_loss",
-        "avg_bars_in_trade",
-        "avg_bars_in_winning_trades",
-        "avg_bars_in_losing_trades",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
@@ -472,11 +423,7 @@ class EquityPoint(BaseModel):
     """equity_curve 1 point."""
 
     timestamp: AwareDatetime
-    value: Decimal
-
-    @field_serializer("value")
-    def _decimal_to_str(self, v: Decimal) -> str:
-        return str(v)
+    value: DecimalStr
 
 
 class BacktestConfigOut(BaseModel):
@@ -516,7 +463,7 @@ class BacktestDetail(BacktestSummary):
 
     strategy_version_id: UUID | None = None
 
-    initial_capital: Decimal
+    initial_capital: DecimalStr
     config: BacktestConfigOut | None = None
     metrics: BacktestMetricsOut | None = None
     equity_curve: list[EquityPoint] | None = None
@@ -526,10 +473,6 @@ class BacktestDetail(BacktestSummary):
     #   `[]` = 경고 없이 돌았다. 화면은 그 둘을 구분해 그린다.
     warnings: list[str] | None = None
     data_coverage: DataCoverage | None = None
-
-    @field_serializer("initial_capital")
-    def _decimal_to_str(self, v: Decimal) -> str:
-        return str(v)
 
 
 # --- Trade ---
@@ -544,20 +487,20 @@ class TradeItem(BaseModel):
     entry_time: AwareDatetime
     exit_time: AwareDatetime | None
     entry_price: Decimal
-    exit_price: Decimal | None
+    exit_price: DecimalStrOrNone
     size: Decimal
     pnl: Decimal
     return_pct: Decimal
     fees: Decimal
     # --- TV Trades parity (구 row = None, FE graceful hide) ---
-    runup_abs: Decimal | None = None  # MFE (보유구간 bar high/low gross, "TV 근사")
-    runup_pct: Decimal | None = None
-    drawdown_abs: Decimal | None = None  # MAE
-    drawdown_pct: Decimal | None = None
+    runup_abs: DecimalStrOrNone = None  # MFE (보유구간 bar high/low gross, "TV 근사")
+    runup_pct: DecimalStrOrNone = None
+    drawdown_abs: DecimalStrOrNone = None  # MAE
+    drawdown_pct: DecimalStrOrNone = None
     bars_in_trade: int | None = None
-    fee_paid: Decimal | None = None  # 불변식: fee_paid + slippage_paid == fees
-    slippage_paid: Decimal | None = None
-    cumulative_pnl: Decimal | None = None  # trade_index 순 net 누적
+    fee_paid: DecimalStrOrNone = None  # 불변식: fee_paid + slippage_paid == fees
+    slippage_paid: DecimalStrOrNone = None
+    cumulative_pnl: DecimalStrOrNone = None  # trade_index 순 net 누적
     exit_kind: str | None = None  # take_profit / stop_loss / trailing_stop
     comment: str | None = None  # Pine strategy.entry comment
 
@@ -565,18 +508,10 @@ class TradeItem(BaseModel):
 
     @field_serializer(
         "entry_price",
-        "exit_price",
         "size",
         "pnl",
         "return_pct",
         "fees",
-        "runup_abs",
-        "runup_pct",
-        "drawdown_abs",
-        "drawdown_pct",
-        "fee_paid",
-        "slippage_paid",
-        "cumulative_pnl",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
