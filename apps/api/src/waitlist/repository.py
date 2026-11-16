@@ -1,4 +1,5 @@
 """waitlist Repository. AsyncSession 전용, commit() 은 Service 가 호출."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -6,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.waitlist.models import WaitlistApplication, WaitlistStatus
 
@@ -22,26 +24,20 @@ class WaitlistRepository:
 
     async def find_by_id(self, application_id: UUID) -> WaitlistApplication | None:
         result = await self.session.execute(
-            select(WaitlistApplication).where(
-                WaitlistApplication.id == application_id  # type: ignore[arg-type]
-            )
+            select(WaitlistApplication).where(col(WaitlistApplication.id) == application_id)
         )
         return result.scalar_one_or_none()
 
     async def find_by_email(self, email: str) -> WaitlistApplication | None:
         normalized = email.strip().lower()
         result = await self.session.execute(
-            select(WaitlistApplication).where(
-                WaitlistApplication.email == normalized  # type: ignore[arg-type]
-            )
+            select(WaitlistApplication).where(col(WaitlistApplication.email) == normalized)
         )
         return result.scalar_one_or_none()
 
     async def find_by_invite_token(self, token: str) -> WaitlistApplication | None:
         result = await self.session.execute(
-            select(WaitlistApplication).where(
-                WaitlistApplication.invite_token == token  # type: ignore[arg-type]
-            )
+            select(WaitlistApplication).where(col(WaitlistApplication.invite_token) == token)
         )
         return result.scalar_one_or_none()
 
@@ -54,19 +50,15 @@ class WaitlistRepository:
     ) -> tuple[list[WaitlistApplication], int]:
         stmt = select(WaitlistApplication)
         if status is not None:
-            stmt = stmt.where(WaitlistApplication.status == status)  # type: ignore[arg-type]
+            stmt = stmt.where(col(WaitlistApplication.status) == status)
 
         count_stmt = select(func.count()).select_from(WaitlistApplication)
         if status is not None:
-            count_stmt = count_stmt.where(
-                WaitlistApplication.status == status  # type: ignore[arg-type]
-            )
+            count_stmt = count_stmt.where(col(WaitlistApplication.status) == status)
         total = (await self.session.execute(count_stmt)).scalar_one()
 
         items_stmt = (
-            stmt.order_by(WaitlistApplication.created_at.desc())  # type: ignore[attr-defined]
-            .offset(offset)
-            .limit(limit)
+            stmt.order_by(col(WaitlistApplication.created_at).desc()).offset(offset).limit(limit)
         )
         items = list((await self.session.execute(items_stmt)).scalars().all())
         return items, int(total)

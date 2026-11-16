@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.auth.models import User
 
@@ -18,12 +19,12 @@ class UserRepository:
 
     async def find_by_auth_subject(self, auth_subject: str) -> User | None:
         result = await self.session.execute(
-            select(User).where(User.auth_subject == auth_subject)  # type: ignore[arg-type]
+            select(User).where(col(User.auth_subject) == auth_subject)
         )
         return result.scalar_one_or_none()
 
     async def find_by_id(self, user_id: UUID) -> User | None:
-        result = await self.session.execute(select(User).where(User.id == user_id))  # type: ignore[arg-type]
+        result = await self.session.execute(select(User).where(col(User.id) == user_id))
         return result.scalar_one_or_none()
 
     async def is_active(self, user_id: UUID) -> bool:

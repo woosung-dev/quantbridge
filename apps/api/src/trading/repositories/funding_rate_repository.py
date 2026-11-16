@@ -17,6 +17,7 @@ from datetime import datetime
 import pandas as pd
 from sqlalchemy import String, cast, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.trading.models import FundingRate
 
@@ -76,10 +77,10 @@ class FundingRateRepository:
             # 전 배포처가 head 에 도달한 뒤 걷어내라(인덱스 ix_funding_rates_exchange_symbol
             # 을 못 쓰게 만드는 비용이 있다).
             .where(cast(FundingRate.exchange, String) == exchange)
-            .where(FundingRate.symbol == symbol)  # type: ignore[arg-type]
-            .where(FundingRate.funding_timestamp >= start)  # type: ignore[arg-type]
-            .where(FundingRate.funding_timestamp <= end)  # type: ignore[arg-type]
-            .order_by(FundingRate.funding_timestamp.asc())  # type: ignore[attr-defined]
+            .where(col(FundingRate.symbol) == symbol)
+            .where(col(FundingRate.funding_timestamp) >= start)
+            .where(col(FundingRate.funding_timestamp) <= end)
+            .order_by(col(FundingRate.funding_timestamp).asc())
         )
         records = result.scalars().all()
         if not records:

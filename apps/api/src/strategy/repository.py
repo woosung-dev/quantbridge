@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import Numeric, and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import sharpe_sort_criteria
@@ -26,9 +27,7 @@ class StrategyRepository:
         return strategy
 
     async def find_by_id(self, strategy_id: UUID) -> Strategy | None:
-        result = await self.session.execute(
-            select(Strategy).where(Strategy.id == strategy_id)  # type: ignore[arg-type]
-        )
+        result = await self.session.execute(select(Strategy).where(col(Strategy.id) == strategy_id))
         return result.scalar_one_or_none()
 
     async def get_trading_sessions(self, strategy_id: UUID) -> list[str]:
@@ -47,8 +46,8 @@ class StrategyRepository:
         result = await self.session.execute(
             select(Strategy).where(
                 and_(
-                    Strategy.id == strategy_id,  # type: ignore[arg-type]
-                    Strategy.user_id == owner_id,  # type: ignore[arg-type]
+                    col(Strategy.id) == strategy_id,
+                    col(Strategy.user_id) == owner_id,
                 )
             )
         )
@@ -67,14 +66,14 @@ class StrategyRepository:
     ) -> tuple[list[Strategy], int]:
         # and_() 로 조건 목록 조합 — *list[bool] arg-type 문제 회피
         filters = and_(
-            Strategy.user_id == owner_id,  # type: ignore[arg-type]
-            Strategy.execution_policy.is_(None),  # type: ignore[union-attr]
-            Strategy.is_archived == is_archived,  # type: ignore[arg-type]
+            col(Strategy.user_id) == owner_id,
+            col(Strategy.execution_policy).is_(None),
+            col(Strategy.is_archived) == is_archived,
         )
         if parse_status is not None:
             filters = and_(
                 filters,
-                Strategy.parse_status == parse_status,  # type: ignore[arg-type]
+                col(Strategy.parse_status) == parse_status,
             )
 
         count_stmt = select(func.count()).select_from(Strategy).where(filters)
@@ -86,9 +85,9 @@ class StrategyRepository:
             .distinct(Backtest.strategy_id)
             .order_by(
                 Backtest.strategy_id,
-                Backtest.completed_at.desc().nulls_last(),  # type: ignore[union-attr]
-                Backtest.created_at.desc(),  # type: ignore[attr-defined]
-                Backtest.id.desc(),  # type: ignore[attr-defined]
+                col(Backtest.completed_at).desc().nulls_last(),
+                col(Backtest.created_at).desc(),
+                col(Backtest.id).desc(),
             )
             .subquery()
         )
@@ -118,8 +117,8 @@ class StrategyRepository:
             .where(filters)
             .order_by(
                 *order_criteria,
-                Strategy.updated_at.desc(),  # type: ignore[attr-defined]
-                Strategy.id.desc(),  # type: ignore[attr-defined]
+                col(Strategy.updated_at).desc(),
+                col(Strategy.id).desc(),
             )
             .offset(offset)
             .limit(limit)
@@ -170,18 +169,18 @@ class StrategyRepository:
         self, owner_id: UUID, *, limit: int, offset: int
     ) -> tuple[list[tuple[Strategy, StrategyVersion]], int]:
         filters = and_(
-            Strategy.user_id == owner_id,  # type: ignore[arg-type]
-            Strategy.execution_policy.in_(CODE_EXECUTION_POLICIES),  # type: ignore[union-attr]
-            Strategy.is_archived.is_(False),  # type: ignore[attr-defined]
+            col(Strategy.user_id) == owner_id,
+            col(Strategy.execution_policy).in_(CODE_EXECUTION_POLICIES),
+            col(Strategy.is_archived).is_(False),
         )
         total = (
             await self.session.execute(select(func.count()).select_from(Strategy).where(filters))
         ).scalar_one()
         statement = (
             select(Strategy, StrategyVersion)
-            .join(StrategyVersion, Strategy.strategy_version_id == StrategyVersion.id)  # type: ignore[arg-type]
+            .join(StrategyVersion, col(Strategy.strategy_version_id) == col(StrategyVersion.id))
             .where(filters)
-            .order_by(Strategy.updated_at.desc())  # type: ignore[attr-defined]
+            .order_by(col(Strategy.updated_at).desc())
             .offset(offset)
             .limit(limit)
         )
@@ -196,8 +195,8 @@ class StrategyRepository:
         result = await self.session.execute(
             select(StrategyVersion).where(
                 and_(
-                    StrategyVersion.id == version_id,  # type: ignore[arg-type]
-                    StrategyVersion.strategy_id == strategy_id,  # type: ignore[arg-type]
+                    col(StrategyVersion.id) == version_id,
+                    col(StrategyVersion.strategy_id) == strategy_id,
                 )
             )
         )
@@ -206,22 +205,18 @@ class StrategyRepository:
     async def set_current_version(self, strategy_id: UUID, version_id: UUID) -> None:
         await self.session.execute(
             update(Strategy)
-            .where(Strategy.id == strategy_id)  # type: ignore[arg-type]
+            .where(col(Strategy.id) == strategy_id)
             .values(strategy_version_id=version_id)
         )
         await self.session.flush()
 
     async def delete(self, strategy_id: UUID) -> None:
-        await self.session.execute(
-            delete(Strategy).where(Strategy.id == strategy_id)  # type: ignore[arg-type]
-        )
+        await self.session.execute(delete(Strategy).where(col(Strategy.id) == strategy_id))
 
     async def archive_all_by_owner(self, owner_id: UUID) -> None:
         """user.deleted Webhook 시 해당 사용자의 모든 Strategy를 archive."""
         await self.session.execute(
-            update(Strategy)
-            .where(Strategy.user_id == owner_id)  # type: ignore[arg-type]
-            .values(is_archived=True)
+            update(Strategy).where(col(Strategy.user_id) == owner_id).values(is_archived=True)
         )
 
     async def commit(self) -> None:

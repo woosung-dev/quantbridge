@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy import cast as sa_cast
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.market_data.constants import to_bybit_raw_symbol
 from src.trading.models import (
@@ -188,7 +189,7 @@ class ParityRepository:
         # 이벤트에는 전략, 계정, 심볼 열이 없다. 이 축의 스코프는 session_id FK 뿐이다.
         result = await self.session.execute(
             select(LiveSignalEvent)
-            .where(LiveSignalEvent.session_id.in_(session_ids))  # type: ignore[attr-defined]
+            .where(col(LiveSignalEvent.session_id).in_(session_ids))
             .where(cast(Any, LiveSignalEvent.action) == "close")
         )
         return list(result.scalars().all())
@@ -202,9 +203,9 @@ class ParityRepository:
         result = await self.session.execute(
             select(Order)
             .where(or_(*scope_predicates))
-            .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
+            .where(col(Order.realized_pnl_synced_at).is_not(None))
             .order_by(
-                Order.filled_at.asc(),  # type: ignore[union-attr]
+                col(Order.filled_at).asc(),
                 cast(Any, Order.id).asc(),
             )
         )
@@ -287,7 +288,7 @@ class ParityRepository:
             select(cast(Any, Order.id))
             .where(cast(Any, Order.exchange_account_id) == ExchangeExit.exchange_account_id)
             .where(sa_cast(cast(Any, Order.id), String) == ExchangeExit.order_link_id)
-            .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
+            .where(col(Order.realized_pnl_synced_at).is_not(None))
             .where(cast(Any, Order.reduce_only).is_(True))
             .exists()
         )
@@ -326,9 +327,7 @@ class ParityRepository:
             .select_from(scoped_exits)
             .where(unmatched_exit)
             .where(~ledger_only_exit)
-            .where(
-                scoped_exits.c.attribution_confidence.is_distinct_from(ExitAttribution.inferred)
-            )
+            .where(scoped_exits.c.attribution_confidence.is_distinct_from(ExitAttribution.inferred))
             .scalar_subquery()
         )
         inferred_attribution_count = (
@@ -410,8 +409,7 @@ class ParityRepository:
                     or_(
                         and_(
                             cast(Any, ExchangeExit.attributed_strategy_id) == scope.strategy_id,
-                            cast(Any, ExchangeExit.attribution_confidence)
-                            == ExitAttribution.exact,
+                            cast(Any, ExchangeExit.attribution_confidence) == ExitAttribution.exact,
                         ),
                         has_scoped_linked_order,
                     ),
@@ -422,7 +420,7 @@ class ParityRepository:
             select(cast(Any, Order.id))
             .where(cast(Any, Order.exchange_account_id) == ExchangeExit.exchange_account_id)
             .where(sa_cast(cast(Any, Order.id), String) == ExchangeExit.order_link_id)
-            .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
+            .where(col(Order.realized_pnl_synced_at).is_not(None))
             .where(cast(Any, Order.reduce_only).is_(True))
             .where(or_(*confirmed_close_scope_predicates))
             .exists()
@@ -449,9 +447,7 @@ class ParityRepository:
             )
             .where(scoped_exits.c.matched_order_id.is_(None))
             .where(scoped_exits.c.has_confirmed_close_order.is_(False))
-            .where(
-                scoped_exits.c.attribution_confidence.is_distinct_from(ExitAttribution.inferred)
-            )
+            .where(scoped_exits.c.attribution_confidence.is_distinct_from(ExitAttribution.inferred))
             .where(scoped_exits.c.classification.in_(_LEDGER_ONLY_CLASSIFICATIONS))
             .group_by(scoped_exits.c.exchange_account_id, scoped_exits.c.exchange_order_id)
             .cte("ledger_only_exchange_exits")
