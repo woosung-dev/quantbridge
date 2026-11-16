@@ -823,21 +823,6 @@ native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 305
 
 ---
 
-### BL-876
-
-**Title:** 운영 CLI `live_session_admin.py flatten` 이 **조립에서 `TypeError`** 로 죽는다
-**Category:** Backend / 운영 도구
-**Priority:** P2
-**출처:** 2026-11-16 PR #952 머지 전 리뷰의 범위 밖 관찰 — 코드 대조 + 모의 세션 실행으로 확인
-
-**증상:** `apps/api/scripts/live_session_admin.py:128` 이 `_StrategySessionsAdapter(session)` 으로 부르는데 생성자는 `(strategy_repo, user_repo)` 를 받는다(`src/trading/dependencies.py:160-166`). `_build_close_service(MagicMock())` 실행 결과 = `TypeError: ... missing 1 required positional argument: 'user_repo'`(2026-11-16 실측). 이 함수는 `flatten` 명령이 쓰는 `ClosePositionService` 배선이라, **포지션을 `Order` 행과 함께 청산하는 운영 경로가 지금 안 돈다**([BL-593] 의 핵심 경로). docstring 은 「`get_close_service` 와 같은 배선」이라 적지만 손 복사본이 원본을 못 따라갔다.
-**권장 접근:** ⑴ `trading/dependencies.py` 의 조립과 같게 `StrategyRepository(session)`·`UserRepository(session)` 을 넘겨라 ⑵ ★`tests/trading/test_live_session_admin_flatten.py` 가 왜 못 잡았는지 먼저 봐라 — 조립을 patch 로 건너뛰고 있다면 `_build_close_service` 를 **실제로 부르는** 케이스 1건이 재발 방지다 ⑶ 같은 파일의 `_build_session_service`(`:370`)도 같은 종류의 손 복사본이다 — 함께 대조해라.
-
-**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
-**트리거 판정:** 도래
-
----
-
 ### BL-877
 
 **Title:** 2026-11-16 리팩토링 PR 묶음의 **머지 전 리뷰 메모**(주석·테스트 보강 — 동작 영향 없음)
@@ -847,6 +832,21 @@ native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 305
 
 **내용:** ⑴ 지워진 `type: ignore` 를 설명하는 낡은 주석 2곳(`trading/repositories/order_repository.py:69-71` · `webhook_secret_repository.py:90-91`) ⑵ `tasks/_worker_engine.py:7-11` docstring 이 loop 사유를 과거형으로만 적는다 — `celery_app.py:328` 은 지금도 master 에서 `asyncio.run(_reclaim())` 을 부르므로 「이제 캐시해도 된다」로 읽히면 깨진다 ⑶ prefork 가드의 「디렉터리 스코프」를 고정하는 테스트가 없다 — glob 을 이름 목록으로 되돌려도 초록이다 ⑷ `fetch_attached_sl_orders` 신규 테스트 2건이 빈 목록과 `ProviderError` 유지만 단언한다(비어 있지 않은 관측 · warning 미단언) ⑸ `backtest/dispatcher.py:30` docstring 「HTTP submit 경로에서만」은 cancel 도 지나므로 낡았다 ⑹ `apps/web/AGENTS.md:189` 의 `:4017` 선례는 지금 `globals.css:4044` 다 ⑺ `deploy.sh` 의 `_wait_api_health`(PR #955): 조회 **간격**을 고정하는 단언이 없다 — `sleep 2` 를 지워도 `test_deploy.py` 전건 초록이고 그러면 15회 조회가 1초 안에 끝나 원래 경합이 되살아난다. 또 대기 창(약 30초)이 `RestartSec=5` + 기동보다 길어, 첫 기동이 죽고 systemd 재기동이 성공하면 초록이 된다 — 요약에 `NRestarts` 를 찍어라.
 **권장 접근:** ★주석만 바꿔도 `apps/api/src/**` 는 `release.yml` 의 `paths-ignore` 밖이라 **운영 재배포가 돈다** — 단독 PR 로 내지 말고 다음 실제 코드 변경에 묶어라. ⑶⑷⑹ 은 테스트·문서라 배포 없이 머지된다(⑺ 은 `tools/scripts/**` 라 배포가 돈다).
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-878
+
+**Title:** 운영 CLI `live_session_admin.py` 의 `start`·`stop` 이 **코드 세션을 못 다룬다** — 리스크 실행기 미주입
+**Category:** Backend / 운영 도구
+**Priority:** P3
+**출처:** 2026-11-16 [BL-876] 수리 중 형제 조립 대조(HTTP 원본 `trading/dependencies.py:get_live_signal_session_service` ↔ 스크립트 사본)
+
+**증상:** HTTP 조립은 `build_code_risk_executor(...)` 로 `risk_service`·`risk_executor` 를 넘기는데 스크립트의 `_build_session_service`(`start`)와 `_cmd_stop` 의 인라인 조립은 둘 다 안 넘긴다(생성자 기본값 `None`). 그래서 코드 세션에서 `start`(`source_policy == "code_v1"`)는 「영속 리스크 실행기가 준비되지 않았습니다」, `stop`(`execution_snapshot is not None`)은 「코드 세션 종료에는 영속 리스크 실행기가 필요합니다」로 `InvalidStrategySettings` 를 낸다(`trading/services/live_session_service.py` 의 가드 2곳 — 코드 대조, 실행 미측정). **fail-closed 라 잘못된 주문은 안 나간다.** 다만 스크립트 docstring 이 적는 운영 순서 「`stop` → `flatten`」이 코드 세션에서는 첫 단계에서 멈춘다. Pine 세션은 영향 없다. ★`flatten` 은 이 조립을 안 쓴다(`_build_close_service` 만).
+**권장 접근:** ⑴ `[확인 필요]` 의도인지 먼저 정해라 — `_cmd_stop` 주석은 「안 쓰는 의존성을 억지로 만들지 않는다」고 적지만 그 주석은 코드 세션이 생기기 전 것이다 ⑵ 고친다면 HTTP 와 같은 `build_code_risk_executor(session, account_service, provider)` 를 쓰고, `tests/trading/test_live_session_admin_wiring.py` 에 「코드 세션 stop 이 가드를 지난다」 케이스를 **먼저** 써라 ⑶ ★`scripts/` 는 mypy 게이트 밖이다(`mypy src`) — [BL-876] 도 [BL-634] 때의 `stop` `TypeError` 도 그 사각에서 났다. 2026-11-16 단독 실행(`uv run mypy scripts/live_session_admin.py`) 잔여 2건은 타입 표기뿐이다(`:349` 변수 재사용 · `:434` `str` → `Literal`).
 
 **상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
 **트리거 판정:** 도래
