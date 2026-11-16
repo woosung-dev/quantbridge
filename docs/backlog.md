@@ -805,3 +805,48 @@ native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 305
 
 **상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
 **트리거 판정:** 도래
+
+---
+
+### BL-875
+
+**Title:** FE 오류 문구에 **서버 사유 원문(영문·토큰)이 그대로** 보인다
+**Category:** Frontend / UX 문구
+**Priority:** P3
+**출처:** 2026-11-16 PR #950 머지 전 리뷰 — 사용자 결정 「그대로 머지 + 후속 등재」
+
+**증상:** #950 이 `err.message` 를 `describeApiError` 로 통일하면서 `API <status> <path>` 대신 서버 `detail` 이 보인다. 내부 경로가 사라진 것은 개선이지만 사유가 가공 없이 나온다: 401 = `저장 실패: expired`(`apps/api/src/realtime/auth.py:155-190` 의 토큰) · 422 = `Input should be greater than 0 · Field required`(필드명 없음) · 공개 waitlist 409 = `This email is already on the waitlist`(`waitlist/exceptions.py:18`) · 관리자 승인 502 = `Transport error: <예외 원문>`(`waitlist/email_service.py:110-112`) · 429 = slowapi 한도 문자열 `[모양 미확인]`. 도메인 사유는 영문과 한국어가 섞여 있다.
+**권장 접근:** `describeApiError`(`apps/web/src/lib/api-client.ts:138-164`) 한 곳에서 상태 코드별 한국어 고정 문구로 매핑해라(429 선례 = `features/strategy/error-handler.ts:25-27`). 422 는 `loc` 를 살려 필드명을 붙인다. ★라우트 `error.tsx` 5개(`backtests` · `backtests/[id]` · `dashboard` · `orders` · `trading`)는 아직 `error.message` 를 그대로 보인다 — 같은 PR 에서 맞춰라.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-876
+
+**Title:** 운영 CLI `live_session_admin.py flatten` 이 **조립에서 `TypeError`** 로 죽는다
+**Category:** Backend / 운영 도구
+**Priority:** P2
+**출처:** 2026-11-16 PR #952 머지 전 리뷰의 범위 밖 관찰 — 코드 대조 + 모의 세션 실행으로 확인
+
+**증상:** `apps/api/scripts/live_session_admin.py:128` 이 `_StrategySessionsAdapter(session)` 으로 부르는데 생성자는 `(strategy_repo, user_repo)` 를 받는다(`src/trading/dependencies.py:160-166`). `_build_close_service(MagicMock())` 실행 결과 = `TypeError: ... missing 1 required positional argument: 'user_repo'`(2026-11-16 실측). 이 함수는 `flatten` 명령이 쓰는 `ClosePositionService` 배선이라, **포지션을 `Order` 행과 함께 청산하는 운영 경로가 지금 안 돈다**([BL-593] 의 핵심 경로). docstring 은 「`get_close_service` 와 같은 배선」이라 적지만 손 복사본이 원본을 못 따라갔다.
+**권장 접근:** ⑴ `trading/dependencies.py` 의 조립과 같게 `StrategyRepository(session)`·`UserRepository(session)` 을 넘겨라 ⑵ ★`tests/trading/test_live_session_admin_flatten.py` 가 왜 못 잡았는지 먼저 봐라 — 조립을 patch 로 건너뛰고 있다면 `_build_close_service` 를 **실제로 부르는** 케이스 1건이 재발 방지다 ⑶ 같은 파일의 `_build_session_service`(`:370`)도 같은 종류의 손 복사본이다 — 함께 대조해라.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-877
+
+**Title:** 2026-11-16 리팩토링 PR 묶음의 **머지 전 리뷰 메모**(주석·테스트 보강 — 동작 영향 없음)
+**Category:** Backend / 정리
+**Priority:** P3
+**출처:** 2026-11-16 PR #944~#953 빈 컨텍스트 리뷰 6건 — 전부 MERGE 판정에 붙은 메모
+
+**내용:** ⑴ 지워진 `type: ignore` 를 설명하는 낡은 주석 2곳(`trading/repositories/order_repository.py:69-71` · `webhook_secret_repository.py:90-91`) ⑵ `tasks/_worker_engine.py:7-11` docstring 이 loop 사유를 과거형으로만 적는다 — `celery_app.py:328` 은 지금도 master 에서 `asyncio.run(_reclaim())` 을 부르므로 「이제 캐시해도 된다」로 읽히면 깨진다 ⑶ prefork 가드의 「디렉터리 스코프」를 고정하는 테스트가 없다 — glob 을 이름 목록으로 되돌려도 초록이다 ⑷ `fetch_attached_sl_orders` 신규 테스트 2건이 빈 목록과 `ProviderError` 유지만 단언한다(비어 있지 않은 관측 · warning 미단언) ⑸ `backtest/dispatcher.py:30` docstring 「HTTP submit 경로에서만」은 cancel 도 지나므로 낡았다 ⑹ `apps/web/AGENTS.md:189` 의 `:4017` 선례는 지금 `globals.css:4044` 다.
+**권장 접근:** ★주석만 바꿔도 `apps/api/src/**` 는 `release.yml` 의 `paths-ignore` 밖이라 **운영 재배포가 돈다** — 단독 PR 로 내지 말고 다음 실제 코드 변경에 묶어라. ⑶⑷⑹ 은 테스트·문서라 배포 없이 머지된다.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
