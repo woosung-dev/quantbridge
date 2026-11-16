@@ -86,7 +86,7 @@ flowchart TB
 | Redis    | Celery 브로커(DB1) + 결과 백엔드(DB2) + 분산 락·rate limit·pub/sub(DB3). 캐시 DB0 은 소비자 0건이라 뺐다(2026-08-15)      | `redis:7-alpine` (noeviction · AOF) | 6379 |
 
 > Frontend 개발 서버는 `pnpm dev`로 직접 실행한다. Worker와 Beat는 compose 서비스로 실행한다.
-> ★이 표는 **로컬 compose 기준**이다. 서버에서 API 는 컨테이너가 아니라 **호스트 uvicorn systemd 유닛**이고 compose 에 api 롤이 없다([BL-865] 컨테이너화 대기 · 실제 토폴로지는 §9).
+> ★이 표의 **API 행은 컨테이너가 아니다** — 로컬은 `mise run be`(호스트 uvicorn), 서버는 **호스트 uvicorn systemd 유닛**이고 로컬·서버 compose 어디에도 api 롤이 없다([BL-865] 컨테이너화 대기 · 실제 토폴로지는 §9). Frontend 는 로컬에선 `pnpm dev`, 서버에서만 컨테이너다(`infra/compose/docker-compose.frontend.yml`).
 
 ---
 
