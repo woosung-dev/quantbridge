@@ -759,3 +759,94 @@ native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 305
 **잔여:** legacy의 서로 다른 raw 합산과 불완전 조회 CAS는 남아 있다. 공식 cursor 완료를
 입증하지 못한 자료의 legacy 확정 경로를 별도로 막아야 한다.
 **출처:** [Bybit Closed PnL](https://bybit-exchange.github.io/docs/v5/position/close-pnl).
+
+---
+
+### BL-872
+
+**Title:** `backtest.run` 에만 **time limit 이 없다** — 형제 장기 작업 둘은 상한이 있다
+**Category:** Backend / Celery
+**Priority:** P2
+**출처:** 2026-11-16 BE 아키텍처 탐색(장기 작업 3종 공통 골격 검토 — 골격 통합은 기각, 이 차이만 남았다)
+
+**증상:** `tasks/optimizer_tasks.py:27-28` 은 `soft_time_limit=600`/`time_limit=660`, `tasks/stress_test_tasks.py:34-35` 는 1800/1860 인데 `tasks/backtest.py:20` 의 `backtest.run` 은 둘 다 없고 `celery_app.py` 에 전역 `task_time_limit` 도 없다. stress_test 쪽 주석이 적은 사고(「상한이 없으면 원장은 FAILED 인데 워커는 계속 돈다」)가 backtest 에는 그대로 열려 있다 — `reclaim_stale` 이 행을 FAILED 로 닫아도 자식 프로세스는 풀리지 않는다.
+**권장 접근:** ⑴ 의도인지 먼저 정해라 `[확인 필요]`(긴 백테스트를 일부러 허용했을 수 있다) ⑵ 상한을 건다면 `reclaim_stale` 임계와 **같은 숫자에서 파생**시켜라 — 두 숫자가 따로 놀면 「원장은 실패, 워커는 실행」 창이 다시 생긴다. 재집계 = `grep -n time_limit apps/api/src/tasks/*.py`.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-873
+
+**Title:** OpenAPI 가 **필수 Decimal 14필드를 nullable 로 광고**한다 — serializer 반환형이 `str | None`
+**Category:** Backend / API 계약
+**Priority:** P3
+**출처:** 2026-11-16 Decimal 직렬화 타입 통합(PR #947) — 옮기면 스키마가 바뀌는 필드라 남겼다
+
+**증상:** `backtest/schemas.py` 의 `SideMetricsOut`(3)·`BacktestMetricsOut`(4)·`TradeItem`(5), `stress_test/schemas.py` 의 `WalkForwardFoldOut`(2) — 필드 타입은 필수 `Decimal` 인데 `@field_serializer` 의 반환형이 `str | None` 이라 OpenAPI serialization 스키마가 `string | null` 이다. 값은 절대 null 이 아니다. ★FE 영향은 **없다** — FE 는 생성 타입이 아니라 수기 zod 를 쓰고 이미 비-null `decimalString` 으로 읽는다(`apps/web/src/features/backtest/schemas.ts:243,378` 표본 대조). 틀린 것은 **계약 문서**(`contracts/openapi/openapi.json`)뿐이고, 그것을 읽는 쪽은 진짜 nullable 필드와 구분을 못 한다. ★#947 이후 남은 `_decimal_to_str` 데코레이터 **6개 중 4개**가 이 목록이다 — 나머지 2개(`BacktestMetricsSummary`·`OhlcvBar`)는 `when_used="json"` 이라 대상이 아니다(재집계 = `grep -n "_decimal_to_str" -B8 apps/api/src/{backtest,stress_test}/schemas.py`).
+**권장 접근:** 해당 필드를 `DecimalStr`(`src/common/decimal_str.py`)로 바꾸고 `export_openapi.py` 로 `contracts/openapi/openapi.json` 을 **같은 PR** 에서 재생성해라(안 하면 CI 의 `--check` 가 red). FE 는 손댈 것이 없다. ★json 한정 serializer(`when_used="json"` — `BacktestMetricsSummary`·`OhlcvBar`·optimizer)는 python 모드가 Decimal 이라 **합치면 동작 변경**이다 — 건드리지 마라.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-874
+
+**Title:** 「체결 승자가 무엇을 예약하나」가 **6곳에 복제돼 있고 곳마다 조건이 다르다**
+**Category:** Backend / Trading (경계 재설계)
+**Priority:** P2
+**출처:** 2026-11-16 BE 아키텍처 탐색 — 삭제 테스트를 통과한 유일한 Strong 후보. **동작 변경이라 리팩토링 회차에서 손대지 않았다**
+
+**증상:** `transition_to_filled` 의 rowcount 승자 후속(trailing 부착 · closed-pnl refresh · reversal 계측 · gauge dec · 부분체결 계측 · 캐시 무효화)이 `tasks/trading.py`(REST 동기 체결 · watchdog) · `tasks/live_signal.py`(`_write_back_confirmed_terminal`) · `tasks/conditional_entry_janitor.py` · `trading/services/websocket_order_event_service.py` · `websocket_reconciliation_service.py` 에 각각 있다. 코드로 확인한 차이: ⑴ WS 이벤트만 trailing 을 `risk_context is None` 일 때만 건다(reconciler·watchdog 은 무조건) ⑵ 훅별 예외 격리는 live_signal 뿐(`[탐색 보고 — 미대조]`, ⑴⑶⑷ 는 코드 대조함) ⑶ watchdog 은 계정 스냅샷 키만 버리고 **세션 키는 안 버린다** — 바로 위 주석([BL-498])은 「terminal 을 확정하는 곳마다 같은 키를 버려야 보장이 성립한다」고 적는다 ⑷ `trading/services/websocket_*` 가 `src.tasks.trading` 의 **private** `_enqueue_*` 를 지연 import 한다(도메인 → task 역방향). [BL-557]·[BL-567]·[BL-868] 이 같은 뿌리의 증상을 따로 등재해 뒀다.
+★**전이 호출 지점은 7곳이다** — 위 6곳 밖의 일곱 번째는 code 전략 관측 경로 `trading/services/code_order_observation_service.py:228` 이고, 그 module 안에는 `_enqueue_*` 후속이 **하나도 없다**(grep 0건 · 호출자가 대신 하는지는 미대조). 표에서 빼지 마라.
+**권장 접근:** ⑴ **먼저 7곳 × 술어 표를 만들고 각 차이를 「의도 / 결함」으로 판정**해라 — 그 전에 코드를 모으면 결함을 계약으로 굳힌다 ⑵ 1단계(동작 불변) = `_enqueue_*` 를 trading 쪽 module 로 옮기고 `tasks/trading.py` 가 옛 이름을 재수출 ⑶ 2단계 = 「종결 전이 승자」를 받는 한 곳이 후속을 결정. ★`_enqueue_*` 를 `src.tasks.trading` 이름으로 막는 테스트가 있어, 옮기면 그 patch 가 **조용히 무효**가 된다(`test_ws_state_handler_active_orders.py` · `test_code_risk_repository.py`) — 같은 PR 에서 표적을 옮겨라.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-875
+
+**Title:** FE 오류 문구에 **서버 사유 원문(영문·토큰)이 그대로** 보인다
+**Category:** Frontend / UX 문구
+**Priority:** P3
+**출처:** 2026-11-16 PR #950 머지 전 리뷰 — 사용자 결정 「그대로 머지 + 후속 등재」
+
+**증상:** #950 이 `err.message` 를 `describeApiError` 로 통일하면서 `API <status> <path>` 대신 서버 `detail` 이 보인다. 내부 경로가 사라진 것은 개선이지만 사유가 가공 없이 나온다: 401 = `저장 실패: expired`(`apps/api/src/realtime/auth.py:155-190` 의 토큰) · 422 = `Input should be greater than 0 · Field required`(필드명 없음) · 공개 waitlist 409 = `This email is already on the waitlist`(`waitlist/exceptions.py:18`) · 관리자 승인 502 = `Transport error: <예외 원문>`(`waitlist/email_service.py:110-112`) · 429 = slowapi 한도 문자열 `[모양 미확인]`. 도메인 사유는 영문과 한국어가 섞여 있다.
+**권장 접근:** `describeApiError`(`apps/web/src/lib/api-client.ts:138-164`) 한 곳에서 상태 코드별 한국어 고정 문구로 매핑해라(429 선례 = `features/strategy/error-handler.ts:25-27`). 422 는 `loc` 를 살려 필드명을 붙인다. ★라우트 `error.tsx` 5개(`backtests` · `backtests/[id]` · `dashboard` · `orders` · `trading`)는 아직 `error.message` 를 그대로 보인다 — 같은 PR 에서 맞춰라.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-876
+
+**Title:** 운영 CLI `live_session_admin.py flatten` 이 **조립에서 `TypeError`** 로 죽는다
+**Category:** Backend / 운영 도구
+**Priority:** P2
+**출처:** 2026-11-16 PR #952 머지 전 리뷰의 범위 밖 관찰 — 코드 대조 + 모의 세션 실행으로 확인
+
+**증상:** `apps/api/scripts/live_session_admin.py:128` 이 `_StrategySessionsAdapter(session)` 으로 부르는데 생성자는 `(strategy_repo, user_repo)` 를 받는다(`src/trading/dependencies.py:160-166`). `_build_close_service(MagicMock())` 실행 결과 = `TypeError: ... missing 1 required positional argument: 'user_repo'`(2026-11-16 실측). 이 함수는 `flatten` 명령이 쓰는 `ClosePositionService` 배선이라, **포지션을 `Order` 행과 함께 청산하는 운영 경로가 지금 안 돈다**([BL-593] 의 핵심 경로). docstring 은 「`get_close_service` 와 같은 배선」이라 적지만 손 복사본이 원본을 못 따라갔다.
+**권장 접근:** ⑴ `trading/dependencies.py` 의 조립과 같게 `StrategyRepository(session)`·`UserRepository(session)` 을 넘겨라 ⑵ ★`tests/trading/test_live_session_admin_flatten.py` 가 왜 못 잡았는지 먼저 봐라 — 조립을 patch 로 건너뛰고 있다면 `_build_close_service` 를 **실제로 부르는** 케이스 1건이 재발 방지다 ⑶ 같은 파일의 `_build_session_service`(`:370`)도 같은 종류의 손 복사본이다 — 함께 대조해라.
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-877
+
+**Title:** 2026-11-16 리팩토링 PR 묶음의 **머지 전 리뷰 메모**(주석·테스트 보강 — 동작 영향 없음)
+**Category:** Backend / 정리
+**Priority:** P3
+**출처:** 2026-11-16 PR #944~#953 빈 컨텍스트 리뷰 6건 — 전부 MERGE 판정에 붙은 메모
+
+**내용:** ⑴ 지워진 `type: ignore` 를 설명하는 낡은 주석 2곳(`trading/repositories/order_repository.py:69-71` · `webhook_secret_repository.py:90-91`) ⑵ `tasks/_worker_engine.py:7-11` docstring 이 loop 사유를 과거형으로만 적는다 — `celery_app.py:328` 은 지금도 master 에서 `asyncio.run(_reclaim())` 을 부르므로 「이제 캐시해도 된다」로 읽히면 깨진다 ⑶ prefork 가드의 「디렉터리 스코프」를 고정하는 테스트가 없다 — glob 을 이름 목록으로 되돌려도 초록이다 ⑷ `fetch_attached_sl_orders` 신규 테스트 2건이 빈 목록과 `ProviderError` 유지만 단언한다(비어 있지 않은 관측 · warning 미단언) ⑸ `backtest/dispatcher.py:30` docstring 「HTTP submit 경로에서만」은 cancel 도 지나므로 낡았다 ⑹ `apps/web/AGENTS.md:189` 의 `:4017` 선례는 지금 `globals.css:4044` 다 ⑺ `deploy.sh` 의 `_wait_api_health`(PR #955): 조회 **간격**을 고정하는 단언이 없다 — `sleep 2` 를 지워도 `test_deploy.py` 전건 초록이고 그러면 15회 조회가 1초 안에 끝나 원래 경합이 되살아난다. 또 대기 창(약 30초)이 `RestartSec=5` + 기동보다 길어, 첫 기동이 죽고 systemd 재기동이 성공하면 초록이 된다 — 요약에 `NRestarts` 를 찍어라.
+**권장 접근:** ★주석만 바꿔도 `apps/api/src/**` 는 `release.yml` 의 `paths-ignore` 밖이라 **운영 재배포가 돈다** — 단독 PR 로 내지 말고 다음 실제 코드 변경에 묶어라. ⑶⑷⑹ 은 테스트·문서라 배포 없이 머지된다(⑺ 은 `tools/scripts/**` 라 배포가 돈다).
+
+**상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
+**트리거 판정:** 도래
