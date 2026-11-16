@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PlainSerializer
 
 from src.backtest.engine.types import (
     BacktestMetrics,
@@ -165,6 +165,11 @@ def test_all_decimal_fields_have_field_serializer() -> None:
             field
             for decorator in model.__pydantic_decorators__.field_serializers.values()
             for field in decorator.info.fields
+        } | {
+            # `DecimalStr`/`DecimalStrOrNone`(src.common.decimal_str) 는 필드 타입에 serializer 를 붙인다.
+            name
+            for name, info in model.model_fields.items()
+            if any(isinstance(m, PlainSerializer) for m in info.metadata)
         }
         assert decimal_fields <= serializer_fields, (
             f"BL-388 Decimal serializer drift ({model.__name__}): "

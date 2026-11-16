@@ -38,8 +38,8 @@ class ExchangeAccountRepository:
     async def list_by_user(self, user_id: UUID) -> Sequence[ExchangeAccount]:
         result = await self.session.execute(
             select(ExchangeAccount)
-            .where(ExchangeAccount.user_id == user_id)  # type: ignore[arg-type]
-            .order_by(ExchangeAccount.created_at.desc())  # type: ignore[attr-defined]
+            .where(col(ExchangeAccount.user_id) == user_id)
+            .order_by(col(ExchangeAccount.created_at).desc())
         )
         return result.scalars().all()
 
@@ -47,24 +47,24 @@ class ExchangeAccountRepository:
         """거래소별 전 계정. 스윕이 우리 주문 유무와 무관하게 계정을 독립 열거하기 위해 필요하다."""
         result = await self.session.execute(
             select(ExchangeAccount)
-            .where(ExchangeAccount.exchange == exchange)  # type: ignore[arg-type]
-            .order_by(ExchangeAccount.created_at.asc())  # type: ignore[attr-defined]
+            .where(col(ExchangeAccount.exchange) == exchange)
+            .order_by(col(ExchangeAccount.created_at).asc())
         )
         return result.scalars().all()
 
     async def list_without_exchange_uid(self) -> Sequence[ExchangeAccount]:
         result = await self.session.execute(
             select(ExchangeAccount)
-            .where(ExchangeAccount.exchange_uid.is_(None))  # type: ignore[union-attr]
-            .order_by(ExchangeAccount.created_at.asc())  # type: ignore[attr-defined]
+            .where(col(ExchangeAccount.exchange_uid).is_(None))
+            .order_by(col(ExchangeAccount.created_at).asc())
         )
         return result.scalars().all()
 
     async def list_by_exchange_uid(self, exchange_uid: str) -> Sequence[ExchangeAccount]:
         result = await self.session.execute(
             select(ExchangeAccount)
-            .where(ExchangeAccount.exchange_uid == exchange_uid)  # type: ignore[arg-type]
-            .order_by(ExchangeAccount.created_at.asc())  # type: ignore[attr-defined]
+            .where(col(ExchangeAccount.exchange_uid) == exchange_uid)
+            .order_by(col(ExchangeAccount.created_at).asc())
         )
         return result.scalars().all()
 
@@ -127,6 +127,6 @@ class ExchangeAccountRepository:
 
     async def delete(self, account_id: UUID) -> int:
         result = await self.session.execute(
-            delete(ExchangeAccount).where(ExchangeAccount.id == account_id)  # type: ignore[arg-type]
+            delete(ExchangeAccount).where(col(ExchangeAccount.id) == account_id)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]

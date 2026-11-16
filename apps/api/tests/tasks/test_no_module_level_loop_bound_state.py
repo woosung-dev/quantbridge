@@ -4,7 +4,7 @@ Sprint 18 Option C 의 영속 `_WORKER_LOOP` 채택으로 module-level `asyncio.
 /Lock/Event/Queue` 객체가 stale loop binding 으로부터 안전해졌지만, **신규
 PR 이 이런 패턴 추가 시 영속 loop 가정 위반 회귀 방어** 가 필요하다.
 
-본 audit 은 `src/tasks/*.py` + `src/common/alert.py` + `src/common/redis_client.py`
+본 audit 은 `src/tasks/*.py` + `src/common/*.py`
 + `src/trading/services/*.py` (BL-203 Sprint 48 codex Fix #4) 의 module-level
 (top-level) Assign / AnnAssign 노드에서 `asyncio.<class>()` 호출 검출. allowlist 외
 신규 발견 시 fail.
@@ -33,6 +33,9 @@ _ALLOWLIST: set[tuple[str, str]] = {
     # _SEND_SEMAPHORE: Slack send burst 상한. Sprint 18 _WORKER_LOOP 통일로
     # 모든 acquire 가 동일 loop. 안전.
     ("src.common.alert", "_SEND_SEMAPHORE"),
+    # _SEND_SEMAPHORE (telegram): Telegram send burst 상한. alert.py 와 별도 인스턴스지만
+    # 같은 근거 — _WORKER_LOOP 통일로 모든 acquire 가 동일 loop. 안전. (BL-843)
+    ("src.common.telegram_alert", "_SEND_SEMAPHORE"),
 }
 
 # 검사 대상 — 신규 prefork-safe 모듈 추가 시 본 list 보강.
@@ -54,12 +57,13 @@ def _populate_targets() -> list[tuple[str, Path]]:
             continue
         module = f"src.tasks.{path.stem}"
         targets.append((module, path))
-    # src/common/alert.py + src/common/redis_client.py
-    for name in ("alert.py", "redis_client.py"):
-        path = root / "src" / "common" / name
-        if path.exists():
-            module = f"src.common.{path.stem}"
-            targets.append((module, path))
+    # src/common/*.py 전체 — 이름 목록이 아니라 디렉터리 스코프 (BL-843).
+    # 목록형 스코프는 파일이 사라지거나 새로 생겨도 조용히 통과한다.
+    for path in sorted((root / "src" / "common").glob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        module = f"src.common.{path.stem}"
+        targets.append((module, path))
     # BL-203 Sprint 48 (codex Fix #4) — src/trading/services/*.py audit scope.
     # LiveSignalSessionService Celery prefork-safe 영구 audit.
     services_dir = root / "src" / "trading" / "services"
@@ -243,7 +247,7 @@ async def _factory() -> asyncio.Event:
 
 @pytest.mark.parametrize(
     "module_name",
-    ["src.common.alert"],  # allowlist 검증
+    ["src.common.alert", "src.common.telegram_alert"],  # allowlist 검증
 )
 def test_allowlisted_modules_have_documented_violations(module_name: str) -> None:
     """allowlist 에 등록된 module 은 실제로 module-level asyncio primitive 보유 — stale 방어.

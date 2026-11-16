@@ -9,6 +9,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.strategy.models import Strategy
 from src.trading.models import ExchangeAccount, KillSwitchEvent, KillSwitchTriggerType
@@ -37,7 +38,7 @@ class KillSwitchEventRepository:
 
     async def get_by_id(self, event_id: UUID) -> KillSwitchEvent | None:
         result = await self.session.execute(
-            select(KillSwitchEvent).where(KillSwitchEvent.id == event_id)  # type: ignore[arg-type]
+            select(KillSwitchEvent).where(col(KillSwitchEvent.id) == event_id)
         )
         return result.scalar_one_or_none()
 
@@ -50,29 +51,29 @@ class KillSwitchEventRepository:
         stmt = (
             select(KillSwitchEvent)
             .where(
-                KillSwitchEvent.resolved_at.is_(None),  # type: ignore[union-attr]
+                col(KillSwitchEvent.resolved_at).is_(None),
                 or_(
                     and_(
-                        KillSwitchEvent.trigger_type == KillSwitchTriggerType.cumulative_loss,  # type: ignore[arg-type]
-                        KillSwitchEvent.strategy_id == strategy_id,  # type: ignore[arg-type]
+                        col(KillSwitchEvent.trigger_type) == KillSwitchTriggerType.cumulative_loss,
+                        col(KillSwitchEvent.strategy_id) == strategy_id,
                     ),
                     and_(
-                        KillSwitchEvent.trigger_type.in_(  # type: ignore[attr-defined]
+                        col(KillSwitchEvent.trigger_type).in_(
                             [KillSwitchTriggerType.daily_loss, KillSwitchTriggerType.api_error]
                         ),
-                        KillSwitchEvent.exchange_account_id == account_id,  # type: ignore[arg-type]
+                        col(KillSwitchEvent.exchange_account_id) == account_id,
                     ),
                 ),
             )
-            .order_by(KillSwitchEvent.triggered_at.desc())  # type: ignore[attr-defined]
+            .order_by(col(KillSwitchEvent.triggered_at).desc())
         )
         return (await self.session.execute(stmt)).scalars().first()
 
     async def resolve(self, event_id: UUID, *, note: str | None = None) -> int:
         result = await self.session.execute(
             update(KillSwitchEvent)
-            .where(KillSwitchEvent.id == event_id)  # type: ignore[arg-type]
-            .where(KillSwitchEvent.resolved_at.is_(None))  # type: ignore[union-attr]
+            .where(col(KillSwitchEvent.id) == event_id)
+            .where(col(KillSwitchEvent.resolved_at).is_(None))
             .values(
                 resolved_at=datetime.now(UTC),
                 resolution_note=(note[:500] if note else None),
@@ -83,7 +84,7 @@ class KillSwitchEventRepository:
     async def list_recent(self, *, limit: int, offset: int) -> Sequence[KillSwitchEvent]:
         result = await self.session.execute(
             select(KillSwitchEvent)
-            .order_by(KillSwitchEvent.triggered_at.desc())  # type: ignore[attr-defined]
+            .order_by(col(KillSwitchEvent.triggered_at).desc())
             .limit(limit)
             .offset(offset)
         )
@@ -100,18 +101,18 @@ class KillSwitchEventRepository:
         """
         result = await self.session.execute(
             select(KillSwitchEvent)
-            .outerjoin(Strategy, KillSwitchEvent.strategy_id == Strategy.id)  # type: ignore[arg-type]
+            .outerjoin(Strategy, col(KillSwitchEvent.strategy_id) == col(Strategy.id))
             .outerjoin(
                 ExchangeAccount,
-                KillSwitchEvent.exchange_account_id == ExchangeAccount.id,  # type: ignore[arg-type]
+                col(KillSwitchEvent.exchange_account_id) == col(ExchangeAccount.id),
             )
             .where(
                 or_(
-                    Strategy.user_id == user_id,  # type: ignore[arg-type]
-                    ExchangeAccount.user_id == user_id,  # type: ignore[arg-type]
+                    col(Strategy.user_id) == user_id,
+                    col(ExchangeAccount.user_id) == user_id,
                 )
             )
-            .order_by(KillSwitchEvent.triggered_at.desc())  # type: ignore[attr-defined]
+            .order_by(col(KillSwitchEvent.triggered_at).desc())
             .limit(limit)
             .offset(offset)
         )
@@ -121,16 +122,16 @@ class KillSwitchEventRepository:
         """CF1 — event_id 가 호출자 소유일 때만 반환. resolve 권한 게이트 (없으면 None→404)."""
         result = await self.session.execute(
             select(KillSwitchEvent)
-            .outerjoin(Strategy, KillSwitchEvent.strategy_id == Strategy.id)  # type: ignore[arg-type]
+            .outerjoin(Strategy, col(KillSwitchEvent.strategy_id) == col(Strategy.id))
             .outerjoin(
                 ExchangeAccount,
-                KillSwitchEvent.exchange_account_id == ExchangeAccount.id,  # type: ignore[arg-type]
+                col(KillSwitchEvent.exchange_account_id) == col(ExchangeAccount.id),
             )
-            .where(KillSwitchEvent.id == event_id)  # type: ignore[arg-type]
+            .where(col(KillSwitchEvent.id) == event_id)
             .where(
                 or_(
-                    Strategy.user_id == user_id,  # type: ignore[arg-type]
-                    ExchangeAccount.user_id == user_id,  # type: ignore[arg-type]
+                    col(Strategy.user_id) == user_id,
+                    col(ExchangeAccount.user_id) == user_id,
                 )
             )
         )
@@ -142,8 +143,8 @@ class KillSwitchEventRepository:
         day_end = day_start + timedelta(days=1)
         result = await self.session.execute(
             select(KillSwitchEvent)
-            .where(KillSwitchEvent.triggered_at >= day_start)  # type: ignore[arg-type]
-            .where(KillSwitchEvent.triggered_at < day_end)  # type: ignore[arg-type]
-            .order_by(KillSwitchEvent.triggered_at.asc())  # type: ignore[attr-defined]
+            .where(col(KillSwitchEvent.triggered_at) >= day_start)
+            .where(col(KillSwitchEvent.triggered_at) < day_end)
+            .order_by(col(KillSwitchEvent.triggered_at).asc())
         )
         return result.scalars().all()

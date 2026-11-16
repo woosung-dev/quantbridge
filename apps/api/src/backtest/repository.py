@@ -24,6 +24,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
+from sqlmodel import col
 
 from src.backtest.engine.metrics import (
     SHARPE_CONVENTION_DAILY,
@@ -145,9 +146,9 @@ class BacktestRepository:
         user_id: UUID | None = None,
         defer_equity_curve: bool = False,
     ) -> Backtest | None:
-        stmt = select(Backtest).where(Backtest.id == backtest_id)  # type: ignore[arg-type]
+        stmt = select(Backtest).where(col(Backtest.id) == backtest_id)
         if user_id is not None:
-            stmt = stmt.where(Backtest.user_id == user_id)  # type: ignore[arg-type]
+            stmt = stmt.where(col(Backtest.user_id) == user_id)
         if defer_equity_curve:
             # 소유권/메타만 필요한 경로(예: 거래 OHLCV)에서 무거운 equity_curve 미로드.
             stmt = stmt.options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
@@ -164,11 +165,7 @@ class BacktestRepository:
         order: str = "desc",
     ) -> tuple[Sequence[Backtest], int]:
         total_stmt = (
-            select(func.count())
-            .select_from(Backtest)
-            .where(
-                Backtest.user_id == user_id  # type: ignore[arg-type]
-            )
+            select(func.count()).select_from(Backtest).where(col(Backtest.user_id) == user_id)
         )
         total = (await self.session.execute(total_stmt)).scalar_one()
 
@@ -191,11 +188,11 @@ class BacktestRepository:
         stmt = (
             select(Backtest)
             .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
-            .where(Backtest.user_id == user_id)  # type: ignore[arg-type]
+            .where(col(Backtest.user_id) == user_id)
             .order_by(
                 *order_criteria,
-                Backtest.created_at.desc(),  # type: ignore[attr-defined]
-                Backtest.id.desc(),  # type: ignore[attr-defined]
+                col(Backtest.created_at).desc(),
+                col(Backtest.id).desc(),
             )
             .limit(limit)
             .offset(offset)
@@ -212,7 +209,7 @@ class BacktestRepository:
         stmt = (
             select(Backtest.strategy_id, func.count())  # type: ignore[call-overload]
             .where(Backtest.status == BacktestStatus.COMPLETED)
-            .where(Backtest.strategy_id.in_(strategy_ids))  # type: ignore[attr-defined]
+            .where(col(Backtest.strategy_id).in_(strategy_ids))
             .group_by(Backtest.strategy_id)
         )
         result = await self.session.execute(stmt)
@@ -232,22 +229,20 @@ class BacktestRepository:
                 Backtest.metrics,
             )
             .where(Backtest.status == BacktestStatus.COMPLETED)
-            .where(Backtest.strategy_id.in_(strategy_ids))  # type: ignore[attr-defined]
+            .where(col(Backtest.strategy_id).in_(strategy_ids))
             .distinct(Backtest.strategy_id)
             .order_by(
                 Backtest.strategy_id,
-                Backtest.completed_at.desc().nulls_last(),  # type: ignore[union-attr]
-                Backtest.created_at.desc(),  # type: ignore[attr-defined]
-                Backtest.id.desc(),  # type: ignore[attr-defined]
+                col(Backtest.completed_at).desc().nulls_last(),
+                col(Backtest.created_at).desc(),
+                col(Backtest.id).desc(),
             )
         )
         result = await self.session.execute(stmt)
         return {row.strategy_id: row for row in result.all()}
 
     async def delete(self, backtest_id: UUID) -> int:
-        result = await self.session.execute(
-            delete(Backtest).where(Backtest.id == backtest_id)  # type: ignore[arg-type]
-        )
+        result = await self.session.execute(delete(Backtest).where(col(Backtest.id) == backtest_id))
         return result.rowcount or 0  # type: ignore[attr-defined]
 
     # --- 조건부 상태 전이 (3-guard cancel logic §5.1) ---
@@ -256,8 +251,8 @@ class BacktestRepository:
         """queued → running. 조건부 UPDATE. Returns affected rows."""
         result = await self.session.execute(
             update(Backtest)
-            .where(Backtest.id == backtest_id)  # type: ignore[arg-type]
-            .where(Backtest.status == BacktestStatus.QUEUED)  # type: ignore[arg-type]
+            .where(col(Backtest.id) == backtest_id)
+            .where(col(Backtest.status) == BacktestStatus.QUEUED)
             .values(status=BacktestStatus.RUNNING, started_at=started_at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -282,8 +277,8 @@ class BacktestRepository:
         """
         result = await self.session.execute(
             update(Backtest)
-            .where(Backtest.id == backtest_id)  # type: ignore[arg-type]
-            .where(Backtest.status == where_status)  # type: ignore[arg-type]
+            .where(col(Backtest.id) == backtest_id)
+            .where(col(Backtest.status) == where_status)
             .values(
                 status=BacktestStatus.COMPLETED,
                 metrics=metrics,
@@ -305,8 +300,8 @@ class BacktestRepository:
         """Running → failed. 조건부."""
         result = await self.session.execute(
             update(Backtest)
-            .where(Backtest.id == backtest_id)  # type: ignore[arg-type]
-            .where(Backtest.status == where_status)  # type: ignore[arg-type]
+            .where(col(Backtest.id) == backtest_id)
+            .where(col(Backtest.status) == where_status)
             .values(
                 status=BacktestStatus.FAILED,
                 error=error[:2000],  # defensive truncation
@@ -319,12 +314,8 @@ class BacktestRepository:
         """queued/running → cancelling. 조건부."""
         result = await self.session.execute(
             update(Backtest)
-            .where(Backtest.id == backtest_id)  # type: ignore[arg-type]
-            .where(
-                Backtest.status.in_(  # type: ignore[attr-defined]
-                    [BacktestStatus.QUEUED, BacktestStatus.RUNNING]
-                )
-            )
+            .where(col(Backtest.id) == backtest_id)
+            .where(col(Backtest.status).in_([BacktestStatus.QUEUED, BacktestStatus.RUNNING]))
             .values(status=BacktestStatus.CANCELLING)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -333,8 +324,8 @@ class BacktestRepository:
         """cancelling → cancelled. 조건부. Worker guards에서 호출."""
         result = await self.session.execute(
             update(Backtest)
-            .where(Backtest.id == backtest_id)  # type: ignore[arg-type]
-            .where(Backtest.status == BacktestStatus.CANCELLING)  # type: ignore[arg-type]
+            .where(col(Backtest.id) == backtest_id)
+            .where(col(Backtest.status) == BacktestStatus.CANCELLING)
             .values(status=BacktestStatus.CANCELLED, completed_at=completed_at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -352,16 +343,14 @@ class BacktestRepository:
         total_stmt = (
             select(func.count())
             .select_from(BacktestTrade)
-            .where(
-                BacktestTrade.backtest_id == backtest_id  # type: ignore[arg-type]
-            )
+            .where(col(BacktestTrade.backtest_id) == backtest_id)
         )
         total = (await self.session.execute(total_stmt)).scalar_one()
 
         stmt = (
             select(BacktestTrade)
-            .where(BacktestTrade.backtest_id == backtest_id)  # type: ignore[arg-type]
-            .order_by(BacktestTrade.trade_index.asc())  # type: ignore[attr-defined]
+            .where(col(BacktestTrade.backtest_id) == backtest_id)
+            .order_by(col(BacktestTrade.trade_index).asc())
             .limit(limit)
             .offset(offset)
         )
@@ -371,8 +360,8 @@ class BacktestRepository:
     async def get_trade_by_index(self, backtest_id: UUID, trade_index: int) -> BacktestTrade | None:
         """백테스트의 거래 인덱스로 단일 거래를 조회한다."""
         stmt = select(BacktestTrade).where(
-            BacktestTrade.backtest_id == backtest_id,  # type: ignore[arg-type]
-            BacktestTrade.trade_index == trade_index,  # type: ignore[arg-type]
+            col(BacktestTrade.backtest_id) == backtest_id,
+            col(BacktestTrade.trade_index) == trade_index,
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -397,7 +386,7 @@ class BacktestRepository:
                 func.count().filter(BacktestTrade.direction == TradeDirection.SHORT),  # type: ignore[call-overload]
             )
             .select_from(BacktestTrade)
-            .where(BacktestTrade.backtest_id == backtest_id)  # type: ignore[arg-type]
+            .where(col(BacktestTrade.backtest_id) == backtest_id)
         )
         total, long_n, short_n = (await self.session.execute(stmt)).one()
         return int(total), int(long_n), int(short_n)
@@ -411,7 +400,7 @@ class BacktestRepository:
         revoke 판정은 service layer 에서 share_revoked_at 검사.
         """
         result = await self.session.execute(
-            select(Backtest).where(Backtest.share_token == token)  # type: ignore[arg-type]
+            select(Backtest).where(col(Backtest.share_token) == token)
         )
         return result.scalar_one_or_none()
 
@@ -424,8 +413,8 @@ class BacktestRepository:
         """
         stmt = (
             select(Backtest)
-            .where(Backtest.id == backtest_id)  # type: ignore[arg-type]
-            .where(Backtest.user_id == user_id)  # type: ignore[arg-type]
+            .where(col(Backtest.id) == backtest_id)
+            .where(col(Backtest.user_id) == user_id)
             .with_for_update()
         )
         result = await self.session.execute(stmt)
@@ -435,7 +424,7 @@ class BacktestRepository:
 
     async def get_by_idempotency_key(self, key: str) -> Backtest | None:
         result = await self.session.execute(
-            select(Backtest).where(Backtest.idempotency_key == key)  # type: ignore[arg-type]
+            select(Backtest).where(col(Backtest.idempotency_key) == key)
         )
         return result.scalar_one_or_none()
 
@@ -457,9 +446,7 @@ class BacktestRepository:
 
     async def exists_for_strategy(self, strategy_id: UUID) -> bool:
         # 전 행을 세지 않고 첫 행에서 멈춘다 (EXISTS).
-        stmt = select(
-            exists().where(Backtest.strategy_id == strategy_id)  # type: ignore[arg-type]
-        )
+        stmt = select(exists().where(col(Backtest.strategy_id) == strategy_id))
         return bool((await self.session.execute(stmt)).scalar_one())
 
     # --- Stale reclaim (§8.3) ---
@@ -478,8 +465,8 @@ class BacktestRepository:
 
         running_result = await self.session.execute(
             update(Backtest)
-            .where(Backtest.status == BacktestStatus.RUNNING)  # type: ignore[arg-type]
-            .where(Backtest.started_at < cutoff)  # type: ignore[arg-type,operator]
+            .where(col(Backtest.status) == BacktestStatus.RUNNING)
+            .where(col(Backtest.started_at) < cutoff)
             .values(
                 status=BacktestStatus.FAILED,
                 error="Stale running — reclaimed by worker startup",
@@ -488,13 +475,13 @@ class BacktestRepository:
         )
         cancelling_result = await self.session.execute(
             update(Backtest)
-            .where(Backtest.status == BacktestStatus.CANCELLING)  # type: ignore[arg-type]
+            .where(col(Backtest.status) == BacktestStatus.CANCELLING)
             .where(
                 or_(
-                    Backtest.started_at < cutoff,  # type: ignore[arg-type,operator]
+                    col(Backtest.started_at) < cutoff,
                     and_(
-                        Backtest.started_at.is_(None),  # type: ignore[union-attr]
-                        Backtest.created_at < cutoff,  # type: ignore[arg-type]
+                        col(Backtest.started_at).is_(None),
+                        col(Backtest.created_at) < cutoff,
                     ),
                 )
             )
