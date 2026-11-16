@@ -64,8 +64,13 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 
 ★**여러 repo 를 묶는 service** 는 `dependencies.py` 에서 **동일 session** 으로 조립하고 **한 번만 commit** 한다.
 
+★**조립 지점은 `dependencies.py` 외에 하나 더 있다** — `trading/code_risk_composition.py` 의
+`build_code_risk_executor(session, accounts, provider)` 가 `AsyncSession` 으로 repository·service 를 조립한다.
+HTTP(`trading/dependencies.py`)·Celery(`tasks/code_live_signal.py`)·WS 워커(`tasks/websocket_task.py`)가
+**같은 실행기를 조립**하려고 한 곳에 둔 것이다(파일 docstring 근거). service 가 세션을 쥐는 것이 아니라 조립 함수만 쥔다.
+
 ★**「AsyncSession 금지」의 등재된 예외는 하나뿐이다** — `trading/services/order_service.py` 가
-`begin_nested()` SAVEPOINT 와 outer `commit()` 을 위해 세션을 생성자로 받는다(`:64`). 그 두 용도 밖으로
+`begin_nested()` SAVEPOINT 와 outer `commit()` 을 위해 세션을 생성자로 받는다(`:67`). 그 두 용도 밖으로
 세션을 쓰지 마라. 회귀 = `tests/trading/test_order_service_dispatch_snapshot.py` 가 `session.commit` 을 spy 한다.
 **새 예외를 만들려면 코드가 아니라 이 줄을 먼저 늘려라.** 게이트 = `tests/common/test_repository_boundary_guard.py`
 (경계 밖 `select(` · `repo.session` 리치스루 · 경계 밖 raw SQL 실행 · 경계 밖 `session.get(Model, …)` **4축**).
@@ -209,7 +214,7 @@ def task_entry(payload: str) -> dict:
   **이유:** loop 통일과 별개로 connection pool stale 누수가 남는다. 표준 = `src/tasks/backtest.py`
 - **nested `run_in_worker_loop` 금지** — 이미 도는 loop 안에서 호출하면 `RuntimeError`(침묵 fallback 없음)
 - **module-level `asyncio.Semaphore/Lock/Event/Queue` 추가 시 PR 리뷰 의무** —
-  게이트 = `tests/tasks/test_no_module_level_loop_bound_state.py`. allowlist 는 현재 1건
+  게이트 = `tests/tasks/test_no_module_level_loop_bound_state.py`. allowlist 는 현재 2건(`common/alert.py`·`common/telegram_alert.py` 의 `_SEND_SEMAPHORE`). 스코프는 `src/tasks/*.py` · `src/common/*.py` · `src/trading/services/*.py` 디렉터리 전체
 - **fire-and-forget alert 는 `track_pending_alert(task)`** — `_PENDING_ALERTS` 직접 조작 금지(gauge 동기화 누락)
 - **수명이 요청보다 긴 `create_task` 에는 `add_done_callback` 이 붙는다** — 아무도 `await` 하지 않는
   task 의 예외는 **저장된 채 아무도 안 읽는다**. 콜백에서 ⑴ 예외를 로그+metric 으로 올리고
