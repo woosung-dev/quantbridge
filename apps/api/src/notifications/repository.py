@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from src.notifications.models import PushSubscription
 
@@ -17,17 +18,13 @@ class PushSubscriptionRepository:
 
     async def find_by_endpoint(self, endpoint: str) -> PushSubscription | None:
         result = await self.session.execute(
-            select(PushSubscription).where(
-                PushSubscription.endpoint == endpoint  # type: ignore[arg-type]
-            )
+            select(PushSubscription).where(col(PushSubscription.endpoint) == endpoint)
         )
         return result.scalar_one_or_none()
 
     async def list_by_user(self, user_id: UUID) -> list[PushSubscription]:
         result = await self.session.execute(
-            select(PushSubscription).where(
-                PushSubscription.user_id == user_id  # type: ignore[arg-type]
-            )
+            select(PushSubscription).where(col(PushSubscription.user_id) == user_id)
         )
         return list(result.scalars().all())
 

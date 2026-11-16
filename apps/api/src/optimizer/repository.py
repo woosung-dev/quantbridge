@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
+from sqlmodel import col
 
 from src.backtest.models import Backtest
 from src.optimizer.models import OptimizationRun, OptimizationStatus
@@ -44,14 +45,14 @@ class OptimizationRepository:
             select(OptimizationRun, Backtest)
             .outerjoin(
                 Backtest,
-                OptimizationRun.backtest_id == Backtest.id,  # type: ignore[arg-type]
+                col(OptimizationRun.backtest_id) == col(Backtest.id),
             )
             # 응답은 심볼/주기/기간 5필드만 쓴다 — 무거운 equity_curve JSONB 는 로드하지 않는다.
             .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
-            .where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
+            .where(col(OptimizationRun.id) == run_id)
         )
         if user_id is not None:
-            stmt = stmt.where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
+            stmt = stmt.where(col(OptimizationRun.user_id) == user_id)
         result = await self.session.execute(stmt)
         return result.tuples().one_or_none()
 
@@ -67,31 +68,23 @@ class OptimizationRepository:
             select(OptimizationRun, Backtest)
             .outerjoin(
                 Backtest,
-                OptimizationRun.backtest_id == Backtest.id,  # type: ignore[arg-type]
+                col(OptimizationRun.backtest_id) == col(Backtest.id),
             )
             # 무거운 equity_curve JSONB 미로드 (denormalize 5필드만 사용).
             .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
-            .where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
+            .where(col(OptimizationRun.user_id) == user_id)
         )
         total_base = (
             select(func.count())
             .select_from(OptimizationRun)
-            .where(
-                OptimizationRun.user_id == user_id  # type: ignore[arg-type]
-            )
+            .where(col(OptimizationRun.user_id) == user_id)
         )
         if backtest_id is not None:
-            base = base.where(OptimizationRun.backtest_id == backtest_id)  # type: ignore[arg-type]
-            total_base = total_base.where(
-                OptimizationRun.backtest_id == backtest_id  # type: ignore[arg-type]
-            )
+            base = base.where(col(OptimizationRun.backtest_id) == backtest_id)
+            total_base = total_base.where(col(OptimizationRun.backtest_id) == backtest_id)
 
         total = (await self.session.execute(total_base)).scalar_one()
-        stmt = (
-            base.order_by(OptimizationRun.created_at.desc())  # type: ignore[attr-defined]
-            .limit(limit)
-            .offset(offset)
-        )
+        stmt = base.order_by(col(OptimizationRun.created_at).desc()).limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return result.tuples().all(), total
 
@@ -101,8 +94,8 @@ class OptimizationRepository:
         """queued → running. UPDATE rows=0 → silent skip (stress_test pattern mirror)."""
         result = await self.session.execute(
             update(OptimizationRun)
-            .where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
-            .where(OptimizationRun.status == OptimizationStatus.QUEUED)  # type: ignore[arg-type]
+            .where(col(OptimizationRun.id) == run_id)
+            .where(col(OptimizationRun.status) == OptimizationStatus.QUEUED)
             .values(status=OptimizationStatus.RUNNING, started_at=started_at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -116,8 +109,8 @@ class OptimizationRepository:
         """running → completed."""
         update_result = await self.session.execute(
             update(OptimizationRun)
-            .where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
-            .where(OptimizationRun.status == OptimizationStatus.RUNNING)  # type: ignore[arg-type]
+            .where(col(OptimizationRun.id) == run_id)
+            .where(col(OptimizationRun.status) == OptimizationStatus.RUNNING)
             .values(
                 status=OptimizationStatus.COMPLETED,
                 result=result,
@@ -136,7 +129,7 @@ class OptimizationRepository:
         """→ failed. error_message 는 service 가 truncate_error_message 적용 후 호출 (BL-230)."""
         stmt = (
             update(OptimizationRun)
-            .where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
+            .where(col(OptimizationRun.id) == run_id)
             .values(
                 status=OptimizationStatus.FAILED,
                 error_message=error_message,
@@ -144,10 +137,10 @@ class OptimizationRepository:
             )
         )
         if where_status is not None:
-            stmt = stmt.where(OptimizationRun.status == where_status)  # type: ignore[arg-type]
+            stmt = stmt.where(col(OptimizationRun.status) == where_status)
         else:
             stmt = stmt.where(
-                OptimizationRun.status.in_(  # type: ignore[attr-defined]
+                col(OptimizationRun.status).in_(
                     [OptimizationStatus.QUEUED, OptimizationStatus.RUNNING]
                 )
             )
@@ -165,8 +158,8 @@ class OptimizationRepository:
         cutoff = now - timedelta(seconds=threshold_seconds)
         result = await self.session.execute(
             update(OptimizationRun)
-            .where(OptimizationRun.status == OptimizationStatus.RUNNING)  # type: ignore[arg-type]
-            .where(OptimizationRun.started_at < cutoff)  # type: ignore[arg-type,operator]
+            .where(col(OptimizationRun.status) == OptimizationStatus.RUNNING)
+            .where(col(OptimizationRun.started_at) < cutoff)
             .values(
                 status=OptimizationStatus.FAILED,
                 error_message="Stale running — reclaimed by watchdog",

@@ -159,7 +159,7 @@ class LiveSignalSessionRepository:
 
     async def get_by_id(self, session_id: UUID) -> LiveSignalSession | None:
         result = await self.session.execute(
-            select(LiveSignalSession).where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
+            select(LiveSignalSession).where(col(LiveSignalSession.id) == session_id)
         )
         return result.scalar_one_or_none()
 
@@ -170,8 +170,8 @@ class LiveSignalSessionRepository:
         """
         result = await self.session.execute(
             select(LiveSignalSession)
-            .where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
+            .where(col(LiveSignalSession.id) == session_id)
+            .where(col(LiveSignalSession.user_id) == user_id)
         )
         return result.scalar_one_or_none()
 
@@ -179,18 +179,18 @@ class LiveSignalSessionRepository:
         """LiveSignalEvent.order_id에 정확히 귀속된 활성 세션을 찾는다."""
         result = await self.session.execute(
             select(LiveSignalSession)
-            .join(LiveSignalEvent, LiveSignalEvent.session_id == LiveSignalSession.id)  # type: ignore[arg-type]
-            .where(LiveSignalEvent.order_id == order_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .join(LiveSignalEvent, col(LiveSignalEvent.session_id) == col(LiveSignalSession.id))
+            .where(col(LiveSignalEvent.order_id) == order_id)
+            .where(col(LiveSignalSession.is_active) == True)  # noqa: E712
         )
         return result.scalars().first()
 
     async def list_active_by_user(self, user_id: UUID) -> Sequence[LiveSignalSession]:
         result = await self.session.execute(
             select(LiveSignalSession)
-            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712  # type: ignore[arg-type]
-            .order_by(LiveSignalSession.created_at.desc())  # type: ignore[attr-defined]
+            .where(col(LiveSignalSession.user_id) == user_id)
+            .where(col(LiveSignalSession.is_active) == True)  # noqa: E712
+            .order_by(col(LiveSignalSession.created_at).desc())
         )
         return result.scalars().all()
 
@@ -200,7 +200,7 @@ class LiveSignalSessionRepository:
             return set()
         result = await self.session.execute(
             select(LiveSignalSession.strategy_id)  # type: ignore[call-overload]
-            .where(LiveSignalSession.strategy_id.in_(strategy_ids))  # type: ignore[attr-defined]
+            .where(col(LiveSignalSession.strategy_id).in_(strategy_ids))
             .where(LiveSignalSession.is_active == True)  # noqa: E712
             .distinct()
         )
@@ -216,9 +216,9 @@ class LiveSignalSessionRepository:
         # 세션은 계속 누적되므로, 회고 화면 목록은 최근 20건을 넘기지 않는다.
         result = await self.session.execute(
             select(LiveSignalSession)
-            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.is_active == False)  # type: ignore[arg-type]  # noqa: E712
-            .order_by(LiveSignalSession.deactivated_at.desc().nullslast())  # type: ignore[union-attr]
+            .where(col(LiveSignalSession.user_id) == user_id)
+            .where(col(LiveSignalSession.is_active) == False)  # noqa: E712
+            .order_by(col(LiveSignalSession.deactivated_at).desc().nullslast())
             .limit(min(limit, _RECENT_INACTIVE_LIST_LIMIT))
         )
         return result.scalars().all()
@@ -226,9 +226,9 @@ class LiveSignalSessionRepository:
     async def list_active_by_account(self, account_id: UUID) -> Sequence[LiveSignalSession]:
         result = await self.session.execute(
             select(LiveSignalSession)
-            .where(LiveSignalSession.exchange_account_id == account_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
-            .order_by(LiveSignalSession.created_at.desc())  # type: ignore[attr-defined]
+            .where(col(LiveSignalSession.exchange_account_id) == account_id)
+            .where(col(LiveSignalSession.is_active) == True)  # noqa: E712
+            .order_by(col(LiveSignalSession.created_at).desc())
         )
         return result.scalars().all()
 
@@ -246,9 +246,9 @@ class LiveSignalSessionRepository:
         """
         result = await self.session.execute(
             select(LiveSignalSession)
-            .where(LiveSignalSession.exchange_account_id == account_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
-            .order_by(LiveSignalSession.created_at.desc())  # type: ignore[attr-defined]
+            .where(col(LiveSignalSession.exchange_account_id) == account_id)
+            .where(col(LiveSignalSession.user_id) == user_id)
+            .order_by(col(LiveSignalSession.created_at).desc())
         )
         return result.scalars().all()
 
@@ -281,7 +281,7 @@ class LiveSignalSessionRepository:
         )
         if until is not None:
             stmt = stmt.where(cast(Any, LiveSignalSession.created_at) < until)
-        stmt = stmt.order_by(LiveSignalSession.created_at.asc()).limit(limit + 1)  # type: ignore[attr-defined]
+        stmt = stmt.order_by(col(LiveSignalSession.created_at).asc()).limit(limit + 1)
         return (await self.session.execute(stmt)).scalars().all()
 
     async def list_by_strategy_account_symbol(
@@ -295,20 +295,20 @@ class LiveSignalSessionRepository:
         """전략 누적 parity용 세션을 활성 여부와 무관하게 읽는다."""
         result = await self.session.execute(
             select(LiveSignalSession)
-            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.strategy_id == strategy_id)  # type: ignore[arg-type]
+            .where(col(LiveSignalSession.user_id) == user_id)
+            .where(col(LiveSignalSession.strategy_id) == strategy_id)
             .where(cast(Any, LiveSignalSession.exchange_account_id) == exchange_account_id)
-            .where(LiveSignalSession.symbol == symbol)  # type: ignore[arg-type]
-            .order_by(LiveSignalSession.created_at.asc())  # type: ignore[attr-defined]
+            .where(col(LiveSignalSession.symbol) == symbol)
+            .order_by(col(LiveSignalSession.created_at).asc())
         )
         return result.scalars().all()
 
     async def count_active_by_user(self, user_id: UUID) -> int:
         """Sprint 26 quota check — 사용자별 active session ≤ 5."""
         result = await self.session.execute(
-            select(func.count(LiveSignalSession.id))  # type: ignore[arg-type]
-            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712  # type: ignore[arg-type]
+            select(func.count(col(LiveSignalSession.id)))
+            .where(col(LiveSignalSession.user_id) == user_id)
+            .where(col(LiveSignalSession.is_active) == True)  # noqa: E712
         )
         return int(result.scalar_one() or 0)
 
@@ -362,12 +362,12 @@ class LiveSignalSessionRepository:
         """
         result = await self.session.execute(
             update(LiveSignalSession)
-            .where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .where(col(LiveSignalSession.id) == session_id)
+            .where(col(LiveSignalSession.is_active) == True)  # noqa: E712
             .where(
                 or_(
-                    LiveSignalSession.last_evaluated_bar_time.is_(None),  # type: ignore[union-attr]
-                    LiveSignalSession.last_evaluated_bar_time < bar_time,  # type: ignore[operator,arg-type]
+                    col(LiveSignalSession.last_evaluated_bar_time).is_(None),
+                    col(LiveSignalSession.last_evaluated_bar_time) < bar_time,
                 )
             )
             .values(
@@ -389,8 +389,8 @@ class LiveSignalSessionRepository:
         """
         result = await self.session.execute(
             update(LiveSignalSession)
-            .where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .where(col(LiveSignalSession.id) == session_id)
+            .where(col(LiveSignalSession.is_active) == True)  # noqa: E712
             .values(is_active=False, deactivated_at=at, deactivated_reason=reason)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -409,15 +409,15 @@ class LiveSignalSessionRepository:
         """
         result = await self.session.execute(
             update(LiveSignalSession)
-            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
-            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .where(col(LiveSignalSession.user_id) == user_id)
+            .where(col(LiveSignalSession.is_active) == True)  # noqa: E712
             .values(is_active=False, deactivated_at=at, deactivated_reason=reason)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
     async def get_state(self, session_id: UUID) -> LiveSignalState | None:
         result = await self.session.execute(
-            select(LiveSignalState).where(LiveSignalState.session_id == session_id)  # type: ignore[arg-type]
+            select(LiveSignalState).where(col(LiveSignalState.session_id) == session_id)
         )
         return result.scalar_one_or_none()
 
