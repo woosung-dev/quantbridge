@@ -2016,7 +2016,10 @@ class BybitFuturesProvider:
         except Exception as exc:
             raise ProviderError(f"native SL history failed: {type(exc).__name__}") from None
         finally:
-            await exchange.close()
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_order_by_client_id(
         self,
