@@ -34,6 +34,7 @@ import { DiagnosticsStrip } from "./diagnostics-strip";
 import { EditorSourceSection } from "./editor-source-section";
 import { TabMetadata } from "./tab-metadata";
 import { TabWebhook } from "./tab-webhook";
+import { describeApiError } from "@/lib/api-client";
 
 const MARGIN_MODE_LABEL: Record<MarginMode, string> = {
   cross: "교차 (Cross)",
@@ -106,7 +107,7 @@ export function EditorView({ id }: { id: string }) {
       markSaved(new Date());
       toast.success("저장했습니다");
     },
-    onError: (e) => toast.error(`저장 실패: ${e.message}`),
+    onError: (e) => toast.error(`저장 실패: ${describeApiError(e)}`),
   });
 
   const handleSave = () => {

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { useCreateBacktestShare, useRevokeBacktestShare } from "@/features/backtest/hooks";
+import { describeApiError } from "@/lib/api-client";
 
 interface ShareButtonProps {
   backtestId: string;
@@ -50,7 +51,7 @@ export function ShareButton({ backtestId, isEnabled = true }: ShareButtonProps) 
     },
     onError: (err) => {
       toast.error("공유 링크 생성에 실패했습니다", {
-        description: err.message,
+        description: describeApiError(err),
       });
     },
   });
@@ -61,7 +62,7 @@ export function ShareButton({ backtestId, isEnabled = true }: ShareButtonProps) 
       toast.success("공유 링크가 해제되었습니다");
     },
     onError: (err) => {
-      toast.error("공유 해제에 실패했습니다", { description: err.message });
+      toast.error("공유 해제에 실패했습니다", { description: describeApiError(err) });
     },
   });
 

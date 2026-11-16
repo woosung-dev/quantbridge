@@ -27,6 +27,7 @@ import { RunupDrawdownSection } from "@/features/backtest/components/report/runu
 import { TradeAnalyticsSection } from "@/features/backtest/components/report/trade-analytics-section";
 import { TradeLedgerTable } from "@/features/backtest/components/report/trade-ledger-table";
 import { deriveTradeCounts } from "@/features/backtest/trade-counts";
+import { describeApiError } from "@/lib/api-client";
 
 interface BacktestReportShellProps {
   backtest: BacktestDetail;
@@ -212,7 +213,7 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
                 title="거래 기록을 불러오지 못했습니다."
                 body={
                   trades.error
-                    ? trades.error.message
+                    ? describeApiError(trades.error)
                     : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
                 }
                 code={`GET /api/v1/backtests/${currentId}/trades`}

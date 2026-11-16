@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Skeleton, TableSkeleton } from "@/components/skeleton";
 import { useAdminWaitlistList, useApproveWaitlist } from "@/features/waitlist/hooks";
 import type { WaitlistStatus } from "@/features/waitlist/schemas";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, describeApiError } from "@/lib/api-client";
 
 import { WaitlistFilterBar, type WaitlistFilter } from "./waitlist-filter-bar";
 import { WaitlistStatsStrip } from "./waitlist-stats-strip";
@@ -31,7 +31,7 @@ export function WaitlistAdminView() {
       toast.success(`초대 발송: ${approved.email}`);
     },
     onError: (err) => {
-      const msg = err instanceof Error ? err.message : "승인 실패";
+      const msg = describeApiError(err, "승인 실패");
       toast.error(msg);
     },
   });
@@ -84,7 +84,7 @@ export function WaitlistAdminView() {
 
       {error && errStatus !== 403 ? (
         <div className="rounded-[var(--radius-md)] border-l-4 border-[color:var(--destructive)] bg-[color:var(--destructive-subtle)] p-4 text-sm text-[color:var(--destructive)]">
-          Waitlist 불러오기 실패: {error.message}
+          Waitlist 불러오기 실패: {describeApiError(error)}
         </div>
       ) : null}
 

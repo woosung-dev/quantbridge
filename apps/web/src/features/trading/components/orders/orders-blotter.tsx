@@ -52,6 +52,7 @@ import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 import { displayRealizedPnl, realizedPnlSource } from "./order-fill-display";
 import { TableScrollRegion } from "@/components/table-scroll-region";
+import { describeApiError } from "@/lib/api-client";
 
 const OrderDetailDrawer = dynamic(() =>
   import("./order-detail-drawer").then((m) => m.OrderDetailDrawer),
@@ -423,7 +424,11 @@ export function OrdersBlotter() {
                 testId="order-error"
                 icon={<AlertTriangleIcon />}
                 title="원장을 다시 받아오지 못했습니다."
-                body={error ? error.message : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
+                body={
+                  error
+                    ? describeApiError(error)
+                    : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
+                }
                 code={`${LIST_ENDPOINT} · 500`}
               >
                 <button className="btn btn-ghost" type="button" onClick={() => refetch()}>

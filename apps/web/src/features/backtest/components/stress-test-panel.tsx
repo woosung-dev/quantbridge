@@ -30,6 +30,7 @@ import { ParamStabilityHeatmap } from "@/features/backtest/components/charts/par
 import { StressTestHistoryTable } from "@/features/backtest/components/stress-test-history-table";
 import { WalkForwardBarChart } from "@/features/backtest/components/charts/walk-forward-bar-chart";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
+import { describeApiError } from "@/lib/api-client";
 
 interface Props {
   backtestId: string;
@@ -41,22 +42,23 @@ export function StressTestPanel({ backtestId }: Props) {
 
   const mcMutation = useCreateMonteCarlo({
     onSuccess: (created) => setActiveStressTestId(created.stress_test_id),
-    onError: (err) => toast.error(`Monte Carlo 실행 실패: ${err.message}`),
+    onError: (err) => toast.error(`Monte Carlo 실행 실패: ${describeApiError(err)}`),
   });
   const wfMutation = useCreateWalkForward({
     onSuccess: (created) => setActiveStressTestId(created.stress_test_id),
-    onError: (err) => toast.error(`Walk-Forward 실행 실패: ${err.message}`),
+    onError: (err) => toast.error(`Walk-Forward 실행 실패: ${describeApiError(err)}`),
   });
   const caMutation = useCreateCostAssumption({
     onSuccess: (created) => setActiveStressTestId(created.stress_test_id),
-    onError: (err) => toast.error(`Cost Assumption Sensitivity 실행 실패: ${err.message}`),
+    onError: (err) =>
+      toast.error(`Cost Assumption Sensitivity 실행 실패: ${describeApiError(err)}`),
   });
   const psMutation = useCreateParamStability({
     onSuccess: (created) => {
       setActiveStressTestId(created.stress_test_id);
       setShowParamStabilityForm(false);
     },
-    onError: (err) => toast.error(`Param Stability 실행 실패: ${err.message}`),
+    onError: (err) => toast.error(`Param Stability 실행 실패: ${describeApiError(err)}`),
   });
   // [BL-414] 이력 전체를 가져온다. BE 가 created_at 내림차순으로 주므로 items[0] 이 최신이고,
   // 사용자가 행을 고르지 않았을 때 그것이 상세 패널의 기본값이다 (종전 동작 유지).
@@ -221,7 +223,7 @@ export function StressTestPanel({ backtestId }: Props) {
 
           {stress.isError ? (
             <p className="text-sm text-destructive">
-              상세 로드 실패: {stress.error?.message ?? "unknown"}
+              상세 로드 실패: {stress.error ? describeApiError(stress.error) : "unknown"}
             </p>
           ) : null}
         </div>

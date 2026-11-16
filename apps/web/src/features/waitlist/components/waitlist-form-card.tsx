@@ -20,6 +20,7 @@ import {
   type CreateWaitlistApplication,
 } from "@/features/waitlist/schemas";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
+import { describeApiError } from "@/lib/api-client";
 
 // 폼 로컬 스키마 — 법무 동의 체크(서버로 전송하지 않음)를 더한다.
 const FormSchema = CreateWaitlistApplicationSchema.extend({
@@ -94,7 +95,7 @@ export function WaitlistFormCard({ defaultEmail = "" }: { defaultEmail?: string 
   const create = useCreateWaitlist({
     onSuccess: () => setSubmitted(true),
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "등록에 실패했습니다.");
+      toast.error(describeApiError(err, "등록에 실패했습니다."));
     },
   });
 

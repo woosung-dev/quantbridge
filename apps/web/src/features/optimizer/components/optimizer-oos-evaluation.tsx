@@ -15,6 +15,7 @@ import { TapeProgress } from "@/components/tape/tape-progress";
 import { useCreateWalkForward, useStressTest } from "@/features/backtest/hooks";
 import type { OptimizationKind, ParamSpace } from "@/features/optimizer/schemas";
 import { EMPTY_CELL } from "@/lib/labels";
+import { describeApiError } from "@/lib/api-client";
 
 // stress-test-panel 의 walk-forward 기본값과 동일 (재사용 일관성).
 const WF_DEFAULTS = {
@@ -37,7 +38,7 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind, sectionNu
 
   const wfMutation = useCreateWalkForward({
     onSuccess: (created) => setActiveStressTestId(created.stress_test_id),
-    onError: (err) => toast.error(`Walk-Forward OOS 검증 실행 실패: ${err.message}`),
+    onError: (err) => toast.error(`Walk-Forward OOS 검증 실행 실패: ${describeApiError(err)}`),
   });
   const stress = useStressTest(activeStressTestId);
   const stressData = stress.data;
@@ -161,7 +162,7 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind, sectionNu
 
                 {stress.isError ? (
                   <p className="state-code" role="alert">
-                    상세 로드 실패: {stress.error?.message ?? "unknown"}
+                    상세 로드 실패: {stress.error ? describeApiError(stress.error) : "unknown"}
                   </p>
                 ) : null}
               </div>

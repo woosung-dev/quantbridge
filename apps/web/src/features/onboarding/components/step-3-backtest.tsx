@@ -10,6 +10,7 @@ import { toast } from "sonner";
 
 import { useBacktestProgress, useCreateBacktest } from "@/features/backtest/hooks";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
+import { describeApiError } from "@/lib/api-client";
 
 const INITIAL_CAPITAL = 10_000;
 const LOOKBACK_DAYS = 30;
@@ -47,8 +48,9 @@ export function Step3Backtest({
       setBacktestId(data.backtest_id);
     },
     onError: (err) => {
-      setSubmitError(err.message);
-      toast.error(`백테스트 요청 실패: ${err.message}`);
+      const message = describeApiError(err);
+      setSubmitError(message);
+      toast.error(`백테스트 요청 실패: ${message}`);
     },
   });
 

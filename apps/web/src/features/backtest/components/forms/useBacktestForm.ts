@@ -22,6 +22,7 @@ import {
 } from "@/features/backtest/components/forms/date-preset-pills";
 import type { SizingSource } from "@/features/backtest/components/live-settings-badge";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
+import { describeApiError } from "@/lib/api-client";
 
 export interface BacktestFormValues {
   strategy_id: string;
@@ -131,7 +132,7 @@ export function useBacktestForm() {
       setSubmitError(null);
       if (status != null && status >= 500) {
         const apiErr = err as { detail?: { detail?: unknown } | unknown };
-        let detailMsg = err.message;
+        let detailMsg = describeApiError(err);
         if (
           apiErr.detail &&
           typeof apiErr.detail === "object" &&
@@ -144,7 +145,7 @@ export function useBacktestForm() {
           `백테스트 실행 중 오류 발생: ${detailMsg}. 지원 함수 목록 참조 후 strategy 를 변경해 주세요.`,
         );
       } else {
-        toast.error(`요청 실패: ${err.message}`);
+        toast.error(`요청 실패: ${describeApiError(err)}`);
       }
     },
   });

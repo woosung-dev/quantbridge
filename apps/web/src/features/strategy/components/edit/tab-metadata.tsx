@@ -19,6 +19,7 @@ import {
   type UpdateStrategySettingsRequest,
 } from "@/features/strategy/schemas";
 import { SessionChips } from "./session-chips";
+import { describeApiError } from "@/lib/api-client";
 
 export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
   const form = useForm<UpdateStrategyRequest>({
@@ -34,7 +35,7 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
   });
   const update = useUpdateStrategy(strategy.id, {
     onSuccess: () => toast.success("메타데이터를 저장했습니다"),
-    onError: (e) => toast.error(`저장 실패: ${e.message}`),
+    onError: (e) => toast.error(`저장 실패: ${describeApiError(e)}`),
   });
 
   // Sprint 27 BL-137 — trading settings 별도 form. settings null = unset (Live Session 차단).
@@ -54,7 +55,7 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
   });
   const updateSettings = useUpdateStrategySettings(strategy.id, {
     onSuccess: () => toast.success("트레이딩 설정을 저장했습니다"),
-    onError: (e) => toast.error(`저장 실패: ${e.message}`),
+    onError: (e) => toast.error(`저장 실패: ${describeApiError(e)}`),
   });
 
   // React Compiler 호환 — form.watch() 는 memoize 불가라 useWatch 구독 훅을 쓴다.

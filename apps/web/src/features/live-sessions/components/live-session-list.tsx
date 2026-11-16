@@ -22,6 +22,7 @@ import type { LiveSession } from "../schemas";
 import { formatDateTime, formatRealizedPnl } from "../utils";
 import { LiveSessionStateView } from "./live-session-state-view";
 import { SessionEndedReason } from "./session-ended-reason";
+import { describeApiError } from "@/lib/api-client";
 
 type Props = {
   onSelect?: (session: LiveSession) => void;
@@ -50,7 +51,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
         icon={AlertCircle}
         variant="destructive"
         title="로드 실패"
-        description={`라이브 세션 목록 로드 실패: ${error.message}`}
+        description={`라이브 세션 목록 로드 실패: ${describeApiError(error)}`}
         testId="live-session-error"
       />
     );
@@ -66,7 +67,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
       await deactivate.mutateAsync(confirmId);
       toast.success("Session 중단됨");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Stop 실패");
+      toast.error(describeApiError(err, "Stop 실패"));
     } finally {
       setConfirmId(null);
     }

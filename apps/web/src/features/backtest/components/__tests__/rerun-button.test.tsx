@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BacktestDetail } from "@/features/backtest/schemas";
+import { ApiError } from "@/lib/api-client";
 
 const mockMutate = vi.fn();
 const mockPush = vi.fn();
@@ -224,6 +225,16 @@ describe("RerunButton", () => {
     expect(mockMutate).toHaveBeenCalledTimes(1);
     expect(mockToastError).toHaveBeenCalledWith("재실행 실패: Network down");
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("ApiError 422 실패 시 `API 422 …` 대신 서버 사유를 toast 로 보인다", () => {
+    mutationError = new ApiError(422, "validation_error", "API 422 /api/v1/backtests", {
+      detail: "초기 자본이 너무 작습니다",
+    });
+    render(<RerunButton backtest={BACKTEST} isEnabled={true} />);
+    fireEvent.click(screen.getByRole("button", { name: /재실행/ }));
+
+    expect(mockToastError).toHaveBeenCalledWith("재실행 실패: 초기 자본이 너무 작습니다");
   });
 
   it("isPending=true 일 때 (mutation 진행 중) 비활성화된다", () => {

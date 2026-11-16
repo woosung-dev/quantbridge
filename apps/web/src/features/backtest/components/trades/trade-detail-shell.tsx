@@ -17,6 +17,7 @@ import { BacktestStrategyLink } from "@/features/backtest/components/backtest-st
 
 import { TradeDetailTable } from "@/features/backtest/components/trades/trade-detail-table";
 import { TradeStatsStrip } from "@/features/backtest/components/trades/trade-stats-strip";
+import { describeApiError } from "@/lib/api-client";
 
 const EMPTY_TRADES: readonly TradeItem[] = [];
 const HEADER_SKELETON_CHIPS = ["id", "symbol", "timeframe", "status", "trade-count"] as const;
@@ -64,7 +65,7 @@ export function TradeDetailShell({ id }: { id: string }) {
               title="백테스트 정보를 불러오지 못했습니다."
               body={
                 detail.error
-                  ? detail.error.message
+                  ? describeApiError(detail.error)
                   : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
               }
               code={`GET /api/v1/backtests/${id}`}
@@ -150,7 +151,7 @@ export function TradeDetailShell({ id }: { id: string }) {
           trades={items}
           isLoading={trades.isLoading}
           isError={trades.isError}
-          errorMessage={trades.error?.message}
+          errorMessage={trades.error ? describeApiError(trades.error) : undefined}
           endpoint={`GET /api/v1/backtests/${id}/trades`}
           onRetry={() => trades.refetch()}
           filenamePrefix={`backtest-${id.slice(0, 8)}`}

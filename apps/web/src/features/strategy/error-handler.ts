@@ -6,6 +6,7 @@
 import { toast } from "sonner";
 
 import type { ApiError } from "@/lib/api-client";
+import { describeApiError } from "@/lib/api-client";
 
 /**
  * Strategy 공통 mutation 에러 핸들러.
@@ -29,5 +30,5 @@ export function handleMutationError(err: unknown): void {
     toast.error("서버 오류. 잠시 후 다시 시도해 주세요.");
     return;
   }
-  toast.error(`실패: ${e?.message ?? "알 수 없는 오류"}`);
+  toast.error(`실패: ${describeApiError(err, "알 수 없는 오류")}`);
 }
