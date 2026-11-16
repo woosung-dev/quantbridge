@@ -159,20 +159,19 @@ export function useBacktestForm() {
       timeframe: values.timeframe,
       period_start: toIsoUtc(values.period_start),
       period_end: toIsoUtc(values.period_end),
-      initial_capital: Number(values.initial_capital),
-      leverage: Number(values.leverage),
-      fees_pct: Number(values.fees_pct),
-      slippage_pct: Number(values.slippage_pct),
+      initial_capital: values.initial_capital,
+      leverage: values.leverage,
+      fees_pct: values.fees_pct,
+      slippage_pct: values.slippage_pct,
       include_funding: Boolean(values.include_funding),
       fill_timing: values.fill_timing,
       ...(isLive
         ? {
-            position_size_pct:
-              values.position_size_pct != null ? Number(values.position_size_pct) : undefined,
+            position_size_pct: values.position_size_pct ?? undefined,
           }
         : {
             default_qty_type: values.default_qty_type,
-            default_qty_value: Number(values.default_qty_value),
+            default_qty_value: values.default_qty_value,
           }),
       ...(allowDegradedPine ? { allow_degraded_pine: true } : {}),
       trading_sessions: values.trading_sessions ?? [],
