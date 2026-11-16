@@ -93,3 +93,24 @@ async def test_native_history_network_failure_returns_no_partial_observations(ex
         )
     exchange.close.assert_awaited_once()
     exchange.privateGetV5OrderHistory.assert_not_awaited()
+
+
+async def test_native_history_close_failure_does_not_replace_the_observed_result(exchange):
+    """close 실패는 형제 사다리처럼 경고로만 남는다 — 읽은 결과를 덮어쓰지 않는다."""
+    exchange.close.side_effect = RuntimeError("session already closed")
+    result = await BybitFuturesProvider().fetch_attached_sl_orders(
+        Credentials("fake", "fake"), "BTCUSDT", since=datetime.now(UTC)
+    )
+    assert result == []
+    exchange.close.assert_awaited_once()
+
+
+async def test_native_history_close_failure_does_not_replace_the_provider_error(exchange):
+    """본문이 ProviderError 로 끝났으면 close 실패가 그것을 raw 예외로 바꾸지 않는다."""
+    exchange.privateGetV5OrderRealtime.side_effect = TimeoutError("transport")
+    exchange.close.side_effect = RuntimeError("session already closed")
+    with pytest.raises(ProviderError, match="TimeoutError"):
+        await BybitFuturesProvider().fetch_attached_sl_orders(
+            Credentials("fake", "fake"), "BTCUSDT", since=datetime.now(UTC)
+        )
+    exchange.close.assert_awaited_once()

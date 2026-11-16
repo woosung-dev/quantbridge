@@ -73,7 +73,7 @@ def _decimal_or_none(
     else:
         try:
             result = Decimal(str(value))
-        except (ValueError, TypeError, InvalidOperation):
+        except ValueError, TypeError, InvalidOperation:
             return None
     if (zero_as_none and result == 0) or (finite_only and not result.is_finite()):
         return None
@@ -92,7 +92,7 @@ def _int_or_none(value: Any, *, strict: bool = False) -> int | None:
         return None
     try:
         return int(Decimal(str(value)))
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         if strict:
             raise
         return None
@@ -349,7 +349,7 @@ def _parse_position_created_at(position: dict[str, Any]) -> datetime | None:
         return None
     try:
         ms = int(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if ms <= 0:
         return None
@@ -431,7 +431,7 @@ def _closed_pnl_snapshot_from_position(position: dict[str, Any]) -> ClosedPnlSna
         parsed_closed_size = _decimal_or_none(row.get("closedSize"), strict=True)
         parsed_avg_exit_price = _decimal_or_none(row.get("avgExitPrice"), strict=True)
         parsed_updated_at_ms = _int_or_none(row.get("updatedTime"), strict=True)
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         return None
     return ClosedPnlSnapshot(
         order_id=str(row["orderId"]),
@@ -1912,7 +1912,7 @@ class BybitFuturesProvider:
                                 if info.get("orderLinkId") not in (None, "")
                                 else None
                             )
-                        except (TypeError, ValueError):
+                        except TypeError, ValueError:
                             continue
                         meta_by_order_id.setdefault(
                             order_id,
@@ -2082,7 +2082,10 @@ class BybitFuturesProvider:
         except Exception as exc:
             raise ProviderError(f"native SL history failed: {type(exc).__name__}") from None
         finally:
-            await exchange.close()
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_order_by_client_id(
         self,
@@ -2133,7 +2136,7 @@ class BybitFuturesProvider:
                     continue
                 try:
                     result[asset] = Decimal(str(free))
-                except (ValueError, TypeError, InvalidOperation):
+                except ValueError, TypeError, InvalidOperation:
                     continue
             return result
         except ProviderError:
@@ -2228,12 +2231,12 @@ class BybitFuturesProvider:
                         continue
                     try:
                         price = Decimal(str(val))
-                    except (ValueError, TypeError, InvalidOperation):
+                    except ValueError, TypeError, InvalidOperation:
                         continue
                     if price.is_finite() and price > 0:
                         return price
             return None
-        except (ccxt_async.BaseError, ProviderError):
+        except ccxt_async.BaseError, ProviderError:
             return None
         except Exception:
             # SECURITY: non-CCXT 예외는 traceback에 ccxt 인스턴스 (apiKey 보유) 노출 위험.
@@ -2295,10 +2298,10 @@ class BybitFuturesProvider:
                 return None
             try:
                 value = Decimal(str(min_cost))
-            except (ValueError, TypeError, InvalidOperation):
+            except ValueError, TypeError, InvalidOperation:
                 return None
             return value if value > 0 else None
-        except (ccxt_async.BaseError, ProviderError):
+        except ccxt_async.BaseError, ProviderError:
             return None
         except Exception:
             # SECURITY: non-CCXT 예외는 traceback에 ccxt 인스턴스 (apiKey 보유) 노출 위험.
