@@ -6,9 +6,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.strategy.schemas import MAX_PINE_SOURCE_CHARS
+
 
 class ConvertIndicatorRequest(BaseModel):
-    code: str = Field(min_length=10, description="Pine Script 원본 코드")
+    code: str = Field(
+        min_length=10, max_length=MAX_PINE_SOURCE_CHARS, description="Pine Script 원본 코드"
+    )
     strategy_name: str = Field(default="Converted Strategy", max_length=100)
     mode: Literal["full", "sliced"] = Field(
         default="full",

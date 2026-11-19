@@ -314,10 +314,13 @@ export const StrategyListResponseSchema = z.object({
 });
 export type StrategyListResponse = z.infer<typeof StrategyListResponseSchema>;
 
+// 백엔드 `MAX_PINE_SOURCE_CHARS`(apps/api/src/strategy/schemas.py)와 같은 값이다.
+export const MAX_PINE_SOURCE_CHARS = 100_000;
+
 export const CreateStrategyRequestSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(2000).nullable().optional(),
-  pine_source: z.string().min(1),
+  pine_source: z.string().min(1).max(MAX_PINE_SOURCE_CHARS),
   timeframe: z.string().max(16).nullable().optional(),
   symbol: z.string().max(32).nullable().optional(),
   tags: z.array(z.string()).default([]),
@@ -327,7 +330,7 @@ export type CreateStrategyRequest = z.infer<typeof CreateStrategyRequestSchema>;
 export const UpdateStrategyRequestSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   description: z.string().max(2000).nullable().optional(),
-  pine_source: z.string().min(1).optional(),
+  pine_source: z.string().min(1).max(MAX_PINE_SOURCE_CHARS).optional(),
   timeframe: z.string().max(16).nullable().optional(),
   symbol: z.string().max(32).nullable().optional(),
   tags: z.array(z.string()).optional(),

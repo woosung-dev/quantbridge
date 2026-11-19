@@ -2193,6 +2193,7 @@
         "properties": {
           "code": {
             "description": "Pine Script 원본 코드",
+            "maxLength": 100000,
             "minLength": 10,
             "title": "Code",
             "type": "string"
@@ -2644,6 +2645,7 @@
             "type": "string"
           },
           "pine_source": {
+            "maxLength": 100000,
             "minLength": 1,
             "title": "Pine Source",
             "type": "string"
@@ -6433,6 +6435,7 @@
       "ParseRequest": {
         "properties": {
           "pine_source": {
+            "maxLength": 100000,
             "minLength": 1,
             "title": "Pine Source",
             "type": "string"
@@ -8419,6 +8422,7 @@
           "pine_source": {
             "anyOf": [
               {
+                "maxLength": 100000,
                 "minLength": 1,
                 "type": "string"
               },

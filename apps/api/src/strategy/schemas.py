@@ -21,11 +21,16 @@ class StrategyLifecycle(StrEnum):
     deployed = "deployed"
 
 
+# ★Pine 원본 길이 상한(문자). 파싱 비용이 길이에 초선형으로 늘고 API 프로세스 안에서 돈다
+#   (보안 감사 2026-11-19). 레포 최대 실전 스크립트 `i3_drfx.pine` 이 38,954자라 2.5배 여유를 둔다.
+MAX_PINE_SOURCE_CHARS = 100_000
+
+
 class CreateStrategyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
-    pine_source: str = Field(min_length=1)
+    pine_source: str = Field(min_length=1, max_length=MAX_PINE_SOURCE_CHARS)
     timeframe: str | None = Field(default=None, max_length=16)
     symbol: str | None = Field(default=None, max_length=32)
     tags: list[str] = Field(default_factory=list)
@@ -42,7 +47,9 @@ class UpdateStrategyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
-    pine_source: str | None = Field(default=None, min_length=1)
+    pine_source: str | None = Field(
+        default=None, min_length=1, max_length=MAX_PINE_SOURCE_CHARS
+    )
     timeframe: str | None = Field(default=None, max_length=16)
     symbol: str | None = Field(default=None, max_length=32)
     tags: list[str] | None = None
@@ -56,7 +63,7 @@ class UpdateStrategyRequest(BaseModel):
 
 
 class ParseRequest(BaseModel):
-    pine_source: str = Field(min_length=1)
+    pine_source: str = Field(min_length=1, max_length=MAX_PINE_SOURCE_CHARS)
 
 
 class ParseError(BaseModel):
