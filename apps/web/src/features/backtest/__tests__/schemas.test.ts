@@ -208,6 +208,26 @@ describe("CreateBacktestRequestSchema", () => {
     expect(() => CreateBacktestRequestSchema.parse(valid)).not.toThrow();
   });
 
+  // 보안 감사 2026-11-19 — 백엔드 `MAX_BACKTEST_PERIOD` 와 같은 상한(3653일).
+  it("rejects a period longer than the backend cap", () => {
+    const result = CreateBacktestRequestSchema.safeParse({
+      ...valid,
+      period_start: "1970-01-01T00:00:00+00:00",
+      period_end: "2026-01-01T00:00:00+00:00",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts the 5Y preset span", () => {
+    expect(() =>
+      CreateBacktestRequestSchema.parse({
+        ...valid,
+        period_start: "2021-01-01T00:00:00+00:00",
+        period_end: "2026-01-01T00:00:00+00:00",
+      }),
+    ).not.toThrow();
+  });
+
   it("rejects period_end <= period_start", () => {
     expect(() =>
       CreateBacktestRequestSchema.parse({

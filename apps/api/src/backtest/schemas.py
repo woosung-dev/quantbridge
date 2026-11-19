@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 from typing import Literal, Self
 from uuid import UUID
@@ -22,6 +23,10 @@ from src.strategy.code_contract import CodeExecutionPolicy
 from src.strategy.research_contract import ResearchExecution
 
 # --- Request ---
+
+
+# 백테스트 기간 상한 — `_validate_period` 주석 참조. 약 10년.
+MAX_BACKTEST_PERIOD = timedelta(days=3653)
 
 
 class CreateBacktestRequest(BaseModel):
@@ -133,6 +138,10 @@ class CreateBacktestRequest(BaseModel):
     def _validate_period(self) -> Self:
         if self.period_end <= self.period_start:
             raise ValueError("period_end must be after period_start")
+        # ★기간 상한. 갭 탐지가 기대 타임스탬프를 SQL `generate_series` 로 전부 만들어 공유 DB 일이
+        #   기간에 비례한다(보안 감사 2026-11-19). FE 프리셋 최대가 5Y 라 그 두 배를 허용한다.
+        if self.period_end - self.period_start > MAX_BACKTEST_PERIOD:
+            raise ValueError(f"backtest period must be at most {MAX_BACKTEST_PERIOD.days} days")
         return self
 
     @model_validator(mode="after")

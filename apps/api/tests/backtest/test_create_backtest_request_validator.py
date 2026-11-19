@@ -99,3 +99,31 @@ def test_position_size_pct_above_100_raises() -> None:
 def test_position_size_pct_equals_100_is_valid() -> None:
     req = CreateBacktestRequest(**_base_kwargs(position_size_pct=Decimal("100")))
     assert req.position_size_pct == Decimal("100")
+
+
+# 보안 감사 2026-11-19 — 기간 상한. 갭 탐지 `generate_series` 가 기간에 비례해 공유 DB 일을 만든다.
+def test_period_at_cap_is_valid() -> None:
+    from src.backtest.schemas import MAX_BACKTEST_PERIOD
+
+    start = datetime(2015, 1, 1, tzinfo=UTC)
+    CreateBacktestRequest(**_base_kwargs(period_start=start, period_end=start + MAX_BACKTEST_PERIOD))
+
+
+def test_period_over_cap_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="backtest period must be at most"):
+        CreateBacktestRequest(
+            **_base_kwargs(
+                period_start=datetime(1970, 1, 1, tzinfo=UTC),
+                period_end=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+        )
+
+
+def test_five_year_preset_still_fits() -> None:
+    """FE 최대 프리셋(5Y)은 통과해야 한다."""
+    CreateBacktestRequest(
+        **_base_kwargs(
+            period_start=datetime(2021, 1, 1, tzinfo=UTC),
+            period_end=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+    )
