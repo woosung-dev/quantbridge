@@ -322,6 +322,7 @@ def _configure_exemption(
 
     monkeypatch.setattr(rl.settings, "e2e_rate_limit_exempt_email", email)
     monkeypatch.setattr(rl.settings, "app_env", app_env)
+    monkeypatch.setattr(rl.settings, "better_auth_url", "http://localhost:3100")
 
 
 @pytest.fixture
@@ -465,8 +466,33 @@ def test_exempt_predicate_value_table(
 
     monkeypatch.setattr(rl.settings, "e2e_rate_limit_exempt_email", configured)
     monkeypatch.setattr(rl.settings, "app_env", "development")
+    monkeypatch.setattr(rl.settings, "better_auth_url", "http://localhost:3000")
     assert rl.is_rate_limit_exempt_identity(claimed) is expected
 
     # ★production 에서는 위 표의 **참 케이스까지 전부** 거짓이다 — 한 줄로 같이 잰다.
     monkeypatch.setattr(rl.settings, "app_env", "production")
     assert rl.is_rate_limit_exempt_identity(claimed) is False
+
+
+@pytest.mark.parametrize(
+    ("auth_url", "expected"),
+    [
+        ("http://localhost:3000", True),
+        ("http://127.0.0.1:3100", True),
+        ("http://[::1]:3000", True),
+        # 운영 호스트는 `APP_ENV` 미설정 = development 라 ⑴ 이 참이다 — ⑶ 이 막아야 한다.
+        ("https://qb.woosung.dev", False),
+        ("https://localhost.attacker.test", False),
+        ("", False),
+    ],
+)
+def test_exemption_requires_local_token_issuer(
+    monkeypatch: pytest.MonkeyPatch, auth_url: str, expected: bool
+) -> None:
+    """[보안 감사 2026-11-19] `APP_ENV` 가 development 여도 발급자가 공개 도메인이면 면제 없음."""
+    from src.common import rate_limit as rl
+
+    monkeypatch.setattr(rl.settings, "e2e_rate_limit_exempt_email", E2E_EMAIL)
+    monkeypatch.setattr(rl.settings, "app_env", "development")
+    monkeypatch.setattr(rl.settings, "better_auth_url", auth_url)
+    assert rl.is_rate_limit_exempt_identity(E2E_EMAIL) is expected

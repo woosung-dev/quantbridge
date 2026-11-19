@@ -4,6 +4,7 @@
 import type { Metadata } from "next";
 
 import { AuthForm } from "@/features/auth/components/auth-form";
+import { safeRedirectPath } from "@/features/auth/safe-redirect";
 import { SplitScreenShell } from "@/features/auth/components/split-screen-shell";
 
 // 페이지 이름 5축 일치(§4.10) — 셸 제목·<title> 모두 "로그인"(split-screen-shell.tsx SSOT).
@@ -18,8 +19,8 @@ export default async function SignInPage({
 }) {
   const params = await searchParams;
   const raw = Array.isArray(params.redirect_url) ? params.redirect_url[0] : params.redirect_url;
-  // ★열린 리다이렉트 차단 — 앱 내부 경로만 허용한다(`//host` 는 프로토콜 상대 URL 이다).
-  const redirectTo = raw?.startsWith("/") && !raw.startsWith("//") ? raw : "/strategies";
+  // ★열린 리다이렉트 차단 — 앱 내부 경로만 허용한다(판정은 `safeRedirectPath` 주석 참조).
+  const redirectTo = safeRedirectPath(raw, "/strategies");
 
   return (
     <SplitScreenShell mode="sign-in">

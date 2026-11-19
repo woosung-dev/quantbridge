@@ -16,6 +16,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 from collections.abc import Awaitable, Callable
+from urllib.parse import urlsplit
 
 import anyio.to_thread
 from fastapi import FastAPI, Request
@@ -98,10 +99,14 @@ def rate_limit_key(request: Request) -> str:
     return f"ip:{_client_ip_or_xff(request)}"
 
 
+_LOCAL_AUTH_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
 def is_rate_limit_exempt_identity(email: str | None) -> bool:
     """[BL-784] 이 신원이 rate limit 면제 대상인가 — **두 조건이 모두** 참일 때만 참이다.
 
     ⑴ **`app_env` 가 정확히 `development` 다.** ⑵ 검증된 JWT 의 `email` 이 설정값과 정확히 같다.
+    ⑶ `better_auth_url` 의 호스트가 localhost 다(아래 본문 주석).
 
     ★⑴ 은 화이트리스트다 — 「production 이 아니면」이 아니다. `is_production` 은 **staging 을
     거짓으로 본다**(`config.py:407`)므로 그 조건을 쓰면 staging 인스턴스에서 면제가 켜진다.
@@ -116,6 +121,11 @@ def is_rate_limit_exempt_identity(email: str | None) -> bool:
     면제 대상은 우리가 만든 계정 하나뿐이라 넓혀서 잃을 것이 없다.
     """
     if settings.app_env != Environment.DEVELOPMENT.value:
+        return False
+    # ★⑶ 토큰 발급자(Better Auth)가 **이 기계**여야 한다. 운영 호스트는 `APP_ENV` 미설정이라
+    #   ⑴ 이 참이 되므로 ⑴ 만으로는 로컬/CI 와 운영을 못 가른다(보안 감사 2026-11-19).
+    #   운영의 `BETTER_AUTH_URL` 은 공개 도메인이라 여기서 걸린다.
+    if urlsplit(settings.better_auth_url).hostname not in _LOCAL_AUTH_HOSTS:
         return False
     configured = settings.e2e_rate_limit_exempt_email.strip().lower()
     if not configured:

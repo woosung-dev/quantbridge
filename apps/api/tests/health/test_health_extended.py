@@ -154,3 +154,58 @@ async def test_healthz_all_fail_aggregates_errors(
     assert body["redis"] == "fail"
     assert body["celery_workers"] == 0
     assert set(body["errors"].keys()) == {"db", "redis", "celery"}
+
+
+@pytest.mark.asyncio
+async def test_healthz_concurrent_requests_share_one_celery_inspect(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """동시 `/healthz` N 건은 inspect 를 **한 번만** 띄운다 (보안 감사 2026-11-19).
+
+    inspect 1회가 공유 스레드풀 1칸 + broker 커넥션 1개를 수집 창 내내 쥐므로,
+    익명 동시 요청마다 새로 띄우면 풀이 묶인다.
+    """
+    import asyncio
+
+    calls = 0
+    release = asyncio.Event()
+
+    async def _ok_pg() -> tuple[str, str | None]:
+        return ("ok", None)
+
+    async def _slow_celery() -> tuple[int, str | None]:
+        nonlocal calls
+        calls += 1
+        await release.wait()
+        return (1, None)
+
+    monkeypatch.setattr("src.health.router._check_postgres", _ok_pg)
+    monkeypatch.setattr("src.health.router._check_redis", _ok_pg)
+    monkeypatch.setattr("src.health.router._check_celery_workers", _slow_celery)
+
+    pending = [asyncio.create_task(client.get("/healthz")) for _ in range(5)]
+    await asyncio.sleep(0.05)
+    release.set()
+    responses = await asyncio.gather(*pending)
+
+    assert [r.status_code for r in responses] == [200] * 5
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_check_postgres_error_hides_connection_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """익명 응답의 오류 문구에 host:port · DB 이름이 실리지 않는다 — 클래스 이름만."""
+    import src.common.database as database
+    from src.health.router import _check_postgres
+
+    class _BrokenEngine:
+        def connect(self) -> None:
+            raise OSError("connect to 10.0.0.5:5432 failed for role qb_secret db prod_db")
+
+    monkeypatch.setattr(database, "engine", _BrokenEngine())
+
+    status, err = await _check_postgres()
+    assert status == "fail"
+    assert err == "OSError"

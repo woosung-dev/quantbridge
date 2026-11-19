@@ -99,13 +99,24 @@ async def receive_webhook(
     - Idempotency: body_hash (SHA-256) for E2 conflict detection
     """
     # ── CSO-6: body size guard ──
-    content_length = int(request.headers.get("content-length", 0))
+    try:
+        content_length = int(request.headers.get("content-length", 0))
+    except ValueError:
+        raise HTTPException(400, "invalid content-length") from None
     if content_length > MAX_WEBHOOK_BODY:
         raise HTTPException(413, f"body too large (max {MAX_WEBHOOK_BODY}B)")
 
-    body_bytes = await request.body()
-    if len(body_bytes) > MAX_WEBHOOK_BODY:
-        raise HTTPException(413, "body too large")
+    # ★`request.body()` 는 본문을 끝까지 버퍼링한 뒤에야 길이를 잴 수 있다. Content-Length 가 없는
+    #   chunked 본문은 위 검사를 그대로 지나가므로, 읽는 도중에 상한을 넘으면 즉시 끊는다
+    #   (HMAC 전 · rate limit 면제 경로라 익명 호출자가 메모리를 쥐게 된다 — 보안 감사 2026-11-19).
+    chunks: list[bytes] = []
+    received = 0
+    async for chunk in request.stream():
+        received += len(chunk)
+        if received > MAX_WEBHOOK_BODY:
+            raise HTTPException(413, "body too large")
+        chunks.append(chunk)
+    body_bytes = b"".join(chunks)
 
     # ── HMAC verification ──
     await webhook_svc.ensure_authorized(strategy_id, token=token, payload=body_bytes)

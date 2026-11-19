@@ -63,6 +63,9 @@ export type TradingSession = z.infer<typeof TradingSessionSchema>;
 // 기본값: 1x / 수수료·슬리피지는 `cost-defaults.ts` 단일 상수 ([BL-730]).
 // ★여기에 숫자를 다시 쓰지 마라 — 이 항목의 원인이 리터럴 5벌이었다.
 // 펀딩 ON. 사용자가 BacktestForm 에서 자기 strategy 에 맞게 변경.
+// 약 10년 — 백엔드 상한과 같은 값.
+export const MAX_BACKTEST_PERIOD_DAYS = 3653;
+
 export const CreateBacktestRequestSchema = z
   .object({
     strategy_id: z.uuid(),
@@ -125,6 +128,16 @@ export const CreateBacktestRequestSchema = z
     message: "period_end must be after period_start",
     path: ["period_end"],
   })
+  // 백엔드 `MAX_BACKTEST_PERIOD`(apps/api/src/backtest/schemas.py)와 같은 상한.
+  .refine(
+    (v) =>
+      new Date(v.period_end).getTime() - new Date(v.period_start).getTime() <=
+      MAX_BACKTEST_PERIOD_DAYS * 86_400_000,
+    {
+      message: `백테스트 기간은 최대 ${MAX_BACKTEST_PERIOD_DAYS}일입니다`,
+      path: ["period_end"],
+    },
+  )
   .refine((v) => (v.default_qty_type == null) === (v.default_qty_value == null), {
     message: "default_qty_type 와 default_qty_value 는 함께 명시 또는 함께 None",
     path: ["default_qty_value"],

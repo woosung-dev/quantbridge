@@ -192,7 +192,7 @@ async def test_auth_disconnect_returns_without_close() -> None:
     websocket.receive_json = AsyncMock(side_effect=WebSocketDisconnect())
     websocket.close = AsyncMock()
 
-    await realtime_websocket(websocket, MagicMock())
+    await realtime_websocket(websocket)
 
     websocket.accept.assert_awaited_once()
     websocket.close.assert_not_awaited()
@@ -204,6 +204,34 @@ def test_auth_success_sends_ready(realtime_app: tuple[FastAPI, FakeRedis]) -> No
     with TestClient(app) as client, _connect(client) as websocket:
         websocket.send_json({"type": "auth", "token": "valid"})
         assert websocket.receive_json() == {"type": "ready"}
+
+
+def test_auth_session_is_closed_before_socket_serves(
+    realtime_app: tuple[FastAPI, FakeRedis], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """인증에 쓴 DB 세션은 ready 전에 닫힌다 — 소켓 수명 내내 풀 커넥션을 쥐지 않는다.
+
+    종전에는 요청 수명 세션(`UserServiceDep`)이 소켓이 닫힐 때까지 살아 있었다(보안 감사 2026-11-19).
+    """
+    from src.auth import dependencies as deps
+
+    events: list[str] = []
+
+    class _FakeSession:
+        async def __aenter__(self) -> _FakeSession:
+            events.append("open")
+            return self
+
+        async def __aexit__(self, *_exc: object) -> None:
+            events.append("close")
+
+    monkeypatch.setattr(deps, "async_session_factory", lambda: _FakeSession())
+    app, _ = realtime_app
+    with TestClient(app) as client, _connect(client) as websocket:
+        websocket.send_json({"type": "auth", "token": "valid"})
+        assert websocket.receive_json() == {"type": "ready"}
+        # 소켓은 아직 열려 있다 — 그런데 세션은 이미 닫혔어야 한다.
+        assert events == ["open", "close"]
 
 
 def test_ping_returns_pong(realtime_app: tuple[FastAPI, FakeRedis]) -> None:
