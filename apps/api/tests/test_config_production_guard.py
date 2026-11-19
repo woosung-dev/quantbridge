@@ -272,6 +272,7 @@ def test_staging_never_relaxes_rate_limit(monkeypatch: pytest.MonkeyPatch) -> No
         app_env = "staging"
         e2e_rate_limit_exempt_email = "e2e@dogfood.local"
         is_production = False  # ★블랙리스트였다면 여기서 통과했다 — 그것이 이 회귀의 자리다
+        better_auth_url = "http://localhost:3000"
 
     monkeypatch.setattr(rl, "settings", _Stub())
     assert rl.is_rate_limit_exempt_identity("e2e@dogfood.local") is False
