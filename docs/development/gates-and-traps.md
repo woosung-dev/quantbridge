@@ -10,7 +10,7 @@
 > **전부 역사 기록이다** — 그 검사기들은 철거됐다(원문 = `git show harness-v1:<경로>`).
 > 지금 유효한 것: §1 의 표준 러너(ruff/mypy/pytest/tsc/vitest/lint/build)와 CI 단일 게이트,
 > §3 → [`traps-environment-shell.md`](./traps-environment-shell.md) §환경(`.env.local` 소싱·DATABASE_URL 단독 주입 금지 등 — 여전히 전부 참),
-> §4 pre-push 는 ref 가드만 남음, 원장 사활 = `tools/scripts/ledger-vitals.sh` 3축.
+> §4 pre-push 는 ref 가드만 남음, 원장 사활 = `tools/scripts/ledger-vitals.sh`.
 > 리뷰 = `/review-code` · codex 훅 = `.codex/hooks.json` · 하네스 Eval = `evals/harness/`.
 > 재입힘 규칙: 문서화된 사고 1건 = 슬림 복귀 1건 (ADR-037 §④).
 

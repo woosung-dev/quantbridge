@@ -457,7 +457,7 @@ quant-bridge/
 | ----------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | main/master 직접 push         | 터미널로 `[y/N]` 확인(기본 N · 터미널 없으면 거부). 작업 브랜치 push 와 PR 생성은 자유            | `.husky/pre-push` → `tools/scripts/lib/pre-push-ref-guard.sh`               |
 | 코드 스타일                   | `ruff check --fix` + `ruff format` (py) · `biome check --write` (ts/tsx/css/json)                   | pre-commit lint-staged (루트 `package.json`)                                |
-| 원장 사활 4축                 | 살아 있는 `다음 행동 =` ≤1 · ⓪ 표 ≥1행 · RESOLVED 역류 0 · 진입점이 PRD §5 겨냥                  | pre-commit → `tools/scripts/ledger-vitals.sh` (status/backlog 스테이지 시)  |
+| 원장 사활                     | 살아 있는 `다음 행동 =` 1개 · ⓪ 표 ≥1행 · RESOLVED 역류 0 · 진입점이 PRD §5 겨냥 · `status.md` 크기 상한 | pre-commit → `tools/scripts/ledger-vitals.sh` (status/backlog 스테이지 시)  |
 | green                         | be: `ruff` → `export_openapi.py --check` → `mypy` → `pytest` 전량 / fe: `biome` → `tsc` → `vitest` → `build` | `.github/workflows/ci.yml` — 경로 스코프, 분류 실패 시 전량 (ADR-037)  |
 | API 계약                      | `contracts/openapi/openapi.json` 이 현재 라우터와 byte-identical 이어야 한다                       | `apps/api/scripts/export_openapi.py --check`                                |
 | 파괴적 DDL · 개발 DB 오염     | `alembic downgrade` 차단 · `DATABASE_URL` 폴백 pytest 거부(rc=3)                                    | `apps/api/alembic/env.py` · `apps/api/tests/_db_guard.py`                    |

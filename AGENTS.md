@@ -108,7 +108,7 @@ cd apps/web && pnpm exec biome check .
 | 무엇 | 집행 |
 | --- | --- |
 | main/master push 확인 · 메인 체크아웃의 브랜치 접두사(`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*`) | `.husky/pre-push`. 워크트리에서는 판정하지 않는다 |
-| `docs/status.md` 진입점 — 살아 있는 `다음 행동 =` 이 정확히 1개이고 `PRD.md` §5 를 겨냥 · ⓪ 표에 행이 있음 · `backlog.md` 에 RESOLVED 없음 | pre-commit `tools/scripts/ledger-vitals.sh` |
+| `docs/status.md` 진입점 — 살아 있는 `다음 행동 =` 이 정확히 1개이고 `PRD.md` §5 를 겨냥 · ⓪ 표에 행이 있음 · `backlog.md` 에 RESOLVED 없음 · `status.md` 크기 상한 | pre-commit `tools/scripts/ledger-vitals.sh` |
 | 스테이지된 파일의 lint·format | pre-commit lint-staged |
 | 품질 게이트(lint · OpenAPI drift · 타입 · 테스트 · 빌드) | CI `.github/workflows/ci.yml` |
 | codex 의 위험 명령 | `tools/scripts/hooks/` |

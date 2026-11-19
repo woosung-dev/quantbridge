@@ -1,4 +1,4 @@
-"""원장 활력 ①~④ 축의 판정을 임시 원장으로 고정한다.
+"""원장 활력 ①~⑤ 축의 판정을 임시 원장으로 고정한다.
 
 ★이 테스트는 DB 픽스처를 쓰지 않는다. 실제 docs 원장 대신 argv 테스트 오버라이드를 쓴다.
 
@@ -166,7 +166,7 @@ def test_resolved_backlog_section_fails_third_axis_with_its_id(tmp_path: Path) -
 
 
 def test_backlog_without_resolved_section_passes_third_axis(tmp_path: Path) -> None:
-    """RESOLVED 판정 섹션이 없으면 네 축 모두 통과한다."""
+    """RESOLVED 판정 섹션이 없으면 모든 축이 통과한다."""
     result = run(
         _status_with_zero_table(),
         """### BL-102 진행 중
@@ -176,7 +176,7 @@ def test_backlog_without_resolved_section_passes_third_axis(tmp_path: Path) -> N
     )
 
     assert result.returncode == 0
-    assert "✓ ledger-vitals 4축 통과" in result.stdout
+    assert "✓ ledger-vitals 통과" in result.stdout
     assert "다음 행동=1" in result.stdout
     assert "⓪ 행=3" in result.stdout
     assert "역류=0" in result.stdout
@@ -350,7 +350,7 @@ def test_file_overrides_announce_test_mode_to_stderr(tmp_path: Path) -> None:
 
 
 # ── ④ 방향 게이트 (2026-08-31 신설) ─────────────────────────────────────────
-# 근거 사고 = `docs/status.md` ⓬. ①②③ 은 전부 **양(量)** 을 재서 14 회차 연속으로
+# 근거 사고 = 2026-08-31 방향 재설정(`git show befaa005:docs/status.md` 의 ⓬ 절). ①②③ 은 전부 **양(量)** 을 재서 14 회차 연속으로
 # 결함 수리가 진입점에 앉은 것을 한 번도 못 봤다. ★이 축이 아는 것은 「§5 를 명시했는가」
 # 까지다 — 「실제로 전진시키는가」는 사람이 판정한다(스크립트 주석이 그 한계를 적는다).
 
@@ -400,3 +400,34 @@ def test_fourth_axis_window_is_five_lines(tmp_path: Path) -> None:
     assert inside.returncode == 0, inside.stdout
     assert outside.returncode == 1, outside.stdout
     assert "✗ ④" in outside.stdout
+
+
+# ── ⑤ 크기 상한 (2026-11-19 신설) ───────────────────────────────────────────
+# 근거 사고 = BL-858(종결 — `git show befaa005:docs/backlog.md`). 크기를 재는 기계가 없는 동안 status.md 가 70 KB → 162 KB 로 자랐다.
+
+
+def _padding(byte_count: int) -> str:
+    """ASCII 한 글자 = 1 byte. 「다음 행동」·표·펜스로 읽히지 않는 평문만 쓴다."""
+    line = "x" * 99 + "\n"
+    return line * (byte_count // len(line))
+
+
+def test_fifth_axis_rejects_a_status_file_over_the_size_cap(tmp_path: Path) -> None:
+    """상한을 넘으면 ⑤ 위반이고, 오류 문구가 처방(지워라)을 말한다 — ①②④ 는 초록인 판이다."""
+    result = run(_status_with_zero_table() + _padding(41_000), "", tmp_path)
+
+    assert result.returncode == 1
+    assert "✗ ⑤" in result.stdout
+    assert "지워라" in result.stdout
+    assert "✗ ①" not in result.stdout
+    assert "✗ ②" not in result.stdout
+    assert "✗ ④" not in result.stdout
+
+
+def test_fifth_axis_passes_a_status_file_under_the_size_cap(tmp_path: Path) -> None:
+    """상한 아래면 통과하고 잰 크기를 출력에 남긴다."""
+    result = run(_status_with_zero_table() + _padding(30_000), "", tmp_path)
+
+    assert result.returncode == 0
+    assert "✗ ⑤" not in result.stdout
+    assert "크기=" in result.stdout
