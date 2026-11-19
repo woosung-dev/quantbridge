@@ -40,6 +40,8 @@ APP_ENV=production uv run python -c "from src.core.config import Settings; Setti
 - [ ] `FRONTEND_URL` · `WAITLIST_INVITE_BASE_URL` · `BETTER_AUTH_URL` 에 localhost 가 없다
 - [ ] `PROMETHEUS_BEARER_TOKEN` 이 있다 · `E2E_RATE_LIMIT_EXEMPT_EMAIL` 이 비어 있다
 - [ ] 드라이런 `ok` → API 유닛과 워커 env 에 `APP_ENV=production` 추가 → 재시작 → `/health` 의 `env` 확인
+- [ ] 전환 전이라도 API 호스트 env 의 `DEBUG` 가 비었거나 `false` 인지 확인한다(`.env.example` 기본값은 `true`).
+  `FastAPI(debug=True)` 면 Starlette 가 처리 안 된 예외의 **전체 traceback 을 익명 호출자에게** 돌려주고 `unhandled_exc_handler` 를 건너뛴다(run-2 하드닝 메모)
 
 ### 4. 실 클라이언트 IP 로 rate limit 이 갈린다
 - [ ] API env 에 `TRUSTED_PROXIES=127.0.0.1/32` (cloudflared 가 host 네트워크라 peer 가 루프백이다 — `.env.example` 주석)
