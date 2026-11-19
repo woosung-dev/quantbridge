@@ -60,11 +60,15 @@ services:
   # REJECT 하므로 호스트 uvicorn(`127.0.0.1:8100`)에 **구조적으로 닿을 수 없다**(2026-08-07 실측).
   # host 네트워크로 띄우면 uvicorn 바인딩도 iptables 도 truewords 도 손대지 않는다.
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # 보안 감사 run-1 후속(2026-11-20) — `:latest` 대신 실행 중이던 버전으로 고정(재생성마다 바뀌지 않게).
+    #   토큰은 커맨드라인(`docker inspect`·`ps` 에 노출) 대신 cloudflared 가 읽는 `TUNNEL_TOKEN` env 로 준다.
+    image: cloudflare/cloudflared:2026.11.0
     container_name: quantbridge-cloudflared
     logging: *default-logging
     network_mode: host
-    command: tunnel --no-autoupdate run --token ${QB_TUNNEL_TOKEN:?required — Zero Trust → Tunnels}
+    environment:
+      TUNNEL_TOKEN: ${QB_TUNNEL_TOKEN:?required — Zero Trust → Tunnels}
+    command: tunnel --no-autoupdate run
     mem_limit: 256m
     restart: unless-stopped
     depends_on:
