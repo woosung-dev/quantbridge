@@ -15,5 +15,9 @@ export function safeRedirectPath(raw: string | undefined, fallback: string): str
     return fallback;
   }
   if (url.origin !== PROBE_ORIGIN) return fallback;
-  return `${url.pathname}${url.search}${url.hash}`;
+  // ★정규화된 경로가 `//` 로 시작하면 다시 풀 때 프로토콜 상대 URL(다른 호스트)이 된다 —
+  //   `/.//evil.com` 처럼 점 세그먼트가 지워지며 생긴다. 결과를 한 번 더 풀어 같은 출처인지 확인한다.
+  const path = `${url.pathname}${url.search}${url.hash}`;
+  if (path.startsWith("//") || new URL(path, PROBE_ORIGIN).origin !== PROBE_ORIGIN) return fallback;
+  return path;
 }

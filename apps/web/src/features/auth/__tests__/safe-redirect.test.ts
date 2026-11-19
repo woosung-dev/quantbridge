@@ -18,6 +18,12 @@ describe("safeRedirectPath", () => {
     "/\t/evil.example",
     "/\n/evil.example",
     "//evil.example",
+    // 점 세그먼트가 지워지며 `//evil.example` 이 되는 경로 — run-2 재감사가 찾은 우회.
+    "/.//evil.example",
+    "/..//evil.example",
+    "/a/..//evil.example",
+    "/./\\evil.example",
+    "/%2e//evil.example",
     "https://evil.example",
     "javascript:alert(1)",
     "",
