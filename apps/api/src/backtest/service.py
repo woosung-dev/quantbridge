@@ -70,7 +70,6 @@ from src.market_data.constants import (
     normalize_symbol,
     to_ccxt_perpetual_symbol,
 )
-from src.market_data.models import OHLCV
 from src.market_data.providers import OHLCVProvider
 from src.market_data.repository import OHLCVRepository
 from src.notifications.dispatcher import backtest_finished_payload, enqueue_push
@@ -95,11 +94,6 @@ logger = logging.getLogger(__name__)
 
 PAD_BARS = 4
 MAX_BARS = 500
-
-
-def _closest_bar_index(rows: list[OHLCV], target: datetime) -> int:
-    """대상 시각과 가장 가까운 봉의 인덱스를 반환한다."""
-    return min(range(len(rows)), key=lambda index: abs(rows[index].time - target))
 
 
 class BacktestService:
@@ -820,26 +814,40 @@ class BacktestService:
         # 마이그레이션 ≠ 0) **perp 우선, 그 창에 perp 가 없으면 legacy 스팟**으로 떨어진다.
         # 계기 정렬 이전 백테스트의 차트가 통째로 비는 회귀를 막는 fallback 이다.
         # 경계 정본: `docs/domain/instrument-symbol-boundary.md` §3.1.
-        rows = await self.ohlcv_repo.get_range(
-            to_ccxt_perpetual_symbol(bt.symbol), bt.timeframe, range_start, range_end
-        )
-        if not rows:
-            rows = await self.ohlcv_repo.get_range(
-                normalize_symbol(bt.symbol), bt.timeframe, range_start, range_end
-            )
+        repo = self.ohlcv_repo
+        symbol = to_ccxt_perpetual_symbol(bt.symbol)
+        total = await repo.count_range(symbol, bt.timeframe, range_start, range_end)
+        if total == 0:
+            symbol = normalize_symbol(bt.symbol)
+            total = await repo.count_range(symbol, bt.timeframe, range_start, range_end)
 
         stride = 1
         truncated = False
-        if len(rows) > MAX_BARS:
+        if total <= MAX_BARS:
+            rows = await repo.get_range(symbol, bt.timeframe, range_start, range_end)
+        else:
             # 마커 정합을 위해 첫/끝/entry/exit 봉은 반드시 보존한다. 다만 forced 슬롯을 먼저
             # 예약한 예산으로 stride 를 계산해 최종 bar 수가 MAX_BARS 상한을 넘지 않게 한다.
-            forced = {0, len(rows) - 1, _closest_bar_index(rows, trade.entry_time)}
+            # ★솎기는 DB 에서 한다 — 1m 장기 백테스트의 구간 전체(수백만 행)를 API 프로세스로
+            # 올리지 않기 위해서다(2026-11-19 보안 감사 run-2). 고르는 봉은 종전 파이썬 경로와 같다.
+            async def nearest(target: datetime) -> int:
+                return await repo.nearest_index(
+                    symbol, bt.timeframe, range_start, range_end, target
+                )
+
+            forced = {0, total - 1, await nearest(trade.entry_time)}
             if trade.exit_time is not None:
-                forced.add(_closest_bar_index(rows, trade.exit_time))
+                forced.add(await nearest(trade.exit_time))
             budget = max(MAX_BARS - len(forced), 1)
-            stride = ceil(len(rows) / budget)
-            indices = set(range(0, len(rows), stride)) | forced
-            rows = [rows[index] for index in sorted(indices)]
+            stride = ceil(total / budget)
+            rows = await repo.get_range_sampled(
+                symbol,
+                bt.timeframe,
+                range_start,
+                range_end,
+                stride=stride,
+                keep_indices=forced,
+            )
             truncated = True
 
         return TradeOhlcvResponse(
