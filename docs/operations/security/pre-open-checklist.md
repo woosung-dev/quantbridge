@@ -3,11 +3,10 @@
 > **출처**: 2026-11-19 보안 감사 run-1/run-2 (감사 산출물은 레포 밖 `~/audits/quant-bridge/`).
 > **언제 쓰나**: Cloudflare Access(이메일 OTP)를 `qb.woosung.dev` 에서 걷어 **가입을 공개로 여는 날**, 그 전에.
 > PR(`fix/security-baseline-20261119`)은 run-1 에서 코드로 막을 수 있던 7건을 막았다. 여기 남은 것은 대부분 **서버·프록시·env·DB·제품 결정**이다.
-> 예외는 **코드로 고칠 수 있지만 일부러 안 고친 것**들이다. 앱 전역 본문 크기 상한(B), 1분봉 백테스트의 봉 수 상한·`backtest.run` time limit·읽기 경로 다운샘플(E), `/healthz` DB·Redis 점검(E)이 여기에 든다.
-> 모두 패치 라운드가 끝난 뒤 run-2 가 찾았다. 지금 소스를 바꾸면 다시 독립 검증이 필요해서 이 PR 에서는 고치지 않고 **후속 PR 후보**로 남긴다.
-> - 본문 상한(1MB 정도)과 `trade_ohlcv` SQL stride 는 정상 흐름을 안 깨는 작은 수정이다. 가장 큰 정상 본문은 Pine 100,000자·code 131,072자다
-> - 봉 수 상한과 equity 다운샘플은 긴 1m 백테스트·차트 해상도를 바꾸므로 실제 사용량을 먼저 잰다
-> - `/healthz` DB·Redis 점검은 감사 예산이 끝난 뒤 찾아 미검사다(run-3 대상)
+> 예외는 **코드로 고칠 수 있지만 일부러 남긴 것**들이다. 1분봉 백테스트의 봉 수 상한·`backtest.run` time limit·equity 다운샘플(E)이 여기에 든다.
+> 봉 수 상한과 equity 다운샘플은 긴 1m 백테스트·차트 해상도를 바꾸므로 실제 사용량을 먼저 잰다.
+> ★후속 PR(`fix/security-followup-20261120`)이 run-2 항목 셋을 코드로 막았다 — 앱 전역 본문 상한 2MiB(B) · `trade_ohlcv` SQL 다운샘플(E) · `/healthz` 점검 전체 single-flight(E).
+> 이 셋은 **감사 실행으로 재검증되지 않았다**(run-3 대상).
 
 ★**순서가 중요하다.** 1~4 를 끝내기 전에는 Access 를 걷지 마라. 지금 Access 가 이 넷을 대신 막고 있다.
 
@@ -23,7 +22,7 @@
 SELECT lower(email), "createdAt" FROM auth_user
  WHERE lower(email) = ANY (ARRAY['<WAITLIST_ADMIN_EMAILS 의 주소들>']);
 ```
-- [ ] 목록의 **모든** 주소가 행으로 나온다 · 전부 본인 계정이다
+- [x] 목록의 **모든** 주소가 행으로 나온다 · 전부 본인 계정이다 — 2026-11-20 운영자 확인
 - [ ] 중장기: 이메일 검증을 켠다(Resend 도메인 검증) — 켜기 전까지 이 항목이 유일한 방어다
 
 ### 2. e2e rate-limit 면제 값이 비어 있다
@@ -56,9 +55,7 @@ APP_ENV=production uv run python -c "from src.core.config import Settings; Setti
 
 - [ ] **요청 본문 크기**: 플랜 기본값(Free/Pro 100MB)에 기대지 말고 WAF 규칙으로 API 본문을 1MB 정도로 막는다.
   코드 상한은 웹훅 64KB · Pine 원본 100,000자다.
-  ★웹훅 말고는 **앱에 본문 크기 상한이 없다**. FastAPI 는 JWT 검사·rate limit 데코레이터보다 먼저 본문 전체를 읽고 JSON 을 디코드한다.
-  그래서 401/422 로 끝나는 요청은 익명이라도 rate limit 에 안 잡힌다(run-2 needs_validation). 지금은 이 WAF 규칙이 유일한 상한이다.
-  코드로 막으려면 가장 바깥에 본문 크기 ASGI 미들웨어(예: 1MB, 413)를 둔다
+  앱은 후속 PR 부터 전역 2MiB 상한(`src/common/body_size_limit.py`, 413)을 둔다. WAF 규칙은 그 앞에서 연결·대역폭까지 막는 바깥 선이다
 - [ ] **익명 경로 rate limit 규칙**: `/healthz`, `/api/v1/webhooks/*`, `/api/v1/waitlist` — 앱 rate limit 면제(`/healthz`·웹훅)거나 IP 단위다
 - [ ] Access 를 걷을 때 **범위를 확인**: FE 전체를 걷는지, `/api/auth/*` 만 여는지. 1·2 를 끝낸 뒤에만
 - [ ] `cloudflare/cloudflared:latest` 를 버전 태그로 고정 · 터널 토큰을 커맨드라인 대신 `TUNNEL_TOKEN` env 로
@@ -85,10 +82,9 @@ APP_ENV=production uv run python -c "from src.core.config import Settings; Setti
   게다가 `backtest.run` 에는 time limit 이 없다(옵티마이저·스트레스에는 있다). 최소 조치는 `backtest.run` 에 `soft_time_limit`/`time_limit` 을 다는 것이다.
   봉 수 상한((기간 ÷ 봉 길이) ≤ N)은 실제 쓰는 1분봉 기간을 재 본 뒤 정한다. 운영 `OHLCV_PROVIDER` 와 `ts.ohlcv` 1m 행 수 확인부터(run-2 needs_validation)
   - 같은 긴 1m 백테스트가 **읽기 경로**도 키운다. 상세·**익명 공유 링크**는 봉마다 저장된 equity_curve 를 통째로 이벤트 루프에서 변환한다.
-    `trade_ohlcv` 는 LIMIT 없이 거래 구간 전체를 올린 뒤 500봉으로 솎는다. 봉 수 상한과 별개로 읽기 쪽 다운샘플·SQL stride 가 필요하다
+    `trade_ohlcv` 는 후속 PR 부터 DB 에서 솎아 500봉 이하만 올린다. equity_curve 쪽 다운샘플은 아직 없다
   - 공유 링크 라우트 전용 rate limit(기본 100/분보다 낮게)을 검토한다
-- [ ] **`/healthz` DB·Redis 점검**: Celery 만 single-flight 다. Postgres `SELECT 1`(앱 공용 풀, 최대 5초)과 Redis PING(`max_connections` 없는 풀)은 익명 요청마다 돈다.
-  Cloudflare rate rule(B)이 막기 전까지는 Celery 처럼 single-flight 나 1~2초 캐시를 두는 것이 작은 수정이다(run-2 미검사 단위 — run-3 대상)
+- [x] **`/healthz` DB·Redis 점검**: 후속 PR 부터 Postgres·Redis·Celery 점검 전체를 동시 요청끼리 한 번만 돌린다(single-flight). 그래도 앱 rate limit 면제라 Cloudflare rate rule(B)은 둔다
 - [ ] **LLM**: `LLM_PROVIDER_ORDER` 를 켤지 · 가입자가 아무 카탈로그 모델로 바꿀 수 있게 둘지(`strategy/narrative/catalog.py` `resolve_override`) 결정.
   켠다면 각 provider 콘솔에 **월 지출 한도**
 - [ ] 대기자 신청이 409/202 로 「이미 신청한 이메일」을 알려 준다 — 제품상 비밀인지 결정
