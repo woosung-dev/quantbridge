@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
@@ -188,8 +188,10 @@ def test_openai_drops_models_whose_shutdown_date_has_passed(monkeypatch):
     ★이 테스트는 `_FETCHERS` 를 갈아끼우지 **않는다.** 스텁으로 바꾸면 필터를 테스트가
     재구현하게 되고, 그러면 진짜 `_fetch_openai` 가 죽어도 초록이다. SDK 클래스만 바꾼다.
     """
-    past = (date.today() - timedelta(days=1)).isoformat()
-    future = (date.today() + timedelta(days=90)).isoformat()
+    # 코드는 UTC 오늘과 비교한다(`catalog.py`). 로컬 날짜로 만들면 KST 00~09시에 「어제」가 UTC 오늘이 된다.
+    today = datetime.now(UTC).date()
+    past = (today - timedelta(days=1)).isoformat()
+    future = (today + timedelta(days=90)).isoformat()
     listed = [
         SimpleNamespace(id="gpt-old", shutdown_date=past),
         SimpleNamespace(id="gpt-new", shutdown_date=future),
