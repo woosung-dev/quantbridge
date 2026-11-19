@@ -2,7 +2,7 @@
 
 > 이 커맨드는 **Workflow 도구**를 사용하며 서브에이전트를 다수 소환한다(3 차원 리뷰 + 확정 후보당 3명 검증). 가벼운 리뷰는 `/qb-review`를 써라.
 
-> ★**conventions 차원은 구 `header-audit`(BL-307, harness-v1 에서 셸 감사기 삭제)를 흡수했다** — 「소스 첫 3줄 주석/독스트링 안 한국어 헤더」 검사는 이제 별도 셸 게이트가 아니라 이 리뷰의 conventions 차원이 수행한다.
+> conventions 차원은 「소스 첫 3줄 주석/독스트링 안 한국어 헤더」 검사를 포함한다.
 
 인자(`$ARGUMENTS`)가 있으면 그 값을 리뷰 범위로 쓴다(예: `HEAD~3`, `main`). 없으면 기본 범위(`main...HEAD` + uncommitted)를 쓴다.
 
