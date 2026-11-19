@@ -134,35 +134,14 @@ async def _check_celery_workers() -> tuple[int, str | None]:
         return (0, _public_error(exc))
 
 
-_celery_inflight: asyncio.Task[tuple[int, str | None]] | None = None
+_probe_inflight: asyncio.Task[tuple[int, dict[str, Any]]] | None = None
 
 
-async def _check_celery_workers_single_flight() -> tuple[int, str | None]:
-    """동시에 들어온 `/healthz` 들이 **진행 중인 inspect 하나를 공유**하게 한다.
-
-    inspect 1회는 공유 스레드풀 1칸과 broker 커넥션 1개를 수집 창(기본 12초) 내내 쥔다.
-    `/healthz` 는 익명·rate limit 면제라, 요청마다 새로 띄우면 동시 요청 수만큼 풀이 묶인다
-    (보안 감사 2026-11-19). 결과는 캐시하지 않는다 — 끝난 뒤의 요청은 새로 잰다.
-    `shield` 는 한 호출자의 연결 끊김이 공유 작업을 취소하지 않게 한다.
-    """
-    global _celery_inflight
-    if _celery_inflight is None or _celery_inflight.done():
-        _celery_inflight = asyncio.ensure_future(_check_celery_workers())
-    return await asyncio.shield(_celery_inflight)
-
-
-@router.get("/healthz", include_in_schema=True)
-async def healthz() -> JSONResponse:
-    """Readiness probe — Postgres + Redis + Celery 3-dep round-trip.
-
-    Returns:
-        200 + ``{"db": "ok", "redis": "ok", "celery_workers": N}``: 모든 dep OK + worker ≥ 1.
-        503 + ``{"db": "ok"|"fail", "redis": ..., "celery_workers": N, "errors": {...}}``:
-            1+ dep fail OR celery_workers == 0.
-    """
+async def _probe() -> tuple[int, dict[str, Any]]:
+    """Postgres → Redis → Celery 를 차례로 재고 (HTTP status, body) 를 만든다."""
     pg_status, pg_err = await _check_postgres()
     redis_status, redis_err = await _check_redis()
-    celery_count, celery_err = await _check_celery_workers_single_flight()
+    celery_count, celery_err = await _check_celery_workers()
 
     body: dict[str, Any] = {
         "db": pg_status,
@@ -183,7 +162,34 @@ async def healthz() -> JSONResponse:
 
     healthy = pg_status == "ok" and redis_status == "ok" and celery_count >= 1
     code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    return code, body
 
+
+async def _probe_single_flight() -> tuple[int, dict[str, Any]]:
+    """동시에 들어온 `/healthz` 들이 **진행 중인 점검 한 벌을 공유**하게 한다.
+
+    점검 한 벌은 앱 공용 DB 풀 1칸(최대 5초) · Redis 연결 1개 · 공유 스레드풀 1칸과
+    broker 커넥션 1개(inspect 수집 창, 기본 12초)를 쥔다. `/healthz` 는 익명·rate limit
+    면제라, 요청마다 새로 돌리면 동시 요청 수만큼 풀이 묶인다(보안 감사 2026-11-19 run-1·run-2).
+    결과는 캐시하지 않는다 — 끝난 뒤의 요청은 새로 잰다.
+    `shield` 는 한 호출자의 연결 끊김이 공유 작업을 취소하지 않게 한다.
+    """
+    global _probe_inflight
+    if _probe_inflight is None or _probe_inflight.done():
+        _probe_inflight = asyncio.ensure_future(_probe())
+    return await asyncio.shield(_probe_inflight)
+
+
+@router.get("/healthz", include_in_schema=True)
+async def healthz() -> JSONResponse:
+    """Readiness probe — Postgres + Redis + Celery 3-dep round-trip.
+
+    Returns:
+        200 + ``{"db": "ok", "redis": "ok", "celery_workers": N}``: 모든 dep OK + worker ≥ 1.
+        503 + ``{"db": "ok"|"fail", "redis": ..., "celery_workers": N, "errors": {...}}``:
+            1+ dep fail OR celery_workers == 0.
+    """
+    code, body = await _probe_single_flight()
     return JSONResponse(status_code=code, content=body)
 
 
