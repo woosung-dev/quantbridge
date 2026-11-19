@@ -331,6 +331,13 @@ def create_app() -> FastAPI:
 
     install_rate_limit(app)
 
+    # 2026-11-20 — Cloudflare Free 플랜 rate limiting 자리(1/1)가 차서 익명 경로 한도를 앱으로 옮겼다.
+    #   ★rate limit 3종보다 **나중에** add → 그보다 바깥에서 돈다(Starlette 는 나중 add 가 outermost).
+    #   익명 폭주를 JWT 검증·slowapi Redis 조회 **전에** 끊고, CORS·보안 헤더보다는 안쪽이라 429 에도 붙는다.
+    from src.common.anon_path_rate_limit import AnonPathRateLimitMiddleware
+
+    app.add_middleware(AnonPathRateLimitMiddleware)
+
     # 2026-09-06 데이터 경로 조사 3-C — 와일드카드 2종을 명시 목록으로.
     #   요청 헤더: FE 는 `Authorization`·`Content-Type` 만 보내고 `Idempotency-Key` 는 BE 계약이다
     #   (`backtest/router.py`). 노출 헤더: 종전엔 `expose_headers` 가 없어 브라우저가

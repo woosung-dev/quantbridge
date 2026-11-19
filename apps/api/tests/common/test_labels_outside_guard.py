@@ -17,6 +17,8 @@ _SOURCE_ROOT = _BACKEND_ROOT / "src"
 _FROZEN_LABELS_OUTSIDE_GUARD: dict[str, int] = {}
 
 _EXPECTED_LAMBDA_WRAPPED_LABELS: dict[str, int] = {
+    # 2026-11-20 익명 경로 rate limit 429 카운터 — record_metric_safely(lambda: ...) 로 감쌌다.
+    "apps/api/src/common/anon_path_rate_limit.py": 1,
     "apps/api/src/common/metrics.py": 2,
     "apps/api/src/common/metrics_multiproc.py": 2,
     "apps/api/src/tasks/live_signal.py": 1,
