@@ -193,6 +193,45 @@ async def test_healthz_concurrent_requests_share_one_celery_inspect(
 
 
 @pytest.mark.asyncio
+async def test_healthz_concurrent_requests_share_one_db_and_redis_probe(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """동시 `/healthz` N 건은 Postgres·Redis 점검도 **한 번만** 돈다 (보안 감사 run-2).
+
+    `SELECT 1` 은 앱 공용 DB 풀 1칸을 최대 5초 쥐고, Redis PING 은 상한 없는 풀에
+    연결을 늘린다. 익명·rate limit 면제 경로라 요청마다 돌리면 동시 요청 수만큼 쌓인다.
+    """
+    import asyncio
+
+    calls = {"pg": 0, "redis": 0}
+    release = asyncio.Event()
+
+    async def _slow_pg() -> tuple[str, str | None]:
+        calls["pg"] += 1
+        await release.wait()
+        return ("ok", None)
+
+    async def _ok_redis() -> tuple[str, str | None]:
+        calls["redis"] += 1
+        return ("ok", None)
+
+    async def _ok_celery() -> tuple[int, str | None]:
+        return (1, None)
+
+    monkeypatch.setattr("src.health.router._check_postgres", _slow_pg)
+    monkeypatch.setattr("src.health.router._check_redis", _ok_redis)
+    monkeypatch.setattr("src.health.router._check_celery_workers", _ok_celery)
+
+    pending = [asyncio.create_task(client.get("/healthz")) for _ in range(5)]
+    await asyncio.sleep(0.05)
+    release.set()
+    responses = await asyncio.gather(*pending)
+
+    assert [r.status_code for r in responses] == [200] * 5
+    assert calls == {"pg": 1, "redis": 1}
+
+
+@pytest.mark.asyncio
 async def test_check_postgres_error_hides_connection_details(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -234,3 +234,66 @@ async def test_trade_ohlcv_keeps_small_ranges_unchanged(
     assert response.stride == 1
     assert response.truncated is False
     assert len(response.bars) <= MAX_BARS
+
+
+def _legacy_downsample(
+    times: list[datetime], entry: datetime, exit_: datetime | None
+) -> list[datetime]:
+    """SQL 이전의 파이썬 다운샘플 — 새 경로가 같은 봉을 고르는지 대조하는 기준."""
+
+    def closest(target: datetime) -> int:
+        return min(range(len(times)), key=lambda index: abs(times[index] - target))
+
+    forced = {0, len(times) - 1, closest(entry)}
+    if exit_ is not None:
+        forced.add(closest(exit_))
+    budget = max(MAX_BARS - len(forced), 1)
+    stride = -(-len(times) // budget)
+    return [times[index] for index in sorted(set(range(0, len(times), stride)) | forced)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("closed", [True, False])
+async def test_trade_ohlcv_downsample_matches_legacy_without_loading_whole_range(
+    db_session: AsyncSession, tmp_path: Path, closed: bool
+) -> None:
+    """긴 구간은 DB 에서 솎아 MAX_BARS 근처만 올리되, 고르는 봉은 종전과 같아야 한다."""
+    count = 3001
+    period_end = _time() + timedelta(minutes=count - 1)
+    entry_time = _time() + timedelta(minutes=137)
+    exit_time = _time() + timedelta(minutes=2900) if closed else None
+    user, backtest, _ = await _seed_backtest(
+        db_session,
+        period_end=period_end,
+        entry_time=entry_time,
+        exit_time=exit_time,
+        timeframe="1m",
+    )
+    await _seed_ohlcv(db_session, start=_time(), count=count, timeframe="1m")
+
+    service = _service(db_session, tmp_path)
+    loaded: list[int] = []
+    assert service.ohlcv_repo is not None
+    real_get_range = service.ohlcv_repo.get_range
+
+    async def spy_get_range(*args: object, **kwargs: object) -> list:
+        rows = await real_get_range(*args, **kwargs)  # type: ignore[arg-type]
+        loaded.append(len(rows))
+        return rows
+
+    service.ohlcv_repo.get_range = spy_get_range  # type: ignore[method-assign]
+
+    response = await service.trade_ohlcv(backtest.id, 7, user_id=user.id)
+
+    bar_delta = timedelta(minutes=4)
+    window_end = min(period_end, (exit_time or period_end) + bar_delta)
+    window = [
+        _time() + timedelta(minutes=i)
+        for i in range(count)
+        if entry_time - bar_delta <= _time() + timedelta(minutes=i) <= window_end
+    ]
+    assert [bar.time for bar in response.bars] == _legacy_downsample(window, entry_time, exit_time)
+    assert response.truncated is True
+    assert len(response.bars) <= MAX_BARS
+    # 구간 전체(수천 행)를 파이썬으로 올리지 않는다.
+    assert all(n <= MAX_BARS for n in loaded)
