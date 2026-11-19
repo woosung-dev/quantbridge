@@ -3,8 +3,8 @@
 > **출처**: 2026-11-19 보안 감사 run-1/run-2 (감사 산출물은 레포 밖 `~/audits/quant-bridge/`).
 > **언제 쓰나**: Cloudflare Access(이메일 OTP)를 `qb.woosung.dev` 에서 걷어 **가입을 공개로 여는 날**, 그 전에.
 > PR(`fix/security-baseline-20261119`)은 run-1 에서 코드로 막을 수 있던 7건을 막았다. 여기 남은 것은 대부분 **서버·프록시·env·DB·제품 결정**이다.
-> 예외 2건은 **코드로 고칠 수 있지만 일부러 안 고쳤다**. 하나는 앱 전역 본문 크기 상한(B)이고, 다른 하나는 1분봉 백테스트의 봉 수 상한·`backtest.run` time limit(E)이다.
-> 둘 다 run-2 가 찾았고, 정상 사용량을 재지 않고 상한을 넣으면 기존 흐름이 깨질 수 있어서다.
+> 예외는 **코드로 고칠 수 있지만 일부러 안 고친 것**들이다. 앱 전역 본문 크기 상한(B), 1분봉 백테스트의 봉 수 상한·`backtest.run` time limit·읽기 경로 다운샘플(E), `/healthz` DB·Redis 점검(E)이 여기에 든다.
+> 모두 run-2 가 찾았고, 정상 사용량을 재지 않고 상한을 넣으면 기존 흐름이 깨질 수 있어서다.
 
 ★**순서가 중요하다.** 1~4 를 끝내기 전에는 Access 를 걷지 마라. 지금 Access 가 이 넷을 대신 막고 있다.
 
@@ -81,6 +81,11 @@ APP_ENV=production uv run python -c "from src.core.config import Settings; Setti
 - [ ] **1분봉 백테스트 비용**: 기간 상한(3653일)은 **일수**만 센다. `1m` × 10년 ≈ 526만 봉을 갭 탐지·CCXT 수집·적재·메모리 로드까지 한 번에 처리한다.
   게다가 `backtest.run` 에는 time limit 이 없다(옵티마이저·스트레스에는 있다). 최소 조치는 `backtest.run` 에 `soft_time_limit`/`time_limit` 을 다는 것이다.
   봉 수 상한((기간 ÷ 봉 길이) ≤ N)은 실제 쓰는 1분봉 기간을 재 본 뒤 정한다. 운영 `OHLCV_PROVIDER` 와 `ts.ohlcv` 1m 행 수 확인부터(run-2 needs_validation)
+  - 같은 긴 1m 백테스트가 **읽기 경로**도 키운다. 상세·**익명 공유 링크**는 봉마다 저장된 equity_curve 를 통째로 이벤트 루프에서 변환한다.
+    `trade_ohlcv` 는 LIMIT 없이 거래 구간 전체를 올린 뒤 500봉으로 솎는다. 봉 수 상한과 별개로 읽기 쪽 다운샘플·SQL stride 가 필요하다
+  - 공유 링크 라우트 전용 rate limit(기본 100/분보다 낮게)을 검토한다
+- [ ] **`/healthz` DB·Redis 점검**: Celery 만 single-flight 다. Postgres `SELECT 1`(앱 공용 풀, 최대 5초)과 Redis PING(`max_connections` 없는 풀)은 익명 요청마다 돈다.
+  Cloudflare rate rule(B)이 막기 전까지는 Celery 처럼 single-flight 나 1~2초 캐시를 두는 것이 작은 수정이다(run-2 미검사 단위 — run-3 대상)
 - [ ] **LLM**: `LLM_PROVIDER_ORDER` 를 켤지 · 가입자가 아무 카탈로그 모델로 바꿀 수 있게 둘지(`strategy/narrative/catalog.py` `resolve_override`) 결정.
   켠다면 각 provider 콘솔에 **월 지출 한도**
 - [ ] 대기자 신청이 409/202 로 「이미 신청한 이메일」을 알려 준다 — 제품상 비밀인지 결정
