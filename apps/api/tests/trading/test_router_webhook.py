@@ -240,6 +240,43 @@ async def test_webhook_body_too_large_returns_413(client):
 
 
 @pytest.mark.asyncio
+async def test_webhook_chunked_body_over_cap_returns_413_before_hmac(client):
+    """Content-Length 가 없는 chunked 본문도 64KB 를 넘는 순간 413 이다 (HMAC 전).
+
+    종전에는 `request.body()` 가 본문 전체를 버퍼링한 뒤에야 길이를 쟀다(보안 감사 2026-11-19).
+    """
+    strategy_id = uuid4()
+    chunk = b"x" * 16 * 1024
+    sent: list[int] = []
+
+    async def _chunks():
+        for i in range(64):  # 1MB — 상한의 16배
+            sent.append(i)
+            yield chunk
+
+    res = await client.post(
+        f"/api/v1/webhooks/{strategy_id}?token=fake",
+        content=_chunks(),
+        headers={"Content-Type": "application/json"},
+    )
+    assert res.status_code == 413
+    # 413 만으로는 「다 읽고 거절」과 구분되지 않는다 — 상한 직후에 읽기를 멈췄는지 잰다.
+    assert len(sent) <= 6
+
+
+@pytest.mark.asyncio
+async def test_webhook_malformed_content_length_returns_400(client):
+    """숫자가 아닌 Content-Length 는 500 이 아니라 400 이다."""
+    strategy_id = uuid4()
+    res = await client.post(
+        f"/api/v1/webhooks/{strategy_id}?token=fake",
+        content=b"{}",
+        headers={"Content-Type": "application/json", "Content-Length": "abc"},
+    )
+    assert res.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_webhook_no_auth_header_required(client):
     """Webhook is PUBLIC -- no JWT auth required. Should NOT get 401 for missing auth.
 
