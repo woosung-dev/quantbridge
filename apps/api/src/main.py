@@ -320,6 +320,12 @@ def create_app() -> FastAPI:
     # startup 미진입 / 테스트가 lifespan 우회 시 AttributeError 봉쇄용 기본값.
     app.state.redis_lock_healthy = False
 
+    # 보안 감사 run-2 후속 — 앱 전역 본문 크기 상한(413). 가장 먼저 등록해 가장 안쪽에 둔다:
+    #   본문은 라우트가 읽으므로 위치와 무관하게 막히고, 413 응답에도 CORS·보안 헤더가 붙는다.
+    from src.common.body_size_limit import BodySizeLimitMiddleware
+
+    app.add_middleware(BodySizeLimitMiddleware)
+
     # Sprint 10 Phase B — rate limit middleware (slowapi + Redis storage DB 3)
     from src.common.rate_limit import install_rate_limit
 
