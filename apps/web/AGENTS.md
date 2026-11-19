@@ -33,7 +33,7 @@
   사이드바 접힘은 상태가 아니라 순수 CSS 다(§10). 토글 store 를 새로 만들지 않는다.
 - **React Query** — Query Key 를 하드코딩하지 않고 도메인별 `query-keys.ts` 팩토리를 쓴다(첫 인자 = `userId`).
   API 호출은 `features/[domain]/api.ts` 에 모으고 `apiFetch` 를 지난다. `apiFetch` 밖에서 FastAPI 를 직접 `fetch` 하는
-  곳은 등재된 예외다 — `getApiBase()`/`API_BASE_URL` 를 쓰는 `fetch(` 를 grep 하면 나온다. 새로 만들지 않는다.
+  파일은 `lib/__tests__/api-fetch-boundary.test.ts` 의 목록이 전부다. 늘리려면 그 목록에 이유와 함께 적는다.
 - **에러 핸들링** — 라우트 경계는 `error.tsx`(§6)가 ErrorBoundary 다. 컴포넌트 안의 `if (isLoading)`/`if (error)`
   워터폴은 `Suspense` 로 걷는다. 규칙이지 현황이 아니다 — 기존 조기 반환을 선례로 읽지 않는다.
 
@@ -156,6 +156,7 @@ KITPORT 의 `max-width:1024`(포함)와 어긋난다. 셸 정합은 `min-[769px]
 ## 규칙 ↔ 집행
 
 집행기가 있는 규칙은 그 테스트·lint 가 정본이다. 「없음」인 규칙을 다시 어기게 되면 집행기를 만든다(루트 `AGENTS.md` §4).
+「없음」은 `src` 를 읽는 테스트와 `biome.jsonc` 를 규칙의 핵심어로 훑어 찾지 못했다는 뜻이다. 찾으면 그 줄을 고친다.
 
 | 규칙 | 집행 | 스코프 |
 | --- | --- | --- |
@@ -168,7 +169,8 @@ KITPORT 의 `max-width:1024`(포함)와 어긋난다. 셸 정합은 `min-[769px]
 | §10 KITPORT 구간 무수정 | `src/__tests__/design-canon-kit-port.test.ts` | `globals.css` 의 KITPORT 구간 |
 | §10 셸 경계 정합 | `features/dashboard/components/__tests__/dashboard-shell.test.tsx` | 앱 셸 |
 | §11 strict · `any` | CI `tsc --noEmit` · `biome` `noExplicitAny` | lint 대상 전체 |
-| §2 JWT 직접 파싱 · §3 Thin Component · query-keys 팩토리 · `apiFetch` 경유 · Suspense | 없음 | — |
+| §3 `apiFetch` 밖 FastAPI 직접 `fetch` | `src/lib/__tests__/api-fetch-boundary.test.ts` | `src` 전체 — 백엔드 base URL 을 쥔 파일의 `fetch(`. 파일 단위라 base URL 을 인자로 넘겨받는 형태는 보지 못한다 |
+| §2 JWT 직접 파싱 · §3 Thin Component · query-keys 팩토리 · Suspense | 없음 | — |
 | §3 H-2 · H-3 · `"use no memo"` | 없음 — 리뷰 | — |
 | §6 `"use client"` 위치 · `error.tsx` 범위 | 없음 | — |
 | §9 `components/ui/` 직접 수정 | 없음(`biome.jsonc` 의 `!src/components/ui` 는 Biome 이 그 파일을 고치지 않게 하는 것이다) | — |
