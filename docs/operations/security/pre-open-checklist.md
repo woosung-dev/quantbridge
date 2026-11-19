@@ -50,7 +50,10 @@ APP_ENV=production uv run python -c "from src.core.config import Settings; Setti
 ## B. Cloudflare (`qb-api.woosung.dev` 는 지금도 Access 밖이다)
 
 - [ ] **요청 본문 크기**: 플랜 기본값(Free/Pro 100MB)에 기대지 말고 WAF 규칙으로 API 본문을 1MB 정도로 막는다.
-  코드 상한은 웹훅 64KB · Pine 원본 100,000자다
+  코드 상한은 웹훅 64KB · Pine 원본 100,000자다.
+  ★웹훅 말고는 **앱에 본문 크기 상한이 없다**. FastAPI 는 JWT 검사·rate limit 데코레이터보다 먼저 본문 전체를 읽고 JSON 을 디코드한다.
+  그래서 401/422 로 끝나는 요청은 익명이라도 rate limit 에 안 잡힌다(run-2 needs_validation). 지금은 이 WAF 규칙이 유일한 상한이다.
+  코드로 막으려면 가장 바깥에 본문 크기 ASGI 미들웨어(예: 1MB, 413)를 둔다
 - [ ] **익명 경로 rate limit 규칙**: `/healthz`, `/api/v1/webhooks/*`, `/api/v1/waitlist` — 앱 rate limit 면제(`/healthz`·웹훅)거나 IP 단위다
 - [ ] Access 를 걷을 때 **범위를 확인**: FE 전체를 걷는지, `/api/auth/*` 만 여는지. 1·2 를 끝낸 뒤에만
 - [ ] `cloudflare/cloudflared:latest` 를 버전 태그로 고정 · 터널 토큰을 커맨드라인 대신 `TUNNEL_TOKEN` env 로
@@ -73,6 +76,9 @@ APP_ENV=production uv run python -c "from src.core.config import Settings; Setti
 
 - [ ] **Celery**: 백테스트·스트레스와 주문 실행이 **같은 2칸 기본 큐**다. 분리하려면 라우트와 워커 커맨드(서버 compose)를 **같은 배포에** 바꿔야 한다
   — 라우트만 바꾸면 소비자 없는 큐로 주문이 안 나간다. 이번 PR 은 건드리지 않았다
+- [ ] **1분봉 백테스트 비용**: 기간 상한(3653일)은 **일수**만 센다. `1m` × 10년 ≈ 526만 봉을 갭 탐지·CCXT 수집·적재·메모리 로드까지 한 번에 처리한다.
+  게다가 `backtest.run` 에는 time limit 이 없다(옵티마이저·스트레스에는 있다). 최소 조치는 `backtest.run` 에 `soft_time_limit`/`time_limit` 을 다는 것이다.
+  봉 수 상한((기간 ÷ 봉 길이) ≤ N)은 실제 쓰는 1분봉 기간을 재 본 뒤 정한다. 운영 `OHLCV_PROVIDER` 와 `ts.ohlcv` 1m 행 수 확인부터(run-2 needs_validation)
 - [ ] **LLM**: `LLM_PROVIDER_ORDER` 를 켤지 · 가입자가 아무 카탈로그 모델로 바꿀 수 있게 둘지(`strategy/narrative/catalog.py` `resolve_override`) 결정.
   켠다면 각 provider 콘솔에 **월 지출 한도**
 - [ ] 대기자 신청이 409/202 로 「이미 신청한 이메일」을 알려 준다 — 제품상 비밀인지 결정
