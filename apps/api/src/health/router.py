@@ -58,6 +58,15 @@ class HealthCheckResult(TypedDict):
     celery_workers: int
 
 
+def _public_error(exc: BaseException) -> str:
+    """익명 응답에 싣는 오류 문구 — 예외 **클래스 이름만** 준다.
+
+    `str(exc)` 는 host:port · DB 이름 · role 을 담는다. `/healthz` 는 인증 없이 열려 있으므로
+    상세는 위 `logger.warning` 에만 남긴다(보안 감사 2026-11-19).
+    """
+    return type(exc).__name__
+
+
 async def _check_postgres() -> tuple[str, str | None]:
     """Postgres ``SELECT 1`` round-trip. Returns (status, error_msg)."""
     from sqlalchemy import text
@@ -74,7 +83,7 @@ async def _check_postgres() -> tuple[str, str | None]:
     except Exception as exc:
         # health check 는 모든 dep error 흡수 — broad except 의도적.
         logger.warning("healthz_postgres_fail err=%s", exc)
-        return ("fail", str(exc))
+        return ("fail", _public_error(exc))
 
 
 async def _check_redis() -> tuple[str, str | None]:
@@ -92,7 +101,7 @@ async def _check_redis() -> tuple[str, str | None]:
         return ("fail", f"timeout after {_REDIS_TIMEOUT_S}s")
     except Exception as exc:
         logger.warning("healthz_redis_fail err=%s", exc)
-        return ("fail", str(exc))
+        return ("fail", _public_error(exc))
 
 
 async def _check_celery_workers() -> tuple[int, str | None]:
@@ -122,7 +131,24 @@ async def _check_celery_workers() -> tuple[int, str | None]:
         return (0, f"timeout after {timeout_s}s")
     except Exception as exc:
         logger.warning("healthz_celery_fail err=%s", exc)
-        return (0, str(exc))
+        return (0, _public_error(exc))
+
+
+_celery_inflight: asyncio.Task[tuple[int, str | None]] | None = None
+
+
+async def _check_celery_workers_single_flight() -> tuple[int, str | None]:
+    """동시에 들어온 `/healthz` 들이 **진행 중인 inspect 하나를 공유**하게 한다.
+
+    inspect 1회는 공유 스레드풀 1칸과 broker 커넥션 1개를 수집 창(기본 12초) 내내 쥔다.
+    `/healthz` 는 익명·rate limit 면제라, 요청마다 새로 띄우면 동시 요청 수만큼 풀이 묶인다
+    (보안 감사 2026-11-19). 결과는 캐시하지 않는다 — 끝난 뒤의 요청은 새로 잰다.
+    `shield` 는 한 호출자의 연결 끊김이 공유 작업을 취소하지 않게 한다.
+    """
+    global _celery_inflight
+    if _celery_inflight is None or _celery_inflight.done():
+        _celery_inflight = asyncio.ensure_future(_check_celery_workers())
+    return await asyncio.shield(_celery_inflight)
 
 
 @router.get("/healthz", include_in_schema=True)
@@ -136,7 +162,7 @@ async def healthz() -> JSONResponse:
     """
     pg_status, pg_err = await _check_postgres()
     redis_status, redis_err = await _check_redis()
-    celery_count, celery_err = await _check_celery_workers()
+    celery_count, celery_err = await _check_celery_workers_single_flight()
 
     body: dict[str, Any] = {
         "db": pg_status,

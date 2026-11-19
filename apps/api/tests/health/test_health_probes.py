@@ -97,7 +97,8 @@ async def test_check_postgres_absorbs_connection_exception(
     engine.connect.side_effect = error
     _install_database_engine(monkeypatch, engine)
 
-    assert await _check_postgres() == ("fail", "postgres unavailable")
+    # 익명 응답에는 클래스 이름만 — 원문(host·DB 이름)은 로그에만 남는다.
+    assert await _check_postgres() == ("fail", "RuntimeError")
 
 
 @pytest.mark.asyncio
@@ -152,7 +153,7 @@ async def test_check_redis_absorbs_ping_exception(
     pool = SimpleNamespace(ping=AsyncMock(side_effect=RuntimeError("redis down")))
     _install_redis_pool(monkeypatch, pool)
 
-    assert await _check_redis() == ("fail", "redis down")
+    assert await _check_redis() == ("fail", "RuntimeError")
 
 
 @pytest.mark.asyncio
@@ -241,7 +242,7 @@ async def test_check_celery_workers_absorbs_inspect_exception(
     control = _FakeCeleryControl(Mock(side_effect=RuntimeError("broker refused")))
     _install_celery_app(monkeypatch, SimpleNamespace(control=control))
 
-    assert await _check_celery_workers() == (0, "broker refused")
+    assert await _check_celery_workers() == (0, "RuntimeError")
 
 
 @pytest.mark.parametrize(
