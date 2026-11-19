@@ -1,7 +1,7 @@
 // Trading 도메인 Zod 스키마 — Decimal 필드는 string 직렬화 유지 (backend Decimal → JSON string).
 // ADR-006 F4: KillSwitchEvent.trigger_type rename.
 
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const OrderSchema = z.object({
   id: z.uuid(),

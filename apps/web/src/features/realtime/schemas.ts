@@ -1,5 +1,5 @@
 // 백엔드 실시간 이벤트 envelope를 런타임 검증하는 Zod 미러.
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const EnvelopeFields = {
   v: z.literal(1),
