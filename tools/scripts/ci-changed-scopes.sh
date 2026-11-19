@@ -79,7 +79,7 @@ while IFS= read -r f; do
     apps/api/*) backend=true ;;
     apps/web/*) frontend=true ;;
     # 검증 대상이 없는 것 — 어느 잡도 켜지 않는다.
-    docs/*|phases/*|*.md|LICENSE|.gitignore|.gitattributes|.editorconfig|.vscode/*|.claude/*|.codex/*)
+    docs/*|*.md|LICENSE|.gitignore|.gitattributes|.editorconfig|.vscode/*|.claude/*|.codex/*)
       ;;
     *)
       unknown="${unknown}${f} " ;;

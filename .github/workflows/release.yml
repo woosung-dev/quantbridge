@@ -39,7 +39,6 @@ on:
       - "docs/**"
       - "**/*.md"
       - "evals/**"
-      - "phases/**"
       - ".claude/**"
       - "apps/api/tests/**"
       - "apps/web/e2e/**"

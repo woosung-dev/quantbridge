@@ -445,7 +445,6 @@ quant-bridge/
 ├── tools/scripts/                  # 운영 — deploy · host-bootstrap · docker-reclaim · db-backup · disk-guard · ledger-vitals · ci-changed-scopes · hooks/
 ├── docs/                           # status · PRD · backlog* · architecture/ (diagrams/) · domain · api · development · operations · adr (42) · lessons
 ├── evals/harness/                  # 개발 하네스 eval (TypeScript)
-├── phases/                         # 하네스 러너 회차 정의 — 산출물은 runs/ (gitignore)
 ├── .github/workflows/              # ci.yml (단일 게이트) · trust-layer-nightly · live-smoke · nightly-real-broker (수동)
 ├── .husky/                         # pre-commit (lint-staged + ledger-vitals) · pre-push (main 직접 push 는 터미널로 확인)
 ├── AGENTS.md  GLOSSARY.md  DESIGN.md  # 에이전트 오리엔테이션 · 도메인 용어 SSOT · 디자인 토큰
