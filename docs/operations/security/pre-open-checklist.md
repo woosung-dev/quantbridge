@@ -59,10 +59,14 @@ APP_ENV=production uv run python -c "from src.core.config import Settings; Setti
 
 ## B. Cloudflare (`qb-api.woosung.dev` 는 지금도 Access 밖이다)
 
+- ★2026-11-20 Cloudflare WAF 본문 크기 규칙은 **불가**로 확인됐다 — Free 존이라 `not entitled: the use of field http.request.body.size is not allowed, a WAF Advanced plan is required`(Pro 로도 안 된다). 상한은 앱 미들웨어(2MiB, 위 후속 PR)가 유일하다
 - [ ] **요청 본문 크기**: 플랜 기본값(Free/Pro 100MB)에 기대지 말고 WAF 규칙으로 API 본문을 1MB 정도로 막는다.
   코드 상한은 웹훅 64KB · Pine 원본 100,000자다.
   앱은 후속 PR 부터 전역 2MiB 상한(`src/common/body_size_limit.py`, 413)을 둔다. WAF 규칙은 그 앞에서 연결·대역폭까지 막는 바깥 선이다
-- [ ] **익명 경로 rate limit 규칙**: `/healthz`, `/api/v1/webhooks/*`, `/api/v1/waitlist` — 앱 rate limit 면제(`/healthz`·웹훅)거나 IP 단위다
+- [x] **익명 경로 rate limit** → ★**2026-11-20 앱으로 옮겼다** — `src/common/anon_path_rate_limit.py`. `/healthz`·`/api/v1/waitlist` **정확히 일치** · IP 단위 · 10초 30회 초과 → 429(`Retry-After: 10`) · Redis 장애 시 fail-open.
+  Cloudflare 쪽은 Free 플랜 rate limiting 자리(1/1)를 truewords 규칙이 쓰고 있어 만들지 않았다(기존 규칙 삭제 안 함).
+  ★웹훅(`/api/v1/webhooks/*`)은 **일부러 뺐다** — TradingView 가 소수의 공유 IP 로 보내 IP 단위 한도가 정상 알림을 막는다. HMAC 이 1차 방어다.
+  IP 판정은 `TRUSTED_PROXIES` 에 달렸다(A-4) — 2026-11-20 운영 env 에 `127.0.0.1/32` 가 들어 있음을 확인했다
 - [ ] Access 를 걷을 때 **범위를 확인**: FE 전체를 걷는지, `/api/auth/*` 만 여는지. 1·2 를 끝낸 뒤에만
 - [x] `cloudflare/cloudflared:latest` 를 버전 태그로 고정 · 터널 토큰을 커맨드라인 대신 `TUNNEL_TOKEN` env 로 — 후속 PR(`infra/compose/docker-compose.frontend.yml`, `2026.11.0`).
   배포(`deploy.sh` 의 FE `up -d`)가 컨테이너를 다시 만들 때 터널이 몇 초 끊긴다
@@ -94,7 +98,7 @@ APP_ENV=production uv run python -c "from src.core.config import Settings; Setti
   - 같은 긴 1m 백테스트가 **읽기 경로**도 키운다. 상세·**익명 공유 링크**는 봉마다 저장된 equity_curve 를 통째로 이벤트 루프에서 변환한다.
     `trade_ohlcv` 는 후속 PR 부터 DB 에서 솎아 500봉 이하만 올린다. equity_curve 쪽 다운샘플은 아직 없다
   - 공유 링크 라우트 전용 rate limit(기본 100/분보다 낮게)을 검토한다
-- [x] **`/healthz` DB·Redis 점검**: 후속 PR 부터 Postgres·Redis·Celery 점검 전체를 동시 요청끼리 한 번만 돌린다(single-flight). 그래도 앱 rate limit 면제라 Cloudflare rate rule(B)은 둔다
+- [x] **`/healthz` DB·Redis 점검**: 후속 PR 부터 Postgres·Redis·Celery 점검 전체를 동시 요청끼리 한 번만 돌린다(single-flight). slowapi 면제지만 2026-11-20 부터 익명 경로 앱 한도(B, IP 당 10초 30회)가 걸린다
 - [ ] **LLM**: `LLM_PROVIDER_ORDER` 를 켤지 · 가입자가 아무 카탈로그 모델로 바꿀 수 있게 둘지(`strategy/narrative/catalog.py` `resolve_override`) 결정.
   켠다면 각 provider 콘솔에 **월 지출 한도**
 - [ ] 대기자 신청이 409/202 로 「이미 신청한 이메일」을 알려 준다 — 제품상 비밀인지 결정
