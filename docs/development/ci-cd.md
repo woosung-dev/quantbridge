@@ -74,7 +74,7 @@ production build, 기존 테스트 범위·대기시간·재시도 설정은 유
 | `apps/api/**` | ✅ | — |
 | `apps/web/**` | — | ✅ |
 | `.github/**` · `tools/**` · `infra/**` · `mise.toml` · 루트 `package.json` · `pnpm-workspace.yaml` · `.husky/**` · `Dockerfile*` · `docker-compose*` | ✅ | ✅ |
-| `docs/**` · `phases/**` · `*.md` · `.claude/**` · `.codex/**` · `.vscode/**` · `LICENSE` · `.gitignore` 류 | — | — |
+| `docs/**` · `*.md` · `.claude/**` · `.codex/**` · `.vscode/**` · `LICENSE` · `.gitignore` 류 | — | — |
 | **위 어디에도 안 맞는 경로 1건이라도 있으면** | ✅ | ✅ |
 
 **재입힘 근거는 실측이다**([ADR-037] 「문서화된 사고 1건 = 슬림 복귀 1건」). 2026-08-26 기준
@@ -369,7 +369,7 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 > ~~현재 미설정. Sprint 7+ 배포 결정 후 별도 workflow 추가.~~
 > → ~~**2026-08-16 정정: 배포는 이미 돌고 있고, GitHub Actions 밖에 있다.**~~
 > → ~~**2026-09-10 [ADR-043]** — `release.yml` 이 main 머지마다 이미지를 GHCR 에 올리고, 서버 `deploy.sh` 가 반영한다(deploy 잡은 서버 전환 뒤).~~
-> → **2026-10-02** — `release.yml` 이 main 머지마다 이미지를 GHCR 에 올리고 deploy 잡이 서버 `deploy.sh <sha>` 를 부른다(#888 가동). 단 바뀐 파일이 **전부** `release.yml` 의 `paths-ignore`(문서·테스트 8종)에 맞으면
+> → **2026-10-02** — `release.yml` 이 main 머지마다 이미지를 GHCR 에 올리고 deploy 잡이 서버 `deploy.sh <sha>` 를 부른다(#888 가동). 단 바뀐 파일이 **전부** `release.yml` 의 `paths-ignore`(문서·테스트)에 맞으면
 > 빌드·배포가 돌지 않는다 — §1 의 「문서만 30%」 머지가 운영을 재시작하던 몫이다. 목록 밖 파일이 하나라도 섞이면 평소대로 돈다.
 > 강제로 돌리려면 workflow_dispatch. ★`on.pull_request.paths` 를 피하는 §1 의 이유(required check 영구 대기)는 push 트리거에는 해당하지 않는다.
 

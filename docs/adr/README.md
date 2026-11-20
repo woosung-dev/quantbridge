@@ -55,6 +55,7 @@
 | [042](./042-pine-to-python-readonly-renderer.md) | Pine AST → Python 읽기 전용 렌더러 | 결정 | 실행 경로 없음 — 004 의 미구현 대안 |
 | [044](./044-pwa-web-push.md) | PWA(설치·오프라인 안내·웹 푸시) — 데이터 무캐시 | 결정 | PRD §4 비범위 1줄 개정 |
 | [045](./045-python-strategy-research.md) | Python 연구 전략 서비스 미도입 | 철회 | 웹·API·작업 배선 제거 · 오프라인 연구·청산 계산·DB 이력 유지 |
+| [047](./047-agent-rules-as-enforcer-table.md) | 에이전트 지침 = 「규칙 ↔ 집행」 표 · 하네스 러너 철거 | 결정 | `AGENTS.md` 3종 축약 · `tools/harness`·`phases/` 삭제 |
 
 ## 새 ADR 을 쓸 때
 

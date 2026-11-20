@@ -42,12 +42,11 @@ def test_script_exists_and_is_executable() -> None:
         ("docs/status.md",),
         ("docs/status.md", "docs/backlog.md", "docs/lessons.md"),
         ("README.md",),
-        ("phases/index.json",),
         ("GLOSSARY.md", "AGENTS.md"),
     ],
 )
 def test_docs_only_skips_both(paths: tuple[str, ...]) -> None:
-    """문서·회차 정의만 바뀌면 BE·FE 둘 다 건너뛴다 — 이 회차의 이득 본체."""
+    """문서만 바뀌면 BE·FE 둘 다 건너뛴다 — 이 회차의 이득 본체."""
     assert classify(*paths) == (False, False)
 
 

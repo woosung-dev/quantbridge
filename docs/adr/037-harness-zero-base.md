@@ -7,6 +7,7 @@
 > [ADR-028](./028-backlog-deferred-verdict.md)(판정어 — 규칙은 유지, 집행기만 철거)
 > **대체함:** ADR-026·028 등이 언급하는 감사기 **기계 집행** 문장 전부 (판정어·원장 규칙 자체는 유지)
 > **복원 원본:** git 태그 **`harness-v1`** (철거 직전 커밋) — `git show harness-v1:<경로>` / `git checkout harness-v1 -- <경로>`
+> **후속:** [ADR-047](./047-agent-rules-as-enforcer-table.md)(2026-11-19) — ③ 이후 들어온 하네스 러너를 걷어내고 지침을 「규칙 ↔ 집행」 표로 줄였다
 
 ---
 

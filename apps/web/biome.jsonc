@@ -89,7 +89,15 @@
         "noRestrictedImports": {
           "level": "error",
           "options": {
+            "paths": {
+              "zod": "zod 는 `zod/v4` 에서 import 한다 (apps/web/AGENTS.md §8).",
+              "radix-ui": "Radix 를 직접 import 하지 않는다 (ADR-009). `pnpm dlx shadcn@latest add <component>` 로 components/ui/ 에 들이고 그것을 래핑해라."
+            },
             "patterns": [
+              {
+                "group": ["@radix-ui/*", "@radix-ui/**"],
+                "message": "Radix 를 직접 import 하지 않는다 (ADR-009). `pnpm dlx shadcn@latest add <component>` 로 components/ui/ 에 들이고 그것을 래핑해라."
+              },
               {
                 "group": [
                   "@/app/*",
@@ -107,6 +115,9 @@
       },
 
       "suspicious": {
+        // ★preset 기본은 warn 이고 CI 의 `biome check .` 는 warn 에서 rc=0 이다 — error 로 올려야 막힌다.
+        "noExplicitAny": "error",
+
         // ★2026-08-23 warn → error. `src` 실측 **0건**이라 지금이 무비용 시점이다.
         //   e2e/scripts 의 15건(e2e 2 · scripts 13)은 **의도된 로그**라 아래 overrides 로 면제한다.
         "noConsole": { "level": "error", "options": { "allow": ["warn", "error"] } },
@@ -182,7 +193,15 @@
             "noRestrictedImports": {
               "level": "error",
               "options": {
+                "paths": {
+                  "zod": "zod 는 `zod/v4` 에서 import 한다 (apps/web/AGENTS.md §8).",
+                  "radix-ui": "Radix 를 직접 import 하지 않는다 (ADR-009). `pnpm dlx shadcn@latest add <component>` 로 components/ui/ 에 들이고 그것을 래핑해라."
+                },
                 "patterns": [
+                  {
+                    "group": ["@radix-ui/*", "@radix-ui/**"],
+                    "message": "Radix 를 직접 import 하지 않는다 (ADR-009). `pnpm dlx shadcn@latest add <component>` 로 components/ui/ 에 들이고 그것을 래핑해라."
+                  },
                   {
                     "group": [
                       "@/app/*",
@@ -228,7 +247,25 @@
       ],
       "linter": {
         "rules": {
-          "style": { "noRestrictedImports": "off" },
+          // 레이어 경계(app/·features/)만 끈다. zod·Radix 제한은 여기서도 유지한다
+          // (override 는 options 를 교체하므로 다시 적는다).
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "zod": "zod 는 `zod/v4` 에서 import 한다 (apps/web/AGENTS.md §8).",
+                  "radix-ui": "Radix 를 직접 import 하지 않는다 (ADR-009). `pnpm dlx shadcn@latest add <component>` 로 components/ui/ 에 들이고 그것을 래핑해라."
+                },
+                "patterns": [
+                  {
+                    "group": ["@radix-ui/*", "@radix-ui/**"],
+                    "message": "Radix 를 직접 import 하지 않는다 (ADR-009). `pnpm dlx shadcn@latest add <component>` 로 components/ui/ 에 들이고 그것을 래핑해라."
+                  }
+                ]
+              }
+            }
+          },
           "suspicious": { "noAssignInExpressions": "off", "noExportsInTest": "off" }
         }
       }

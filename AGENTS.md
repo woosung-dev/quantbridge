@@ -1,170 +1,144 @@
 # QuantBridge — Pine Script 전략 → 백테스트 · 데모 트레이딩 퀀트 플랫폼
 
-> **새 AI 세션 첫 step — 3종만 읽는다.** `GLOSSARY.md`(용어 SSOT) + 본 파일 + `docs/status.md`.
-> ★**`GLOSSARY.md` 는 자동 로드가 아니다 — 읽어야 들어온다.** `CLAUDE.md` 가 import 하는 것은 본 파일 **하나뿐**이다.
-> ★**`docs/status.md` 의 살아 있는 `다음 행동 =` **하나**가 다음에 무엇을 할지의 유일한 진입점이다.**
-> 별도 킥오프 파일을 만들지 않는다.
-> 본 파일은 **오리엔테이션 전용**이다([ADR-026](./docs/adr/026-documentation-ssot.md)) — 규칙 본문은 §8 의 하위 `AGENTS.md` 가 갖는다.
-
-| 무엇을 찾나 | 어디 |
-| --- | --- |
-| 이 제품이 뭔가 · 무엇을 안 하나 | §1 · 전문 = [`docs/PRD.md`](./docs/PRD.md) |
-| 뭘로 만들어졌나 | §2 |
-| 어기면 안 되는 것 | §3 Golden Rules |
-| 어떻게 일하나 (승인·green·리뷰) | §4 |
-| 어떤 명령을 치나 | §5 |
-| 어느 문서가 무슨 질문에 답하나 | §6 |
-| 무엇이 기계로 집행되나 (훅·CI) | §7 |
-| BE/FE 코드 규칙 | §8 → `apps/api/AGENTS.md` · `apps/web/AGENTS.md` |
-| 어느 디렉터리가 뭘 하나 | §9 |
-
----
+> 새 세션은 `GLOSSARY.md`(용어 정본) → 이 파일 → `docs/status.md` 순으로 읽는다.
+> `GLOSSARY.md` 는 자동 로드되지 않는다 — `CLAUDE.md` 가 import 하는 것은 이 파일 하나다.
+> 다음에 할 일은 `docs/status.md` 의 살아 있는 `다음 행동 =` 한 줄이다. 별도 킥오프 파일을 만들지 않는다.
+>
+> 이 파일은 **코드가 말하지 못하는 것**만 갖는다([ADR-047](./docs/adr/047-agent-rules-as-enforcer-table.md)).
+> 스택·폴더 구조·명령·CI 단계는 코드가 정본이다. 절 번호는 옮기지 않는다 — 코드와 문서가 인용한다.
 
 ## 1. 프로젝트
 
 TradingView Pine Script 전략을 가져와 **같은 코드로** 백테스트 → 스트레스 테스트 → 데모 트레이딩까지
 연결하는 웹 퀀트 플랫폼. 핵심은 기능 수가 아니라 **결과와 가정이 얼마나 정직하게 보이는가**다.
 
-**핵심 도메인 6종** — Strategy(`pine_v2` 인터프리터) / Backtest / Stress Test / Optimizer /
-Trading(CCXT 주문) / Market Data(TimescaleDB).
+핵심 도메인은 Strategy(`pine_v2` 인터프리터) · Backtest · Stress Test · Optimizer · Trading(CCXT 주문) ·
+Market Data(TimescaleDB) 여섯이다.
 
-★**현재 제품 결정 3건**(2026-08-23 사용자) — **실자금(mainnet) 안 간다**(계정 모드 = **Bybit demo 만**) ·
-**Beta 외부 공개 안 연다**(실사용자 0명) · **멀티 거래소 안 한다**(Bybit 하나).
-범위·비범위 전문 = [`docs/PRD.md`](./docs/PRD.md) · 용어 SSOT = [`GLOSSARY.md`](./GLOSSARY.md), 관계·책임 = [`도메인 개요`](./docs/domain/domain-overview.md).
+**제품 결정 3건**(2026-08-23 사용자) — 실자금(mainnet)에 가지 않는다(계정은 Bybit demo 만) ·
+Beta 를 외부에 열지 않는다 · 거래소는 Bybit 하나다.
+범위 전문 = [`docs/PRD.md`](./docs/PRD.md) · 용어 = [`GLOSSARY.md`](./GLOSSARY.md) · 도메인 관계 = [`도메인 개요`](./docs/domain/domain-overview.md).
 
 ## 2. 기술 스택
 
-- **BE** — FastAPI(100% async) · SQLModel + SQLAlchemy 2.0(`asyncpg`) · Pydantic V2 · `uv`
-- **DB** — PostgreSQL + **TimescaleDB hypertable**(OHLCV) · Redis(Celery broker + 락)
-- **Worker** — Celery prefork(`_WORKER_LOOP` 통일 — `apps/api/AGENTS.md` §9)
-- **FE** — Next.js 16(App Router) · TypeScript strict · Tailwind · shadcn v4 · Zod v4 · Zustand · `pnpm`
-- **인증** — self-host Better Auth. 백엔드는 JWT 를 **JWKS 공개 키로 검증만** 한다([ADR-034](./docs/adr/034-auth-self-host-better-auth.md)) — 백엔드가 쥐는 인증 시크릿이 **없다**
-- **거래소** — CCXT(Bybit demo) · **LLM** — provider **순서는 코드가 아니라 설정**이 정한다
-  (`LLM_PROVIDER_ORDER` = `anthropic`·`openai`·`gemini` 중 쉼표 목록). 브리핑 해설·전략 생성의 호출부는
-  `strategy/narrative/providers.py` **한 곳**이고 세 provider 모두 **스키마를 강제**한다.
-  `strategy/convert/service.py`도 같은 층의 `complete_json` 계약을 쓰며, `converted_code` JSON schema와
-  실제 provider·token usage를 소비한다.
-- **테스트** — BE `pytest` · FE `vitest` + Playwright e2e · **lint 는 BE `ruff` / FE `biome` 단독**([ADR-039](./docs/adr/039-frontend-biome.md))
-- **도구 버전 SSOT = 루트 `mise.toml` 하나**([ADR-036](./docs/adr/036-tool-version-ssot-mise.md)) — 숫자를 다른 곳에 적지 마라(예외는 Dockerfile 2곳)
+정본은 코드다 — `mise.toml`(도구 버전) · `apps/api/pyproject.toml` · `apps/web/package.json` · `docker-compose.yml`.
+코드만 봐서는 놓치기 쉬운 것:
 
-## 3. Golden Rules (Immutable)
+- 백엔드는 JWT 를 **JWKS 공개 키로 검증만** 한다. 백엔드가 쥐는 인증 시크릿은 없다([ADR-034](./docs/adr/034-auth-self-host-better-auth.md)).
+- LLM provider 순서는 코드가 아니라 설정 `LLM_PROVIDER_ORDER` 가 정한다. 호출부는 `strategy/narrative/providers.py` 한 곳이다.
+- lint 는 BE `ruff`, FE `biome` 단독이다([ADR-039](./docs/adr/039-frontend-biome.md)).
+- 도구 버전 숫자는 `mise.toml` 에만 적는다([ADR-036](./docs/adr/036-tool-version-ssot-mise.md)). 예외는 Dockerfile 이다.
 
-- **NEVER** — 환경 변수·API 키·시크릿을 코드에 하드코딩. **이유:** 히스토리에 실제 키가 들어간 적이 2회 있다. `SecretStr` 을 써라
-- **NEVER** — Repository layer 밖에서 DB 접근. **이유:** service 가 세션을 쥐면 DB 없이 단위 테스트가 불가능해진다(`apps/api/AGENTS.md` §3)
-- **NEVER** — `.env.example` 에 없는 환경 변수를 코드에서 참조. **이유:** 배포 호스트가 그 값을 안 넣어 조용히 다르게 동작한다(2026-08-15 `/docs` 인터넷 노출 실사고)
-- **NEVER (AI 세션)** — **main/master 직접 push**. 작업 브랜치 + PR 로 간다. **이유:** main 에 들어간 커밋은
-  PR CI 없이 `release.yml` 이 곧바로 운영에 배포한다(#888 이후).
-  ★~~영구 차단 · bypass 불가~~ → **2026-10-02 사용자 결정: 개인 레포라 사람은 main 에 직접 push 할 수 있다** —
-  `.husky/pre-push` 가 터미널로 `[y/N]` 을 묻는다(기본 N · 터미널이 없으면 막는다). GitHub 쪽 보호(ruleset)는 두지 않는다.
-  ★**작업 브랜치 push 와 `gh pr create` 는 승인 없이 해도 된다**(2026-08-22 사용자 결정)
-- **NEVER** — LLM 생성 규칙 파일을 검토 없이 그대로 사용
-- **NEVER** — 워크트리에서 `mise run up`/`down`/`migrate`/`seed`. **이유:** 컨테이너·앱 DB 는 1벌 공유라 함께 깨진다
-- **NEVER** — 워크트리에서 celery 경유 검증(백테스트·라이브신호·옵티마이저). **이유:** worker 가 메인의 `src` 를 mount 하므로 **내 코드가 아니라 메인 코드가 돈다**(침묵 실패). 정본 = [`worktree-parallel.md`](./docs/development/worktree-parallel.md)
-- **NEVER** — `DATABASE_URL` 만 단독 주입(서브에이전트 포함). **이유:** 세션 픽스처 `drop_all` 이 **개발 DB 를 겨냥**한다. §5 의 통째 소싱을 써라
+## 3. Golden Rules
+
+| 하지 않는 것 | 이유 | 집행 |
+| --- | --- | --- |
+| 환경 변수·API 키·시크릿을 코드에 하드코딩 | 히스토리에 실제 키가 들어간 적이 2회 있다. `SecretStr` 을 쓴다 | `ruff` `S` 가 일부 문자열 패턴만 본다. 전용 스캐너 없음 |
+| Repository layer 밖에서 DB 접근 | service 가 세션을 쥐면 DB 없이 단위 테스트를 못 한다 | `tests/common/test_repository_boundary_guard.py` · `tests/trading/test_router_layer_boundary.py` |
+| `.env.example` 에 없는 환경 변수를 코드에서 참조 | 배포 호스트가 그 값을 안 넣어 조용히 다르게 동작한다 | `tests/common/test_env_example_contract.py` |
+| AI 세션이 main/master 에 직접 push | main 에 들어간 커밋은 PR CI 없이 `release.yml` 이 곧바로 운영에 배포한다 | `.husky/pre-push` — 터미널이 없으면 거부한다 |
+| LLM 이 생성한 규칙 파일을 검토 없이 사용 | — | 없음 |
+| 워크트리에서 `mise run up`/`down`/`migrate`/`seed` | 컨테이너와 앱 DB 는 1벌 공유라 함께 깨진다 | `tools/scripts/assert-main-checkout.sh`(해당 mise task 가 부른다) |
+| 워크트리에서 celery 경유 검증(백테스트·라이브신호·옵티마이저) | worker 가 메인의 `src` 를 mount 하므로 **내 코드가 아니라 메인 코드가 돈다**(침묵 실패) | 없음. 정본 = [`worktree-parallel.md`](./docs/development/worktree-parallel.md) |
+| `DATABASE_URL` 만 단독 주입(서브에이전트 포함) | 세션 픽스처의 `drop_all` 이 개발 DB 를 겨냥한다 | `tests/conftest.py` 가 세션을 끝낸다 · `tests/test_destructive_db_guard.py` |
+
+사람은 main 에 직접 push 할 수 있다(개인 레포 — 2026-10-02 사용자 결정). `pre-push` 가 터미널로 `[y/N]` 을 묻는다.
+작업 브랜치 push 와 `gh pr create` 는 승인 없이 한다.
 
 ## 4. 개발 원칙
 
-- **ALWAYS** — 사고/계획/대화/문서/주석 = **한국어**, 코드 네이밍/커밋 메시지 = **영어**
-- **ALWAYS** — 코드 작성 전 「어떤 설계 문서 + 어떤 방향」 짧게 브리핑. 코드 수정 시 관련 문서 **같은 세션** 갱신
-- **ALWAYS** — 확인된 사실 / 추론(`[가정]`) / 확인 필요(`[확인 필요]`) 구분 표기
-- **ALWAYS** — 승인이 필요한 것은 **배포 · 실주문 · 남의 데이터 삭제** 셋뿐. 커밋·작업 브랜치 push·PR 생성은 **승인 불요** — 거기서 멈추지 말고 **PR 까지 올려라**
-- **ALWAYS** — **green = CI 단일 게이트**([ADR-037](./docs/adr/037-harness-zero-base.md)). 로컬 pre-flight 의식 없음 — PR 을 올리면 CI(be: `ruff` → `export_openapi --check` → `mypy src` → `pytest` / fe: `biome`+`tsc`+`vitest`+`build`)가 판정한다. 미리 보려면 §5 의 러너를 직접 돌려라. ★**2026-09-06 정정** — 종전에 이 줄은 be 를 `ruff`+`pytest` **2단**으로 적어 §7 표(4단)·실제 `ci.yml` 과 어긋났다. 여기서 멈춘 세션은 **OpenAPI drift·mypy 를 차단 게이트로 인식하지 못한다**
-- **ALWAYS** — `gh pr create` 전 `docs/status.md` 에 **살아 있는 `다음 행동 =` 이 둘 이상이면 안 된다**. 끝난 것은 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다. 기계 집행 = pre-commit 의 `ledger-vitals.sh` **4축**
-- **ALWAYS** — Sprint kickoff 첫 step = **baseline 재측정 preflight**. 본인 인상·plan 가정·사용자 prompt 가정 **모두 실측 전 신뢰 금지**
-- **ALWAYS** — codex finding 은 **코드 대조 후에만** 채택 (phantom finding 차단)
-- 리뷰 도구는 **둘** — `/qb-review`(체크리스트 1패스, 가벼운 변경) · `/review-code`(3차원 병렬 + finding 당 skeptic 3명 2/3 다수결, 무거운 변경)
-- ★**[ADR-037] 재입힘 규칙** — 하네스는 추측으로 자라지 못한다. **문서화된 사고 1건 = 슬림 복귀 1건**만 허용하고 복귀는 최소판으로. 철거 전 원문 = git 태그 `harness-v1`
-- 역할 = **Senior Tech Lead + System Architect**. 완전한 코드(`...` 생략 금지), 복잡한 설계는 Mermaid.js
-- 나머지 메타-방법론 전문 = [`generator-evaluator-pipeline.md`](./docs/development/workflows/generator-evaluator-pipeline.md) §8
+- 사고·계획·대화·문서·주석은 한국어, 코드 네이밍과 커밋 메시지는 영어로 쓴다.
+- 코드를 쓰기 전에 어떤 설계 문서를 따라 어떤 방향으로 갈지 짧게 알린다. 코드를 고치면 관련 문서를 같은 세션에 고친다.
+- 확인된 사실, 추론(`[가정]`), 확인 필요(`[확인 필요]`)를 구분해 적는다.
+- 승인이 필요한 것은 **배포 · 실주문 · 남의 데이터 삭제** 셋뿐이다. 커밋·작업 브랜치 push·PR 생성은 승인 없이 PR 까지 간다.
+- green 은 CI 가 판정한다([ADR-037](./docs/adr/037-harness-zero-base.md)). 단계의 정본은 `.github/workflows/ci.yml` 이다. 미리 보려면 §5 의 명령을 직접 돌린다.
+- 착수 전에 baseline 을 다시 잰다. 인상, plan 의 가정, 프롬프트의 가정은 실측 전에는 믿지 않는다.
+- codex 가 낸 finding 은 코드와 대조한 뒤에만 채택한다.
+- 리뷰 도구는 `/qb-review`(체크리스트 1패스)와 `/review-code`(차원별 병렬 + 회의론자 다수결) 둘이다.
+- 규칙은 가장 높은 단에서 고친다 — 구조 → 타입·lint → 테스트 → 문장([ADR-047]). 같은 교정을 두 번 하게 되면
+  문장을 굵게 하지 말고 집행기를 만든다. 검사기는 문서화된 사고가 있을 때만 더한다([ADR-037]).
+- 복잡한 설계는 Mermaid.js 로 그린다.
+- 메타-방법론 전문 = [`generator-evaluator-pipeline.md`](./docs/development/workflows/generator-evaluator-pipeline.md) §8
 
-외부 engineering 스킬 사용 시 트래커·분류·도메인 문서 설정은 [`CLAUDE.md`의 Agent skills](./CLAUDE.md#agent-skills)를 먼저 읽는다.
+외부 engineering 스킬을 쓸 때는 [`CLAUDE.md` 의 Agent skills](./CLAUDE.md#agent-skills)를 먼저 읽는다.
 
 ## 5. 명령어
 
-```bash
-mise run up            # 컨테이너 기동 → 3000/8000/5432/6379
-mise run be            # 백엔드만    ·  mise run fe   # 프런트만
-mise run up-isolated   # 격리 슬롯   → 3100/8100/5433/6380
-mise tasks             # 전체 목록   ·  mise run help ·  mise ls  # 도구 버전 + 출처
+전체 목록은 `mise tasks` 다. 코드만 봐서는 틀리기 쉬운 것:
 
-# ★ALWAYS — BE pytest 는 .env.local 을 **통째로** 소싱한다 (DATABASE_URL 단독 주입 금지 — §3)
+```bash
+# BE pytest 는 .env.local 을 통째로 소싱한다 (DATABASE_URL 단독 주입은 §3)
 cd apps/api && set -a; . ./.env.local; set +a; uv run pytest
 
-cd apps/api && uv run mypy src                # BE 타입 (차단 게이트)
-cd apps/api && uv run python scripts/export_openapi.py --check   # OpenAPI drift (차단 게이트)
-
-cd apps/web && pnpm exec biome check .        # FE lint (단독 게이트)
-./tools/scripts/ledger-vitals.sh              # 원장 4축
+cd apps/api && uv run mypy src
+cd apps/api && uv run python scripts/export_openapi.py --check   # OpenAPI drift
+cd apps/web && pnpm exec biome check .
+./tools/scripts/ledger-vitals.sh
 ```
 
-★**판정 명령에 파이프를 붙이지 마라** — `pytest ... | tail` 은 pytest 가 아니라 **tail 의 rc** 를 읽는다.
-이 레포에서 10회 이상 재발했다. rc 를 먼저 잡고 텍스트는 나중에 잘라라.
-
-★**워크트리 병렬 = 슬롯**(FE `3100+N` / BE `8100+N` / pytest DB `quantbridge_w{N}_test`).
-`./tools/scripts/worktree-bootstrap.sh --adopt-env` 가 슬롯·테스트DB·env 를 붙인다.
-herdr 함대 래퍼는 2026-08-13 제거됐다([ADR-030](./docs/adr/030-harness-pilot-verdict.md)).
+- **판정 명령에 파이프를 붙이지 않는다.** `pytest ... | tail` 은 pytest 가 아니라 `tail` 의 rc 를 읽는다.
+  rc 를 먼저 잡고 출력은 나중에 자른다.
+- 워크트리 병렬은 슬롯으로 한다. `./tools/scripts/worktree-bootstrap.sh --adopt-env` 가 포트·테스트 DB·env 를 붙인다.
+- CI 는 `ruff format` 을 재지 않는다. format 드리프트는 red 가 아니다.
 
 ## 6. 문서 — 어느 질문은 어디가 답하나 ([ADR-026](./docs/adr/026-documentation-ssot.md))
 
 | 질문 | 정본 |
 | --- | --- |
-| 지금 실행할 일 | `docs/status.md` — 살아 있는 `다음 행동 =` **1개** |
+| 지금 실행할 일 | `docs/status.md` — 살아 있는 `다음 행동 =` 1개 |
 | 제품이 뭐고 무엇을 안 하나 | `docs/PRD.md` |
 | 열린 결함 | `docs/backlog.md`(ACTIVE ∪ PARTIAL) · `docs/backlog-deferred.md`(DEFERRED) |
-| **왜** 그렇게 정했나 | `docs/adr/` — **결정 / 이유 / 트레이드오프**. 회차 발견을 여기 쌓지 마라 |
+| **왜** 그렇게 정했나 | `docs/adr/` — 결정 / 이유 / 트레이드오프. 회차 발견을 여기 쌓지 않는다 |
 | 무엇이 **반증**됐나 | `docs/lessons.md` |
 | 구현 계약 | `docs/{architecture,domain,api,development,operations,design}/` ([ADR-038](./docs/adr/038-docs-top-level-by-question.md)) |
-| 과거 원문 | **git** — 삭제 시 tombstone(무엇을+어디로+SHA) 1줄 의무 |
+| 과거 원문 | git — 삭제할 때 tombstone(무엇을 + 어디로 + SHA) 1줄을 남긴다 |
 
-- 코드와 문서가 어긋나면 **코드가 맞다** — 단 「지금 무엇을 하는가」에 한해서다.
-  「왜 그렇게 했나」(`adr/`)와 「무엇이 반증됐나」(`lessons.md`)에 대해 **코드는 증인이 아니다**
-- ★**판정어 5종** — `ACTIVE`(단독 착수 가능) / `DEFERRED`(트리거 미도래) / `PARTIAL` / `RESOLVED` / `UNKNOWN`.
-  DEFERRED 는 active 로 안 세지만 「미완」 쪽이다([ADR-028](./docs/adr/028-backlog-deferred-verdict.md)).
-  ★**RESOLVED 는 파일이 아니라 삭제다**(2026-08-23) — 끝난 것은 git 이 갖는다
-- ★**끝난 회차 기록은 어느 문서에도 쌓지 않는다** — 커밋 메시지와 git log 가 정본이다.
-  이 규칙이 없어서 `status.md` 가 124KB, `roadmap.md` 가 550줄, ADR 하나가 72KB 가 됐다(2026-08-23 실측)
-- **ALWAYS** — 요약 줄 길이 상한: `dev-log/INDEX.md` **300자** · `backlog*.md` **1,000자**(기계 강제 없음 — 스스로 지켜라)
-- **ALWAYS** — 스프린트 종료 시 작업 문서는 승격·강등·삭제 중 하나로 종결. 회고는 **반증 카드 → `lessons.md` → INDEX 한 줄**
-- ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-` 백로그. **ID 재사용 금지**
+- 코드와 문서가 어긋나면 **코드가 맞다** — 「지금 무엇을 하는가」에 한해서다.
+  「왜 그렇게 했나」(`adr/`)와 「무엇이 반증됐나」(`lessons.md`)에 대해 코드는 증인이 아니다.
+- 판정어는 `ACTIVE`(단독 착수 가능) / `DEFERRED`(트리거 미도래) / `PARTIAL` / `RESOLVED` / `UNKNOWN` 다섯이다.
+  DEFERRED 는 active 로 세지 않지만 「미완」 쪽이다([ADR-028](./docs/adr/028-backlog-deferred-verdict.md)).
+  RESOLVED 는 파일로 옮기지 않고 지운다 — 끝난 것은 git 이 갖는다.
+- 끝난 회차 기록은 어느 문서에도 쌓지 않는다. 커밋 메시지와 git log 가 정본이다.
+- 요약 줄은 `dev-log/INDEX.md` 300자, `backlog*.md` 1,000자를 넘기지 않는다(집행 없음).
+- 스프린트가 끝나면 작업 문서는 승격·강등·삭제 중 하나로 닫는다. 회고는 반증 카드 → `lessons.md` → INDEX 한 줄이다.
+- ID 는 `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-` 백로그다. 재사용하지 않는다.
 
 ## 7. 자동화 — 무엇이 기계로 집행되나
 
-| 훅/게이트 | 무엇을 막나 |
+| 무엇 | 집행 |
 | --- | --- |
-| `.husky/pre-push` | main/master 직접 push 는 **막지 않고 터미널로 묻는다**(기본 N · 터미널 없으면 거부 — 2026-10-02) · 메인 체크아웃의 임의 브랜치(`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*` 는 통과). ★워크트리에서는 판정하지 않는다 |
-| pre-commit `ledger-vitals.sh` | `다음 행동` ≤1 **∧ ≥1** · ⓪ 표 ≥1행 · RESOLVED 역류 0 · ★**진입점이 `PRD.md` §5 를 겨냥**(2026-08-31 ④ 신설 — ①②③ 은 전부 양만 잰다) |
-| pre-commit lint-staged | 스테이지된 `.py` 에 `ruff check --fix` + `ruff format` |
-| CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` → `scripts/export_openapi.py --check`(OpenAPI drift) → `mypy src` → `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` |
-| `tools/scripts/hooks/` | codex 레이어 가드 (위험 명령 차단) |
+| main/master push 확인 · 메인 체크아웃의 브랜치 접두사(`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*`) | `.husky/pre-push`. 워크트리에서는 판정하지 않는다 |
+| `docs/status.md` 진입점 — 살아 있는 `다음 행동 =` 이 정확히 1개이고 `PRD.md` §5 를 겨냥 · ⓪ 표에 행이 있음 · `backlog.md` 에 RESOLVED 없음 | pre-commit `tools/scripts/ledger-vitals.sh` |
+| 스테이지된 파일의 lint·format | pre-commit lint-staged |
+| 품질 게이트(lint · OpenAPI drift · 타입 · 테스트 · 빌드) | CI `.github/workflows/ci.yml` |
+| codex 의 위험 명령 | `tools/scripts/hooks/` |
+| 지침을 읽은 모델이 규칙을 실제로 적용하는가 | `evals/harness`(수동 실행 · API 키 필요) |
 
-★**CI 는 `ruff format` 을 안 잰다** — 레포에 format 드리프트가 상시 있고 그것은 red 가 아니다.
+스택별 「규칙 ↔ 집행」 표는 §8 의 하위 파일 끝에 있다.
 
 ## 8. 스택 규칙 — 하위 `AGENTS.md` 2종
 
-★`apps/api/` · `apps/web/` 에 각각 `AGENTS.md`(규칙 본문) + `CLAUDE.md`(`@AGENTS.md` 한 줄)를 둔다.
-Claude Code 는 **그 디렉터리의 파일을 읽는 순간** 하위 `CLAUDE.md` 를 로드하고 import 를 따라
-`AGENTS.md` 까지 편다(2026-08-07 실측). codex 는 `AGENTS.md` 를 직접 읽는다([ADR-027](./docs/adr/027-nested-agents-md.md)).
-**파일을 안 열고 설계만 논하는 세션에서는 직접 열어라.**
+`apps/api/` 와 `apps/web/` 에 각각 `AGENTS.md`(규칙)와 `CLAUDE.md`(`@AGENTS.md` 한 줄)를 둔다.
+Claude Code 는 그 디렉터리의 파일을 읽는 순간 하위 `CLAUDE.md` 를 로드하고, codex 는 가까운 `AGENTS.md` 를
+직접 읽는다([ADR-027](./docs/adr/027-nested-agents-md.md)). 파일을 열지 않고 설계만 논하는 세션에서는 직접 연다.
 
-★**하위는 루트를 덮어쓰지 말고 보강만 해라** — Claude 는 루트와 하위를 **이어붙이고** codex 는
-**가까운 것만** 본다. 충돌하는 문장을 쓰면 두 도구가 다르게 행동한다.
+하위 파일은 루트를 덮어쓰지 않고 보강만 한다. Claude 는 루트와 하위를 이어붙이고 codex 는 가까운 것만 봐서,
+충돌하는 문장을 쓰면 두 도구가 다르게 행동한다.
 
 | 파일 | 무엇을 갖나 |
 | --- | --- |
-| [`apps/api/AGENTS.md`](apps/api/AGENTS.md) | 3-Layer 7파일 표준 + **예외 표** · Decimal-first · JWT/JWKS 검증 · Alembic · Celery prefork-safe · 검사기 판별 절차 |
-| [`apps/web/AGENTS.md`](apps/web/AGENTS.md) | React Hooks 안전 H-1~H-3 · `error.tsx` 의무 · Next.js 16 · Zod v4 · shadcn v4 · 반응형 · TS 컨벤션 |
+| [`apps/api/AGENTS.md`](apps/api/AGENTS.md) | 3-Layer 7파일 표준과 예외 표 · Decimal-first · JWT/JWKS 검증 · Alembic · Celery prefork-safe · 검사기 판별 절차 |
+| [`apps/web/AGENTS.md`](apps/web/AGENTS.md) | 인증 seam · React Hooks 안전 H-1~H-3 · 레이어 경계 · Next.js 16 · Zod v4 · shadcn v4 · 반응형 · TS 컨벤션 |
 
-★**분리 기준**(2026-08-23 확립) — **「구조·경계·금지」는 이 자동 로드 층, 「예제·절차」는 `docs/` 정본 층.**
-구조를 모르면 새 코드를 못 쓰지만 예제는 필요할 때 열면 된다.
+지침 파일에는 코드로 읽히지 않는 구조·경계·금지와 「규칙 ↔ 집행」 표를 둔다. 예제와 절차는 `docs/` 에, 이력은 git 에 둔다.
 
 ## 9. 경로 → 용도
 
 | 경로 | 무엇 |
 | --- | --- |
 | `apps/api/src/<도메인>/` | router · service · repository · schemas · models · dependencies · exceptions (7파일 표준) |
-| `apps/api/src/strategy/pine_v2/` | Pine 인터프리터 **SSOT** |
-| `apps/web/src/` | Next.js FSD Lite. ★화면 컴포넌트의 기본 자리는 `features/<domain>/components/` — `app/**/_components/` 가 **아니다**([ADR-035](./docs/adr/035-fe-component-ownership.md)) |
-| `tools/scripts/` | 운영 런타임(`deploy`·`host-bootstrap`·`docker-reclaim`·`db-backup`·`disk-guard`) · 가드 · `ledger-vitals` · `hooks/` · 스모크·재현 유틸 |
-| `phases/<회차>/` | 하네스 러너의 회차 정의. ★산출물은 `runs/`(gitignore)에만. ★**끝난 회차는 지운다** |
+| `apps/api/src/strategy/pine_v2/` | Pine 인터프리터 정본 |
+| `apps/web/src/` | Next.js FSD Lite. 화면 컴포넌트의 기본 자리는 `features/<domain>/components/` 다([ADR-035](./docs/adr/035-fe-component-ownership.md)) |
+| `tools/scripts/` | 운영 런타임(`deploy`·`host-bootstrap`·`docker-reclaim`·`db-backup`·`disk-guard`) · 가드 · `ledger-vitals` · `hooks/` |
 | `docs/` | `status`·`PRD`·`backlog*` + 정본 6축 + `adr/` + `lessons.md` (지도 = [`docs/README.md`](./docs/README.md)) |
-| `.claude/workflows/` | `review-code.js` · 하네스 Eval = `evals/harness/` |
+| `.claude/` · `evals/harness/` | 리뷰 커맨드와 `workflows/review-code.js` · 지침 Eval |
