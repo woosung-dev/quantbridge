@@ -30,6 +30,7 @@ from tools.research.period_study.state import (  # noqa: E402
     sha,
     write,
 )
+from tools.research.pine_first import native_code_paths  # noqa: E402
 from tools.research.review_tradingview import code_mask  # noqa: E402
 
 from scripts.pine_validation.native_capture import NativeCapture, parse_native_capture  # noqa: E402
@@ -286,6 +287,25 @@ def compare_path(
 
 
 def verify(root: Path, pid: str, timeframe: str, probe_path: Path | None) -> dict:
+    policy_path = root / "pine-first/policy.json"
+    if policy_path.exists() and read(policy_path).get("native_verification") == (
+        "deferred_until_after_financial_research"
+    ):
+        reason = "native_verification_deferred_until_after_financial_research"
+        return {
+            "publication_id": pid,
+            "timeframe": timeframe,
+            "status": "deferred",
+            "reason": reason,
+            "execution_attempted": False,
+            "evidence_verified": False,
+            "evidence": [],
+            "passed_paths": [],
+            "paths": {
+                path: {"status": "not_run", "reason": reason, "execution_attempted": False}
+                for path in ("pine", "python")
+            },
+        }
     catalogue = read(root / "catalogue.json")
     item = next(value for value in catalogue["items"] if value["id"] == pid)
     capture_path = root / "native" / pid / f"{timeframe}.json"
@@ -294,6 +314,9 @@ def verify(root: Path, pid: str, timeframe: str, probe_path: Path | None) -> dic
     code_hashes["tools/research/period_native.py"] = sha(Path(__file__).read_bytes())
     code_hashes["apps/api/scripts/pine_validation/native_capture.py"] = sha(
         (ROOT / "apps/api/scripts/pine_validation/native_capture.py").read_bytes()
+    )
+    code_hashes["tools/research/pine_first.py"] = sha(
+        (ROOT / "tools/research/pine_first.py").read_bytes()
     )
     result: dict[str, Any] = {
         "publication_id": pid,
@@ -357,7 +380,21 @@ def verify(root: Path, pid: str, timeframe: str, probe_path: Path | None) -> dic
             "evaluated_bars": len(native.ohlcv) - warmup,
         }
         result["native_signal_hash"] = identity(events)
+        selection_evidence: list[dict] = []
+        selected_paths = native_code_paths(root, pid, timeframe, selection_evidence)
+        result["evidence"].extend(selection_evidence)
+        result["selected_code_paths"] = list(selected_paths)
+        policy_path = root / "pine-first/policy.json"
+        if policy_path.exists():
+            result["evidence"].append(proof(root, policy_path))
         for path in ("pine", "python"):
+            if path not in selected_paths:
+                result["paths"][path] = {
+                    "status": "not_run",
+                    "reason": "pine_first_policy_path_not_required",
+                    "execution_attempted": False,
+                }
+                continue
             try:
                 result["paths"][path] = compare_path(root, item, path, native, events, warmup)
                 if approval := result["paths"][path].get("generated_code_review_evidence"):
