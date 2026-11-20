@@ -29,7 +29,7 @@ documentation · backend_static · backend ×3샤드 · backend_coverage · e2e 
 - **병렬 3잡** — 셋은 `changes`만 기다리고 서로를 기다리지 않는다. 집계(summary) 잡도 없다.
 - **branch protection required check 이름 = `backend` · `frontend`** — 구 `ci` 집계 check 는
   더 이상 생성되지 않으므로, required check 에 그 이름을 남겨두면 영구 pending 이다(ADR-037).
-- `tools/scripts/ledger-vitals.sh`(원장 기계 집행 3축)는 **CI 잡이 아니라 pre-commit 훅**이다 —
+- `tools/scripts/ledger-vitals.sh`(원장 기계 집행)는 **CI 잡이 아니라 pre-commit 훅**이다 —
   CI 에 이 노드를 그리지 마라.
 
 ### 실제 전략 여정
