@@ -5,6 +5,7 @@
 전문 일치로 잰다.
 판정 자체(핀 누락은 fallback 하지 않는다 · 경고가 조회보다 먼저다)는
 `tests/backtest/test_rerun_input.py` 가 잰다.
+engine_version 가드는 `_execute` 에 인라인이라 거부·통과 양쪽을 여기서 잰다.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.backtest.engine import PINE_V2_ENGINE_VERSION
 from src.backtest.models import Backtest
 from src.optimizer import service as optimizer_service
 from src.optimizer.exceptions import OptimizationExecutionError
@@ -76,6 +78,19 @@ async def test_unsupported_engine_version_is_rejected_before_any_lookup(
     strategy_repo.find_by_id_and_owner.assert_not_awaited()
     provider.get_ohlcv.assert_not_awaited()
     warning.assert_not_called()
+
+
+async def test_pine_v2_engine_version_passes_the_guard() -> None:
+    """현재 엔진(pine_v2) 행은 가드에서 막히지 않고 다음 판정(핀 조회)까지 간다."""
+    bt = _make_backtest(pinned=True, engine_version=PINE_V2_ENGINE_VERSION)
+    service, strategy_repo, _provider = _make_service()
+
+    exc = await _execute(service, bt)
+
+    assert exc.message_public == "Strategy version is no longer available for optimization."
+    strategy_repo.get_version_by_id.assert_awaited_once_with(
+        bt.strategy_version_id, strategy_id=bt.strategy_id
+    )
 
 
 async def test_missing_pinned_version_is_an_error_not_a_silent_fallback(

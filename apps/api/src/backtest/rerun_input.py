@@ -18,7 +18,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from enum import Enum
 
-from src.backtest.engine import PINE_V2_ENGINE_VERSION
 from src.backtest.models import Backtest
 from src.strategy.code_contract import legacy_pine_source
 from src.strategy.repository import StrategyRepository
@@ -29,11 +28,6 @@ class RerunSourceUnavailable(Enum):
 
     STRATEGY_VERSION_MISSING = "strategy_version_missing"
     STRATEGY_MISSING = "strategy_missing"
-
-
-def is_rerunnable_engine_version(bt: Backtest) -> bool:
-    """재실행 경로는 pine_v2 엔진만 안다. NULL 은 engine_version 도입 이전 행이다."""
-    return bt.engine_version in (None, PINE_V2_ENGINE_VERSION)
 
 
 async def resolve_pinned_pine_source(
@@ -70,6 +64,5 @@ async def resolve_pinned_pine_source(
 
 __all__ = [
     "RerunSourceUnavailable",
-    "is_rerunnable_engine_version",
     "resolve_pinned_pine_source",
 ]

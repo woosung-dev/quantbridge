@@ -20,13 +20,10 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from src.backtest.config_mapper import build_engine_config_from_db
+from src.backtest.engine import PINE_V2_ENGINE_VERSION
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
-from src.backtest.rerun_input import (
-    RerunSourceUnavailable,
-    is_rerunnable_engine_version,
-    resolve_pinned_pine_source,
-)
+from src.backtest.rerun_input import RerunSourceUnavailable, resolve_pinned_pine_source
 from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.models import OptimizationKind
@@ -316,7 +313,7 @@ class StressTestService:
         """부모 Backtest 검증 후 kind별 stress-test executor를 호출한다."""
         # BL-787 예방 가드: 2026-08-18 실측상 7개 Backtest의 engine_version은 모두 NULL이고
         # stress_tests ⋈ backtests는 0행이었다. 기존 행 교정이 아닌 이후 비-pine_v2 입력 차단이다.
-        if not is_rerunnable_engine_version(bt):
+        if bt.engine_version not in (None, PINE_V2_ENGINE_VERSION):
             raise StressTestError(
                 message_public="Backtest engine version is not supported for stress testing.",
                 message_internal=f"backtest_id={bt.id} engine_version={bt.engine_version}",

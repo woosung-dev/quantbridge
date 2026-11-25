@@ -20,13 +20,10 @@ from uuid import UUID
 from pydantic import ValidationError
 
 from src.backtest.config_mapper import build_engine_config_from_db
+from src.backtest.engine import PINE_V2_ENGINE_VERSION
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
-from src.backtest.rerun_input import (
-    RerunSourceUnavailable,
-    is_rerunnable_engine_version,
-    resolve_pinned_pine_source,
-)
+from src.backtest.rerun_input import RerunSourceUnavailable, resolve_pinned_pine_source
 from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.dispatcher import OptimizationTaskDispatcher
@@ -242,7 +239,7 @@ class OptimizerService:
         흡수. 테스트 monkeypatch seam 은 runner 3이름 → 본 모듈의
         ``run_optimizer_by_kind`` 1이름으로 축소 (test_service_commits.py).
         """
-        if not is_rerunnable_engine_version(bt):
+        if bt.engine_version not in (None, PINE_V2_ENGINE_VERSION):
             raise OptimizationExecutionError(
                 message_public="Backtest engine version is not supported for optimization.",
                 message_internal=f"backtest_id={bt.id} engine_version={bt.engine_version}",

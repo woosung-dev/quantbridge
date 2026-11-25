@@ -11,14 +11,7 @@ from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
-import pytest
-
-from src.backtest.engine import PINE_V2_ENGINE_VERSION
-from src.backtest.rerun_input import (
-    RerunSourceUnavailable,
-    is_rerunnable_engine_version,
-    resolve_pinned_pine_source,
-)
+from src.backtest.rerun_input import RerunSourceUnavailable, resolve_pinned_pine_source
 
 _PINNED = "//@version=5\n// pinned snapshot"
 _CURRENT = "//@version=5\n// current strategy"
@@ -104,18 +97,3 @@ async def test_legacy_row_with_missing_strategy_still_warns() -> None:
 
     assert outcome is RerunSourceUnavailable.STRATEGY_MISSING
     assert "legacy_fallback" in events
-
-
-@pytest.mark.parametrize(
-    ("engine_version", "expected"),
-    [
-        (None, True),
-        (PINE_V2_ENGINE_VERSION, True),
-        ("code_v1", False),
-        ("", False),
-    ],
-)
-def test_is_rerunnable_engine_version(engine_version: str | None, expected: bool) -> None:
-    bt: Any = SimpleNamespace(engine_version=engine_version)
-
-    assert is_rerunnable_engine_version(bt) is expected
