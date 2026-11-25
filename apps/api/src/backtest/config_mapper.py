@@ -14,6 +14,7 @@ Sprint 31 BL-162a 진입 시점 매핑 (service.py L360-431 본문 그대로 이
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Literal, cast
 
 from src.backtest.engine.types import BacktestConfig
@@ -44,6 +45,49 @@ _VALID_SIZING_BASIS: frozenset[str] = frozenset(
         "fallback_qty1",
     }
 )
+
+
+class StoredAssumptions:
+    """`Backtest.config` JSONB 의 공통 6 가정을 읽는 단일 규칙.
+
+    엔진 config(`build_engine_config_from_db`)와 응답 config(`BacktestService._to_detail`)
+    가 같은 키 이름·같은 기본값·같은 coerce 로 읽는다 — 화면에 보이는 가정과 엔진이 쓴
+    가정이 갈리지 않게 하는 자리다. 누락 키(또는 NULL config 전체)는 engine
+    `BacktestConfig()` 기본값으로 fallback 한다.
+
+    필드별로 지연해서 읽는다. 호출자가 읽지 않는 필드(예: Pine 응답의 maker_fee)는
+    파싱하지 않고, 잘못 저장된 값의 예외도 호출자가 읽는 순서대로 난다.
+    """
+
+    def __init__(self, config: Mapping[str, Any] | None) -> None:
+        self._cfg: Mapping[str, Any] = config if config is not None else {}
+        self._default = BacktestConfig()
+
+    @property
+    def leverage(self) -> float:
+        return float(self._cfg.get("leverage", self._default.leverage))
+
+    @property
+    def fees(self) -> float:
+        return float(self._cfg.get("fees", self._default.fees))
+
+    @property
+    def maker_fee(self) -> float:
+        # code 제출은 Decimal 문자열("0.00010")로, Pine 제출은 키 없이 저장한다.
+        return float(self._cfg.get("maker_fee", self._default.maker_fee))
+
+    @property
+    def slippage(self) -> float:
+        return float(self._cfg.get("slippage", self._default.slippage))
+
+    @property
+    def include_funding(self) -> bool:
+        return bool(self._cfg.get("include_funding", self._default.include_funding))
+
+    @property
+    def fill_timing(self) -> str:
+        # TV parity — 시장가 체결 타이밍 (구 row = bar_close fallback).
+        return str(self._cfg.get("fill_timing", self._default.fill_timing))
 
 
 def build_engine_config_from_db(bt: Backtest) -> BacktestConfig:
@@ -94,20 +138,17 @@ def build_engine_config_from_db(bt: Backtest) -> BacktestConfig:
         sizing_basis_raw,
     )
     leverage_basis: float = float(cfg_dict.get("leverage_basis", default.leverage_basis))
+    assumptions = StoredAssumptions(bt.config)
     return BacktestConfig(
         init_cash=bt.initial_capital,
-        fees=float(cfg_dict.get("fees", default.fees)),
-        maker_fee=float(cfg_dict.get("maker_fee", default.maker_fee)),
-        slippage=float(cfg_dict.get("slippage", default.slippage)),
+        fees=assumptions.fees,
+        maker_fee=assumptions.maker_fee,
+        slippage=assumptions.slippage,
         freq=timeframe_to_freq(bt.timeframe),
         trading_sessions=trading_sessions_tuple,
-        leverage=float(cfg_dict.get("leverage", default.leverage)),
-        include_funding=bool(cfg_dict.get("include_funding", default.include_funding)),
-        # TV parity — 시장가 체결 타이밍 (구 row = bar_close fallback).
-        fill_timing=cast(
-            Literal["bar_close", "next_bar_open"],
-            str(cfg_dict.get("fill_timing", default.fill_timing)),
-        ),
+        leverage=assumptions.leverage,
+        include_funding=assumptions.include_funding,
+        fill_timing=cast(Literal["bar_close", "next_bar_open"], assumptions.fill_timing),
         default_qty_type=form_qty_type,
         default_qty_value=form_qty_value,
         live_position_size_pct=live_pct,
@@ -118,6 +159,7 @@ def build_engine_config_from_db(bt: Backtest) -> BacktestConfig:
 
 
 __all__ = [
+    "StoredAssumptions",
     "build_engine_config_from_db",
     "timeframe_to_freq",
 ]

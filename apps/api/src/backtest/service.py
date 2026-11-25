@@ -15,11 +15,11 @@ from uuid import UUID
 
 import pandas as pd
 
-from src.backtest.config_mapper import build_engine_config_from_db
+from src.backtest.config_mapper import StoredAssumptions, build_engine_config_from_db
 from src.backtest.data_coverage import DataCoverage, measure_data_coverage
 from src.backtest.dispatcher import TaskDispatcher
 from src.backtest.engine import PINE_V2_ENGINE_VERSION, run_backtest
-from src.backtest.engine.types import BacktestConfig, RawTrade
+from src.backtest.engine.types import RawTrade
 from src.backtest.exceptions import (
     BacktestDuplicateIdempotencyKey,
     BacktestNotFound,
@@ -531,7 +531,7 @@ class BacktestService:
         # Engine (sync CPU-bound — await 없이 직접 호출)
         # Sprint 31 BL-162a — 사용자 입력 BacktestConfig 적용 (TradingView 패턴).
         # bt.config NULL (legacy) 시 engine default fallback.
-        config = self._build_engine_config(bt)
+        config = build_engine_config_from_db(bt)
         # C6 (Slice 4) — include_funding 활성 + funding_repo 주입 시 perp funding 시계열을
         # [period_start, period_end] window 로 읽어 엔진에 전달. 거래소 bybit 고정(MVP).
         # 심볼 브릿지: backtest "BTC/USDT" → CCXT perp "BTC/USDT:USDT". funding_repo None
@@ -659,16 +659,6 @@ class BacktestService:
         await self.strategy_repo.set_current_version(strategy.id, version.id)
         strategy.strategy_version_id = version.id
         return version
-
-    def _build_engine_config(self, bt: Backtest) -> BacktestConfig:
-        """Sprint 31 BL-162a — Backtest row 의 사용자 입력 config + initial_capital + timeframe →
-        engine BacktestConfig.
-
-        Sprint 52 BL-222 P1 (2026-05-11): 본 매핑이 StressTestService 의 worker entry
-        (`_execute_cost_assumption_sensitivity` + `_execute_param_stability`) 에서도
-        필요. layering 보존 위해 `src/backtest/config_mapper.py` 로 추출 후 delegating.
-        """
-        return build_engine_config_from_db(bt)
 
     def _raw_trades_to_models(
         self,
@@ -1022,9 +1012,10 @@ class BacktestService:
         # 에 입력한 비용/마진 값이 그대로 응답 → AssumptionsCard 가 (기본) 마크
         # 자동 제거 (graceful upgrade). bt.config NULL (legacy / Sprint 30 이전)
         # 시 engine BacktestConfig default fallback (graceful degrade).
-        _default = BacktestConfig()
-        # 사용자 입력값 — float coerce + 누락 키(또는 NULL config 전체)는 default 로 fallback.
+        # 공통 6 가정의 키·기본값·coerce 규칙은 config_mapper.StoredAssumptions 가 갖는다
+        # (엔진 config 와 같은 규칙). 여기는 engine_version 에 따른 노출 분기만 얹는다.
         cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
+        assumptions = StoredAssumptions(bt.config)
         config_out = BacktestConfigOut(
             execution_policy=next(
                 (policy for policy in CODE_EXECUTION_POLICIES if policy == bt.engine_version),
@@ -1041,14 +1032,14 @@ class BacktestService:
             default_qty_value=cfg_dict.get("default_qty_value")
             if bt.engine_version in CODE_EXECUTION_POLICIES
             else None,
-            leverage=float(cfg_dict.get("leverage", _default.leverage)),
-            fees=float(cfg_dict.get("fees", _default.fees)),
-            maker_fee=float(cfg_dict.get("maker_fee", _default.maker_fee))
+            leverage=assumptions.leverage,
+            fees=assumptions.fees,
+            maker_fee=assumptions.maker_fee
             if bt.engine_version in CODE_EXECUTION_POLICIES
             else None,
-            slippage=float(cfg_dict.get("slippage", _default.slippage)),
-            include_funding=bool(cfg_dict.get("include_funding", _default.include_funding)),
-            fill_timing=str(cfg_dict.get("fill_timing", _default.fill_timing)),
+            slippage=assumptions.slippage,
+            include_funding=assumptions.include_funding,
+            fill_timing=assumptions.fill_timing,
         )
         if bt.status == BacktestStatus.COMPLETED:
             if bt.metrics:

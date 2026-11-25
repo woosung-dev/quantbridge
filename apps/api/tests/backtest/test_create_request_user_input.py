@@ -17,7 +17,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.backtest.config_mapper import timeframe_to_freq
+from src.backtest.config_mapper import build_engine_config_from_db, timeframe_to_freq
 from src.backtest.engine.types import BacktestConfig as EngineBacktestConfig
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.schemas import BacktestConfigOut, CreateBacktestRequest
@@ -168,7 +168,7 @@ async def test_submit_persists_user_config_to_backtest_row() -> None:
     assert bt.config["include_funding"] is False
 
 
-# --- Test 4: _build_engine_config (worker run path) -------------------------
+# --- Test 4: build_engine_config_from_db (worker run path) -------------------------
 
 
 def test_build_engine_config_uses_user_input_from_bt_config() -> None:
@@ -191,13 +191,7 @@ def test_build_engine_config_uses_user_input_from_bt_config() -> None:
         },
     )
 
-    svc = BacktestService(
-        repo=MagicMock(),
-        strategy_repo=MagicMock(),
-        ohlcv_provider=MagicMock(),
-        dispatcher=MagicMock(),
-    )
-    cfg = svc._build_engine_config(bt)
+    cfg = build_engine_config_from_db(bt)
 
     assert cfg.init_cash == Decimal("50000")
     assert cfg.leverage == 10.0
@@ -222,13 +216,7 @@ def test_build_engine_config_falls_back_to_engine_defaults_when_config_null() ->
         config=None,
     )
 
-    svc = BacktestService(
-        repo=MagicMock(),
-        strategy_repo=MagicMock(),
-        ohlcv_provider=MagicMock(),
-        dispatcher=MagicMock(),
-    )
-    cfg = svc._build_engine_config(bt)
+    cfg = build_engine_config_from_db(bt)
 
     default = EngineBacktestConfig()
     assert cfg.leverage == default.leverage
