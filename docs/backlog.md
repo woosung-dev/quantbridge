@@ -805,3 +805,39 @@ native SL은 별도 terminal-WS 전용이다. 통합 슬롯의 관련 검사 305
 
 **상태:** 🔵 ACTIVE — 2026-11-16 등재, 미수리
 **트리거 판정:** 도래
+
+---
+
+### BL-879
+
+**Title:** native SL 귀속 결과가 **raw dict + in-band 키 `_native_historical`** 로 seam 을 넘는다 — `bind` 반환을 타입 값으로(축소 범위)
+**Category:** Backend / Trading (module 깊이)
+**Priority:** P3
+**출처:** 2026-11-25 /improve-codebase-architecture 스캔(반증 1패스 — weakened). 원 후보 「한 module 이 귀속 + close 요청 + 체결 반영까지 끝낸다」는 반증자가 과하다고 판정했다 — 아래는 반증자가 권한 축소 범위다
+
+**증상:** `NativeSLObservationService.bind`(`trading/services/native_sl_observation_service.py:30-33`)는 `tuple[Order, dict] | None` 을 돌려주고 docstring 이 「같은 TX에서 체결 CAS 후 commit」 순서를 호출자에게 맡긴다. 그 dict 는 Bybit raw 에 `avgPrice` 와 `"_native_historical": True` 를 끼운 것이다(`:116-119` · 정상 분기 `:222-226` 은 키를 pop). ⑴ 이 문자열 키를 다른 module 두 곳이 읽는다 — `code_risk_venue.py:393` · `code_order_observation_service.py:156`. ⑵ `code_risk_venue.py` `_sync` 가 `raw.setdefault("category","linear")`(`:384`) 뒤 `cumExecQty`·`cumExecValue`·`avgPrice` 를 raw 에서 다시 파싱한다(`:395-403`). ⑶ `code_risk_venue.py:124` 가 private `_build_bybit_v5_order_status_fetch`(`trading/providers.py:2440`)를 함수 안에서 지연 import 한다 — 같은 파일 `:23` 이 이미 `src.trading.providers` 를 top-level import 하므로 순환 회피가 아니다. ⑷ 테스트가 `bind` → private 변환 함수 → `venue._sync` 를 손으로 재생한다(`tests/trading/test_native_sl_observation.py:170-171` · `:253-256` · `:562-568`).
+**권장 접근:** ⑴ `bind` 반환을 frozen dataclass(order · raw · historical · filled · value · avg_price)로 바꿔 `_native_historical` 키를 없앤다(생성 1 · pop 1 · 소비 2 — 재집계 = `grep -rn _native_historical apps/api/src`). WS 쪽은 observer 가 `observation.raw` 대신 읽을 자리(`CodeOrderObservation` 필드 또는 `_handle_code_order` 인자)가 필요하다 ⑵ `_sync:395-403` 의 재파싱을 그 필드로 대체한다 ⑶ `_build_bybit_v5_order_status_fetch` 를 공개 이름으로 올린다(src 사용 = `providers.py:2496,2500` · `code_risk_venue.py:124` · 테스트 import = `test_native_sl_observation.py:12` · `test_code_risk_repository.py:498,551,588,645` · `test_provider_fetch_order.py:462,489`). ★`bind` 결과를 언패킹·인덱싱하는 테스트는 `test_native_sl_observation.py:170,185,253,411,562,642` **6곳**이다(반증자가 든 3곳 + `child, _ =` 3곳) — 같은 PR 에서 고친다. **범위 밖(건드리지 마라):** commit 소유 · `NativeSLParentPending` 처리 3곳 · discovery 경로의 이중 bind · `_submit`/`_cancel_confirm` 직접 호출 테스트 · 테스트를 REST 공개 진입점 경유로 옮기는 일(mock 이 커서 별도 PR).
+**주의(동작 보존 — Bybit demo 실주문 경로):** ⑴ TX·락 경계 — `bind` 가 잡는 `pg_advisory_xact_lock`(`trading/repositories/order_repository.py:1534`)은 호출자의 commit 에서 풀린다. commit 을 `bind` 안으로 옮기면 해제 시점이 바뀐다. WS/REST 경합 테스트(`test_native_sl_observation.py:556-570`)가 이 순서를 고정한다 ⑵ pending 세 갈래 — WS(`websocket_order_event_service.py:88-93`)는 `request_signal` 의 commands 를 **반환**하고, REST discovery(`code_risk_venue.py:117-122`)는 버리고 `continue` 하고, `_sync`(`:385`)는 안 잡고 전파한다. close 신호는 실제 청산 주문이 되므로 한 helper 로 접으면 청산이 중복·누락될 수 있다 ⑶ historical 비대칭 — REST `_sync:393` 은 observer 를 안 부르고 commit 없이 반환하는데 WS(`code_order_observation_service.py:156-159`)는 `_native_pnl` + commit 한다. 한쪽으로 맞추지 마라 ⑷ 이중 bind — discovery 는 `:114` 뒤 `_sync:385` 에서 한 번 더 bind 해 단조성 검사(`native_sl_observation_service.py:183-190`)를 다시 탄다. 한 번으로 줄이면 그 검사가 빠진다.
+**주의(값·검증):** ⑸ Decimal — 지금은 `str(value/filled)` → `Decimal(str(raw["avgPrice"]))` 왕복이다. 타입 값으로 직접 넘길 때 `providers.py:2445-2453` 의 `zero_as_none` 과 「cancelled/rejected + filled>0 → filled」 승격을 우회하지 마라 ⑹ `setdefault("category","linear")` 는 REST 응답 보정이다 — `bind` 안으로 옮기면 WS payload 의 category 검증(`native_sl_observation_service.py:43`)이 느슨해진다.
+**인접 충돌:** [BL-874] 와 `websocket_order_event_service.py`·`test_code_risk_repository.py`(`:685-686` 의 `_enqueue_*` patch)를 같이 건드린다 — 범위는 다르지만(이 항목은 enqueue 이전 단계) 병행하지 말고 순서를 정해 직렬로 해라. [BL-880] 과는 `test_native_sl_observation.py` 가 겹친다.
+
+**상태:** 🔵 ACTIVE — 2026-11-25 등재, 미수리
+**트리거 판정:** 도래
+
+---
+
+### BL-880
+
+**Title:** 주문 egress 준비(자격증명 · provider 선택)가 `tasks/trading.py` 에 **두 벌 + pass-through 래퍼**로 산다 — 순수 함수 이전과 fetch·cancel 공통화(축소 범위)
+**Category:** Backend / Trading (module 깊이)
+**Priority:** P3
+**출처:** 2026-11-25 /improve-codebase-architecture 스캔(반증 1패스 — weakened). 원 후보 「전주 7벌 → 한 module」은 반증자가 과장으로 판정했다(7곳은 같은 모양이 아니라 네 종류다) — 아래는 반증자가 권한 축소 범위다
+
+**증상:** ⑴ 자격증명 함수가 두 벌이다 — `tasks/trading.py:212-224` `_credentials_for_account`(docstring 「유일한 worker 경로」)와 `trading/services/account_service.py:136-145` `_credentials_for` 는 본문이 같다(정책 검사 → 복호화 2회). 감사 로그 `trading_credentials_decrypted` 는 `account_service.py:154` 한 곳뿐이라 `tasks/trading.py` 경로에서는 안 남는다. ⑵ `_provider_for_account_and_leverage`(`:180-200`)는 `trading.registry.dispatch` 위의 한 줄 pass-through 이고 docstring 이 테스트 monkeypatch 용 래퍼라고 밝힌다. `_build_exchange_provider`(`:203-209`)는 그 위의 한 줄 래퍼다. ⑶ snapshot parse·drift 판정·dispatch(`:232-305`, drift 검사 `:289-298`)가 Celery 태스크 module 에 산다. ⑷ `_credentials_for_account` 호출은 7곳(`:438,852,1140,1431,1605,1804,2096`)인데 네 종류다 — execute(`:380-494`) · fetch(`:847-865`)·cancel(`:1136-1149`) · trailing/refresh/reversal(`BybitFuturesProvider()` 고정 `:1442,1624,1828` + 인자 `provider=` 주입) · sweep(`:2084-2096` 계정 루프). 진짜 중복은 fetch·cancel 2벌이다.
+**권장 접근:** (a) `:158-305` 의 순수 함수(`_has_leverage` · snapshot parse · drift 판정 · dispatch)를 trading 도메인으로 옮긴다(`trading/registry.py` 옆 또는 신규 module) (b) 래퍼 `_provider_for_account_and_leverage`·`_build_exchange_provider` 를 지운다 (c) `_credentials_for_account` 와 `account_service._credentials_for` 를 순수 함수 하나로 만들어 양쪽이 쓴다 — **감사 로그 추가는 별도 PR** (d) fetch·cancel 2벌만 공통화한다. `tests/tasks/test_provider_dispatch.py`·`test_dispatch_snapshot_priority.py` 는 helper 를 직접 부르는 단위 테스트라 import 경로만 바뀐다. `_has_leverage` 는 밖에서 import 한다(`tasks/live_signal.py:4225` · `tasks/conditional_entry_janitor.py:35`) — 같은 PR 에서 import 한 줄씩 옮긴다([BL-765] 의 분할 착수가 아니다). **범위 밖(건드리지 마라):** execute 의 단계 순서 · trailing/refresh/reversal 의 고정 futures + `provider=` 주입 · sweep · `live_signal.py` 등 다른 태스크 파일의 조립.
+**주의(동작 보존):** ⑴ execute 단계 순서 — 지금은 계정·정책 검사(`:380`) → submitted 전이·commit·publish(`:413-423`) → 복호화(`:435-438`) → provider dispatch(`:494`)다. 「준비됐는가」를 한 호출로 접으면 복호화·dispatch 가 submitted 전이 앞으로 당겨져, 복호화 실패가 submitted 를 안 거친 rejected 가 되고 `order_update` publish 와 `qb_active_orders` dec 타이밍이 달라진다 ⑵ 조용한 patch 실패 — 옛 이름을 문자열로 patch 하는 테스트가 9개 파일 32건이다(`test_fetch_order_status_task` 12 · `test_celery_task` 10 등). 옛 이름을 재수출로 남기면 patch 가 **조용히 무효**가 되어 실제 provider 생성 경로를 탄다([BL-874] 가 적은 것과 같은 위험). 재수출하지 말고 **지운 뒤** `grep -rnE "_provider_for_account_and_leverage|_credentials_for_account|_build_exchange_provider" apps/api/src apps/api/tests` 0건을 확인해라 — 지우면 AttributeError 로 시끄럽게 실패한다.
+**주의(분류·통합):** ⑶ 예외 분류 — fetch·cancel·refresh·reversal 의 `except Exception` 은 정책 위반도 `decrypt_failed` 로 내보내고, trailing(`:1431`)은 try 밖이라 전파하고, sweep(`:2096`)은 계정 루프의 바깥 try 에 맡긴다. 사유를 통일하면 skip 문자열·로그 이벤트명·metric outcome 이 바뀐다 ⑷ 자격증명 통합 — `get_credentials_for_order`(`account_service.py:147-162`)는 계정을 다시 조회하고(쿼리 +1) `AccountNotFound` 를 raise 한다. 태스크는 이미 로드한 account 로 `account_missing` skip 을 반환한다. 그 메서드로 합치면 감사 로그량과 예외·skip 의미가 바뀐다 ⑸ drift 검사(`:289-298`)는 snapshot 과 계정이 다를 때의 우회 차단이다. trailing/refresh/reversal 은 일부러 snapshot 을 안 쓰고 futures 를 고정한다 — 이 셋을 dispatch 로 통일하지 마라 ⑹ Celery prefork — 새 module 에서 `EncryptionService(...)`·provider 를 module-level 로 만들지 마라(`apps/api/AGENTS.md`) ⑺ 워크트리에서는 celery 경유 검증을 하지 마라(메인 코드가 돈다).
+**인접 충돌:** `tasks/trading.py` 의 줄이 움직인다 — [BL-868](execute 의 거부 지점 `358·376·395·438·501 행 근처`) · [BL-871](`:1582~1610`) · [BL-567] · [BL-568] 이 이 파일을 줄 번호로 인용하므로 같은 PR 에서 원장 줄 번호를 고쳐라([BL-557] 은 같은 파일의 `dec` 지점 수를 센다). [BL-874] 는 같은 파일·같은 테스트 patch 표적을 옮기므로 같은 회차에 병행하지 마라. [BL-879] 와는 `test_native_sl_observation.py` 가 겹친다.
+
+**상태:** 🔵 ACTIVE — 2026-11-25 등재, 미수리
+**트리거 판정:** 도래
