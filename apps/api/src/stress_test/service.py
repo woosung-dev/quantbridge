@@ -20,14 +20,18 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from src.backtest.config_mapper import build_engine_config_from_db
-from src.backtest.engine import PINE_V2_ENGINE_VERSION
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
+from src.backtest.rerun_input import (
+    RerunSourceUnavailable,
+    is_rerunnable_engine_version,
+    resolve_pinned_pine_source,
+)
 from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.models import OptimizationKind
 from src.optimizer.schemas import ParamSpace
-from src.strategy.code_contract import CODE_EXECUTION_POLICIES, legacy_pine_source
+from src.strategy.code_contract import CODE_EXECUTION_POLICIES
 from src.strategy.exceptions import CodeStrategyPolicyError
 from src.strategy.repository import StrategyRepository
 from src.stress_test.dispatcher import StressTaskDispatcher
@@ -126,10 +130,7 @@ class StressTestService:
         *,
         user_id: UUID,
     ) -> StressTestCreatedResponse:
-        bt = await self._load_owned_backtest(data.backtest_id, user_id)
-        self._ensure_completed(bt)
-        if bt.engine_version in CODE_EXECUTION_POLICIES:
-            raise CodeStrategyPolicyError()
+        bt = await self._load_rerunnable_backtest(data.backtest_id, user_id)
         return await self._submit(
             user_id=user_id,
             backtest_id=bt.id,
@@ -146,10 +147,7 @@ class StressTestService:
         *,
         user_id: UUID,
     ) -> StressTestCreatedResponse:
-        bt = await self._load_owned_backtest(data.backtest_id, user_id)
-        self._ensure_completed(bt)
-        if bt.engine_version in CODE_EXECUTION_POLICIES:
-            raise CodeStrategyPolicyError()
+        bt = await self._load_rerunnable_backtest(data.backtest_id, user_id)
         return await self._submit(
             user_id=user_id,
             backtest_id=bt.id,
@@ -184,10 +182,7 @@ class StressTestService:
         user_id: UUID,
     ) -> StressTestCreatedResponse:
         """Sprint 50 — fees x slippage 9-cell grid sweep submit."""
-        bt = await self._load_owned_backtest(data.backtest_id, user_id)
-        self._ensure_completed(bt)
-        if bt.engine_version in CODE_EXECUTION_POLICIES:
-            raise CodeStrategyPolicyError()
+        bt = await self._load_rerunnable_backtest(data.backtest_id, user_id)
         return await self._submit(
             user_id=user_id,
             backtest_id=bt.id,
@@ -205,10 +200,7 @@ class StressTestService:
         user_id: UUID,
     ) -> StressTestCreatedResponse:
         """Sprint 51 BL-220 — pine_v2 input override 9-cell grid sweep submit."""
-        bt = await self._load_owned_backtest(data.backtest_id, user_id)
-        self._ensure_completed(bt)
-        if bt.engine_version in CODE_EXECUTION_POLICIES:
-            raise CodeStrategyPolicyError()
+        bt = await self._load_rerunnable_backtest(data.backtest_id, user_id)
         return await self._submit(
             user_id=user_id,
             backtest_id=bt.id,
@@ -324,7 +316,7 @@ class StressTestService:
         """부모 Backtest 검증 후 kind별 stress-test executor를 호출한다."""
         # BL-787 예방 가드: 2026-08-18 실측상 7개 Backtest의 engine_version은 모두 NULL이고
         # stress_tests ⋈ backtests는 0행이었다. 기존 행 교정이 아닌 이후 비-pine_v2 입력 차단이다.
-        if bt.engine_version not in (None, PINE_V2_ENGINE_VERSION):
+        if not is_rerunnable_engine_version(bt):
             raise StressTestError(
                 message_public="Backtest engine version is not supported for stress testing.",
                 message_internal=f"backtest_id={bt.id} engine_version={bt.engine_version}",
@@ -382,23 +374,19 @@ class StressTestService:
         `strategy_version_id` 가 NULL 인 legacy 행(PR #650 백필 이전 생성)만 현재 Strategy 로
         떨어지고, 그 경로는 경고를 남긴다 — 흔적이 없으면 발생해도 검출 가능성이 0이다.
         """
-        strategy_version = await self.strategy_repo.get_version_by_id(
-            bt.strategy_version_id,
-            strategy_id=bt.strategy_id,
+        outcome = await resolve_pinned_pine_source(
+            bt,
+            self.strategy_repo,
+            on_legacy_fallback=lambda: logger.warning(
+                "stress_test_run_without_pinned_strategy_version",
+                extra={"backtest_id": str(bt.id), "strategy_id": str(bt.strategy_id)},
+            ),
         )
-        if bt.strategy_version_id is not None and strategy_version is None:
+        if outcome is RerunSourceUnavailable.STRATEGY_VERSION_MISSING:
             raise ValueError(f"Strategy version no longer available for {kind_label}")
-        if strategy_version is not None:
-            return legacy_pine_source(strategy_version)
-
-        logger.warning(
-            "stress_test_run_without_pinned_strategy_version",
-            extra={"backtest_id": str(bt.id), "strategy_id": str(bt.strategy_id)},
-        )
-        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
-        if strategy is None:
+        if outcome is RerunSourceUnavailable.STRATEGY_MISSING:
             raise ValueError(f"Strategy no longer available for {kind_label}")
-        return legacy_pine_source(strategy)
+        return outcome
 
     async def _execute_walk_forward(self, st: StressTest, bt: Backtest) -> dict[str, object]:
         """Sprint 49 — Walk-Forward worker entry.
@@ -541,6 +529,17 @@ class StressTestService:
         if st is None:
             raise StressTestNotFound()
         return st
+
+    async def _load_rerunnable_backtest(self, backtest_id: UUID, user_id: UUID) -> Backtest:
+        """제출 게이트 — 소유 → COMPLETED → code 정책 거부 순서다.
+
+        순서가 계약이다: code 전략의 미완료 Backtest 는 정책 거부가 아니라 「미완료」를 받는다.
+        """
+        bt = await self._load_owned_backtest(backtest_id, user_id)
+        self._ensure_completed(bt)
+        if bt.engine_version in CODE_EXECUTION_POLICIES:
+            raise CodeStrategyPolicyError()
+        return bt
 
     async def _load_owned_backtest(self, backtest_id: UUID, user_id: UUID) -> Backtest:
         bt = await self.backtest_repo.get_by_id(backtest_id, user_id=user_id)
