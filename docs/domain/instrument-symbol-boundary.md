@@ -35,11 +35,11 @@
 
 | 자리                                                         | 값                                        |
 | ------------------------------------------------------------ | ----------------------------------------- |
-| `backtest/models.py:61` `Backtest.symbol`                    | `BTC/USDT` — 기존 행 불변                 |
-| `backtest/schemas.py:31` 백테스트 생성 요청                  | `BTC/USDT`                                |
-| `backtest/service.py:293` `provider.get_ohlcv(bt.symbol, …)` | `BTC/USDT` — 변환은 provider 안에서       |
-| `optimizer/service.py:243` · `stress_test/service.py:329`    | `BTC/USDT` — 위와 같은 이유               |
-| `backtest/service.py:576` `TradeOhlcvResponse.symbol`        | `BTC/USDT` — 화면은 시장 이름을 본다      |
+| `backtest/models.py` `Backtest.symbol`                    | `BTC/USDT` — 기존 행 불변                 |
+| `backtest/schemas.py` `CreateBacktestRequest.symbol`                  | `BTC/USDT`                                |
+| `backtest/service.py` `_run` 의 `provider.get_ohlcv(bt.symbol, …)` | `BTC/USDT` — 변환은 provider 안에서       |
+| `optimizer/service.py` `_execute` · `stress_test/service.py` `_load_run_context`    | `BTC/USDT` — 위와 같은 이유               |
+| `backtest/service.py` `trade_ohlcv` 의 `TradeOhlcvResponse.symbol`        | `BTC/USDT` — 화면은 시장 이름을 본다      |
 | `trading` 세션·주문·원장 (`LiveSignalSession.symbol` 등)     | `BTC/USDT` — BL-530 이 명시적으로 고정    |
 | `market_data/providers/fixture.py` CSV 파일명                | `BTC/USDT_1h.csv` — 픽스처는 머니-패스 밖 |
 | 프론트엔드 전 화면                                           | `BTC/USDT`                                |
@@ -48,10 +48,10 @@
 
 | 자리                                                                                      | 이 스프린트      |
 | ----------------------------------------------------------------------------------------- | ---------------- |
-| `market_data/providers/timescale.py:59` `get_ohlcv` 의 lock·gap·fetch·insert·get_range 키 | **신규(BL-535)** |
-| `backtest/service.py:551` `trade_ohlcv` 의 `get_range` — perp 우선, 없으면 legacy 스팟    | **신규(BL-535)** |
-| `tasks/live_signal.py:1359` CCXT `fetch_ohlcv` 인자                                       | 기존(BL-530)     |
-| `backtest/service.py:340` `funding_repo.get_funding_series(symbol=…)`                     | 기존(C6)         |
+| `market_data/providers/timescale.py` `TimescaleProvider.get_ohlcv` 의 lock·gap·fetch·insert·get_range 키 | **신규(BL-535)** |
+| `backtest/service.py` `trade_ohlcv` 의 `get_range` — perp 우선, 없으면 legacy 스팟    | **신규(BL-535)** |
+| `tasks/live_signal.py` `_fetch_evaluation_bars` 의 CCXT `fetch_ohlcv` 인자                                       | 기존(BL-530)     |
+| `backtest/service.py` `_run` 의 `funding_repo.get_funding_series(symbol=…)`                     | 기존(C6)         |
 
 ### 2.3 왜 경계가 `TimescaleProvider` 인가
 
@@ -64,7 +64,7 @@ BL-454 가 지적한 결함이 정확히 그 형태였다. 그래서 **프로토
 - `FixtureProvider` 는 같은 프로토콜의 다른 구현이고 변환을 하지 않는다. 픽스처는 CSV 파일명이
   곧 키라서 상품 개념이 없고, 머니-패스도 타지 않는다(`settings.ohlcv_provider="fixture"`가 기본).
 
-★`CCXTProvider._build_exchange` 의 `"defaultType": "spot"`(`providers/ccxt.py:46`)은 **건드리지 않는다.**
+★`CCXTProvider._build_exchange` 의 `"defaultType": "spot"`(`providers/ccxt.py`)은 **건드리지 않는다.**
 콜론 표기를 넘기면 ccxt 가 그 market 을 직접 찾으므로 defaultType 은 무시된다 — BL-530 이 라이브에서
 외부 오라클로 확정한 사실이다. defaultType 을 바꾸면 콜론 없는 심볼의 해석까지 조용히 달라진다.
 
