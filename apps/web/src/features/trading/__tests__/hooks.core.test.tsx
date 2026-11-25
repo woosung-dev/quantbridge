@@ -251,7 +251,7 @@ describe("trading core hooks", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     apiFetchMock.mockImplementation(actualApiFetch);
-    const { result } = renderHook(() => useOrders(0, { notifyTransitions: false }), {
+    const { result } = renderHook(() => useOrders(0), {
       wrapper: makeWrapper(makeClient()),
     });
 
@@ -268,7 +268,7 @@ describe("trading core hooks", () => {
 
   it("음수 limit도 주문 목록 요청의 경계값으로 보존한다", async () => {
     apiFetchMock.mockResolvedValueOnce({ items: [], total: 0 });
-    const { result } = renderHook(() => useOrders(-1, { notifyTransitions: false }), {
+    const { result } = renderHook(() => useOrders(-1), {
       wrapper: makeWrapper(makeClient()),
     });
 
@@ -283,7 +283,7 @@ describe("trading core hooks", () => {
   it("주문 목록은 ApiError의 status와 code를 같은 객체로 전파한다", async () => {
     const error = new ApiError(429, "rate_limited", "orders temporarily limited");
     apiFetchMock.mockRejectedValueOnce(error);
-    const { result } = renderHook(() => useOrders(50, { notifyTransitions: false }), {
+    const { result } = renderHook(() => useOrders(50), {
       wrapper: makeWrapper(makeClient()),
     });
 
@@ -294,7 +294,7 @@ describe("trading core hooks", () => {
 
   it("주문 목록은 계약을 어긴 item을 조용히 통과시키지 않는다", async () => {
     apiFetchMock.mockResolvedValueOnce({ items: [{ id: "not-a-complete-order" }], total: 1 });
-    const { result } = renderHook(() => useOrders(50, { notifyTransitions: false }), {
+    const { result } = renderHook(() => useOrders(50), {
       wrapper: makeWrapper(makeClient()),
     });
 

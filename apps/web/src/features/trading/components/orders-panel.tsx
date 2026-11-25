@@ -13,7 +13,7 @@ import { StateBox } from "@/components/state-box";
 import { TableScrollRegion } from "@/components/table-scroll-region";
 import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 
-import { useIsOrderDisabledByKs, useOrders } from "../hooks";
+import { useIsOrderDisabledByKs, useOrders, useOrderTransitionToasts } from "../hooks";
 import {
   ORDER_ID_SOURCE_HINT,
   ORDER_ID_SOURCE_LABEL,
@@ -53,7 +53,10 @@ function BrokerBadge({ orderId }: { orderId: string | null | undefined }) {
 }
 
 export function OrdersPanel() {
-  const { data, isLoading, isError, isFetching, refetch } = useOrders(50);
+  const ordersQ = useOrders(50);
+  // 이 화면(코크핏)의 전환 toast 소유자.
+  useOrderTransitionToasts(ordersQ);
+  const { data, isLoading, isError, isFetching, refetch } = ordersQ;
   const ksDisabled = useIsOrderDisabledByKs();
   const isTestOrderEnabled = process.env.NEXT_PUBLIC_ENABLE_TEST_ORDER === "true";
 
