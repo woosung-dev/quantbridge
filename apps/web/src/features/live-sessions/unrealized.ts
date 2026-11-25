@@ -6,12 +6,10 @@ import { z } from "zod/v4";
 
 import { toBybitTickerSymbol } from "@/features/realtime/symbols";
 import { useRealtimeStore, type TickerEntry } from "@/features/realtime/store";
-import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
+import { useAuthCtx } from "@/hooks/use-auth-ctx";
 
-import { getLiveSessionState } from "./api";
-import { liveSessionKeys } from "./query-keys";
 import type { LiveSession, LiveSignalState } from "./schemas";
-import { liveStateRefetchInterval } from "./hooks";
+import { liveSessionStateQuery } from "./hooks";
 
 export const OpenTradeSchema = z.object({
   direction: z.enum(["long", "short"]),
@@ -19,13 +17,6 @@ export const OpenTradeSchema = z.object({
   entry_price: z.number(),
 });
 export type OpenTrade = z.infer<typeof OpenTradeSchema>;
-
-function makeStateFetcher(sessionId: string, getToken: TokenGetter) {
-  return async () => {
-    const token = await getToken();
-    return getLiveSessionState(sessionId, token);
-  };
-}
 
 function parseOpenTrades(state: LiveSignalState | null | undefined): OpenTrade[] | null {
   const result = z.array(OpenTradeSchema).safeParse(state?.last_strategy_state_report.open_trades);
@@ -107,7 +98,7 @@ function combineStates(
 }
 
 /**
- * 기존 useLiveSessionsAggregate와 같은 state queryKey·polling 계약을 재사용한다.
+ * useLiveSessionsAggregate와 같은 state 조회 정의(liveSessionStateQuery)를 소비한다.
  * 새로운 endpoint나 별도 polling source는 만들지 않고 React Query cache를 공유한다.
  */
 export function useUnrealizedPnlEstimate(
@@ -115,12 +106,9 @@ export function useUnrealizedPnlEstimate(
 ): UnrealizedPnlEstimate {
   const { uid, getToken } = useAuthCtx();
   const states = useQueries({
-    queries: activeSessions.map((session) => ({
-      queryKey: liveSessionKeys.state(uid, session.id),
-      queryFn: makeStateFetcher(session.id, getToken),
-      enabled: Boolean(session.id),
-      refetchInterval: liveStateRefetchInterval(session.is_active),
-    })),
+    queries: activeSessions.map((session) =>
+      liveSessionStateQuery(uid, session.id, session.is_active, getToken),
+    ),
     combine: combineStates,
   });
 
