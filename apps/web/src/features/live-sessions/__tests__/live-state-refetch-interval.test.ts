@@ -3,7 +3,11 @@
 import { describe, expect, it } from "vitest";
 import type { Query } from "@tanstack/react-query";
 
-import { liveSessionEventsRefetchInterval, liveStateRefetchInterval } from "../hooks";
+import {
+  liveSessionEventsRefetchInterval,
+  liveSessionStateQuery,
+  liveStateRefetchInterval,
+} from "../hooks";
 import type { LiveSignalEvent, LiveSignalState } from "../schemas";
 import { LIVE_SESSION_STATE_REFETCH_ACTIVE_MS } from "../utils";
 
@@ -36,5 +40,29 @@ describe("liveStateRefetchInterval", () => {
 
   it("종료 세션의 이벤트도 폴링하지 않는다", () => {
     expect(liveSessionEventsRefetchInterval(false)(fakeEventsQuery("success"))).toBe(false);
+  });
+});
+
+// 단건 훅과 두 팬아웃이 소비하는 한 정의. 여기서 고정하면 세 소비자가 함께 고정된다.
+describe("liveSessionStateQuery", () => {
+  const getToken = async () => "jwt";
+
+  it("polling 은 넘겨받은 isActive 를 따른다", () => {
+    const active = liveSessionStateQuery("user-1", "s-1", true, getToken);
+    const ended = liveSessionStateQuery("user-1", "s-1", false, getToken);
+
+    expect(active.refetchInterval(fakeQuery("success"))).toBe(LIVE_SESSION_STATE_REFETCH_ACTIVE_MS);
+    expect(ended.refetchInterval(fakeQuery("success"))).toBe(false);
+  });
+
+  it("queryKey 는 uid·sessionId 뿐이고 sessionId 가 없으면 빈 키 + 비활성이다", () => {
+    expect(liveSessionStateQuery("user-1", "s-1", true, getToken)).toMatchObject({
+      queryKey: ["live-sessions", "user-1", "state", "s-1"],
+      enabled: true,
+    });
+    expect(liveSessionStateQuery("user-1", null, true, getToken)).toMatchObject({
+      queryKey: ["live-sessions", "user-1", "state", ""],
+      enabled: false,
+    });
   });
 });

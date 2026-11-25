@@ -137,7 +137,7 @@ function summarizeLocalOpenTrades(
 
 /**
  * 세션 state 폴링 간격. 활성 세션만 5s, 종료 세션과 error 상태는 중단.
- * useLiveSessionState(단건)와 useLiveSessionsAggregate(팬아웃) 공용.
+ * state 조회 정의(liveSessionStateQuery)가 쓴다.
  * (기존 aggregate 는 상수 interval 을 그대로 넘겨 error 가드가 빠져 있었다 — LESSON-004 위반 수정.)
  */
 export function liveStateRefetchInterval(
@@ -165,6 +165,26 @@ function makeStateFetcher(sessionId: string, getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
     return getLiveSessionState(sessionId, token);
+  };
+}
+
+/**
+ * 한 LiveSignalSession 의 state 조회 정의 — queryKey · fetcher · enabled · polling 의 유일한 자리.
+ * 단건 훅과 두 팬아웃(useLiveSessionsAggregate · useUnrealizedPnlEstimate)이 같은 캐시 항목을
+ * 공유하므로 정의가 갈리면 먼저 마운트된 쪽 설정이 조용히 이긴다. 소비자마다 다른 것은 combine 뿐이다.
+ * H-2: `getToken` 은 queryFn 에만 들어가고 queryKey 에는 넣지 않는다.
+ */
+export function liveSessionStateQuery(
+  uid: string,
+  sessionId: string | null,
+  isActive: boolean,
+  getToken: TokenGetter,
+) {
+  return {
+    queryKey: liveSessionKeys.state(uid, sessionId ?? ""),
+    queryFn: makeStateFetcher(sessionId ?? "", getToken),
+    enabled: Boolean(sessionId),
+    refetchInterval: liveStateRefetchInterval(isActive),
   };
 }
 
@@ -300,12 +320,7 @@ export function useLiveSessionState(
   isActive: boolean,
 ): UseQueryResult<LiveSignalState | null, Error> {
   const { uid, getToken } = useAuthCtx();
-  return useQuery({
-    queryKey: liveSessionKeys.state(uid, sessionId ?? ""),
-    queryFn: makeStateFetcher(sessionId ?? "", getToken),
-    enabled: Boolean(sessionId),
-    refetchInterval: liveStateRefetchInterval(isActive),
-  });
+  return useQuery(liveSessionStateQuery(uid, sessionId, isActive, getToken));
 }
 
 /** 3테이블 조인 결과라 자동 폴링 없이 긴 staleTime으로만 재사용한다. */
@@ -422,19 +437,14 @@ function combineLiveSessionStates(
 
 /**
  * 여러 라이브 세션의 state 를 useQueries 로 팬아웃 fetch 후 합산 집계.
- * 세션당 useLiveSessionState 와 동일 queryKey → 캐시 공유(추가 네트워크 최소).
+ * 세션당 useLiveSessionState 와 같은 조회 정의(liveSessionStateQuery) → 캐시 공유(추가 네트워크 최소).
  * MAX_LIVE_SESSIONS_PER_USER(=5) 상한이라 N+1 팬아웃 비용 제한적.
  * 집계는 combine 옵션 (combineLiveSessionStates) — 반환 identity 안정화.
  */
 export function useLiveSessionsAggregate(sessions: readonly LiveSession[]): LiveSessionsAggregate {
   const { uid, getToken } = useAuthCtx();
   return useQueries({
-    queries: sessions.map((s) => ({
-      queryKey: liveSessionKeys.state(uid, s.id),
-      queryFn: makeStateFetcher(s.id, getToken),
-      enabled: Boolean(s.id),
-      refetchInterval: liveStateRefetchInterval(s.is_active),
-    })),
+    queries: sessions.map((s) => liveSessionStateQuery(uid, s.id, s.is_active, getToken)),
     combine: combineLiveSessionStates,
   });
 }
