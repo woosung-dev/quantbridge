@@ -23,6 +23,7 @@ from src.backtest.config_mapper import build_engine_config_from_db
 from src.backtest.engine import PINE_V2_ENGINE_VERSION
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
+from src.backtest.rerun_input import RerunSourceUnavailable, resolve_pinned_pine_source
 from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.dispatcher import OptimizationTaskDispatcher
@@ -48,7 +49,7 @@ from src.optimizer.schemas import (
     ParamSpace,
 )
 from src.optimizer.serializers import best_metrics_from_jsonb, optimizer_result_to_jsonb
-from src.strategy.code_contract import CODE_EXECUTION_POLICIES, legacy_pine_source
+from src.strategy.code_contract import CODE_EXECUTION_POLICIES
 from src.strategy.exceptions import CodeStrategyPolicyError
 from src.strategy.repository import StrategyRepository
 
@@ -244,11 +245,15 @@ class OptimizerService:
                 message_internal=f"backtest_id={bt.id} engine_version={bt.engine_version}",
             )
 
-        strategy_version = await self.strategy_repo.get_version_by_id(
-            bt.strategy_version_id,
-            strategy_id=bt.strategy_id,
+        pine = await resolve_pinned_pine_source(
+            bt,
+            self.strategy_repo,
+            on_legacy_fallback=lambda: logger.warning(
+                "optimizer_run_without_pinned_strategy_version",
+                extra={"backtest_id": str(bt.id), "strategy_id": str(bt.strategy_id)},
+            ),
         )
-        if bt.strategy_version_id is not None and strategy_version is None:
+        if pine is RerunSourceUnavailable.STRATEGY_VERSION_MISSING:
             raise OptimizationExecutionError(
                 message_public="Strategy version is no longer available for optimization.",
                 message_internal=(
@@ -256,20 +261,11 @@ class OptimizerService:
                     "not found"
                 ),
             )
-        if strategy_version is None:
-            logger.warning(
-                "optimizer_run_without_pinned_strategy_version",
-                extra={"backtest_id": str(bt.id), "strategy_id": str(bt.strategy_id)},
+        if pine is RerunSourceUnavailable.STRATEGY_MISSING:
+            raise OptimizationExecutionError(
+                message_public="Strategy no longer available for optimization.",
+                message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
             )
-            strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
-            if strategy is None:
-                raise OptimizationExecutionError(
-                    message_public="Strategy no longer available for optimization.",
-                    message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
-                )
-            pine = legacy_pine_source(strategy)
-        else:
-            pine = legacy_pine_source(strategy_version)
 
         ohlcv = await self.provider.get_ohlcv(
             bt.symbol, bt.timeframe, bt.period_start, bt.period_end
