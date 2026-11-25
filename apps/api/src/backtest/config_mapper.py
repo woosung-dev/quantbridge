@@ -1,6 +1,6 @@
 # Backtest 의 DB row 를 engine BacktestConfig 로 복원하는 module-level helper
-"""Sprint 52 BL-222 P1 — `apps/api/src/backtest/service.py` 의 private
-`BacktestService._build_engine_config(bt)` 를 module-level 로 추출.
+"""Sprint 52 BL-222 P1 — `Backtest` row → engine `BacktestConfig` 매핑을
+`BacktestService` 의 method 가 아니라 module-level 에 둔다.
 
 추출 동기 (codex G.0 P1, 2026-05-11): StressTestService 의 worker entry
 (`_execute_cost_assumption_sensitivity` + `_execute_param_stability`) 가 parent
@@ -103,7 +103,6 @@ def build_engine_config_from_db(bt: Backtest) -> BacktestConfig:
     sizing canonical 5 필드 + trading_sessions 를 BacktestConfig 로 propagate.
     본 매핑 누락 시 worker 가 Live mirror 결정 silent ignore = 거짓 trust 회복 실패.
     """
-    default = BacktestConfig()
     cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
     # BL-188a: 폼 입력 default_qty_type / default_qty_value 도 engine 으로 전달.
     # BL-188 v3 의 service helper 가 결정한 결과는 동일 키에 저장 (Pine 명시 시 Pine
@@ -137,8 +136,11 @@ def build_engine_config_from_db(bt: Backtest) -> BacktestConfig:
         ],
         sizing_basis_raw,
     )
-    leverage_basis: float = float(cfg_dict.get("leverage_basis", default.leverage_basis))
     assumptions = StoredAssumptions(bt.config)
+    # engine 기본 인스턴스는 StoredAssumptions 가 만든 하나를 같이 쓴다.
+    leverage_basis: float = float(
+        cfg_dict.get("leverage_basis", assumptions._default.leverage_basis)
+    )
     return BacktestConfig(
         init_cash=bt.initial_capital,
         fees=assumptions.fees,

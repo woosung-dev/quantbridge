@@ -1,8 +1,8 @@
 # Sprint 52 BL-222 P1 — config_mapper.build_engine_config_from_db unit test
 """Sprint 52 BL-222 P1 — `src/backtest/config_mapper.py` module-level helper unit test.
 
-Sprint 31 BL-162a 진입 시점 매핑이 BacktestService._build_engine_config 에서 추출됐다.
-본 unit test 는 추출된 helper 가 동일 매핑 정합성 보존을 검증.
+본 unit test 는 `build_engine_config_from_db` 의 매핑(Sprint 31 BL-162a 진입 시점)
+정합성을 검증.
 """
 
 from __future__ import annotations
