@@ -1,8 +1,8 @@
 # 완료된 Backtest 재실행 입력 판정(rerun_input) 의 interface 테스트 — DB 없이 fake repo 로 잰다
 """stress_test · optimizer 가 함께 쓰는 판정부를 한 곳에서 고정한다.
 
-호출자별 표면(예외 타입·문구·로그명)은 각 도메인 테스트가 계속 고정한다
-(tests/stress_test/test_strategy_version_pinning.py · tests/optimizer/test_service_commits.py).
+호출자별 표면(예외 타입·문구·로그명)은 각 도메인 테스트가 고정한다
+(tests/stress_test/test_execute_rerun_input.py · tests/optimizer/test_execute_rerun_input.py).
 """
 
 from __future__ import annotations
