@@ -229,15 +229,15 @@ def test_cf_connecting_ip_wins_over_spoofable_xff(monkeypatch: pytest.MonkeyPatc
         "127.0.0.1",
         {"x-forwarded-for": "9.9.9.9, 203.0.113.7", "cf-connecting-ip": "203.0.113.7"},
     )
-    assert rl._client_ip_or_xff(spoofed) == "203.0.113.7"  # type: ignore[arg-type]
+    assert rl.client_ip_or_xff(spoofed) == "203.0.113.7"  # type: ignore[arg-type]
 
     # CF 헤더가 없는 proxy 는 종전대로 XFF leftmost 를 쓴다(회귀 방지).
     plain = _MockRequest("127.0.0.1", {"x-forwarded-for": "198.51.100.5, 127.0.0.1"})
-    assert rl._client_ip_or_xff(plain) == "198.51.100.5"  # type: ignore[arg-type]
+    assert rl.client_ip_or_xff(plain) == "198.51.100.5"  # type: ignore[arg-type]
 
     # ★음성 대조 — 신뢰 대역 밖에서 온 요청은 CF 헤더도 믿지 않는다.
     untrusted = _MockRequest("203.0.113.99", {"cf-connecting-ip": "1.1.1.1"})
-    assert rl._client_ip_or_xff(untrusted) == "203.0.113.99"  # type: ignore[arg-type]
+    assert rl.client_ip_or_xff(untrusted) == "203.0.113.99"  # type: ignore[arg-type]
 
 
 # ─────────────────────────────────────────────────────

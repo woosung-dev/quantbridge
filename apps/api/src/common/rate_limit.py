@@ -52,7 +52,7 @@ def _parse_trusted_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Netw
 _TRUSTED_NETS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = _parse_trusted_networks()
 
 
-def _client_ip_or_xff(request: Request) -> str:
+def client_ip_or_xff(request: Request) -> str:
     """신뢰된 proxy 뒤에서만 전달 헤더를 믿는다. 그 외는 client.host.
 
     ★**[BL-754] `CF-Connecting-IP` 를 `X-Forwarded-For` 보다 먼저 본다.**
@@ -96,7 +96,7 @@ def rate_limit_key(request: Request) -> str:
     user_id = getattr(request.state, "user_id", None)
     if user_id:
         return f"user:{user_id}"
-    return f"ip:{_client_ip_or_xff(request)}"
+    return f"ip:{client_ip_or_xff(request)}"
 
 
 _LOCAL_AUTH_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
@@ -179,8 +179,7 @@ async def rate_limit_exceeded_handler(
     # endpoint label: route pattern (path param 포함 X) — cardinality 보호 (I2).
     route = request.scope.get("route")
     endpoint = route.path if route is not None and hasattr(route, "path") else request.url.path
-    # 현재 Phase B 는 request.state.user_id 미세팅 → 항상 scope="ip".
-    # Phase C/D 에서 auth dependency wire-up 후 scope="user" 활성 (follow-up).
+    # `_RateLimitIdentityMiddleware` 가 user_id 를 세운 요청은 "user", 그 외는 "ip".
     scope_label = "user" if getattr(request.state, "user_id", None) else "ip"
     qb_rate_limit_throttled_total.labels(scope=scope_label, endpoint=endpoint).inc()
 
@@ -204,7 +203,7 @@ async def rate_limit_exceeded_handler(
             response.headers["X-RateLimit-Remaining"] = "0"
             # reset_in 은 초 단위 (get_window_stats 반환값 기반) — slowapi _inject_headers 동일 방식.
             # view_rate_limit 은 hit 이전 window stat → reset 추정 불가. best-effort 60s 사용.
-        except (TypeError, ValueError, AttributeError):
+        except TypeError, ValueError, AttributeError:
             pass  # view_rl 구조가 다르면 silent skip
     response.headers["Retry-After"] = "60"
     return response

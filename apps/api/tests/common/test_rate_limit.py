@@ -11,7 +11,7 @@
 구현 메모:
 - slowapi @limiter.limit 데코레이터 적용 endpoint 에 `response: Response` 파라미터 필수.
 - slowapi 0.1.9 버그: swallow_errors 경로에서 view_rate_limit 미설정 → _RateLimitStateInitMiddleware 로 우회.
-- TestClient 의 client.host 는 'testclient' (비IP). XFF 테스트는 _client_ip_or_xff 유닛 테스트로 대체.
+- TestClient 의 client.host 는 'testclient' (비IP). XFF 테스트는 client_ip_or_xff 유닛 테스트로 대체.
 - key_func lambda 의 파라미터명은 반드시 'request' (slowapi inspect.signature 에서 'request' 키워드 확인).
 """
 
@@ -164,10 +164,10 @@ def test_unauthenticated_uses_client_host_when_no_xff(
 def test_xff_trusted_when_proxy_in_whitelist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """신뢰된 proxy 의 XFF leftmost 만 IP 로 인정 — _client_ip_or_xff 유닛 테스트.
+    """신뢰된 proxy 의 XFF leftmost 만 IP 로 인정 — client_ip_or_xff 유닛 테스트.
 
     TestClient 의 client.host 가 'testclient' (비IP) 이므로 통합 테스트 불가.
-    대신 _client_ip_or_xff 함수를 직접 테스트 (Request 를 mock 으로 대체).
+    대신 client_ip_or_xff 함수를 직접 테스트 (Request 를 mock 으로 대체).
     """
     from src.common import rate_limit as rl
 
@@ -184,18 +184,18 @@ def test_xff_trusted_when_proxy_in_whitelist(
             self.headers = {"x-forwarded-for": xff} if xff else {}
 
     mock_req_trusted = _MockRequest("10.0.0.1", xff="1.2.3.4, 10.0.0.1")
-    result = rl._client_ip_or_xff(mock_req_trusted)  # type: ignore[arg-type]
+    result = rl.client_ip_or_xff(mock_req_trusted)  # type: ignore[arg-type]
     assert result == "1.2.3.4", f"Expected '1.2.3.4', got '{result}'"
 
     # --- 케이스 B: client.host 가 신뢰된 proxy 대역 외부 → client.host 반환 ---
     mock_req_untrusted = _MockRequest("5.5.5.5", xff="1.2.3.4, 5.5.5.5")
-    result = rl._client_ip_or_xff(mock_req_untrusted)  # type: ignore[arg-type]
+    result = rl.client_ip_or_xff(mock_req_untrusted)  # type: ignore[arg-type]
     assert result == "5.5.5.5", f"Expected '5.5.5.5', got '{result}'"
 
     # --- 케이스 C: TRUSTED_NETS 비어 있으면 XFF 무시 ---
     monkeypatch.setattr(rl, "_TRUSTED_NETS", [])
     mock_req_empty = _MockRequest("10.0.0.1", xff="1.2.3.4")
-    result = rl._client_ip_or_xff(mock_req_empty)  # type: ignore[arg-type]
+    result = rl.client_ip_or_xff(mock_req_empty)  # type: ignore[arg-type]
     assert result == "10.0.0.1", f"Expected '10.0.0.1', got '{result}'"
 
 

@@ -12,7 +12,7 @@
 ★웹훅(`/api/v1/webhooks/*`)은 넣지 않는다 — TradingView 가 소수의 공유 IP 로 보내므로 IP 단위
 한도는 정상 알림을 막는다. 웹훅은 HMAC 이 1차 방어다.
 
-IP 판정은 slowapi 와 같은 `_client_ip_or_xff` 를 쓴다 — `TRUSTED_PROXIES` 안에서 온 요청만
+IP 판정은 slowapi 와 같은 `client_ip_or_xff` 를 쓴다 — `TRUSTED_PROXIES` 안에서 온 요청만
 `CF-Connecting-IP` 를 믿는다. 저장소도 같은 `REDIS_LOCK_URL`(DB 3)이고 키 접두사로 갈린다.
 Redis 장애 시 slowapi 와 같이 **fail-open**(통과 + WARN).
 """
@@ -33,7 +33,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.common.metrics import qb_rate_limit_throttled_total
 from src.common.metrics_multiproc import record_metric_safely
-from src.common.rate_limit import _client_ip_or_xff
+from src.common.rate_limit import client_ip_or_xff
 from src.core.config import secret_value, settings
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ class AnonPathRateLimitMiddleware:
             return
 
         path: str = scope["path"]
-        ip = _client_ip_or_xff(Request(scope))
+        ip = client_ip_or_xff(Request(scope))
         try:
             allowed = await anyio.to_thread.run_sync(_hit, path, ip)
         except Exception:  # fail-open 이 계약이다
