@@ -10,8 +10,8 @@
 //     closure capture를 검사하므로, 함수 호출식(CallExpression)으로 넘기면 건너뛴다.
 //
 // C-3 (H2 Sprint 1):
-//  - useOrders: submitted/pending 상태 주문 존재 시 5000ms, 없으면 30000ms 조건부 폴링
-//  - useRef<Map<string, Order["state"]>> 로 이전 state 추적 → toast 전환 알림
+//  - useOrders: submitted/pending 상태 주문 존재 시 5000ms, 없으면 30000ms 조건부 폴링 (조회만)
+//  - useOrderTransitionToasts: useRef<Map<string, Order["state"]>> 로 이전 state 추적 → toast 전환 알림
 //    - submitted/pending → filled  → toast.success
 //    - submitted/pending → cancelled → toast.warning
 //    - submitted/pending → rejected  → toast.error
@@ -111,6 +111,33 @@ const STATE_TRANSITION_RULES: TransitionRule[] = [
   },
 ];
 
+type OrderStateMap = ReadonlyMap<string, Order["state"]>;
+
+/**
+ * Order 상태 전환 판정 — 이전 폴링의 state 맵과 현재 목록을 받아 전환 목록과 다음 맵을 돌려준다.
+ * 순수 함수다(입력 맵을 고치지 않는다). 전환은 이전 state 가 진행 중(pending/submitted)이었고
+ * 지금 state 가 달라진 주문뿐이며, 목록 순서를 따른다. 그중 무엇을 알릴지는 소유자 훅의 규칙이
+ * 정한다(pending → submitted 는 전환이지만 알리지 않는다). 목록에서 사라진 id 는 다음 맵에 없다.
+ */
+export function detectOrderTransitions(
+  prev: OrderStateMap,
+  items: ReadonlyArray<Pick<Order, "id" | "state" | "symbol">>,
+): { transitions: Pick<Order, "state" | "symbol">[]; next: Map<string, Order["state"]> } {
+  const transitions: Pick<Order, "state" | "symbol">[] = [];
+  const next = new Map<string, Order["state"]>();
+
+  for (const order of items) {
+    // 같은 목록 안에 id 가 겹치면 앞선 항목의 state 가 「이전」이다.
+    const prevState = next.get(order.id) ?? prev.get(order.id);
+    if (prevState && ACTIVE_ORDER_STATES.has(prevState) && prevState !== order.state) {
+      transitions.push({ state: order.state, symbol: order.symbol });
+    }
+    next.set(order.id, order.state);
+  }
+
+  return { transitions, next };
+}
+
 export { tradingKeys };
 
 // --- queryFn factories (module-level) ---------------------------------------
@@ -161,77 +188,59 @@ function makeLiquidationFetcher(params: LiquidationParams | null, getToken: Toke
 
 export function useOrders(
   limit = 50,
-  // 셸 nav 배지처럼 count 만 필요한 소비처는 notifyTransitions:false 로 전환 toast 를 끈다.
-  // (기본 true = 기존 동작 불변. limit 이 다른 인스턴스마다 prevStatesRef 가 분리돼
-  //  같은 주문 전환에 toast 가 중복 발화하던 문제를 count 전용 경로에서 차단한다.)
-  options?: { notifyTransitions?: boolean; states?: readonly Order["state"][] },
+  options?: { states?: readonly Order["state"][] },
 ): UseQueryResult<{ items: Order[]; total: number }, Error> {
-  const notifyTransitions = options?.notifyTransitions ?? true;
   const { uid, getToken } = useAuthCtx();
 
-  // 이전 주문 state 추적 — Map<orderId, state>
-  // useRef 사용: 렌더 트리거 없이 mutable reference 유지
-  const prevStatesRef = useRef<Map<string, Order["state"]>>(new Map());
-  // 마지막으로 전환 감지를 수행한 폴링 응답의 dataUpdatedAt — 커밋마다 재순회 방지 가드.
-  const processedAtRef = useRef(0);
-
-  const query = useQuery({
+  return useQuery({
     queryKey: tradingKeys.orders(uid, limit, options?.states),
     queryFn: makeOrdersFetcher(limit, getToken, options?.states),
     refetchInterval: ordersRefetchInterval,
   });
+}
 
-  // C-3: 주문 상태 전환 감지 + toast.
+/**
+ * C-3: 주문 상태 전환 감지 + toast — 전환 알림의 소유자.
+ * 호스트가 이미 쥔 `useOrders` 결과를 받는다(새 구독·새 폴링을 만들지 않는다).
+ * ★한 화면에 하나만 마운트한다 — 인스턴스마다 이전 state 맵이 따로라, 둘이면 같은 전환에
+ *   toast 가 두 번 뜬다. 호스트 컴포넌트 최상위에서 부른다(조건부 자식에 두면 remount 때
+ *   이전 state 맵이 비어 전환을 놓친다).
+ */
+export function useOrderTransitionToasts(
+  query: Pick<UseQueryResult<{ items: Order[]; total: number }, Error>, "data" | "dataUpdatedAt">,
+): void {
+  // 이전 주문 state 추적 — Map<orderId, state>
+  // useRef 사용: 렌더 트리거 없이 mutable reference 유지
+  const prevStatesRef = useRef<OrderStateMap>(new Map());
+  // 마지막으로 전환 감지를 수행한 폴링 응답의 dataUpdatedAt — 커밋마다 재순회 방지 가드.
+  const processedAtRef = useRef(0);
+
   // H-1 준수: dep array 없는 sync useEffect — 매 commit 후 실행하되,
   // dataUpdatedAt 스칼라 가드로 새 폴링 응답이 있을 때만 orders 를 순회한다.
   useEffect(() => {
-    if (!notifyTransitions) return;
     if (query.dataUpdatedAt === processedAtRef.current) return;
     processedAtRef.current = query.dataUpdatedAt;
 
     const items = query.data?.items;
     if (!items) return;
 
-    const prevMap = prevStatesRef.current;
-    const currentIds = new Set<string>();
+    const { transitions, next } = detectOrderTransitions(prevStatesRef.current, items);
+    prevStatesRef.current = next;
 
-    for (const order of items) {
-      currentIds.add(order.id);
-      const prevState = prevMap.get(order.id);
-
-      if (prevState && ACTIVE_ORDER_STATES.has(prevState)) {
-        // 이전에 진행 중이었던 주문이 새 상태로 전환
-        if (prevState !== order.state) {
-          for (const rule of STATE_TRANSITION_RULES) {
-            const targets = Array.isArray(rule.toState) ? rule.toState : [rule.toState];
-            if (targets.includes(order.state)) {
-              rule.toastFn(order.symbol);
-              break;
-            }
-          }
+    for (const { state, symbol } of transitions) {
+      for (const rule of STATE_TRANSITION_RULES) {
+        const targets = Array.isArray(rule.toState) ? rule.toState : [rule.toState];
+        if (targets.includes(state)) {
+          rule.toastFn(symbol);
+          break;
         }
-      }
-
-      // 현재 state 저장
-      prevMap.set(order.id, order.state);
-    }
-
-    // stale entry 정리 — 더 이상 목록에 없는 주문 id 제거 (메모리 누수 방지)
-    for (const id of prevMap.keys()) {
-      if (!currentIds.has(id)) {
-        prevMap.delete(id);
       }
     }
   });
-
-  return query;
 }
 
 export function useOpenOrdersCount(): number | undefined {
-  const { data } = useOrders(1, {
-    notifyTransitions: false,
-    states: OPEN_ORDER_STATES,
-  });
+  const { data } = useOrders(1, { states: OPEN_ORDER_STATES });
   return data?.total;
 }
 
