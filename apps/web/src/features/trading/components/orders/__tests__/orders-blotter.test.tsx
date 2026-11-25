@@ -95,6 +95,8 @@ afterEach(() => {
   mockUseCancelOrder.mockReset();
   mockCancelOrder.mockReset();
   mockDownloadCsv.mockReset();
+  // 단언이 실패해도 `vi.spyOn(toast, …)` 이 뒤 테스트로 새지 않게 여기서 되돌린다.
+  vi.restoreAllMocks();
 });
 
 describe("OrdersBlotter — 상태 4종", () => {
@@ -627,7 +629,6 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
 
     expect(success).toHaveBeenCalledTimes(1);
     expect(success).toHaveBeenCalledWith("BTC/USDT 주문 체결 완료");
-    success.mockRestore();
   });
 
   it("아직 한 번도 수신하지 못했으면(dataUpdatedAt=0) 마지막 갱신 chip 을 그리지 않는다", () => {
