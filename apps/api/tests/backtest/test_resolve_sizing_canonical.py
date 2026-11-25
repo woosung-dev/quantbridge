@@ -2,7 +2,7 @@
 
 codex G.0 iter 1+2 [P1] must-fix 1 (sizing source 단일화) + must-fix 3 (leverage Nx
 reject) + iter 2 [P1] #1 (D2 manual override) 검증. helper 가 결정한 5 필드 dict
-가 Backtest.config JSONB 에 저장 → _build_engine_config 가 BacktestConfig 로 propagate.
+가 Backtest.config JSONB 에 저장 → build_engine_config_from_db 가 BacktestConfig 로 propagate.
 """
 
 from __future__ import annotations
